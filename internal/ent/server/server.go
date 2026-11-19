@@ -47,6 +47,14 @@ const (
 	FieldCloneNonce = "clone_nonce"
 	// FieldCreateStep holds the string denoting the create_step field in the database.
 	FieldCreateStep = "create_step"
+	// FieldRebuildVmid holds the string denoting the rebuild_vmid field in the database.
+	FieldRebuildVmid = "rebuild_vmid"
+	// FieldRebuildCloneUpid holds the string denoting the rebuild_clone_upid field in the database.
+	FieldRebuildCloneUpid = "rebuild_clone_upid"
+	// FieldRebuildCloneNonce holds the string denoting the rebuild_clone_nonce field in the database.
+	FieldRebuildCloneNonce = "rebuild_clone_nonce"
+	// FieldRebuildStep holds the string denoting the rebuild_step field in the database.
+	FieldRebuildStep = "rebuild_step"
 	// FieldCores holds the string denoting the cores field in the database.
 	FieldCores = "cores"
 	// FieldMemoryMB holds the string denoting the memory_mb field in the database.
@@ -118,6 +126,10 @@ var Columns = []string{
 	FieldCloneUpid,
 	FieldCloneNonce,
 	FieldCreateStep,
+	FieldRebuildVmid,
+	FieldRebuildCloneUpid,
+	FieldRebuildCloneNonce,
+	FieldRebuildStep,
 	FieldCores,
 	FieldMemoryMB,
 	FieldDiskGB,
@@ -143,6 +155,8 @@ var (
 	DefaultIsoGeneration int
 	// DefaultCreateStep holds the default value on creation for the "create_step" field.
 	DefaultCreateStep int
+	// DefaultRebuildStep holds the default value on creation for the "rebuild_step" field.
+	DefaultRebuildStep int
 	// DefaultUserData holds the default value on creation for the "user_data" field.
 	DefaultUserData string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -263,6 +277,26 @@ func ByCloneNonce(opts ...sql.OrderTermOption) OrderOption {
 // ByCreateStep orders the results by the create_step field.
 func ByCreateStep(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreateStep, opts...).ToFunc()
+}
+
+// ByRebuildVmid orders the results by the rebuild_vmid field.
+func ByRebuildVmid(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRebuildVmid, opts...).ToFunc()
+}
+
+// ByRebuildCloneUpid orders the results by the rebuild_clone_upid field.
+func ByRebuildCloneUpid(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRebuildCloneUpid, opts...).ToFunc()
+}
+
+// ByRebuildCloneNonce orders the results by the rebuild_clone_nonce field.
+func ByRebuildCloneNonce(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRebuildCloneNonce, opts...).ToFunc()
+}
+
+// ByRebuildStep orders the results by the rebuild_step field.
+func ByRebuildStep(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRebuildStep, opts...).ToFunc()
 }
 
 // ByCores orders the results by the cores field.

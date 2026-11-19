@@ -36,6 +36,11 @@ func (Server) Fields() []ent.Field {
 		field.Text("clone_nonce").Optional().Nillable(),
 		// create_step is the last finished create-job step, so retries resume.
 		field.Int("create_step").Default(0),
+		// rebuild_* is the rebuild's other VM: the new one before the swap, the old one after it.
+		field.Int("rebuild_vmid").Optional().Nillable(),
+		field.Text("rebuild_clone_upid").Optional().Nillable(),
+		field.Text("rebuild_clone_nonce").Optional().Nillable(),
+		field.Int("rebuild_step").Default(0),
 		// cores, memory_mb and disk_gb are snapshots of the type; change-type updates them.
 		field.Int("cores"),
 		field.Int("memory_mb"),

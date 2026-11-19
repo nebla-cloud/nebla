@@ -69,8 +69,14 @@ func TestWaitTaskReportsFailure(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "injected failure") {
 		t.Fatalf("err = %v", err)
 	}
+	if !errors.Is(err, pve.ErrTaskFailed) {
+		t.Fatalf("failed task is not ErrTaskFailed: %v", err)
+	}
 	if _, ok := f.VM(101); ok {
 		t.Fatal("vm created despite failed task")
+	}
+	if err := c.WaitTask(ctx(t), "pve1", "UPID:pve1:unknown"); err == nil || errors.Is(err, pve.ErrTaskFailed) {
+		t.Fatalf("unknown task: %v", err)
 	}
 }
 

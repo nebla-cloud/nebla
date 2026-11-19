@@ -186,6 +186,62 @@ func (_c *ServerCreate) SetNillableCreateStep(v *int) *ServerCreate {
 	return _c
 }
 
+// SetRebuildVmid sets the "rebuild_vmid" field.
+func (_c *ServerCreate) SetRebuildVmid(v int) *ServerCreate {
+	_c.mutation.SetRebuildVmid(v)
+	return _c
+}
+
+// SetNillableRebuildVmid sets the "rebuild_vmid" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableRebuildVmid(v *int) *ServerCreate {
+	if v != nil {
+		_c.SetRebuildVmid(*v)
+	}
+	return _c
+}
+
+// SetRebuildCloneUpid sets the "rebuild_clone_upid" field.
+func (_c *ServerCreate) SetRebuildCloneUpid(v string) *ServerCreate {
+	_c.mutation.SetRebuildCloneUpid(v)
+	return _c
+}
+
+// SetNillableRebuildCloneUpid sets the "rebuild_clone_upid" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableRebuildCloneUpid(v *string) *ServerCreate {
+	if v != nil {
+		_c.SetRebuildCloneUpid(*v)
+	}
+	return _c
+}
+
+// SetRebuildCloneNonce sets the "rebuild_clone_nonce" field.
+func (_c *ServerCreate) SetRebuildCloneNonce(v string) *ServerCreate {
+	_c.mutation.SetRebuildCloneNonce(v)
+	return _c
+}
+
+// SetNillableRebuildCloneNonce sets the "rebuild_clone_nonce" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableRebuildCloneNonce(v *string) *ServerCreate {
+	if v != nil {
+		_c.SetRebuildCloneNonce(*v)
+	}
+	return _c
+}
+
+// SetRebuildStep sets the "rebuild_step" field.
+func (_c *ServerCreate) SetRebuildStep(v int) *ServerCreate {
+	_c.mutation.SetRebuildStep(v)
+	return _c
+}
+
+// SetNillableRebuildStep sets the "rebuild_step" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableRebuildStep(v *int) *ServerCreate {
+	if v != nil {
+		_c.SetRebuildStep(*v)
+	}
+	return _c
+}
+
 // SetCores sets the "cores" field.
 func (_c *ServerCreate) SetCores(v int) *ServerCreate {
 	_c.mutation.SetCores(v)
@@ -315,6 +371,10 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultCreateStep
 		_c.mutation.SetCreateStep(v)
 	}
+	if _, ok := _c.mutation.RebuildStep(); !ok {
+		v := server.DefaultRebuildStep
+		_c.mutation.SetRebuildStep(v)
+	}
 	if _, ok := _c.mutation.UserData(); !ok {
 		v := server.DefaultUserData
 		_c.mutation.SetUserData(v)
@@ -367,6 +427,9 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.CreateStep(); !ok {
 		return &ValidationError{Name: "create_step", err: errors.New(`ent: missing required field "Server.create_step"`)}
+	}
+	if _, ok := _c.mutation.RebuildStep(); !ok {
+		return &ValidationError{Name: "rebuild_step", err: errors.New(`ent: missing required field "Server.rebuild_step"`)}
 	}
 	if _, ok := _c.mutation.Cores(); !ok {
 		return &ValidationError{Name: "cores", err: errors.New(`ent: missing required field "Server.cores"`)}
@@ -475,6 +538,22 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CreateStep(); ok {
 		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
 		_node.CreateStep = value
+	}
+	if value, ok := _c.mutation.RebuildVmid(); ok {
+		_spec.SetField(server.FieldRebuildVmid, field.TypeInt, value)
+		_node.RebuildVmid = &value
+	}
+	if value, ok := _c.mutation.RebuildCloneUpid(); ok {
+		_spec.SetField(server.FieldRebuildCloneUpid, field.TypeString, value)
+		_node.RebuildCloneUpid = &value
+	}
+	if value, ok := _c.mutation.RebuildCloneNonce(); ok {
+		_spec.SetField(server.FieldRebuildCloneNonce, field.TypeString, value)
+		_node.RebuildCloneNonce = &value
+	}
+	if value, ok := _c.mutation.RebuildStep(); ok {
+		_spec.SetField(server.FieldRebuildStep, field.TypeInt, value)
+		_node.RebuildStep = value
 	}
 	if value, ok := _c.mutation.Cores(); ok {
 		_spec.SetField(server.FieldCores, field.TypeInt, value)
@@ -821,6 +900,84 @@ func (u *ServerUpsert) UpdateCreateStep() *ServerUpsert {
 // AddCreateStep adds v to the "create_step" field.
 func (u *ServerUpsert) AddCreateStep(v int) *ServerUpsert {
 	u.Add(server.FieldCreateStep, v)
+	return u
+}
+
+// SetRebuildVmid sets the "rebuild_vmid" field.
+func (u *ServerUpsert) SetRebuildVmid(v int) *ServerUpsert {
+	u.Set(server.FieldRebuildVmid, v)
+	return u
+}
+
+// UpdateRebuildVmid sets the "rebuild_vmid" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateRebuildVmid() *ServerUpsert {
+	u.SetExcluded(server.FieldRebuildVmid)
+	return u
+}
+
+// AddRebuildVmid adds v to the "rebuild_vmid" field.
+func (u *ServerUpsert) AddRebuildVmid(v int) *ServerUpsert {
+	u.Add(server.FieldRebuildVmid, v)
+	return u
+}
+
+// ClearRebuildVmid clears the value of the "rebuild_vmid" field.
+func (u *ServerUpsert) ClearRebuildVmid() *ServerUpsert {
+	u.SetNull(server.FieldRebuildVmid)
+	return u
+}
+
+// SetRebuildCloneUpid sets the "rebuild_clone_upid" field.
+func (u *ServerUpsert) SetRebuildCloneUpid(v string) *ServerUpsert {
+	u.Set(server.FieldRebuildCloneUpid, v)
+	return u
+}
+
+// UpdateRebuildCloneUpid sets the "rebuild_clone_upid" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateRebuildCloneUpid() *ServerUpsert {
+	u.SetExcluded(server.FieldRebuildCloneUpid)
+	return u
+}
+
+// ClearRebuildCloneUpid clears the value of the "rebuild_clone_upid" field.
+func (u *ServerUpsert) ClearRebuildCloneUpid() *ServerUpsert {
+	u.SetNull(server.FieldRebuildCloneUpid)
+	return u
+}
+
+// SetRebuildCloneNonce sets the "rebuild_clone_nonce" field.
+func (u *ServerUpsert) SetRebuildCloneNonce(v string) *ServerUpsert {
+	u.Set(server.FieldRebuildCloneNonce, v)
+	return u
+}
+
+// UpdateRebuildCloneNonce sets the "rebuild_clone_nonce" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateRebuildCloneNonce() *ServerUpsert {
+	u.SetExcluded(server.FieldRebuildCloneNonce)
+	return u
+}
+
+// ClearRebuildCloneNonce clears the value of the "rebuild_clone_nonce" field.
+func (u *ServerUpsert) ClearRebuildCloneNonce() *ServerUpsert {
+	u.SetNull(server.FieldRebuildCloneNonce)
+	return u
+}
+
+// SetRebuildStep sets the "rebuild_step" field.
+func (u *ServerUpsert) SetRebuildStep(v int) *ServerUpsert {
+	u.Set(server.FieldRebuildStep, v)
+	return u
+}
+
+// UpdateRebuildStep sets the "rebuild_step" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateRebuildStep() *ServerUpsert {
+	u.SetExcluded(server.FieldRebuildStep)
+	return u
+}
+
+// AddRebuildStep adds v to the "rebuild_step" field.
+func (u *ServerUpsert) AddRebuildStep(v int) *ServerUpsert {
+	u.Add(server.FieldRebuildStep, v)
 	return u
 }
 
@@ -1197,6 +1354,97 @@ func (u *ServerUpsertOne) AddCreateStep(v int) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateCreateStep() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateCreateStep()
+	})
+}
+
+// SetRebuildVmid sets the "rebuild_vmid" field.
+func (u *ServerUpsertOne) SetRebuildVmid(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildVmid(v)
+	})
+}
+
+// AddRebuildVmid adds v to the "rebuild_vmid" field.
+func (u *ServerUpsertOne) AddRebuildVmid(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddRebuildVmid(v)
+	})
+}
+
+// UpdateRebuildVmid sets the "rebuild_vmid" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateRebuildVmid() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildVmid()
+	})
+}
+
+// ClearRebuildVmid clears the value of the "rebuild_vmid" field.
+func (u *ServerUpsertOne) ClearRebuildVmid() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildVmid()
+	})
+}
+
+// SetRebuildCloneUpid sets the "rebuild_clone_upid" field.
+func (u *ServerUpsertOne) SetRebuildCloneUpid(v string) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildCloneUpid(v)
+	})
+}
+
+// UpdateRebuildCloneUpid sets the "rebuild_clone_upid" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateRebuildCloneUpid() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildCloneUpid()
+	})
+}
+
+// ClearRebuildCloneUpid clears the value of the "rebuild_clone_upid" field.
+func (u *ServerUpsertOne) ClearRebuildCloneUpid() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildCloneUpid()
+	})
+}
+
+// SetRebuildCloneNonce sets the "rebuild_clone_nonce" field.
+func (u *ServerUpsertOne) SetRebuildCloneNonce(v string) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildCloneNonce(v)
+	})
+}
+
+// UpdateRebuildCloneNonce sets the "rebuild_clone_nonce" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateRebuildCloneNonce() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildCloneNonce()
+	})
+}
+
+// ClearRebuildCloneNonce clears the value of the "rebuild_clone_nonce" field.
+func (u *ServerUpsertOne) ClearRebuildCloneNonce() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildCloneNonce()
+	})
+}
+
+// SetRebuildStep sets the "rebuild_step" field.
+func (u *ServerUpsertOne) SetRebuildStep(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildStep(v)
+	})
+}
+
+// AddRebuildStep adds v to the "rebuild_step" field.
+func (u *ServerUpsertOne) AddRebuildStep(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddRebuildStep(v)
+	})
+}
+
+// UpdateRebuildStep sets the "rebuild_step" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateRebuildStep() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildStep()
 	})
 }
 
@@ -1752,6 +2000,97 @@ func (u *ServerUpsertBulk) AddCreateStep(v int) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateCreateStep() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateCreateStep()
+	})
+}
+
+// SetRebuildVmid sets the "rebuild_vmid" field.
+func (u *ServerUpsertBulk) SetRebuildVmid(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildVmid(v)
+	})
+}
+
+// AddRebuildVmid adds v to the "rebuild_vmid" field.
+func (u *ServerUpsertBulk) AddRebuildVmid(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddRebuildVmid(v)
+	})
+}
+
+// UpdateRebuildVmid sets the "rebuild_vmid" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateRebuildVmid() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildVmid()
+	})
+}
+
+// ClearRebuildVmid clears the value of the "rebuild_vmid" field.
+func (u *ServerUpsertBulk) ClearRebuildVmid() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildVmid()
+	})
+}
+
+// SetRebuildCloneUpid sets the "rebuild_clone_upid" field.
+func (u *ServerUpsertBulk) SetRebuildCloneUpid(v string) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildCloneUpid(v)
+	})
+}
+
+// UpdateRebuildCloneUpid sets the "rebuild_clone_upid" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateRebuildCloneUpid() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildCloneUpid()
+	})
+}
+
+// ClearRebuildCloneUpid clears the value of the "rebuild_clone_upid" field.
+func (u *ServerUpsertBulk) ClearRebuildCloneUpid() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildCloneUpid()
+	})
+}
+
+// SetRebuildCloneNonce sets the "rebuild_clone_nonce" field.
+func (u *ServerUpsertBulk) SetRebuildCloneNonce(v string) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildCloneNonce(v)
+	})
+}
+
+// UpdateRebuildCloneNonce sets the "rebuild_clone_nonce" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateRebuildCloneNonce() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildCloneNonce()
+	})
+}
+
+// ClearRebuildCloneNonce clears the value of the "rebuild_clone_nonce" field.
+func (u *ServerUpsertBulk) ClearRebuildCloneNonce() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildCloneNonce()
+	})
+}
+
+// SetRebuildStep sets the "rebuild_step" field.
+func (u *ServerUpsertBulk) SetRebuildStep(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildStep(v)
+	})
+}
+
+// AddRebuildStep adds v to the "rebuild_step" field.
+func (u *ServerUpsertBulk) AddRebuildStep(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddRebuildStep(v)
+	})
+}
+
+// UpdateRebuildStep sets the "rebuild_step" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateRebuildStep() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildStep()
 	})
 }
 

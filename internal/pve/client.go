@@ -113,6 +113,21 @@ func (e *Error) notFound() bool {
 	return e.Status == http.StatusNotFound || (e.Status >= 500 && strings.Contains(e.Message, "does not exist"))
 }
 
+// ErrTaskFailed matches a task that stopped with a non-OK exit status.
+var ErrTaskFailed = errors.New("pve: task failed")
+
+// TaskError is a task that finished unsuccessfully.
+type TaskError struct {
+	UPID       UPID
+	ExitStatus string
+}
+
+func (e *TaskError) Error() string {
+	return fmt.Sprintf("pve: task %s failed: %s", e.UPID, e.ExitStatus)
+}
+
+func (e *TaskError) Is(target error) bool { return target == ErrTaskFailed }
+
 // ErrFingerprint means the server certificate did not match the pinned fingerprint.
 var ErrFingerprint = errors.New("pve: certificate fingerprint mismatch")
 

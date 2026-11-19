@@ -56,8 +56,9 @@ func cloneDescription(serverID int64, nonce string) string {
 	return "nebla " + ServerTag(serverID) + " " + nonce
 }
 
-func hasNonce(cfg map[string]string, nonce string) bool {
-	return nonce != "" && strings.Contains(cfg["description"], nonce)
+// hasNonce reports whether cfg's description is exactly the clone description we sent.
+func hasNonce(cfg map[string]string, serverID int64, nonce string) bool {
+	return nonce != "" && strings.TrimSpace(cfg["description"]) == cloneDescription(serverID, nonce)
 }
 
 // upidNode is the node field of a UPID ("UPID:node:...").
@@ -80,17 +81,24 @@ func (e *stepError) Unwrap() error { return e.err }
 
 // errorMessage is the Proxmox message behind err, prefixed with the step.
 func errorMessage(err error) string {
-	msg := err.Error()
+	var se *stepError
+	inner := err
+	if errors.As(err, &se) {
+		inner = se.err
+	}
+	msg := inner.Error()
 	var pe *pve.Error
+	var te *pve.TaskError
 	var perm *permanentError
 	switch {
-	case errors.As(err, &perm):
+	case errors.As(inner, &perm):
 		msg = perm.msg
-	case errors.As(err, &pe):
+	case errors.As(inner, &te):
+		msg = te.ExitStatus
+	case errors.As(inner, &pe):
 		msg = pe.Message
 	}
-	var se *stepError
-	if errors.As(err, &se) {
+	if se != nil {
 		return se.step + ": " + msg
 	}
 	return msg
@@ -178,6 +186,9 @@ func ownedBy(v pve.VM, serverID int64) bool {
 
 const cleanupTimeout = 2 * time.Minute
 
+// errUnproven means an untagged VM sits at the vmid and nothing was saved that could prove it ours.
+var errUnproven = errors.New("no clone proof")
+
 // destroyVM removes vmid if it is serverID's VM, proven by tags, a successful saved clone task, or the clone nonce.
 // It returns nil only when no VM of ours is left at vmid; a VM proven foreign is left alone.
 func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, proof CloneProof) error {
@@ -186,7 +197,7 @@ func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, pro
 		return err
 	}
 	if !ownedBy(v, serverID) {
-		ours, err := provenOurs(ctx, pc, v, proof)
+		ours, err := provenOurs(ctx, pc, serverID, v, proof)
 		if err != nil {
 			return err
 		}
@@ -213,24 +224,36 @@ func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, pro
 	if errors.Is(err, pve.ErrNotFound) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("destroy vm %d: %w", vmid, err)
+	}
+	return nil
+}
+
+// destroyOrForget is destroyVM where an unproven untagged VM counts as someone else's.
+func destroyOrForget(ctx context.Context, pc pve.Client, serverID int64, vmid int, proof CloneProof) error {
+	if err := destroyVM(ctx, pc, serverID, vmid, proof); err != nil && !errors.Is(err, errUnproven) {
+		return err
+	}
+	return nil
 }
 
 // provenOurs decides an untagged VM at our vmid; an error means it could not be decided.
-func provenOurs(ctx context.Context, pc pve.Client, v pve.VM, proof CloneProof) (bool, error) {
+func provenOurs(ctx context.Context, pc pve.Client, serverID int64, v pve.VM, proof CloneProof) (bool, error) {
 	if proof.UPID != nil {
 		err := pc.WaitTask(ctx, upidNode(*proof.UPID), pve.UPID(*proof.UPID))
 		switch {
 		case err == nil:
 			return true, nil
-		case ctx.Err() != nil || pve.IsTransient(err):
+		case errors.Is(err, pve.ErrTaskFailed):
+			// Our clone task failed, so the VM there is not ours.
+			return false, nil
+		case ctx.Err() != nil || proof.Nonce == nil:
 			return false, fmt.Errorf("vm %d: clone task unresolved: %w", v.VMID, err)
 		}
-		// Our clone task failed, so the VM there is not ours.
-		return false, nil
 	}
 	if proof.Nonce == nil {
-		return false, fmt.Errorf("vm %d lacks tags %s and %s", v.VMID, TagNebla, "nb-srv-*")
+		return false, fmt.Errorf("vm %d lacks tags %s and %s: %w", v.VMID, TagNebla, ServerTag(serverID), errUnproven)
 	}
 	cfg, err := pc.Config(ctx, v.Node, v.VMID)
 	if err != nil {
@@ -239,7 +262,7 @@ func provenOurs(ctx context.Context, pc pve.Client, v pve.VM, proof CloneProof) 
 	if cfg["lock"] != "" {
 		return false, fmt.Errorf("vm %d is locked (%s)", v.VMID, cfg["lock"])
 	}
-	return hasNonce(cfg, *proof.Nonce), nil
+	return hasNonce(cfg, serverID, *proof.Nonce), nil
 }
 
 // deleteISO removes a cloud-init ISO; a missing volume is not an error.

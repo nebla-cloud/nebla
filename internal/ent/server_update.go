@@ -257,6 +257,94 @@ func (_u *ServerUpdate) AddCreateStep(v int) *ServerUpdate {
 	return _u
 }
 
+// SetRebuildVmid sets the "rebuild_vmid" field.
+func (_u *ServerUpdate) SetRebuildVmid(v int) *ServerUpdate {
+	_u.mutation.ResetRebuildVmid()
+	_u.mutation.SetRebuildVmid(v)
+	return _u
+}
+
+// SetNillableRebuildVmid sets the "rebuild_vmid" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableRebuildVmid(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetRebuildVmid(*v)
+	}
+	return _u
+}
+
+// AddRebuildVmid adds value to the "rebuild_vmid" field.
+func (_u *ServerUpdate) AddRebuildVmid(v int) *ServerUpdate {
+	_u.mutation.AddRebuildVmid(v)
+	return _u
+}
+
+// ClearRebuildVmid clears the value of the "rebuild_vmid" field.
+func (_u *ServerUpdate) ClearRebuildVmid() *ServerUpdate {
+	_u.mutation.ClearRebuildVmid()
+	return _u
+}
+
+// SetRebuildCloneUpid sets the "rebuild_clone_upid" field.
+func (_u *ServerUpdate) SetRebuildCloneUpid(v string) *ServerUpdate {
+	_u.mutation.SetRebuildCloneUpid(v)
+	return _u
+}
+
+// SetNillableRebuildCloneUpid sets the "rebuild_clone_upid" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableRebuildCloneUpid(v *string) *ServerUpdate {
+	if v != nil {
+		_u.SetRebuildCloneUpid(*v)
+	}
+	return _u
+}
+
+// ClearRebuildCloneUpid clears the value of the "rebuild_clone_upid" field.
+func (_u *ServerUpdate) ClearRebuildCloneUpid() *ServerUpdate {
+	_u.mutation.ClearRebuildCloneUpid()
+	return _u
+}
+
+// SetRebuildCloneNonce sets the "rebuild_clone_nonce" field.
+func (_u *ServerUpdate) SetRebuildCloneNonce(v string) *ServerUpdate {
+	_u.mutation.SetRebuildCloneNonce(v)
+	return _u
+}
+
+// SetNillableRebuildCloneNonce sets the "rebuild_clone_nonce" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableRebuildCloneNonce(v *string) *ServerUpdate {
+	if v != nil {
+		_u.SetRebuildCloneNonce(*v)
+	}
+	return _u
+}
+
+// ClearRebuildCloneNonce clears the value of the "rebuild_clone_nonce" field.
+func (_u *ServerUpdate) ClearRebuildCloneNonce() *ServerUpdate {
+	_u.mutation.ClearRebuildCloneNonce()
+	return _u
+}
+
+// SetRebuildStep sets the "rebuild_step" field.
+func (_u *ServerUpdate) SetRebuildStep(v int) *ServerUpdate {
+	_u.mutation.ResetRebuildStep()
+	_u.mutation.SetRebuildStep(v)
+	return _u
+}
+
+// SetNillableRebuildStep sets the "rebuild_step" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableRebuildStep(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetRebuildStep(*v)
+	}
+	return _u
+}
+
+// AddRebuildStep adds value to the "rebuild_step" field.
+func (_u *ServerUpdate) AddRebuildStep(v int) *ServerUpdate {
+	_u.mutation.AddRebuildStep(v)
+	return _u
+}
+
 // SetCores sets the "cores" field.
 func (_u *ServerUpdate) SetCores(v int) *ServerUpdate {
 	_u.mutation.ResetCores()
@@ -496,6 +584,33 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedCreateStep(); ok {
 		_spec.AddField(server.FieldCreateStep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.RebuildVmid(); ok {
+		_spec.SetField(server.FieldRebuildVmid, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRebuildVmid(); ok {
+		_spec.AddField(server.FieldRebuildVmid, field.TypeInt, value)
+	}
+	if _u.mutation.RebuildVmidCleared() {
+		_spec.ClearField(server.FieldRebuildVmid, field.TypeInt)
+	}
+	if value, ok := _u.mutation.RebuildCloneUpid(); ok {
+		_spec.SetField(server.FieldRebuildCloneUpid, field.TypeString, value)
+	}
+	if _u.mutation.RebuildCloneUpidCleared() {
+		_spec.ClearField(server.FieldRebuildCloneUpid, field.TypeString)
+	}
+	if value, ok := _u.mutation.RebuildCloneNonce(); ok {
+		_spec.SetField(server.FieldRebuildCloneNonce, field.TypeString, value)
+	}
+	if _u.mutation.RebuildCloneNonceCleared() {
+		_spec.ClearField(server.FieldRebuildCloneNonce, field.TypeString)
+	}
+	if value, ok := _u.mutation.RebuildStep(); ok {
+		_spec.SetField(server.FieldRebuildStep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRebuildStep(); ok {
+		_spec.AddField(server.FieldRebuildStep, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.Cores(); ok {
 		_spec.SetField(server.FieldCores, field.TypeInt, value)
@@ -832,6 +947,94 @@ func (_u *ServerUpdateOne) AddCreateStep(v int) *ServerUpdateOne {
 	return _u
 }
 
+// SetRebuildVmid sets the "rebuild_vmid" field.
+func (_u *ServerUpdateOne) SetRebuildVmid(v int) *ServerUpdateOne {
+	_u.mutation.ResetRebuildVmid()
+	_u.mutation.SetRebuildVmid(v)
+	return _u
+}
+
+// SetNillableRebuildVmid sets the "rebuild_vmid" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableRebuildVmid(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetRebuildVmid(*v)
+	}
+	return _u
+}
+
+// AddRebuildVmid adds value to the "rebuild_vmid" field.
+func (_u *ServerUpdateOne) AddRebuildVmid(v int) *ServerUpdateOne {
+	_u.mutation.AddRebuildVmid(v)
+	return _u
+}
+
+// ClearRebuildVmid clears the value of the "rebuild_vmid" field.
+func (_u *ServerUpdateOne) ClearRebuildVmid() *ServerUpdateOne {
+	_u.mutation.ClearRebuildVmid()
+	return _u
+}
+
+// SetRebuildCloneUpid sets the "rebuild_clone_upid" field.
+func (_u *ServerUpdateOne) SetRebuildCloneUpid(v string) *ServerUpdateOne {
+	_u.mutation.SetRebuildCloneUpid(v)
+	return _u
+}
+
+// SetNillableRebuildCloneUpid sets the "rebuild_clone_upid" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableRebuildCloneUpid(v *string) *ServerUpdateOne {
+	if v != nil {
+		_u.SetRebuildCloneUpid(*v)
+	}
+	return _u
+}
+
+// ClearRebuildCloneUpid clears the value of the "rebuild_clone_upid" field.
+func (_u *ServerUpdateOne) ClearRebuildCloneUpid() *ServerUpdateOne {
+	_u.mutation.ClearRebuildCloneUpid()
+	return _u
+}
+
+// SetRebuildCloneNonce sets the "rebuild_clone_nonce" field.
+func (_u *ServerUpdateOne) SetRebuildCloneNonce(v string) *ServerUpdateOne {
+	_u.mutation.SetRebuildCloneNonce(v)
+	return _u
+}
+
+// SetNillableRebuildCloneNonce sets the "rebuild_clone_nonce" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableRebuildCloneNonce(v *string) *ServerUpdateOne {
+	if v != nil {
+		_u.SetRebuildCloneNonce(*v)
+	}
+	return _u
+}
+
+// ClearRebuildCloneNonce clears the value of the "rebuild_clone_nonce" field.
+func (_u *ServerUpdateOne) ClearRebuildCloneNonce() *ServerUpdateOne {
+	_u.mutation.ClearRebuildCloneNonce()
+	return _u
+}
+
+// SetRebuildStep sets the "rebuild_step" field.
+func (_u *ServerUpdateOne) SetRebuildStep(v int) *ServerUpdateOne {
+	_u.mutation.ResetRebuildStep()
+	_u.mutation.SetRebuildStep(v)
+	return _u
+}
+
+// SetNillableRebuildStep sets the "rebuild_step" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableRebuildStep(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetRebuildStep(*v)
+	}
+	return _u
+}
+
+// AddRebuildStep adds value to the "rebuild_step" field.
+func (_u *ServerUpdateOne) AddRebuildStep(v int) *ServerUpdateOne {
+	_u.mutation.AddRebuildStep(v)
+	return _u
+}
+
 // SetCores sets the "cores" field.
 func (_u *ServerUpdateOne) SetCores(v int) *ServerUpdateOne {
 	_u.mutation.ResetCores()
@@ -1101,6 +1304,33 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if value, ok := _u.mutation.AddedCreateStep(); ok {
 		_spec.AddField(server.FieldCreateStep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.RebuildVmid(); ok {
+		_spec.SetField(server.FieldRebuildVmid, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRebuildVmid(); ok {
+		_spec.AddField(server.FieldRebuildVmid, field.TypeInt, value)
+	}
+	if _u.mutation.RebuildVmidCleared() {
+		_spec.ClearField(server.FieldRebuildVmid, field.TypeInt)
+	}
+	if value, ok := _u.mutation.RebuildCloneUpid(); ok {
+		_spec.SetField(server.FieldRebuildCloneUpid, field.TypeString, value)
+	}
+	if _u.mutation.RebuildCloneUpidCleared() {
+		_spec.ClearField(server.FieldRebuildCloneUpid, field.TypeString)
+	}
+	if value, ok := _u.mutation.RebuildCloneNonce(); ok {
+		_spec.SetField(server.FieldRebuildCloneNonce, field.TypeString, value)
+	}
+	if _u.mutation.RebuildCloneNonceCleared() {
+		_spec.ClearField(server.FieldRebuildCloneNonce, field.TypeString)
+	}
+	if value, ok := _u.mutation.RebuildStep(); ok {
+		_spec.SetField(server.FieldRebuildStep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRebuildStep(); ok {
+		_spec.AddField(server.FieldRebuildStep, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.Cores(); ok {
 		_spec.SetField(server.FieldCores, field.TypeInt, value)

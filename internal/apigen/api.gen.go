@@ -229,6 +229,15 @@ type ApiToken struct {
 	Permission TokenPermission `json:"permission"`
 }
 
+// ChangeTypeInput defines model for ChangeTypeInput.
+type ChangeTypeInput struct {
+	// ServerType Server type id or name
+	ServerType string `json:"server_type"`
+
+	// UpgradeDisk Grow the disk to the type's size; disks never shrink
+	UpgradeDisk bool `json:"upgrade_disk"`
+}
+
 // Credentials defines model for Credentials.
 type Credentials struct {
 	Email    string `json:"email"`
@@ -426,6 +435,12 @@ type Quota struct {
 	MaxVcpu     int `json:"max_vcpu"`
 }
 
+// RebuildInput defines model for RebuildInput.
+type RebuildInput struct {
+	// Image Image id or name
+	Image string `json:"image"`
+}
+
 // Role defines model for Role.
 type Role string
 
@@ -574,6 +589,11 @@ type PerPage = int
 
 // ProjectID defines model for ProjectID.
 type ProjectID = int64
+
+// ActionCreated defines model for ActionCreated.
+type ActionCreated struct {
+	Action Action `json:"action"`
+}
 
 // GetActionsParams defines parameters for GetActions.
 type GetActionsParams struct {
@@ -793,6 +813,12 @@ type PostServersJSONRequestBody = ServerInput
 // PutServerJSONRequestBody defines body for PutServer for application/json ContentType.
 type PutServerJSONRequestBody = ServerUpdate
 
+// ChangeServerTypeJSONRequestBody defines body for ChangeServerType for application/json ContentType.
+type ChangeServerTypeJSONRequestBody = ChangeTypeInput
+
+// RebuildServerJSONRequestBody defines body for RebuildServer for application/json ContentType.
+type RebuildServerJSONRequestBody = RebuildInput
+
 // PostSetupJSONRequestBody defines body for PostSetup for application/json ContentType.
 type PostSetupJSONRequestBody = Credentials
 
@@ -999,6 +1025,27 @@ type ServerInterface interface {
 	// GetServerActions List a server's actions
 	// (GET /servers/{id}/actions)
 	GetServerActions(w http.ResponseWriter, r *http.Request, id ID, params GetServerActionsParams)
+	// ChangeServerType Change a stopped server's type
+	// (POST /servers/{id}/actions/change_type)
+	ChangeServerType(w http.ResponseWriter, r *http.Request, id ID)
+	// PoweroffServer Stop a server immediately
+	// (POST /servers/{id}/actions/poweroff)
+	PoweroffServer(w http.ResponseWriter, r *http.Request, id ID)
+	// PoweronServer Start a server
+	// (POST /servers/{id}/actions/poweron)
+	PoweronServer(w http.ResponseWriter, r *http.Request, id ID)
+	// RebootServer Reboot a server gracefully
+	// (POST /servers/{id}/actions/reboot)
+	RebootServer(w http.ResponseWriter, r *http.Request, id ID)
+	// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+	// (POST /servers/{id}/actions/rebuild)
+	RebuildServer(w http.ResponseWriter, r *http.Request, id ID)
+	// ResetServer Reset a server
+	// (POST /servers/{id}/actions/reset)
+	ResetServer(w http.ResponseWriter, r *http.Request, id ID)
+	// ShutdownServer Shut a server down gracefully
+	// (POST /servers/{id}/actions/shutdown)
+	ShutdownServer(w http.ResponseWriter, r *http.Request, id ID)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(w http.ResponseWriter, r *http.Request)
@@ -1410,6 +1457,48 @@ func (_ Unimplemented) PutServer(w http.ResponseWriter, r *http.Request, id ID) 
 // GetServerActions List a server's actions
 // (GET /servers/{id}/actions)
 func (_ Unimplemented) GetServerActions(w http.ResponseWriter, r *http.Request, id ID, params GetServerActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ChangeServerType Change a stopped server's type
+// (POST /servers/{id}/actions/change_type)
+func (_ Unimplemented) ChangeServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PoweroffServer Stop a server immediately
+// (POST /servers/{id}/actions/poweroff)
+func (_ Unimplemented) PoweroffServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PoweronServer Start a server
+// (POST /servers/{id}/actions/poweron)
+func (_ Unimplemented) PoweronServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RebootServer Reboot a server gracefully
+// (POST /servers/{id}/actions/reboot)
+func (_ Unimplemented) RebootServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+// (POST /servers/{id}/actions/rebuild)
+func (_ Unimplemented) RebuildServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ResetServer Reset a server
+// (POST /servers/{id}/actions/reset)
+func (_ Unimplemented) ResetServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ShutdownServer Shut a server down gracefully
+// (POST /servers/{id}/actions/shutdown)
+func (_ Unimplemented) ShutdownServer(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3330,6 +3419,188 @@ func (siw *ServerInterfaceWrapper) GetServerActions(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// ChangeServerType operation middleware
+func (siw *ServerInterfaceWrapper) ChangeServerType(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChangeServerType(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PoweroffServer operation middleware
+func (siw *ServerInterfaceWrapper) PoweroffServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PoweroffServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PoweronServer operation middleware
+func (siw *ServerInterfaceWrapper) PoweronServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PoweronServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RebootServer operation middleware
+func (siw *ServerInterfaceWrapper) RebootServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RebootServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RebuildServer operation middleware
+func (siw *ServerInterfaceWrapper) RebuildServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RebuildServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetServer operation middleware
+func (siw *ServerInterfaceWrapper) ResetServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ShutdownServer operation middleware
+func (siw *ServerInterfaceWrapper) ShutdownServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ShutdownServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostSetup operation middleware
 func (siw *ServerInterfaceWrapper) PostSetup(w http.ResponseWriter, r *http.Request) {
 
@@ -3839,8 +4110,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/servers/{id}/actions", wrapper.GetServerActions)
 	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/poweron", wrapper.PoweronServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/poweroff", wrapper.PoweroffServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/shutdown", wrapper.ShutdownServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/reboot", wrapper.RebootServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/reset", wrapper.ResetServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/rebuild", wrapper.RebuildServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/change_type", wrapper.ChangeServerType)
+	})
 
 	return r
+}
+
+type ActionCreatedJSONResponse struct {
+	Action Action `json:"action"`
 }
 
 type ErrorJSONResponse Error
@@ -7971,6 +8267,680 @@ func (response GetServerActions422JSONResponse) VisitGetServerActionsResponse(w 
 	return err
 }
 
+type ChangeServerTypeRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ChangeServerTypeJSONRequestBody
+}
+
+type ChangeServerTypeResponseObject interface {
+	VisitChangeServerTypeResponse(w http.ResponseWriter) error
+}
+
+type ChangeServerType201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response ChangeServerType201JSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeServerType401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ChangeServerType401JSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeServerType403JSONResponse Error
+
+func (response ChangeServerType403JSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeServerType404JSONResponse Error
+
+func (response ChangeServerType404JSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeServerType409JSONResponse Error
+
+func (response ChangeServerType409JSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeServerType422JSONResponse Error
+
+func (response ChangeServerType422JSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeServerType503JSONResponse Error
+
+func (response ChangeServerType503JSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweroffServerRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type PoweroffServerResponseObject interface {
+	VisitPoweroffServerResponse(w http.ResponseWriter) error
+}
+
+type PoweroffServer201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response PoweroffServer201JSONResponse) VisitPoweroffServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweroffServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PoweroffServer401JSONResponse) VisitPoweroffServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweroffServer403JSONResponse Error
+
+func (response PoweroffServer403JSONResponse) VisitPoweroffServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweroffServer404JSONResponse Error
+
+func (response PoweroffServer404JSONResponse) VisitPoweroffServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweroffServer409JSONResponse Error
+
+func (response PoweroffServer409JSONResponse) VisitPoweroffServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweroffServer503JSONResponse Error
+
+func (response PoweroffServer503JSONResponse) VisitPoweroffServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweronServerRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type PoweronServerResponseObject interface {
+	VisitPoweronServerResponse(w http.ResponseWriter) error
+}
+
+type PoweronServer201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response PoweronServer201JSONResponse) VisitPoweronServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweronServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PoweronServer401JSONResponse) VisitPoweronServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweronServer403JSONResponse Error
+
+func (response PoweronServer403JSONResponse) VisitPoweronServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweronServer404JSONResponse Error
+
+func (response PoweronServer404JSONResponse) VisitPoweronServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweronServer409JSONResponse Error
+
+func (response PoweronServer409JSONResponse) VisitPoweronServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweronServer503JSONResponse Error
+
+func (response PoweronServer503JSONResponse) VisitPoweronServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebootServerRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type RebootServerResponseObject interface {
+	VisitRebootServerResponse(w http.ResponseWriter) error
+}
+
+type RebootServer201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response RebootServer201JSONResponse) VisitRebootServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebootServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response RebootServer401JSONResponse) VisitRebootServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebootServer403JSONResponse Error
+
+func (response RebootServer403JSONResponse) VisitRebootServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebootServer404JSONResponse Error
+
+func (response RebootServer404JSONResponse) VisitRebootServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebootServer409JSONResponse Error
+
+func (response RebootServer409JSONResponse) VisitRebootServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebootServer503JSONResponse Error
+
+func (response RebootServer503JSONResponse) VisitRebootServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebuildServerRequestObject struct {
+	Id   ID `json:"id"`
+	Body *RebuildServerJSONRequestBody
+}
+
+type RebuildServerResponseObject interface {
+	VisitRebuildServerResponse(w http.ResponseWriter) error
+}
+
+type RebuildServer201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response RebuildServer201JSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebuildServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response RebuildServer401JSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebuildServer403JSONResponse Error
+
+func (response RebuildServer403JSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebuildServer404JSONResponse Error
+
+func (response RebuildServer404JSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebuildServer409JSONResponse Error
+
+func (response RebuildServer409JSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebuildServer422JSONResponse Error
+
+func (response RebuildServer422JSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebuildServer503JSONResponse Error
+
+func (response RebuildServer503JSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetServerRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type ResetServerResponseObject interface {
+	VisitResetServerResponse(w http.ResponseWriter) error
+}
+
+type ResetServer201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response ResetServer201JSONResponse) VisitResetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ResetServer401JSONResponse) VisitResetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetServer403JSONResponse Error
+
+func (response ResetServer403JSONResponse) VisitResetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetServer404JSONResponse Error
+
+func (response ResetServer404JSONResponse) VisitResetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetServer409JSONResponse Error
+
+func (response ResetServer409JSONResponse) VisitResetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetServer503JSONResponse Error
+
+func (response ResetServer503JSONResponse) VisitResetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ShutdownServerRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type ShutdownServerResponseObject interface {
+	VisitShutdownServerResponse(w http.ResponseWriter) error
+}
+
+type ShutdownServer201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response ShutdownServer201JSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ShutdownServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ShutdownServer401JSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ShutdownServer403JSONResponse Error
+
+func (response ShutdownServer403JSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ShutdownServer404JSONResponse Error
+
+func (response ShutdownServer404JSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ShutdownServer409JSONResponse Error
+
+func (response ShutdownServer409JSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ShutdownServer503JSONResponse Error
+
+func (response ShutdownServer503JSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostSetupRequestObject struct {
 	Body *PostSetupJSONRequestBody
 }
@@ -8656,6 +9626,27 @@ type StrictServerInterface interface {
 	// GetServerActions List a server's actions
 	// (GET /servers/{id}/actions)
 	GetServerActions(ctx context.Context, request GetServerActionsRequestObject) (GetServerActionsResponseObject, error)
+	// ChangeServerType Change a stopped server's type
+	// (POST /servers/{id}/actions/change_type)
+	ChangeServerType(ctx context.Context, request ChangeServerTypeRequestObject) (ChangeServerTypeResponseObject, error)
+	// PoweroffServer Stop a server immediately
+	// (POST /servers/{id}/actions/poweroff)
+	PoweroffServer(ctx context.Context, request PoweroffServerRequestObject) (PoweroffServerResponseObject, error)
+	// PoweronServer Start a server
+	// (POST /servers/{id}/actions/poweron)
+	PoweronServer(ctx context.Context, request PoweronServerRequestObject) (PoweronServerResponseObject, error)
+	// RebootServer Reboot a server gracefully
+	// (POST /servers/{id}/actions/reboot)
+	RebootServer(ctx context.Context, request RebootServerRequestObject) (RebootServerResponseObject, error)
+	// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+	// (POST /servers/{id}/actions/rebuild)
+	RebuildServer(ctx context.Context, request RebuildServerRequestObject) (RebuildServerResponseObject, error)
+	// ResetServer Reset a server
+	// (POST /servers/{id}/actions/reset)
+	ResetServer(ctx context.Context, request ResetServerRequestObject) (ResetServerResponseObject, error)
+	// ShutdownServer Shut a server down gracefully
+	// (POST /servers/{id}/actions/shutdown)
+	ShutdownServer(ctx context.Context, request ShutdownServerRequestObject) (ShutdownServerResponseObject, error)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(ctx context.Context, request PostSetupRequestObject) (PostSetupResponseObject, error)
@@ -10515,6 +11506,202 @@ func (sh *strictHandler) GetServerActions(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetServerActionsResponseObject); ok {
 		if err := validResponse.VisitGetServerActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ChangeServerType operation middleware
+func (sh *strictHandler) ChangeServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ChangeServerTypeRequestObject
+
+	request.Id = id
+
+	var body ChangeServerTypeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ChangeServerType(ctx, request.(ChangeServerTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ChangeServerType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ChangeServerTypeResponseObject); ok {
+		if err := validResponse.VisitChangeServerTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PoweroffServer operation middleware
+func (sh *strictHandler) PoweroffServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PoweroffServerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PoweroffServer(ctx, request.(PoweroffServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PoweroffServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PoweroffServerResponseObject); ok {
+		if err := validResponse.VisitPoweroffServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PoweronServer operation middleware
+func (sh *strictHandler) PoweronServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PoweronServerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PoweronServer(ctx, request.(PoweronServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PoweronServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PoweronServerResponseObject); ok {
+		if err := validResponse.VisitPoweronServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RebootServer operation middleware
+func (sh *strictHandler) RebootServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RebootServerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RebootServer(ctx, request.(RebootServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RebootServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RebootServerResponseObject); ok {
+		if err := validResponse.VisitRebootServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RebuildServer operation middleware
+func (sh *strictHandler) RebuildServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RebuildServerRequestObject
+
+	request.Id = id
+
+	var body RebuildServerJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RebuildServer(ctx, request.(RebuildServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RebuildServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RebuildServerResponseObject); ok {
+		if err := validResponse.VisitRebuildServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetServer operation middleware
+func (sh *strictHandler) ResetServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ResetServerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetServer(ctx, request.(ResetServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetServerResponseObject); ok {
+		if err := validResponse.VisitResetServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ShutdownServer operation middleware
+func (sh *strictHandler) ShutdownServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ShutdownServerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ShutdownServer(ctx, request.(ShutdownServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ShutdownServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ShutdownServerResponseObject); ok {
+		if err := validResponse.VisitShutdownServerResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

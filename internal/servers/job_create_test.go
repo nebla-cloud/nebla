@@ -638,6 +638,10 @@ func TestCreateServerNonceWithoutVMClonesAgain(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 150, *row.Vmid, "same vmid")
 	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"))
+	require.Equal(t, "lost", *row.CloneNonce, "the saved nonce is reused")
+	vm, ok := e.App.PVE.VM(150)
+	require.True(t, ok)
+	require.Equal(t, servers.CloneDescription(s.ServerID, "lost"), vm.Config["description"])
 	require.Zero(t, countCalls(e, "GET /cluster/nextid"))
 }
 

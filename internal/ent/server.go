@@ -54,6 +54,14 @@ type Server struct {
 	CloneNonce *string `json:"clone_nonce,omitempty"`
 	// CreateStep holds the value of the "create_step" field.
 	CreateStep int `json:"create_step,omitempty"`
+	// RebuildVmid holds the value of the "rebuild_vmid" field.
+	RebuildVmid *int `json:"rebuild_vmid,omitempty"`
+	// RebuildCloneUpid holds the value of the "rebuild_clone_upid" field.
+	RebuildCloneUpid *string `json:"rebuild_clone_upid,omitempty"`
+	// RebuildCloneNonce holds the value of the "rebuild_clone_nonce" field.
+	RebuildCloneNonce *string `json:"rebuild_clone_nonce,omitempty"`
+	// RebuildStep holds the value of the "rebuild_step" field.
+	RebuildStep int `json:"rebuild_step,omitempty"`
 	// Cores holds the value of the "cores" field.
 	Cores int `json:"cores,omitempty"`
 	// MemoryMB holds the value of the "memory_mb" field.
@@ -138,9 +146,9 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
 			values[i] = new(sql.NullInt64)
-		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldUserData:
+		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData:
 			values[i] = new(sql.NullString)
 		case server.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -266,6 +274,33 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field create_step", values[i])
 			} else if value.Valid {
 				_m.CreateStep = int(value.Int64)
+			}
+		case server.FieldRebuildVmid:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field rebuild_vmid", values[i])
+			} else if value.Valid {
+				_m.RebuildVmid = new(int)
+				*_m.RebuildVmid = int(value.Int64)
+			}
+		case server.FieldRebuildCloneUpid:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field rebuild_clone_upid", values[i])
+			} else if value.Valid {
+				_m.RebuildCloneUpid = new(string)
+				*_m.RebuildCloneUpid = value.String
+			}
+		case server.FieldRebuildCloneNonce:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field rebuild_clone_nonce", values[i])
+			} else if value.Valid {
+				_m.RebuildCloneNonce = new(string)
+				*_m.RebuildCloneNonce = value.String
+			}
+		case server.FieldRebuildStep:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field rebuild_step", values[i])
+			} else if value.Valid {
+				_m.RebuildStep = int(value.Int64)
 			}
 		case server.FieldCores:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -416,6 +451,24 @@ func (_m *Server) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("create_step=")
 	builder.WriteString(fmt.Sprintf("%v", _m.CreateStep))
+	builder.WriteString(", ")
+	if v := _m.RebuildVmid; v != nil {
+		builder.WriteString("rebuild_vmid=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.RebuildCloneUpid; v != nil {
+		builder.WriteString("rebuild_clone_upid=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.RebuildCloneNonce; v != nil {
+		builder.WriteString("rebuild_clone_nonce=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	builder.WriteString("rebuild_step=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RebuildStep))
 	builder.WriteString(", ")
 	builder.WriteString("cores=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Cores))
