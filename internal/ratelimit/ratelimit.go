@@ -56,6 +56,42 @@ func (l *Limiter) Allow(key string) bool {
 	return e.lim.AllowN(now, 1)
 }
 
+// Result describes a Reserve call.
+type Result struct {
+	Allowed    bool
+	Remaining  int
+	Reset      time.Duration // until the bucket is full
+	RetryAfter time.Duration // until the next token, when denied
+}
+
+// Rate returns the refill rate per second.
+func (l *Limiter) Rate() rate.Limit { return l.rate }
+
+// Reserve is Allow plus the bucket state after the call.
+func (l *Limiter) Reserve(key string) Result {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := l.now()
+	l.sweep(now)
+	e, ok := l.keys[key]
+	if !ok {
+		e = &entry{lim: rate.NewLimiter(l.rate, l.burst)}
+		l.keys[key] = e
+	}
+	e.seen = now
+	res := Result{Allowed: e.lim.AllowN(now, 1)}
+	tokens := e.lim.TokensAt(now)
+	res.Remaining = max(int(tokens), 0)
+	if l.rate > 0 {
+		perToken := float64(time.Second) / float64(l.rate)
+		res.Reset = time.Duration((float64(l.burst) - tokens) * perToken)
+		if !res.Allowed {
+			res.RetryAfter = time.Duration((1 - tokens) * perToken)
+		}
+	}
+	return res
+}
+
 // sweep removes keys idle for longer than a full refill; caller holds mu.
 func (l *Limiter) sweep(now time.Time) {
 	ttl := time.Minute

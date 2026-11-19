@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Hexeption/nebla/internal/apierr"
@@ -83,6 +84,28 @@ type principal struct {
 
 // authenticate prefers an Authorization bearer token and falls back to the session cookie.
 func (s *server) authenticate(ctx context.Context, r *http.Request) (principal, error) {
+	p, err := s.authenticateRaw(ctx, r)
+	st := rlFrom(ctx)
+	if err != nil {
+		// Failed auth is limited by IP so bad credentials can't be tried freely.
+		if lerr := st.byIP(); lerr != nil {
+			return principal{}, lerr
+		}
+		return principal{}, err
+	}
+	key := "token:"
+	if p.token != nil {
+		key += strconv.FormatInt(p.token.ID, 10)
+	} else {
+		key = "user:" + strconv.FormatInt(p.user.ID, 10)
+	}
+	if err := st.consume(key); err != nil {
+		return principal{}, err
+	}
+	return p, nil
+}
+
+func (s *server) authenticateRaw(ctx context.Context, r *http.Request) (principal, error) {
 	if h := r.Header.Get("Authorization"); h != "" {
 		tok, ok := strings.CutPrefix(h, "Bearer ")
 		if !ok {
@@ -134,6 +157,12 @@ func (s *server) authMiddleware(next apigen.StrictHandlerFunc, op string) apigen
 	h := next
 	switch {
 	case publicOps[op]:
+		h = func(ctx context.Context, w http.ResponseWriter, r *http.Request, req any) (any, error) {
+			if err := rlFrom(ctx).byIP(); err != nil {
+				return nil, err
+			}
+			return next(ctx, w, r, req)
+		}
 	case projectScopedOps[op]:
 		h = s.RequireScope(h)
 	case adminOps[op]:
