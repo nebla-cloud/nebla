@@ -158,11 +158,15 @@ const (
 		and j.state not in ('discarded', 'cancelled', 'completed'))`
 )
 
-// FailOrphanedActions marks running actions whose job is missing, discarded, cancelled or completed as error/orphaned.
+// ServerResource is the servers resource type; reconcile rescues those actions, so the sweep skips them.
+const ServerResource = "server"
+
+// FailOrphanedActions marks orphaned actions without a server resource as error/orphaned.
 func (j *Jobs) FailOrphanedActions(ctx context.Context) (int, error) {
 	res, err := j.sql.ExecContext(ctx, `
 		update actions a set status = 'error', error_code = $1, error_message = $2, finished = now()
-		where `+Orphaned, OrphanedCode, OrphanedMessage)
+		where not a.resources @> jsonb_build_array(jsonb_build_object('type', $3::text)) and `+Orphaned,
+		OrphanedCode, OrphanedMessage, ServerResource)
 	if err != nil {
 		return 0, fmt.Errorf("fail orphaned actions: %w", err)
 	}

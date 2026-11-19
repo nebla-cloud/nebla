@@ -675,3 +675,58 @@ func TestRescueAllWithoutProxmox(t *testing.T) {
 	require.Equal(t, server.StatusError, get(t, e, c.ServerID).Status)
 	require.Equal(t, server.StatusOff, get(t, e, id).Status)
 }
+
+func TestRescueAllSkipsFailingRow(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	id := build(t, e, "web")
+	other := build(t, e, "other")
+	first := orphan(t, e, id, "reboot", server.StatusInitializing)
+	second := orphan(t, e, other, "reboot", server.StatusInitializing)
+	reconcile.SetRescueHook(r, func(a int64) error {
+		if a == first {
+			return io.ErrUnexpectedEOF
+		}
+		return nil
+	})
+	e.App.PVE.SetDown(true)
+	require.NoError(t, r.RescueAll(ctx), "a failing row does not stop startup")
+	_, err := e.App.Jobs.FailOrphanedActions(ctx)
+	require.NoError(t, err)
+	expectOrphaned(t, e, second)
+	require.Equal(t, server.StatusError, get(t, e, other).Status)
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, first)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusRunning, a.Status, "left for the periodic rescue")
+
+	reconcile.SetRescueHook(r, nil)
+	require.Error(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, first)
+	require.Equal(t, server.StatusError, get(t, e, id).Status)
+}
+
+func TestRunLogsUnrestoredVMConfig(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	logs := &lockedBuffer{}
+	r := newReconciler(e, slog.New(slog.NewTextHandler(logs, nil)))
+	e.Admin.CreateServerType("big", 4, 4096, 40)
+	id := build(t, e, "web")
+	e.App.PVE.SetVMStatus(*get(t, e, id).Vmid, "stopped")
+	require.NoError(t, r.Run(ctx, e.Location))
+	res := e.C.Send(http.MethodPost, "/v1/servers/"+strconv.FormatInt(id, 10)+"/actions/change_type",
+		map[string]any{"server_type": "big"})
+	require.Equal(t, http.StatusCreated, res.StatusCode)
+	var out struct {
+		Action struct {
+			ID int64 `json:"id"`
+		} `json:"action"`
+	}
+	decode(t, res, &out)
+	discard(t, e, out.Action.ID)
+	e.App.PVE.SetDown(true)
+	require.Error(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, out.Action.ID)
+	require.Contains(t, logs.String(), "vm config not restored")
+}
