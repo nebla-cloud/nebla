@@ -103,6 +103,15 @@ type Error struct {
 	} `json:"error"`
 }
 
+// Invite defines model for Invite.
+type Invite struct {
+	CreatedBy int64     `json:"created_by"`
+	Email     string    `json:"email"`
+	Expires   time.Time `json:"expires"`
+	Id        int64     `json:"id"`
+	Role      Role      `json:"role"`
+}
+
 // Member defines model for Member.
 type Member struct {
 	Email  string `json:"email"`
@@ -331,9 +340,15 @@ type ServerInterface interface {
 	// PutProject Rename a project
 	// (PUT /projects/{id})
 	PutProject(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// GetProjectInvites List pending invites
+	// (GET /projects/{id}/invites)
+	GetProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID)
 	// PostProjectInvites Invite someone by email
 	// (POST /projects/{id}/invites)
 	PostProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// DeleteProjectInvite Revoke a pending invite
+	// (DELETE /projects/{id}/invites/{invite_id})
+	DeleteProjectInvite(w http.ResponseWriter, r *http.Request, id ProjectID, inviteId int64)
 	// GetProjectMembers List project members
 	// (GET /projects/{id}/members)
 	GetProjectMembers(w http.ResponseWriter, r *http.Request, id ProjectID)
@@ -478,9 +493,21 @@ func (_ Unimplemented) PutProject(w http.ResponseWriter, r *http.Request, id Pro
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetProjectInvites List pending invites
+// (GET /projects/{id}/invites)
+func (_ Unimplemented) GetProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PostProjectInvites Invite someone by email
 // (POST /projects/{id}/invites)
 func (_ Unimplemented) PostProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteProjectInvite Revoke a pending invite
+// (DELETE /projects/{id}/invites/{invite_id})
+func (_ Unimplemented) DeleteProjectInvite(w http.ResponseWriter, r *http.Request, id ProjectID, inviteId int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -897,6 +924,32 @@ func (siw *ServerInterfaceWrapper) PutProject(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetProjectInvites operation middleware
+func (siw *ServerInterfaceWrapper) GetProjectInvites(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProjectInvites(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostProjectInvites operation middleware
 func (siw *ServerInterfaceWrapper) PostProjectInvites(w http.ResponseWriter, r *http.Request) {
 
@@ -914,6 +967,41 @@ func (siw *ServerInterfaceWrapper) PostProjectInvites(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostProjectInvites(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProjectInvite operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProjectInvite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "invite_id" -------------
+	var inviteId int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "invite_id", chi.URLParam(r, "invite_id"), &inviteId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "invite_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProjectInvite(w, r, id, inviteId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1369,7 +1457,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/projects/{id}/members/{user_id}", wrapper.PutProjectMember)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/projects/{id}/invites", wrapper.GetProjectInvites)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/projects/{id}/invites", wrapper.PostProjectInvites)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/projects/{id}/invites/{invite_id}", wrapper.DeleteProjectInvite)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/invites/{token}/accept", wrapper.PostInviteAccept)
@@ -1963,7 +2057,21 @@ func (response PostInviteAccept200JSONResponse) VisitPostInviteAcceptResponse(w 
 	return err
 }
 
-type PostInviteAccept404JSONResponse struct{ ErrorJSONResponse }
+type PostInviteAccept403JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostInviteAccept403JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostInviteAccept404JSONResponse Error
 
 func (response PostInviteAccept404JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
 
@@ -2328,6 +2436,72 @@ func (response PutProject422JSONResponse) VisitPutProjectResponse(w http.Respons
 	return err
 }
 
+type GetProjectInvitesRequestObject struct {
+	Id ProjectID `json:"id"`
+}
+
+type GetProjectInvitesResponseObject interface {
+	VisitGetProjectInvitesResponse(w http.ResponseWriter) error
+}
+
+type GetProjectInvites200JSONResponse struct {
+	Invites []Invite `json:"invites"`
+}
+
+func (response GetProjectInvites200JSONResponse) VisitGetProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectInvites401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetProjectInvites401JSONResponse) VisitGetProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectInvites403JSONResponse Error
+
+func (response GetProjectInvites403JSONResponse) VisitGetProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectInvites404JSONResponse Error
+
+func (response GetProjectInvites404JSONResponse) VisitGetProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostProjectInvitesRequestObject struct {
 	Id   ProjectID `json:"id"`
 	Body *PostProjectInvitesJSONRequestBody
@@ -2405,6 +2579,65 @@ func (response PostProjectInvites422JSONResponse) VisitPostProjectInvitesRespons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectInviteRequestObject struct {
+	Id       ProjectID `json:"id"`
+	InviteId int64     `json:"invite_id"`
+}
+
+type DeleteProjectInviteResponseObject interface {
+	VisitDeleteProjectInviteResponse(w http.ResponseWriter) error
+}
+
+type DeleteProjectInvite204Response struct {
+}
+
+func (response DeleteProjectInvite204Response) VisitDeleteProjectInviteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProjectInvite401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteProjectInvite401JSONResponse) VisitDeleteProjectInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectInvite403JSONResponse Error
+
+func (response DeleteProjectInvite403JSONResponse) VisitDeleteProjectInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectInvite404JSONResponse Error
+
+func (response DeleteProjectInvite404JSONResponse) VisitDeleteProjectInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3077,9 +3310,15 @@ type StrictServerInterface interface {
 	// PutProject Rename a project
 	// (PUT /projects/{id})
 	PutProject(ctx context.Context, request PutProjectRequestObject) (PutProjectResponseObject, error)
+	// GetProjectInvites List pending invites
+	// (GET /projects/{id}/invites)
+	GetProjectInvites(ctx context.Context, request GetProjectInvitesRequestObject) (GetProjectInvitesResponseObject, error)
 	// PostProjectInvites Invite someone by email
 	// (POST /projects/{id}/invites)
 	PostProjectInvites(ctx context.Context, request PostProjectInvitesRequestObject) (PostProjectInvitesResponseObject, error)
+	// DeleteProjectInvite Revoke a pending invite
+	// (DELETE /projects/{id}/invites/{invite_id})
+	DeleteProjectInvite(ctx context.Context, request DeleteProjectInviteRequestObject) (DeleteProjectInviteResponseObject, error)
 	// GetProjectMembers List project members
 	// (GET /projects/{id}/members)
 	GetProjectMembers(ctx context.Context, request GetProjectMembersRequestObject) (GetProjectMembersResponseObject, error)
@@ -3661,6 +3900,32 @@ func (sh *strictHandler) PutProject(w http.ResponseWriter, r *http.Request, id P
 	}
 }
 
+// GetProjectInvites operation middleware
+func (sh *strictHandler) GetProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request GetProjectInvitesRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProjectInvites(ctx, request.(GetProjectInvitesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProjectInvites")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectInvitesResponseObject); ok {
+		if err := validResponse.VisitGetProjectInvitesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostProjectInvites operation middleware
 func (sh *strictHandler) PostProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID) {
 	var request PostProjectInvitesRequestObject
@@ -3687,6 +3952,33 @@ func (sh *strictHandler) PostProjectInvites(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostProjectInvitesResponseObject); ok {
 		if err := validResponse.VisitPostProjectInvitesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProjectInvite operation middleware
+func (sh *strictHandler) DeleteProjectInvite(w http.ResponseWriter, r *http.Request, id ProjectID, inviteId int64) {
+	var request DeleteProjectInviteRequestObject
+
+	request.Id = id
+	request.InviteId = inviteId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProjectInvite(ctx, request.(DeleteProjectInviteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProjectInvite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProjectInviteResponseObject); ok {
+		if err := validResponse.VisitDeleteProjectInviteResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

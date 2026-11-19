@@ -528,6 +528,22 @@ func (c *InviteClient) QueryProject(_m *Invite) *ProjectQuery {
 	return query
 }
 
+// QueryCreator queries the creator edge of a Invite.
+func (c *InviteClient) QueryCreator(_m *Invite) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(invite.Table, invite.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, invite.CreatorTable, invite.CreatorColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *InviteClient) Hooks() []Hook {
 	return c.hooks.Invite

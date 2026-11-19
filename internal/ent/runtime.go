@@ -27,7 +27,7 @@ func init() {
 	inviteFields := schema.Invite{}.Fields()
 	_ = inviteFields
 	// inviteDescCreatedAt is the schema descriptor for created_at field.
-	inviteDescCreatedAt := inviteFields[7].Descriptor()
+	inviteDescCreatedAt := inviteFields[8].Descriptor()
 	// invite.DefaultCreatedAt holds the default value on creation for the created_at field.
 	invite.DefaultCreatedAt = inviteDescCreatedAt.Default.(func() time.Time)
 	projectFields := schema.Project{}.Fields()

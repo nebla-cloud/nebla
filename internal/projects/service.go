@@ -336,7 +336,10 @@ func (s *Service) SetRole(ctx context.Context, userID, projectID, memberID int64
 	return s.changeMember(ctx, userID, projectID, memberID, role, func(tx *ent.Client, _ Member) error {
 		_, err := tx.ProjectMember.Update().
 			Where(projectmember.ProjectID(projectID), projectmember.UserID(memberID)).SetRole(role).Save(ctx)
-		return err
+		if err != nil || slices.Contains(managers, role) {
+			return err
+		}
+		return deleteInvitesBy(ctx, tx, projectID, memberID)
 	})
 }
 
@@ -344,9 +347,60 @@ func (s *Service) RemoveMember(ctx context.Context, userID, projectID, memberID 
 	_, err := s.changeMember(ctx, userID, projectID, memberID, "", func(tx *ent.Client, _ Member) error {
 		_, err := tx.ProjectMember.Delete().
 			Where(projectmember.ProjectID(projectID), projectmember.UserID(memberID)).Exec(ctx)
-		return err
+		if err != nil {
+			return err
+		}
+		return deleteInvitesBy(ctx, tx, projectID, memberID)
 	})
 	return err
+}
+
+// deleteInvitesBy drops pending invites a user created once they can no longer manage the project.
+func deleteInvitesBy(ctx context.Context, tx *ent.Client, projectID, creatorID int64) error {
+	_, err := tx.Invite.Delete().
+		Where(invite.ProjectID(projectID), invite.CreatedBy(creatorID), invite.AcceptedAtIsNil()).Exec(ctx)
+	return err
+}
+
+// PendingInvite is an unaccepted, unexpired invite.
+type PendingInvite struct {
+	ID        int64
+	Email     string
+	Role      string
+	CreatedBy int64
+	ExpiresAt time.Time
+}
+
+func (s *Service) Invites(ctx context.Context, userID, projectID int64) ([]PendingInvite, error) {
+	if _, err := s.require(ctx, userID, projectID, managers...); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Invite.Query().
+		Where(invite.ProjectID(projectID), invite.AcceptedAtIsNil(), invite.ExpiresAtGT(time.Now())).
+		Order(invite.ByID()).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PendingInvite, len(rows))
+	for i, r := range rows {
+		out[i] = PendingInvite{ID: r.ID, Email: r.Email, Role: r.Role, CreatedBy: r.CreatedBy, ExpiresAt: r.ExpiresAt}
+	}
+	return out, nil
+}
+
+func (s *Service) RevokeInvite(ctx context.Context, userID, projectID, inviteID int64) error {
+	if _, err := s.require(ctx, userID, projectID, managers...); err != nil {
+		return err
+	}
+	n, err := s.db.Invite.Delete().
+		Where(invite.ID(inviteID), invite.ProjectID(projectID), invite.AcceptedAtIsNil()).Exec(ctx)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errNotFound
+	}
+	return nil
 }
 
 // Invite stores a single-use invite, emails it, and returns its URL.
@@ -374,7 +428,7 @@ func (s *Service) Invite(ctx context.Context, userID, projectID int64, email, ro
 		return "", err
 	}
 	tok := base64.RawURLEncoding.EncodeToString(raw)
-	err = s.db.Invite.Create().SetProjectID(projectID).SetEmail(email).SetRole(role).
+	err = s.db.Invite.Create().SetProjectID(projectID).SetCreatedBy(userID).SetEmail(email).SetRole(role).
 		SetTokenHash(auth.HashSecret(tok)).SetExpiresAt(time.Now().Add(InviteTTL)).Exec(ctx)
 	if err != nil {
 		return "", err
@@ -395,17 +449,24 @@ type Accepted struct {
 	NewUser *auth.User
 }
 
-// AcceptInvite adds userID (or, when zero, a new account from name and password) to the invite's project.
-func (s *Service) AcceptInvite(ctx context.Context, token string, userID int64, name, password string) (Accepted, error) {
+var errInviteMismatch = apierr.New(http.StatusForbidden, "invite_email_mismatch", "this invite was sent to a different email address")
+
+// AcceptInvite adds the logged-in user (whose email must match) or, when u is nil, a new account to the invite's project.
+func (s *Service) AcceptInvite(ctx context.Context, token string, u *auth.User, name, password string) (Accepted, error) {
 	hash := auth.HashSecret(token)
 	inv, err := s.liveInvite(ctx, s.db, hash, false)
 	if err != nil {
 		return Accepted{}, err
 	}
+	if u != nil && auth.NormalizeEmail(u.Email) != inv.Email {
+		return Accepted{}, errInviteMismatch
+	}
 	var out Accepted
 	err = withTx(ctx, s.db, func(tx *ent.Client) error {
-		uid := userID
-		if uid == 0 {
+		var uid int64
+		if u != nil {
+			uid = u.ID
+		} else {
 			taken, err := tx.User.Query().Where(user.Email(inv.Email)).Exist(ctx)
 			if err != nil {
 				return err
@@ -422,6 +483,10 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, userID int64, 
 		inv, err := s.liveInvite(ctx, tx, hash, true)
 		if err != nil {
 			return err
+		}
+		// The creator must still manage the project for their invite to count.
+		if r, err := roleIn(ctx, tx, inv.CreatedBy, inv.ProjectID); err != nil || !slices.Contains(managers, r) {
+			return errNotFound
 		}
 		if _, err := roleIn(ctx, tx, uid, inv.ProjectID); err == nil {
 			return apierr.New(http.StatusConflict, "already_member", "you are already a member of this project")

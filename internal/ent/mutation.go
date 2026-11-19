@@ -735,6 +735,8 @@ type InviteMutation struct {
 	clearedFields  map[string]struct{}
 	project        *int64
 	clearedproject bool
+	creator        *int64
+	clearedcreator bool
 	done           bool
 	oldValue       func(context.Context) (*Invite, error)
 	predicates     []predicate.Invite
@@ -878,6 +880,42 @@ func (m *InviteMutation) OldProjectID(ctx context.Context) (v int64, err error) 
 // ResetProjectID resets all changes to the "project_id" field.
 func (m *InviteMutation) ResetProjectID() {
 	m.project = nil
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *InviteMutation) SetCreatedBy(i int64) {
+	m.creator = &i
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *InviteMutation) CreatedBy() (r int64, exists bool) {
+	v := m.creator
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the Invite entity.
+// If the Invite object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *InviteMutation) OldCreatedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *InviteMutation) ResetCreatedBy() {
+	m.creator = nil
 }
 
 // SetEmail sets the "email" field.
@@ -1136,6 +1174,46 @@ func (m *InviteMutation) ResetProject() {
 	m.clearedproject = false
 }
 
+// SetCreatorID sets the "creator" edge to the User entity by id.
+func (m *InviteMutation) SetCreatorID(id int64) {
+	m.creator = &id
+}
+
+// ClearCreator clears the "creator" edge to the User entity.
+func (m *InviteMutation) ClearCreator() {
+	m.clearedcreator = true
+	m.clearedFields[invite.FieldCreatedBy] = struct{}{}
+}
+
+// CreatorCleared reports if the "creator" edge to the User entity was cleared.
+func (m *InviteMutation) CreatorCleared() bool {
+	return m.clearedcreator
+}
+
+// CreatorID returns the "creator" edge ID in the mutation.
+func (m *InviteMutation) CreatorID() (id int64, exists bool) {
+	if m.creator != nil {
+		return *m.creator, true
+	}
+	return
+}
+
+// CreatorIDs returns the "creator" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CreatorID instead. It exists only for internal usage by the builders.
+func (m *InviteMutation) CreatorIDs() (ids []int64) {
+	if id := m.creator; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCreator resets all changes to the "creator" edge.
+func (m *InviteMutation) ResetCreator() {
+	m.creator = nil
+	m.clearedcreator = false
+}
+
 // Where appends a list predicates to the InviteMutation builder.
 func (m *InviteMutation) Where(ps ...predicate.Invite) {
 	m.predicates = append(m.predicates, ps...)
@@ -1170,9 +1248,12 @@ func (m *InviteMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *InviteMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 8)
 	if m.project != nil {
 		fields = append(fields, invite.FieldProjectID)
+	}
+	if m.creator != nil {
+		fields = append(fields, invite.FieldCreatedBy)
 	}
 	if m.email != nil {
 		fields = append(fields, invite.FieldEmail)
@@ -1202,6 +1283,8 @@ func (m *InviteMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case invite.FieldProjectID:
 		return m.ProjectID()
+	case invite.FieldCreatedBy:
+		return m.CreatedBy()
 	case invite.FieldEmail:
 		return m.Email()
 	case invite.FieldRole:
@@ -1225,6 +1308,8 @@ func (m *InviteMutation) OldField(ctx context.Context, name string) (ent.Value, 
 	switch name {
 	case invite.FieldProjectID:
 		return m.OldProjectID(ctx)
+	case invite.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
 	case invite.FieldEmail:
 		return m.OldEmail(ctx)
 	case invite.FieldRole:
@@ -1252,6 +1337,13 @@ func (m *InviteMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetProjectID(v)
+		return nil
+	case invite.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
 		return nil
 	case invite.FieldEmail:
 		v, ok := value.(string)
@@ -1359,6 +1451,9 @@ func (m *InviteMutation) ResetField(name string) error {
 	case invite.FieldProjectID:
 		m.ResetProjectID()
 		return nil
+	case invite.FieldCreatedBy:
+		m.ResetCreatedBy()
+		return nil
 	case invite.FieldEmail:
 		m.ResetEmail()
 		return nil
@@ -1383,9 +1478,12 @@ func (m *InviteMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *InviteMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.project != nil {
 		edges = append(edges, invite.EdgeProject)
+	}
+	if m.creator != nil {
+		edges = append(edges, invite.EdgeCreator)
 	}
 	return edges
 }
@@ -1398,13 +1496,17 @@ func (m *InviteMutation) AddedIDs(name string) []ent.Value {
 		if id := m.project; id != nil {
 			return []ent.Value{*id}
 		}
+	case invite.EdgeCreator:
+		if id := m.creator; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *InviteMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	return edges
 }
 
@@ -1416,9 +1518,12 @@ func (m *InviteMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *InviteMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedproject {
 		edges = append(edges, invite.EdgeProject)
+	}
+	if m.clearedcreator {
+		edges = append(edges, invite.EdgeCreator)
 	}
 	return edges
 }
@@ -1429,6 +1534,8 @@ func (m *InviteMutation) EdgeCleared(name string) bool {
 	switch name {
 	case invite.EdgeProject:
 		return m.clearedproject
+	case invite.EdgeCreator:
+		return m.clearedcreator
 	}
 	return false
 }
@@ -1440,6 +1547,9 @@ func (m *InviteMutation) ClearEdge(name string) error {
 	case invite.EdgeProject:
 		m.ClearProject()
 		return nil
+	case invite.EdgeCreator:
+		m.ClearCreator()
+		return nil
 	}
 	return fmt.Errorf("unknown Invite unique edge %s", name)
 }
@@ -1450,6 +1560,9 @@ func (m *InviteMutation) ResetEdge(name string) error {
 	switch name {
 	case invite.EdgeProject:
 		m.ResetProject()
+		return nil
+	case invite.EdgeCreator:
+		m.ResetCreator()
 		return nil
 	}
 	return fmt.Errorf("unknown Invite edge %s", name)

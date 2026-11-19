@@ -86,6 +86,9 @@ func (_u *InviteUpdate) check() error {
 	if _u.mutation.ProjectCleared() && len(_u.mutation.ProjectIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "Invite.project"`)
 	}
+	if _u.mutation.CreatorCleared() && len(_u.mutation.CreatorIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Invite.creator"`)
+	}
 	return nil
 }
 
@@ -204,6 +207,9 @@ func (_u *InviteUpdateOne) ExecX(ctx context.Context) {
 func (_u *InviteUpdateOne) check() error {
 	if _u.mutation.ProjectCleared() && len(_u.mutation.ProjectIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "Invite.project"`)
+	}
+	if _u.mutation.CreatorCleared() && len(_u.mutation.CreatorIDs()) > 0 {
+		return errors.New(`ent: clearing a required unique edge "Invite.creator"`)
 	}
 	return nil
 }

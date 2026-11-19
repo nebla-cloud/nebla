@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Hexeption/nebla/internal/apigen"
+	"github.com/Hexeption/nebla/internal/auth"
 	"github.com/Hexeption/nebla/internal/projects"
 )
 
@@ -114,12 +115,31 @@ func (s *server) PostProjectInvites(ctx context.Context, req apigen.PostProjectI
 	return apigen.PostProjectInvites201JSONResponse{InviteUrl: url}, nil
 }
 
+func (s *server) GetProjectInvites(ctx context.Context, req apigen.GetProjectInvitesRequestObject) (apigen.GetProjectInvitesResponseObject, error) {
+	invs, err := s.projects.Invites(ctx, userID(ctx), req.Id)
+	if err != nil {
+		return nil, err
+	}
+	out := apigen.GetProjectInvites200JSONResponse{Invites: make([]apigen.Invite, len(invs))}
+	for i, v := range invs {
+		out.Invites[i] = apigen.Invite{Id: v.ID, Email: v.Email, Role: apigen.Role(v.Role), CreatedBy: v.CreatedBy, Expires: v.ExpiresAt}
+	}
+	return out, nil
+}
+
+func (s *server) DeleteProjectInvite(ctx context.Context, req apigen.DeleteProjectInviteRequestObject) (apigen.DeleteProjectInviteResponseObject, error) {
+	if err := s.projects.RevokeInvite(ctx, userID(ctx), req.Id, req.InviteId); err != nil {
+		return nil, err
+	}
+	return apigen.DeleteProjectInvite204Response{}, nil
+}
+
 func (s *server) PostInviteAccept(ctx context.Context, req apigen.PostInviteAcceptRequestObject) (apigen.PostInviteAcceptResponseObject, error) {
-	var uid int64
+	var me *auth.User
 	if r := requestFrom(ctx); r != nil {
 		if c, err := r.Cookie(sessionCookie); err == nil {
 			if u, err := s.auth.UserFromSession(ctx, c.Value); err == nil {
-				uid = u.ID
+				me = &u
 			}
 		}
 	}
@@ -132,7 +152,7 @@ func (s *server) PostInviteAccept(ctx context.Context, req apigen.PostInviteAcce
 			pw = *b.Password
 		}
 	}
-	acc, err := s.projects.AcceptInvite(ctx, req.Token, uid, name, pw)
+	acc, err := s.projects.AcceptInvite(ctx, req.Token, me, name, pw)
 	if err != nil {
 		return nil, err
 	}
