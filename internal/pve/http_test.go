@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/netip"
@@ -92,6 +93,14 @@ func TestSetFirewallIPSet(t *testing.T) {
 	vm, _ := f.VM(101)
 	if !slices.Equal(vm.IPSets["ipfilter-net0"], []string{"203.0.113.5", "2001:db8::1"}) || vm.Firewall["ipfilter"] != "1" {
 		t.Fatalf("vm = %+v", vm)
+	}
+	want := map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "policy_in": "ACCEPT", "policy_out": "ACCEPT"}
+	if !maps.Equal(vm.Firewall, want) {
+		t.Fatalf("firewall = %v", vm.Firewall)
+	}
+	got, err := c.FirewallOptions(ctx(t), "pve1", 101)
+	if err != nil || !maps.Equal(got, want) {
+		t.Fatalf("firewall options = %v, %v", got, err)
 	}
 	if err := c.SetFirewall(ctx(t), "pve1", 101, ips[:1]); err != nil {
 		t.Fatal(err)

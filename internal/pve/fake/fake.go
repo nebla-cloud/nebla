@@ -617,6 +617,19 @@ func (s *Server) routes(mux *http.ServeMux) {
 		v.config[f["disk"]] = strings.Join(keep, ",") + ",size=" + f["size"]
 		return nil, nil
 	})
+	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/firewall/options", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		out := map[string]any{}
+		for k, val := range v.firewall {
+			out[k] = val
+		}
+		return out, nil
+	})
 	s.handle(mux, "PUT /nodes/{node}/qemu/{vmid}/firewall/options", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		f := form(r)
 		s.mu.Lock()
