@@ -7,9 +7,11 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/Hexeption/nebla/internal/auth"
 	"github.com/Hexeption/nebla/internal/catalog"
@@ -130,6 +132,17 @@ func New(deps Deps) http.Handler {
 
 	r := chi.NewRouter()
 	api := chi.NewRouter()
+	cop := http.NewCrossOriginProtection()
+	// Behind a host-rewriting proxy, the configured panel origin is still trusted.
+	if u, err := url.Parse(deps.Config.BaseURL); err == nil && u.Host != "" {
+		if err := cop.AddTrustedOrigin(u.Scheme + "://" + u.Host); err != nil {
+			log.Error("trust panel origin", "base_url", deps.Config.BaseURL, "err", err)
+		}
+	}
+	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.responseError(w, r, apierr.New(http.StatusForbidden, "forbidden", "cross-origin request rejected"))
+	}))
+	api.Use(cop.Handler)
 	api.Use(s.rateLimitMiddleware)
 	api.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
