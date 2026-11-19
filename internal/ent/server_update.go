@@ -175,6 +175,48 @@ func (_u *ServerUpdate) ClearIsoVolid() *ServerUpdate {
 	return _u
 }
 
+// SetCores sets the "cores" field.
+func (_u *ServerUpdate) SetCores(v int) *ServerUpdate {
+	_u.mutation.ResetCores()
+	_u.mutation.SetCores(v)
+	return _u
+}
+
+// SetNillableCores sets the "cores" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableCores(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetCores(*v)
+	}
+	return _u
+}
+
+// AddCores adds value to the "cores" field.
+func (_u *ServerUpdate) AddCores(v int) *ServerUpdate {
+	_u.mutation.AddCores(v)
+	return _u
+}
+
+// SetMemoryMB sets the "memory_mb" field.
+func (_u *ServerUpdate) SetMemoryMB(v int) *ServerUpdate {
+	_u.mutation.ResetMemoryMB()
+	_u.mutation.SetMemoryMB(v)
+	return _u
+}
+
+// SetNillableMemoryMB sets the "memory_mb" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableMemoryMB(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetMemoryMB(*v)
+	}
+	return _u
+}
+
+// AddMemoryMB adds value to the "memory_mb" field.
+func (_u *ServerUpdate) AddMemoryMB(v int) *ServerUpdate {
+	_u.mutation.AddMemoryMB(v)
+	return _u
+}
+
 // SetDiskGB sets the "disk_gb" field.
 func (_u *ServerUpdate) SetDiskGB(v int) *ServerUpdate {
 	_u.mutation.ResetDiskGB()
@@ -348,6 +390,18 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.IsoVolidCleared() {
 		_spec.ClearField(server.FieldIsoVolid, field.TypeString)
+	}
+	if value, ok := _u.mutation.Cores(); ok {
+		_spec.SetField(server.FieldCores, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCores(); ok {
+		_spec.AddField(server.FieldCores, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MemoryMB(); ok {
+		_spec.SetField(server.FieldMemoryMB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMemoryMB(); ok {
+		_spec.AddField(server.FieldMemoryMB, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.DiskGB(); ok {
 		_spec.SetField(server.FieldDiskGB, field.TypeInt, value)
@@ -590,6 +644,48 @@ func (_u *ServerUpdateOne) ClearIsoVolid() *ServerUpdateOne {
 	return _u
 }
 
+// SetCores sets the "cores" field.
+func (_u *ServerUpdateOne) SetCores(v int) *ServerUpdateOne {
+	_u.mutation.ResetCores()
+	_u.mutation.SetCores(v)
+	return _u
+}
+
+// SetNillableCores sets the "cores" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableCores(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetCores(*v)
+	}
+	return _u
+}
+
+// AddCores adds value to the "cores" field.
+func (_u *ServerUpdateOne) AddCores(v int) *ServerUpdateOne {
+	_u.mutation.AddCores(v)
+	return _u
+}
+
+// SetMemoryMB sets the "memory_mb" field.
+func (_u *ServerUpdateOne) SetMemoryMB(v int) *ServerUpdateOne {
+	_u.mutation.ResetMemoryMB()
+	_u.mutation.SetMemoryMB(v)
+	return _u
+}
+
+// SetNillableMemoryMB sets the "memory_mb" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableMemoryMB(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetMemoryMB(*v)
+	}
+	return _u
+}
+
+// AddMemoryMB adds value to the "memory_mb" field.
+func (_u *ServerUpdateOne) AddMemoryMB(v int) *ServerUpdateOne {
+	_u.mutation.AddMemoryMB(v)
+	return _u
+}
+
 // SetDiskGB sets the "disk_gb" field.
 func (_u *ServerUpdateOne) SetDiskGB(v int) *ServerUpdateOne {
 	_u.mutation.ResetDiskGB()
@@ -793,6 +889,18 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if _u.mutation.IsoVolidCleared() {
 		_spec.ClearField(server.FieldIsoVolid, field.TypeString)
+	}
+	if value, ok := _u.mutation.Cores(); ok {
+		_spec.SetField(server.FieldCores, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCores(); ok {
+		_spec.AddField(server.FieldCores, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MemoryMB(); ok {
+		_spec.SetField(server.FieldMemoryMB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMemoryMB(); ok {
+		_spec.AddField(server.FieldMemoryMB, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.DiskGB(); ok {
 		_spec.SetField(server.FieldDiskGB, field.TypeInt, value)

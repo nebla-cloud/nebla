@@ -28,6 +28,9 @@ func (Server) Fields() []ent.Field {
 		field.Text("mac").Immutable(),
 		field.JSON("labels", map[string]string{}),
 		field.Text("iso_volid").Optional().Nillable(),
+		// cores, memory_mb and disk_gb are snapshots of the type; change-type updates them.
+		field.Int("cores"),
+		field.Int("memory_mb"),
 		field.Int("disk_gb"),
 		// user_data and ssh_keys feed cloud-init and are never returned by the API.
 		field.Text("user_data").Default("").Sensitive(),

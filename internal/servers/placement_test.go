@@ -27,6 +27,8 @@ func TestPlaceMostFreeMemory(t *testing.T) {
 	}{
 		{"most free wins", []servers.NodeLoad{online("a", 64, 40, 0), online("b", 64, 10, 0), online("c", 64, 20, 0)}, "b"},
 		{"reserved counts", []servers.NodeLoad{online("a", 64, 10, 30), online("b", 64, 20, 0)}, "b"},
+		// a: 30 GiB used (running VMs are in mem) + 0 reserved; b: 10 used + 25 reserved for not-yet-running servers.
+		{"mem and reserved both subtract", []servers.NodeLoad{online("a", 64, 30, 0), online("b", 64, 10, 25)}, "a"},
 		{"tie lowest name", []servers.NodeLoad{online("pve2", 64, 10, 0), online("pve1", 64, 10, 0)}, "pve1"},
 		{"skips disabled", []servers.NodeLoad{{Name: "a", Enabled: false, Status: "online", MaxMem: 64 * gib}, online("b", 64, 60, 0)}, "b"},
 		{"skips offline", []servers.NodeLoad{{Name: "a", Enabled: true, Status: "offline", MaxMem: 64 * gib}, online("b", 64, 60, 0)}, "b"},
