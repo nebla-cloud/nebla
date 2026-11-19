@@ -40,14 +40,12 @@ func (s buildState) proof() CloneProof { return CloneProof{UPID: s.Upid, Nonce: 
 
 // builder clones and configures a VM for row from template tmpl, saving progress through save.
 type builder struct {
-	pc     pve.Client
-	loc    catalog.Location
-	assign []ipam.Assignment
-	row    *ent.Server
-	tmpl   int
-	isoGen int
-	// adopt lets pickVMID take a VM already tagged for the server; only create may.
-	adopt          bool
+	pc             pve.Client
+	loc            catalog.Location
+	assign         []ipam.Assignment
+	row            *ent.Server
+	tmpl           int
+	isoGen         int
 	st             buildState
 	save           func(context.Context, buildState) error
 	afterClonePost func()
@@ -112,21 +110,9 @@ func (b *builder) pickVMID(ctx context.Context) error {
 	if b.st.Vmid != nil {
 		return b.done(ctx, stepVMID)
 	}
-	vmid := 0
-	if b.adopt {
-		vms, err := b.pc.VMs(ctx)
-		if err != nil {
-			return err
-		}
-		if i := slices.IndexFunc(vms, func(v pve.VM) bool { return ownedBy(v, b.row.ID) }); i >= 0 {
-			vmid = vms[i].VMID
-		}
-	}
-	if vmid == 0 {
-		var err error
-		if vmid, err = b.pc.NextID(ctx); err != nil {
-			return err
-		}
+	vmid, err := b.pc.NextID(ctx)
+	if err != nil {
+		return err
 	}
 	return b.update(ctx, func(s *buildState) { s.Vmid, s.Step = &vmid, stepVMID })
 }

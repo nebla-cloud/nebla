@@ -682,3 +682,23 @@ func TestCreateServerCleanupFailedCloneTaskReleasesIPs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, a.Error.Message, "cleanup incomplete")
 }
+
+// TestCreateDoesNotAdoptTaggedVM checks a VM already tagged for the server id is left alone; create picks NextID.
+func TestCreateDoesNotAdoptTaggedVM(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	e.App.PVE.AddVM("pve1", 900, "stale")
+	e.App.PVE.SetVMConfig(900, "tags", "nebla;"+tag(s.ServerID))
+	before, _ := e.App.PVE.VM(900)
+	require.NoError(t, w.Work(ctx, job(s, 1)))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.NotEqual(t, 900, *row.Vmid)
+	after, ok := e.App.PVE.VM(900)
+	require.True(t, ok)
+	require.Equal(t, before, after)
+}

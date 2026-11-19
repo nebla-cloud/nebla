@@ -134,6 +134,8 @@ Notes:
 - Nebla sets cores, memory, the network card, tags and `agent=1` on every clone, and grows the disk to the server type's
   size. Keep the template disk no larger than your smallest server type, because disks never shrink.
 - Nebla tags its VMs `nebla` and `nb-srv-<id>`. It never touches VMs without the `nebla` tag.
+- Run one Nebla install per Proxmox cluster. Before reinstalling Nebla with a fresh database, remove the VMs tagged
+  `nebla`, because the new install reuses server ids.
 
 ## 6. Register the template as an image
 
