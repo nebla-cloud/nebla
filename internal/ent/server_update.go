@@ -196,6 +196,26 @@ func (_u *ServerUpdate) AddIsoGeneration(v int) *ServerUpdate {
 	return _u
 }
 
+// SetCloneUpid sets the "clone_upid" field.
+func (_u *ServerUpdate) SetCloneUpid(v string) *ServerUpdate {
+	_u.mutation.SetCloneUpid(v)
+	return _u
+}
+
+// SetNillableCloneUpid sets the "clone_upid" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableCloneUpid(v *string) *ServerUpdate {
+	if v != nil {
+		_u.SetCloneUpid(*v)
+	}
+	return _u
+}
+
+// ClearCloneUpid clears the value of the "clone_upid" field.
+func (_u *ServerUpdate) ClearCloneUpid() *ServerUpdate {
+	_u.mutation.ClearCloneUpid()
+	return _u
+}
+
 // SetCreateStep sets the "create_step" field.
 func (_u *ServerUpdate) SetCreateStep(v int) *ServerUpdate {
 	_u.mutation.ResetCreateStep()
@@ -438,6 +458,12 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedIsoGeneration(); ok {
 		_spec.AddField(server.FieldIsoGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CloneUpid(); ok {
+		_spec.SetField(server.FieldCloneUpid, field.TypeString, value)
+	}
+	if _u.mutation.CloneUpidCleared() {
+		_spec.ClearField(server.FieldCloneUpid, field.TypeString)
 	}
 	if value, ok := _u.mutation.CreateStep(); ok {
 		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
@@ -719,6 +745,26 @@ func (_u *ServerUpdateOne) AddIsoGeneration(v int) *ServerUpdateOne {
 	return _u
 }
 
+// SetCloneUpid sets the "clone_upid" field.
+func (_u *ServerUpdateOne) SetCloneUpid(v string) *ServerUpdateOne {
+	_u.mutation.SetCloneUpid(v)
+	return _u
+}
+
+// SetNillableCloneUpid sets the "clone_upid" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableCloneUpid(v *string) *ServerUpdateOne {
+	if v != nil {
+		_u.SetCloneUpid(*v)
+	}
+	return _u
+}
+
+// ClearCloneUpid clears the value of the "clone_upid" field.
+func (_u *ServerUpdateOne) ClearCloneUpid() *ServerUpdateOne {
+	_u.mutation.ClearCloneUpid()
+	return _u
+}
+
 // SetCreateStep sets the "create_step" field.
 func (_u *ServerUpdateOne) SetCreateStep(v int) *ServerUpdateOne {
 	_u.mutation.ResetCreateStep()
@@ -991,6 +1037,12 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if value, ok := _u.mutation.AddedIsoGeneration(); ok {
 		_spec.AddField(server.FieldIsoGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CloneUpid(); ok {
+		_spec.SetField(server.FieldCloneUpid, field.TypeString, value)
+	}
+	if _u.mutation.CloneUpidCleared() {
+		_spec.ClearField(server.FieldCloneUpid, field.TypeString)
 	}
 	if value, ok := _u.mutation.CreateStep(); ok {
 		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)

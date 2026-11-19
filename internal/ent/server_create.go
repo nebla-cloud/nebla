@@ -144,6 +144,20 @@ func (_c *ServerCreate) SetNillableIsoGeneration(v *int) *ServerCreate {
 	return _c
 }
 
+// SetCloneUpid sets the "clone_upid" field.
+func (_c *ServerCreate) SetCloneUpid(v string) *ServerCreate {
+	_c.mutation.SetCloneUpid(v)
+	return _c
+}
+
+// SetNillableCloneUpid sets the "clone_upid" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableCloneUpid(v *string) *ServerCreate {
+	if v != nil {
+		_c.SetCloneUpid(*v)
+	}
+	return _c
+}
+
 // SetCreateStep sets the "create_step" field.
 func (_c *ServerCreate) SetCreateStep(v int) *ServerCreate {
 	_c.mutation.SetCreateStep(v)
@@ -435,6 +449,10 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsoGeneration(); ok {
 		_spec.SetField(server.FieldIsoGeneration, field.TypeInt, value)
 		_node.IsoGeneration = value
+	}
+	if value, ok := _c.mutation.CloneUpid(); ok {
+		_spec.SetField(server.FieldCloneUpid, field.TypeString, value)
+		_node.CloneUpid = &value
 	}
 	if value, ok := _c.mutation.CreateStep(); ok {
 		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
@@ -731,6 +749,24 @@ func (u *ServerUpsert) UpdateIsoGeneration() *ServerUpsert {
 // AddIsoGeneration adds v to the "iso_generation" field.
 func (u *ServerUpsert) AddIsoGeneration(v int) *ServerUpsert {
 	u.Add(server.FieldIsoGeneration, v)
+	return u
+}
+
+// SetCloneUpid sets the "clone_upid" field.
+func (u *ServerUpsert) SetCloneUpid(v string) *ServerUpsert {
+	u.Set(server.FieldCloneUpid, v)
+	return u
+}
+
+// UpdateCloneUpid sets the "clone_upid" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateCloneUpid() *ServerUpsert {
+	u.SetExcluded(server.FieldCloneUpid)
+	return u
+}
+
+// ClearCloneUpid clears the value of the "clone_upid" field.
+func (u *ServerUpsert) ClearCloneUpid() *ServerUpsert {
+	u.SetNull(server.FieldCloneUpid)
 	return u
 }
 
@@ -1062,6 +1098,27 @@ func (u *ServerUpsertOne) AddIsoGeneration(v int) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateIsoGeneration() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateIsoGeneration()
+	})
+}
+
+// SetCloneUpid sets the "clone_upid" field.
+func (u *ServerUpsertOne) SetCloneUpid(v string) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCloneUpid(v)
+	})
+}
+
+// UpdateCloneUpid sets the "clone_upid" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateCloneUpid() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCloneUpid()
+	})
+}
+
+// ClearCloneUpid clears the value of the "clone_upid" field.
+func (u *ServerUpsertOne) ClearCloneUpid() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearCloneUpid()
 	})
 }
 
@@ -1575,6 +1632,27 @@ func (u *ServerUpsertBulk) AddIsoGeneration(v int) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateIsoGeneration() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateIsoGeneration()
+	})
+}
+
+// SetCloneUpid sets the "clone_upid" field.
+func (u *ServerUpsertBulk) SetCloneUpid(v string) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCloneUpid(v)
+	})
+}
+
+// UpdateCloneUpid sets the "clone_upid" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateCloneUpid() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCloneUpid()
+	})
+}
+
+// ClearCloneUpid clears the value of the "clone_upid" field.
+func (u *ServerUpsertBulk) ClearCloneUpid() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearCloneUpid()
 	})
 }
 

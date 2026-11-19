@@ -48,6 +48,8 @@ type Server struct {
 	IsoVolid *string `json:"iso_volid,omitempty"`
 	// IsoGeneration holds the value of the "iso_generation" field.
 	IsoGeneration int `json:"iso_generation,omitempty"`
+	// CloneUpid holds the value of the "clone_upid" field.
+	CloneUpid *string `json:"clone_upid,omitempty"`
 	// CreateStep holds the value of the "create_step" field.
 	CreateStep int `json:"create_step,omitempty"`
 	// Cores holds the value of the "cores" field.
@@ -136,7 +138,7 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
 			values[i] = new(sql.NullInt64)
-		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldUserData:
+		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldUserData:
 			values[i] = new(sql.NullString)
 		case server.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -242,6 +244,13 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field iso_generation", values[i])
 			} else if value.Valid {
 				_m.IsoGeneration = int(value.Int64)
+			}
+		case server.FieldCloneUpid:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field clone_upid", values[i])
+			} else if value.Valid {
+				_m.CloneUpid = new(string)
+				*_m.CloneUpid = value.String
 			}
 		case server.FieldCreateStep:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -385,6 +394,11 @@ func (_m *Server) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("iso_generation=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsoGeneration))
+	builder.WriteString(", ")
+	if v := _m.CloneUpid; v != nil {
+		builder.WriteString("clone_upid=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("create_step=")
 	builder.WriteString(fmt.Sprintf("%v", _m.CreateStep))

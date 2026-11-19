@@ -63,7 +63,7 @@ func directEnv(t *testing.T) (*testutil.ServerEnv, *servers.CreateServerWorker) 
 
 func job(s testutil.CreatedServer, attempt int) *river.Job[servers.CreateServerArgs] {
 	return &river.Job[servers.CreateServerArgs]{
-		JobRow: &rivertype.JobRow{ID: 1, Attempt: attempt, MaxAttempts: 3},
+		JobRow: &rivertype.JobRow{ID: 1, Attempt: attempt, MaxAttempts: servers.MaxCreateAttempts + 2},
 		Args:   servers.CreateServerArgs{ServerID: s.ServerID, ActionID: s.ActionID, StartAfter: true},
 	}
 }
@@ -236,33 +236,199 @@ func TestCreateServerResumesAfterCrash(t *testing.T) {
 	require.Equal(t, servers.StatusRunning, string(row.Status))
 }
 
-func TestCreateServerResumesAfterCrashMidClone(t *testing.T) {
+// vmCount counts non-template VMs in the fake.
+func vmCount(t *testing.T, e *testutil.ServerEnv) int {
+	t.Helper()
+	pc, err := e.App.Catalog.ProxmoxFor(context.Background(), e.Location)
+	require.NoError(t, err)
+	vms, err := pc.VMs(context.Background())
+	require.NoError(t, err)
+	n := 0
+	for _, v := range vms {
+		if !v.Template {
+			n++
+		}
+	}
+	return n
+}
+
+// crashMidClone cancels Work while a delayed clone task is still running.
+func crashMidClone(t *testing.T, e *testutil.ServerEnv, w *servers.CreateServerWorker, s testutil.CreatedServer, attempt int) int {
+	t.Helper()
 	ctx := context.Background()
-	e, w := directEnv(t)
-	s := e.CreateServer("web", nil)
-	e.App.PVE.SetTaskDelay(300 * time.Millisecond)
+	e.App.PVE.SetTaskDelay(500 * time.Millisecond)
 	crashCtx, crash := context.WithCancel(ctx)
 	defer crash()
 	servers.SetAfterStep(w, func(step int) {
 		if step == 1 {
-			go func() { time.Sleep(50 * time.Millisecond); crash() }()
+			go func() { time.Sleep(100 * time.Millisecond); crash() }()
 		}
 	})
-	require.Error(t, w.Work(crashCtx, job(s, 1)))
+	err := w.Work(crashCtx, job(s, attempt))
+	require.Error(t, err)
+	var cancel *river.JobCancelError
+	require.False(t, errors.As(err, &cancel), "%v", err)
+	servers.SetAfterStep(w, nil)
+	e.App.PVE.SetTaskDelay(0)
 	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
 	require.NoError(t, err)
 	require.Equal(t, 1, row.CreateStep, "crashed while the clone task ran")
-	require.Eventually(t, func() bool { _, ok := e.App.PVE.VM(*row.Vmid); return ok }, testWait, testTick)
-	vm, _ := e.App.PVE.VM(*row.Vmid)
-	require.Empty(t, vm.Tags, "the clone finished untagged")
+	require.NotNil(t, row.CloneUpid, "clone upid saved before waiting")
+	vm, ok := e.App.PVE.VM(*row.Vmid)
+	require.True(t, ok, "the vmid already holds the in-flight clone")
+	require.Equal(t, "clone", vm.Config["lock"])
+	require.Empty(t, vm.Tags)
+	return *row.Vmid
+}
 
-	e.App.PVE.SetTaskDelay(0)
-	servers.SetAfterStep(w, nil)
+func TestCreateServerResumesAfterCrashMidClone(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	vmid := crashMidClone(t, e, w, s, 1)
+
+	// Resumes while the clone task is still running.
 	require.NoError(t, w.Work(ctx, job(s, 2)))
-	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"), "the untagged clone is adopted by name")
+	require.Equal(t, 1, vmCount(t, e), "exactly one VM")
+	require.Equal(t, 1, countCalls(e, "GET /cluster/nextid"))
+	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"), "no second clone")
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, vmid, *row.Vmid)
 	require.Len(t, taggedVMs(t, e, s.ServerID), 1)
-	_, ok := e.App.PVE.VM(*row.Vmid + 1)
-	require.False(t, ok, "no second VM")
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusSuccess, a.Status)
+}
+
+func TestCreateServerLockedVMIDIsTransient(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	crashMidClone(t, e, w, s, 1)
+	e.App.PVE.SetTaskDelay(time.Hour)
+	// Without the saved upid, a locked VM at our vmid is retried, never a collision.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).ClearCloneUpid().Exec(ctx))
+	err := w.Work(ctx, job(s, 2))
+	require.Error(t, err)
+	var cancel *river.JobCancelError
+	require.False(t, errors.As(err, &cancel), "%v", err)
+	require.Contains(t, err.Error(), "locked")
+	require.Equal(t, 1, countCalls(e, "GET /cluster/nextid"))
+	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"))
+}
+
+func TestCreateServerCloneTaskFails(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	e.App.PVE.FailNext("/clone", http.StatusInternalServerError)
+	err := w.Work(ctx, job(s, 1))
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(err, &cancel), "%v", err)
+	require.Zero(t, vmCount(t, e))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Contains(t, a.Error.Message, "clone template")
+	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+}
+
+func TestCreateServerCleanupAfterCap(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	vmid := crashMidClone(t, e, w, s, servers.MaxCreateAttempts)
+	require.Eventually(t, func() bool { v, _ := e.App.PVE.VM(vmid); return v.Name != "" }, testWait, testTick)
+
+	// The spare attempt after the cap only cleans up, proving the untagged clone by its upid.
+	err := w.Work(ctx, job(s, servers.MaxCreateAttempts+1))
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(err, &cancel), "%v", err)
+	require.Zero(t, vmCount(t, e), "clone destroyed")
+	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Equal(t, "pve_error", a.Error.Code)
+	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, servers.StatusError, string(row.Status))
+	require.Nil(t, row.Vmid)
+}
+
+func TestCreateServerCleanupPendingResumesCleanup(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	j := job(s, 2)
+	j.Errors = []rivertype.AttemptError{{Attempt: 1, Error: servers.CleanupPending + "resize disk: boom"}}
+	err := w.Work(ctx, j)
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(err, &cancel), "%v", err)
+	require.Zero(t, countCalls(e, "GET /cluster/nextid"), "no create steps run")
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Equal(t, "resize disk: boom", a.Error.Message)
+}
+
+func TestCreateServerCleanupIncompleteKeepsIPs(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	servers.SetAfterStep(w, func(step int) {
+		if step == 3 {
+			e.App.PVE.FailNext("/resize", http.StatusInternalServerError)
+			e.App.PVE.FailNext("/cluster/resources", http.StatusServiceUnavailable)
+		}
+	})
+	err := w.Work(ctx, job(s, 1))
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(err, &cancel), "%v", err)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, servers.StatusError, string(row.Status))
+	require.NotNil(t, row.Vmid, "vmid kept for delete or reconcile")
+	require.Len(t, taggedVMs(t, e, s.ServerID), 1, "vm still there")
+	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "ip kept while the vm exists")
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Contains(t, a.Error.Message, "resize disk: injected failure (status 500)")
+	require.Contains(t, a.Error.Message, "cleanup incomplete")
+}
+
+func TestCreateServerLeavesVMWithoutNeblaTag(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	e.App.PVE.AddVM("pve1", 100, "other")
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	require.NoError(t, pc.SetConfig(ctx, "pve1", 100, map[string]string{"tags": tag(s.ServerID)}))
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetVmid(100).SetCreateStep(1).Exec(ctx))
+	e.App.PVE.DeleteVM(testutil.TemplateVMID)
+
+	err = w.Work(ctx, job(s, 1))
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(err, &cancel), "%v", err)
+	vm, ok := e.App.PVE.VM(100)
+	require.True(t, ok, "a VM without the nebla tag is never destroyed")
+	require.Equal(t, tag(s.ServerID), vm.Tags, "and never retagged")
+	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Contains(t, a.Error.Message, "cleanup incomplete")
 }
 
 func TestCreateServerVMIDCollision(t *testing.T) {

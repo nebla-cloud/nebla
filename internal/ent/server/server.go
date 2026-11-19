@@ -41,6 +41,8 @@ const (
 	FieldIsoVolid = "iso_volid"
 	// FieldIsoGeneration holds the string denoting the iso_generation field in the database.
 	FieldIsoGeneration = "iso_generation"
+	// FieldCloneUpid holds the string denoting the clone_upid field in the database.
+	FieldCloneUpid = "clone_upid"
 	// FieldCreateStep holds the string denoting the create_step field in the database.
 	FieldCreateStep = "create_step"
 	// FieldCores holds the string denoting the cores field in the database.
@@ -111,6 +113,7 @@ var Columns = []string{
 	FieldLabels,
 	FieldIsoVolid,
 	FieldIsoGeneration,
+	FieldCloneUpid,
 	FieldCreateStep,
 	FieldCores,
 	FieldMemoryMB,
@@ -242,6 +245,11 @@ func ByIsoVolid(opts ...sql.OrderTermOption) OrderOption {
 // ByIsoGeneration orders the results by the iso_generation field.
 func ByIsoGeneration(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsoGeneration, opts...).ToFunc()
+}
+
+// ByCloneUpid orders the results by the clone_upid field.
+func ByCloneUpid(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCloneUpid, opts...).ToFunc()
 }
 
 // ByCreateStep orders the results by the create_step field.
