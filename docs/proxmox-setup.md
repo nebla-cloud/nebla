@@ -151,6 +151,10 @@ its own template entry.
 
 ## 7. Networking
 
-IP pools name the bridge (`vmbr0`, for example) and an optional VLAN tag. Nebla enables the VM firewall with IP and MAC
-filtering on each server's `net0`. It only takes effect when the firewall is enabled at the datacenter level
-(Datacenter > Firewall > Options). Make sure your own datacenter rules still allow the traffic you expect.
+IP pools name the bridge (`vmbr0`, for example) and an optional VLAN tag. Nebla enables the VM firewall on each server
+with IP and MAC filtering on `net0`, and sets its input and output policies to `ACCEPT`. The filters stop a server from
+using addresses it wasn't given; they don't block traffic to or from its own addresses.
+
+Enable the firewall at the datacenter level (Datacenter > Firewall > Options), otherwise the VM firewall and its filters
+don't apply. Datacenter rules govern traffic to the Proxmox hosts, not to the VMs. Before enabling it, make sure those
+rules still allow your own access to the hosts (SSH and the web UI on port 8006).

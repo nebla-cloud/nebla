@@ -88,6 +88,7 @@ type Client interface {
 	SetConfig(ctx context.Context, node string, vmid int, kv map[string]string) error
 	ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error
 	SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error
+	FirewallOptions(ctx context.Context, node string, vmid int) (map[string]string, error)
 	Power(ctx context.Context, node string, vmid int, op PowerOp) (UPID, error)
 	Destroy(ctx context.Context, node string, vmid int) (UPID, error)
 	UploadISO(ctx context.Context, node, storage, filename string, r io.Reader) error

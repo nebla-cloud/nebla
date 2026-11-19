@@ -134,6 +134,7 @@ func TestCreateServerHappyPath(t *testing.T) {
 	require.Contains(t, vm.Config["scsi0"], "size=20G")
 	require.Equal(t, "1", vm.Firewall["enable"])
 	require.Equal(t, "1", vm.Firewall["ipfilter"])
+	require.Equal(t, "ACCEPT", vm.Firewall["policy_in"])
 	require.Equal(t, []string{"10.0.0.10"}, vm.IPSets["ipfilter-net0"])
 	require.Len(t, taggedVMs(t, e, s.ServerID), 1)
 

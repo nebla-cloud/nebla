@@ -310,8 +310,17 @@ func (c *httpClient) WaitTask(ctx context.Context, node string, upid UPID) error
 }
 
 func (c *httpClient) Config(ctx context.Context, node string, vmid int) (map[string]string, error) {
+	return c.getMap(ctx, vmPath(node, vmid)+"/config")
+}
+
+func (c *httpClient) FirewallOptions(ctx context.Context, node string, vmid int) (map[string]string, error) {
+	return c.getMap(ctx, vmPath(node, vmid)+"/firewall/options")
+}
+
+// getMap reads a flat object and renders every value as Proxmox's string form.
+func (c *httpClient) getMap(ctx context.Context, path string) (map[string]string, error) {
 	var raw map[string]any
-	if err := c.do(ctx, http.MethodGet, vmPath(node, vmid)+"/config", nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, err
 	}
 	out := make(map[string]string, len(raw))
@@ -345,7 +354,8 @@ func (c *httpClient) ResizeDisk(ctx context.Context, node string, vmid int, disk
 
 func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error {
 	base := vmPath(node, vmid) + "/firewall"
-	opts := url.Values{"enable": {"1"}, "ipfilter": {"1"}, "macfilter": {"1"}}
+	// v1 has no user rules: isolation comes from ipfilter and macfilter, so both policies accept.
+	opts := url.Values{"enable": {"1"}, "ipfilter": {"1"}, "macfilter": {"1"}, "policy_in": {"ACCEPT"}, "policy_out": {"ACCEPT"}}
 	if err := c.do(ctx, http.MethodPut, base+"/options", opts, nil); err != nil {
 		return err
 	}
