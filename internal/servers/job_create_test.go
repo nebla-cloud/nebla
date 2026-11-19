@@ -63,7 +63,7 @@ func directEnv(t *testing.T) (*testutil.ServerEnv, *servers.CreateServerWorker) 
 
 func job(s testutil.CreatedServer, attempt int) *river.Job[servers.CreateServerArgs] {
 	return &river.Job[servers.CreateServerArgs]{
-		JobRow: &rivertype.JobRow{ID: 1, Attempt: attempt, MaxAttempts: servers.MaxCreateAttempts + 2},
+		JobRow: &rivertype.JobRow{ID: 1, Attempt: attempt, MaxAttempts: servers.MaxAttempts + 2},
 		Args:   servers.CreateServerArgs{ServerID: s.ServerID, ActionID: s.ActionID, StartAfter: true},
 	}
 }
@@ -339,11 +339,11 @@ func TestCreateServerCleanupAfterCap(t *testing.T) {
 	ctx := context.Background()
 	e, w := directEnv(t)
 	s := e.CreateServer("web", nil)
-	vmid := crashMidClone(t, e, w, s, servers.MaxCreateAttempts)
+	vmid := crashMidClone(t, e, w, s, servers.MaxAttempts)
 	require.Eventually(t, func() bool { v, _ := e.App.PVE.VM(vmid); return v.Name != "" }, testWait, testTick)
 
 	// The spare attempt after the cap only cleans up, proving the untagged clone by its upid.
-	err := w.Work(ctx, job(s, servers.MaxCreateAttempts+1))
+	err := w.Work(ctx, job(s, servers.MaxAttempts+1))
 	var cancel *river.JobCancelError
 	require.True(t, errors.As(err, &cancel), "%v", err)
 	require.Zero(t, vmCount(t, e), "clone destroyed")

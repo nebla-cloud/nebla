@@ -11,9 +11,6 @@ Nebla supports Proxmox VE 8 and 9.
 Nebla uses two roles: `Nebla` on `/` for VMs, and `NeblaISO` on the ISO storage only, so it can delete the cloud-init
 seed ISOs it uploads.
 
-The privilege list was extended beyond the original v1 plan with `VM.Config.Cloudinit` (to remove a template's cloud-init
-drive) and the `NeblaISO` role (to clean up seed ISOs).
-
 On **PVE 8**:
 
 ```sh
@@ -52,7 +49,7 @@ pveum aclmod /storage/<iso_storage> --users nebla@pve --roles NeblaISO
 pveum user token add nebla@pve panel --privsep 0
 ```
 
-Replace `<iso_storage>` with the location's `iso_storage`, for example `/storage/local`. `--privsep 0` turns privilege
+Replace `<iso_storage>` with the location's `iso_storage`, for example `local`. `--privsep 0` turns privilege
 separation off, so the token gets the user's permissions. The last command prints the token once:
 
 - the token ID is `nebla@pve!panel`

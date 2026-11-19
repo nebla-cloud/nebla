@@ -52,3 +52,30 @@ func TestLoadTrustedProxies(t *testing.T) {
 	_, err = config.Load()
 	require.ErrorContains(t, err, "PANEL_TRUSTED_PROXIES")
 }
+
+func TestLoadValidatesBaseURL(t *testing.T) {
+	t.Setenv("PANEL_DATABASE_URL", "postgres://x")
+	t.Setenv("PANEL_SECRET_KEY", "0123456789abcdef0123456789abcdef")
+	for _, tc := range []struct {
+		url   string
+		ok    bool
+		https bool
+	}{
+		{"https://panel.test", true, true},
+		{"HTTPS://panel.test/", true, true},
+		{"http://localhost:8080", true, false},
+		{"panel.test", false, false},
+		{"ftp://panel.test", false, false},
+		{"https://", false, false},
+		{"://bad", false, false},
+	} {
+		t.Setenv("PANEL_BASE_URL", tc.url)
+		cfg, err := config.Load()
+		if !tc.ok {
+			require.ErrorContains(t, err, "PANEL_BASE_URL", tc.url)
+			continue
+		}
+		require.NoError(t, err, tc.url)
+		require.Equal(t, tc.https, cfg.HTTPS(), tc.url)
+	}
+}

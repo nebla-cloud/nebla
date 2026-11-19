@@ -290,6 +290,9 @@ func TestCreateServerRejectsBadInput(t *testing.T) {
 		{"other project's key by id", map[string]any{"ssh_keys": []string{sid(theirs.ID)}}, 404, "not_found"},
 		{"other project's key by name", map[string]any{"ssh_keys": []string{"theirs"}}, 404, "not_found"},
 		{"user_data too big", map[string]any{"user_data": strings.Repeat("x", 32<<10+1)}, 422, "invalid_input"},
+		{"user_data bad yaml", map[string]any{"user_data": "#cloud-config\npackages: [htop\n"}, 422, "invalid_input"},
+		{"user_data not a mapping", map[string]any{"user_data": "#cloud-config\n- a\n- b\n"}, 422, "invalid_input"},
+		{"user_data keys not a list", map[string]any{"user_data": "#cloud-config\nssh_authorized_keys: x\n"}, 422, "invalid_input"},
 		{"bad label key", map[string]any{"labels": map[string]string{"bad key": "v"}}, 422, "invalid_input"},
 		{"bad label value", map[string]any{"labels": map[string]string{"k": "-v"}}, 422, "invalid_input"},
 		{"too many labels", map[string]any{"labels": manyLabels(65)}, 422, "invalid_input"},
@@ -310,6 +313,7 @@ func TestCreateServerRejectsBadInput(t *testing.T) {
 	}
 	e.CreateServer("max-labels", map[string]any{"labels": manyLabels(64)})
 	e.CreateServer("user-data-max", map[string]any{"user_data": strings.Repeat("x", 32<<10)})
+	e.CreateServer("user-data-script", map[string]any{"user_data": "#!/bin/sh\necho hi\n"})
 
 	// A read-only token cannot create.
 	ro := e.App.TokenClient(e.Admin.CreateToken(e.Project, "read"))

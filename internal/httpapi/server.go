@@ -74,7 +74,17 @@ const maxBodyBytes = 1 << 20
 
 var _ apigen.StrictServerInterface = (*server)(nil)
 
-func (*server) GetHealthz(context.Context, apigen.GetHealthzRequestObject) (apigen.GetHealthzResponseObject, error) {
+const healthzTimeout = 2 * time.Second
+
+func (s *server) GetHealthz(ctx context.Context, _ apigen.GetHealthzRequestObject) (apigen.GetHealthzResponseObject, error) {
+	if s.deps.Pool != nil {
+		pctx, cancel := context.WithTimeout(ctx, healthzTimeout)
+		defer cancel()
+		if err := s.deps.Pool.Ping(pctx); err != nil {
+			s.log.Warn("healthz: database ping", "err", err)
+			return apigen.GetHealthz503JSONResponse{Status: apigen.Unavailable}, nil
+		}
+	}
 	return apigen.GetHealthz200JSONResponse{Status: apigen.Ok}, nil
 }
 

@@ -18,9 +18,7 @@ import (
 )
 
 const (
-	// MaxCreateAttempts is the create job's logical retry cap.
-	MaxCreateAttempts = MaxAttempts
-	spareAttempts     = 2
+	spareAttempts = 2
 	// cleanupPending prefixes a job error whose cleanup must run again.
 	cleanupPending = "nebla: cleanup pending: "
 	createTimeout  = 10 * time.Minute
@@ -125,17 +123,10 @@ func (c *createRun) load(ctx context.Context) error {
 
 // save writes the build state to the create columns.
 func (c *createRun) save(ctx context.Context, st buildState) error {
-	u := c.w.o.Ent.Server.UpdateOneID(c.row.ID).SetCreateStep(st.Step).
-		SetNillableVmid(st.Vmid).SetNillableCloneUpid(st.Upid).SetNillableCloneNonce(st.Nonce)
-	if st.Vmid == nil {
-		u.ClearVmid()
-	}
-	if st.Upid == nil {
-		u.ClearCloneUpid()
-	}
-	if st.Nonce == nil {
-		u.ClearCloneNonce()
-	}
+	u := c.w.o.Ent.Server.UpdateOneID(c.row.ID).SetCreateStep(st.Step)
+	setSlot(u.SetVmid, u.ClearVmid, st.Vmid)
+	setSlot(u.SetCloneUpid, u.ClearCloneUpid, st.Upid)
+	setSlot(u.SetCloneNonce, u.ClearCloneNonce, st.Nonce)
 	if st.Step >= stepISO {
 		u.SetIsoVolid(c.b.volid())
 	}

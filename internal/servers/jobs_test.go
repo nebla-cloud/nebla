@@ -93,7 +93,7 @@ func queuedArgs[T any](t *testing.T, e *testutil.ServerEnv, actionID int64) T {
 }
 
 func jobOf[T river.JobArgs](args T, attempt int) *river.Job[T] {
-	return &river.Job[T]{JobRow: &rivertype.JobRow{ID: 1, Attempt: attempt, MaxAttempts: servers.MaxCreateAttempts + 2}, Args: args}
+	return &river.Job[T]{JobRow: &rivertype.JobRow{ID: 1, Attempt: attempt, MaxAttempts: servers.MaxAttempts + 2}, Args: args}
 }
 
 func quiet() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

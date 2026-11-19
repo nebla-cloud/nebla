@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/Hexeption/nebla/internal/realip"
 )
@@ -34,8 +36,8 @@ func Load() (Config, error) {
 	if c.DatabaseURL == "" {
 		errs = append(errs, errors.New("PANEL_DATABASE_URL is required"))
 	}
-	if c.BaseURL == "" {
-		errs = append(errs, errors.New("PANEL_BASE_URL is required"))
+	if err := checkBaseURL(c.BaseURL); err != nil {
+		errs = append(errs, err)
 	}
 	if len(c.SecretKey) < 32 {
 		errs = append(errs, fmt.Errorf("PANEL_SECRET_KEY must be at least 32 bytes, got %d", len(c.SecretKey)))
@@ -46,4 +48,24 @@ func Load() (Config, error) {
 	}
 	c.TrustedProxies = tp
 	return c, errors.Join(errs...)
+}
+
+func checkBaseURL(raw string) error {
+	if raw == "" {
+		return errors.New("PANEL_BASE_URL is required")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("PANEL_BASE_URL: %w", err)
+	}
+	if s := strings.ToLower(u.Scheme); (s != "http" && s != "https") || u.Host == "" {
+		return fmt.Errorf("PANEL_BASE_URL must be an http or https URL with a host, got %q", raw)
+	}
+	return nil
+}
+
+// HTTPS reports whether the panel is served over https, so cookies are Secure.
+func (c Config) HTTPS() bool {
+	u, err := url.Parse(c.BaseURL)
+	return err == nil && strings.EqualFold(u.Scheme, "https")
 }

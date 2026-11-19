@@ -11,8 +11,7 @@ import (
 	"github.com/Hexeption/nebla/internal/projects"
 )
 
-// projectScopedOps are operations on project resources; they accept a token or a session plus Project-ID.
-// TestProjectScopedOpsMatchSpec keeps it equal to the spec's x-nebla-scope: project operations.
+// projectScopedOps take a token or a session plus Project-ID; a test keeps it equal to the spec.
 var projectScopedOps = map[string]bool{
 	"GetLocations":     true,
 	"GetLocation":      true,

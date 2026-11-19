@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/apigen"
@@ -22,7 +21,7 @@ func (s *server) sessionCookie(token string) *http.Cookie {
 		Path:     "/",
 		MaxAge:   int(auth.SessionTTL.Seconds()),
 		HttpOnly: true,
-		Secure:   strings.HasPrefix(s.deps.Config.BaseURL, "https://"),
+		Secure:   s.deps.Config.HTTPS(),
 		SameSite: http.SameSiteLaxMode,
 	}
 }
