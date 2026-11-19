@@ -596,6 +596,17 @@ type TotpCode struct {
 	Code string `json:"code"`
 }
 
+// TotpDisable defines model for TotpDisable.
+type TotpDisable struct {
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}
+
+// TotpEnroll defines model for TotpEnroll.
+type TotpEnroll struct {
+	Password string `json:"password"`
+}
+
 // UiManifest defines model for UiManifest.
 type UiManifest struct {
 	AdminSections []struct {
@@ -843,7 +854,10 @@ type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
 
 // PostAuthTotpDisableJSONRequestBody defines body for PostAuthTotpDisable for application/json ContentType.
-type PostAuthTotpDisableJSONRequestBody = TotpCode
+type PostAuthTotpDisableJSONRequestBody = TotpDisable
+
+// PostAuthTotpEnrollJSONRequestBody defines body for PostAuthTotpEnroll for application/json ContentType.
+type PostAuthTotpEnrollJSONRequestBody = TotpEnroll
 
 // PostAuthTotpVerifyJSONRequestBody defines body for PostAuthTotpVerify for application/json ContentType.
 type PostAuthTotpVerifyJSONRequestBody = TotpCode
@@ -7108,6 +7122,20 @@ func (response PostAuthTotpDisable401JSONResponse) VisitPostAuthTotpDisableRespo
 	return err
 }
 
+type PostAuthTotpDisable429JSONResponse Error
+
+func (response PostAuthTotpDisable429JSONResponse) VisitPostAuthTotpDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostAuthTotpDisabledefaultJSONResponse struct {
 	Body       Error
 	StatusCode int
@@ -7126,6 +7154,7 @@ func (response PostAuthTotpDisabledefaultJSONResponse) VisitPostAuthTotpDisableR
 }
 
 type PostAuthTotpEnrollRequestObject struct {
+	Body *PostAuthTotpEnrollJSONRequestBody
 }
 
 type PostAuthTotpEnrollResponseObject interface {
@@ -7159,6 +7188,20 @@ func (response PostAuthTotpEnroll401JSONResponse) VisitPostAuthTotpEnrollRespons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthTotpEnroll429JSONResponse Error
+
+func (response PostAuthTotpEnroll429JSONResponse) VisitPostAuthTotpEnrollResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -12533,6 +12576,13 @@ func (sh *strictHandler) PostAuthTotpDisable(w http.ResponseWriter, r *http.Requ
 // PostAuthTotpEnroll operation middleware
 func (sh *strictHandler) PostAuthTotpEnroll(w http.ResponseWriter, r *http.Request) {
 	var request PostAuthTotpEnrollRequestObject
+
+	var body PostAuthTotpEnrollJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.PostAuthTotpEnroll(ctx, request.(PostAuthTotpEnrollRequestObject))

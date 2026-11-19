@@ -224,10 +224,13 @@ func sessionLive(s *entsql.Selector) {
 }
 
 // EnrollTOTP stores a pending secret and returns it with its otpauth URL.
-func (s *Service) EnrollTOTP(ctx context.Context, userID int64) (secret, url string, err error) {
+func (s *Service) EnrollTOTP(ctx context.Context, userID int64, password string) (secret, url string, err error) {
 	u, err := s.db.User.Get(ctx, userID)
 	if err != nil {
 		return "", "", err
+	}
+	if !VerifyPassword(ctx, u.PasswordHash, password) {
+		return "", "", errInvalidCreds
 	}
 	if u.TotpEnabled {
 		return "", "", apierr.New(http.StatusConflict, "totp_already_enabled", "TOTP is already enabled")
@@ -242,8 +245,8 @@ func (s *Service) EnrollTOTP(ctx context.Context, userID int64) (secret, url str
 	return key.Secret(), key.URL(), nil
 }
 
-// VerifyTOTP activates the pending secret when code is valid.
-func (s *Service) VerifyTOTP(ctx context.Context, userID int64, code string) error {
+// VerifyTOTP activates the pending secret when code is valid and revokes the user's other sessions.
+func (s *Service) VerifyTOTP(ctx context.Context, userID int64, code, keepToken string) error {
 	u, err := s.db.User.Get(ctx, userID)
 	if err != nil {
 		return err
@@ -254,18 +257,40 @@ func (s *Service) VerifyTOTP(ctx context.Context, userID int64, code string) err
 	if !validTOTP(*u.TotpPendingSecret, code) {
 		return errInvalidCode
 	}
-	return s.db.User.UpdateOneID(userID).
+	err = s.db.User.UpdateOneID(userID).
 		Modify(func(u *entsql.UpdateBuilder) { u.Set(user.FieldTotpSecret, entsql.Expr(user.FieldTotpPendingSecret)) }).
 		ClearTotpPendingSecret().SetTotpEnabled(true).Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return s.revokeOtherSessions(ctx, userID, keepToken)
 }
 
-func (s *Service) DisableTOTP(ctx context.Context, userID int64, code string) error {
+// revokeOtherSessions deletes all of the user's sessions except the one for keepToken (none kept when empty).
+func (s *Service) revokeOtherSessions(ctx context.Context, userID int64, keepToken string) error {
+	del := s.db.Session.Delete().Where(session.UserID(userID))
+	if keepToken != "" {
+		del = del.Where(session.IDNEQ(hashToken(keepToken)))
+	}
+	_, err := del.Exec(ctx)
+	return err
+}
+
+// DisableTOTP turns TOTP off given the code and password, and revokes the user's other sessions.
+func (s *Service) DisableTOTP(ctx context.Context, userID int64, code, password, keepToken string) error {
 	u, err := s.db.User.Get(ctx, userID)
 	if err != nil {
 		return err
 	}
+	if !VerifyPassword(ctx, u.PasswordHash, password) {
+		return errInvalidCreds
+	}
 	if !u.TotpEnabled || u.TotpSecret == nil || !validTOTP(*u.TotpSecret, code) {
 		return errInvalidCode
 	}
-	return s.db.User.UpdateOneID(userID).ClearTotpSecret().ClearTotpPendingSecret().SetTotpEnabled(false).Exec(ctx)
+	err = s.db.User.UpdateOneID(userID).ClearTotpSecret().ClearTotpPendingSecret().SetTotpEnabled(false).Exec(ctx)
+	if err != nil {
+		return err
+	}
+	return s.revokeOtherSessions(ctx, userID, keepToken)
 }

@@ -133,6 +133,11 @@ paths:
     post:
       operationId: postAuthTotpEnroll
       summary: Start TOTP enrollment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TotpEnroll" }
       responses:
         "200":
           description: OK
@@ -145,6 +150,7 @@ paths:
                   secret: { type: string }
                   otpauth_url: { type: string }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
   /auth/totp/verify:
     post:
@@ -168,10 +174,11 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/TotpCode" }
+            schema: { $ref: "#/components/schemas/TotpDisable" }
       responses:
         "204": { description: No content }
         "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
   /me:
     get:
@@ -1760,6 +1767,17 @@ components:
       required: [code]
       properties:
         code: { type: string }
+    TotpEnroll:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string }
+    TotpDisable:
+      type: object
+      required: [code, password]
+      properties:
+        code: { type: string }
+        password: { type: string }
     AdminSettings:
       type: object
       required: [self_signup]
