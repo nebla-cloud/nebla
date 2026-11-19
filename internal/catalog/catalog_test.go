@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/catalog"
 	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/Hexeption/nebla/internal/testutil"
@@ -360,4 +362,55 @@ func TestBootDisk(t *testing.T) {
 	} {
 		require.Equal(t, tc.want, catalog.BootDisk(tc.cfg), "%v", tc.cfg)
 	}
+}
+
+// Create locks a location's nodes in name order; a sync must take them in the same order.
+func TestSyncNodesLocksInNameOrder(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, client := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	// pve1 vanishes, so an unordered sync would lock pve2 (upsert) before pve1 (mark missing).
+	pv.RemoveNode("pve1")
+
+	tx, err := client.Tx(ctx)
+	require.NoError(t, err)
+	defer tx.Rollback()
+	_, err = tx.Node.Query().Where(node.LocationID(loc.ID), node.Name("pve1")).ForUpdate().Only(ctx)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.SyncNodes(ctx, loc.ID)
+		done <- err
+	}()
+	waitForLockWait(t, client)
+	_, err = tx.Node.Query().Where(node.LocationID(loc.ID), node.Name("pve2")).ForUpdate().Only(ctx)
+	require.NoError(t, err, "the create-side lock order must not deadlock with sync")
+	require.NoError(t, tx.Commit())
+	require.NoError(t, <-done)
+
+	nodes, err := svc.Nodes(ctx, loc.ID)
+	require.NoError(t, err)
+	require.Equal(t, catalog.NodeMissing, nodes[0].Status)
+	require.Equal(t, "online", nodes[1].Status)
+}
+
+func waitForLockWait(t *testing.T, client *ent.Client) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		rows, err := client.QueryContext(context.Background(),
+			"select count(*) from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()")
+		require.NoError(t, err)
+		var n int
+		rows.Next()
+		require.NoError(t, rows.Scan(&n))
+		rows.Close()
+		if n > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("sync never waited on the node lock")
 }

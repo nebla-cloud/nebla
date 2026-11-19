@@ -250,7 +250,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			}
 			row, err := etx.Server.Create().SetProjectID(projectID).SetName(in.Name).SetLocationID(loc.ID).SetNode(nodeName).
 				SetTemplateVmid(vmid).SetServerTypeID(typ.ID).SetImageID(img.ID).SetMAC(mac).SetLabels(labels).
-				SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys).Save(ctx)
+				SetCores(typ.Cores).SetMemoryMB(typ.MemoryMB).SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys).Save(ctx)
 			if err != nil {
 				return writeErr(err)
 			}
@@ -306,6 +306,7 @@ func (s *Service) resolveKeys(ctx context.Context, projectID int64, refs []strin
 }
 
 // lockNodes share-locks the location, locks its nodes in name order and returns their loads.
+// The name order matches catalog's syncNodes, so the two cannot deadlock.
 func lockNodes(ctx context.Context, tx *ent.Client, locationID int64) ([]NodeLoad, error) {
 	if _, err := tx.Location.Query().Where(location.ID(locationID)).ForShare().Only(ctx); err != nil {
 		return nil, notFound(err)
@@ -314,15 +315,16 @@ func lockNodes(ctx context.Context, tx *ent.Client, locationID int64) ([]NodeLoa
 	if err != nil {
 		return nil, err
 	}
+	// Running servers are already in the node's mem; missing and error ones hold nothing.
 	placed, err := tx.Server.Query().
-		Where(server.LocationID(locationID), server.NodeNEQ(""), server.StatusNotIn(StatusMissing, StatusError)).
-		WithServerType().All(ctx)
+		Where(server.LocationID(locationID), server.NodeNEQ(""), server.StatusNotIn(StatusRunning, StatusMissing, StatusError)).
+		Select(server.FieldNode, server.FieldMemoryMB).All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	reserved := map[string]int64{}
 	for _, p := range placed {
-		reserved[p.Node] += int64(p.Edges.ServerType.MemoryMB) << 20
+		reserved[p.Node] += int64(p.MemoryMB) << 20
 	}
 	out := make([]NodeLoad, len(nodes))
 	for i, n := range nodes {

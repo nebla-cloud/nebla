@@ -96,9 +96,10 @@ func LocationInUse(ctx context.Context, c *ent.Client, locationID int64) (bool, 
 	return c.Server.Query().Where(server.LocationID(locationID)).Exist(ctx)
 }
 
-// Usage is the projects.Hooks.Usage implementation: every server row counts, with its type's cores and memory.
+// Usage is the projects.Hooks.Usage implementation: every server row counts with its snapshotted specs.
 func Usage(ctx context.Context, c *ent.Client, projectID int64) (projects.Usage, error) {
-	rows, err := c.Server.Query().Where(server.ProjectID(projectID)).WithServerType().All(ctx)
+	rows, err := c.Server.Query().Where(server.ProjectID(projectID)).
+		Select(server.FieldID, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB).All(ctx)
 	if err != nil {
 		return projects.Usage{}, err
 	}
@@ -106,8 +107,8 @@ func Usage(ctx context.Context, c *ent.Client, projectID int64) (projects.Usage,
 	ids := make([]int64, len(rows))
 	for i, r := range rows {
 		ids[i] = r.ID
-		u.VCPU += r.Edges.ServerType.Cores
-		u.MemoryMB += r.Edges.ServerType.MemoryMB
+		u.VCPU += r.Cores
+		u.MemoryMB += r.MemoryMB
 		u.DiskGB += r.DiskGB
 	}
 	if len(ids) > 0 {

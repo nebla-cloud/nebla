@@ -39,6 +39,10 @@ const (
 	FieldLabels = "labels"
 	// FieldIsoVolid holds the string denoting the iso_volid field in the database.
 	FieldIsoVolid = "iso_volid"
+	// FieldCores holds the string denoting the cores field in the database.
+	FieldCores = "cores"
+	// FieldMemoryMB holds the string denoting the memory_mb field in the database.
+	FieldMemoryMB = "memory_mb"
 	// FieldDiskGB holds the string denoting the disk_gb field in the database.
 	FieldDiskGB = "disk_gb"
 	// FieldUserData holds the string denoting the user_data field in the database.
@@ -102,6 +106,8 @@ var Columns = []string{
 	FieldMAC,
 	FieldLabels,
 	FieldIsoVolid,
+	FieldCores,
+	FieldMemoryMB,
 	FieldDiskGB,
 	FieldUserData,
 	FieldSSHKeys,
@@ -221,6 +227,16 @@ func ByMAC(opts ...sql.OrderTermOption) OrderOption {
 // ByIsoVolid orders the results by the iso_volid field.
 func ByIsoVolid(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsoVolid, opts...).ToFunc()
+}
+
+// ByCores orders the results by the cores field.
+func ByCores(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCores, opts...).ToFunc()
+}
+
+// ByMemoryMB orders the results by the memory_mb field.
+func ByMemoryMB(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMemoryMB, opts...).ToFunc()
 }
 
 // ByDiskGB orders the results by the disk_gb field.

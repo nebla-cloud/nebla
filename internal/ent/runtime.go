@@ -203,11 +203,11 @@ func init() {
 	// server.DefaultNode holds the default value on creation for the node field.
 	server.DefaultNode = serverDescNode.Default.(string)
 	// serverDescUserData is the schema descriptor for user_data field.
-	serverDescUserData := serverFields[14].Descriptor()
+	serverDescUserData := serverFields[16].Descriptor()
 	// server.DefaultUserData holds the default value on creation for the user_data field.
 	server.DefaultUserData = serverDescUserData.Default.(string)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[16].Descriptor()
+	serverDescCreatedAt := serverFields[18].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()

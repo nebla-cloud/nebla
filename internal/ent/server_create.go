@@ -130,6 +130,18 @@ func (_c *ServerCreate) SetNillableIsoVolid(v *string) *ServerCreate {
 	return _c
 }
 
+// SetCores sets the "cores" field.
+func (_c *ServerCreate) SetCores(v int) *ServerCreate {
+	_c.mutation.SetCores(v)
+	return _c
+}
+
+// SetMemoryMB sets the "memory_mb" field.
+func (_c *ServerCreate) SetMemoryMB(v int) *ServerCreate {
+	_c.mutation.SetMemoryMB(v)
+	return _c
+}
+
 // SetDiskGB sets the "disk_gb" field.
 func (_c *ServerCreate) SetDiskGB(v int) *ServerCreate {
 	_c.mutation.SetDiskGB(v)
@@ -286,6 +298,12 @@ func (_c *ServerCreate) check() error {
 	if _, ok := _c.mutation.Labels(); !ok {
 		return &ValidationError{Name: "labels", err: errors.New(`ent: missing required field "Server.labels"`)}
 	}
+	if _, ok := _c.mutation.Cores(); !ok {
+		return &ValidationError{Name: "cores", err: errors.New(`ent: missing required field "Server.cores"`)}
+	}
+	if _, ok := _c.mutation.MemoryMB(); !ok {
+		return &ValidationError{Name: "memory_mb", err: errors.New(`ent: missing required field "Server.memory_mb"`)}
+	}
 	if _, ok := _c.mutation.DiskGB(); !ok {
 		return &ValidationError{Name: "disk_gb", err: errors.New(`ent: missing required field "Server.disk_gb"`)}
 	}
@@ -371,6 +389,14 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsoVolid(); ok {
 		_spec.SetField(server.FieldIsoVolid, field.TypeString, value)
 		_node.IsoVolid = &value
+	}
+	if value, ok := _c.mutation.Cores(); ok {
+		_spec.SetField(server.FieldCores, field.TypeInt, value)
+		_node.Cores = value
+	}
+	if value, ok := _c.mutation.MemoryMB(); ok {
+		_spec.SetField(server.FieldMemoryMB, field.TypeInt, value)
+		_node.MemoryMB = value
 	}
 	if value, ok := _c.mutation.DiskGB(); ok {
 		_spec.SetField(server.FieldDiskGB, field.TypeInt, value)
@@ -640,6 +666,42 @@ func (u *ServerUpsert) ClearIsoVolid() *ServerUpsert {
 	return u
 }
 
+// SetCores sets the "cores" field.
+func (u *ServerUpsert) SetCores(v int) *ServerUpsert {
+	u.Set(server.FieldCores, v)
+	return u
+}
+
+// UpdateCores sets the "cores" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateCores() *ServerUpsert {
+	u.SetExcluded(server.FieldCores)
+	return u
+}
+
+// AddCores adds v to the "cores" field.
+func (u *ServerUpsert) AddCores(v int) *ServerUpsert {
+	u.Add(server.FieldCores, v)
+	return u
+}
+
+// SetMemoryMB sets the "memory_mb" field.
+func (u *ServerUpsert) SetMemoryMB(v int) *ServerUpsert {
+	u.Set(server.FieldMemoryMB, v)
+	return u
+}
+
+// UpdateMemoryMB sets the "memory_mb" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateMemoryMB() *ServerUpsert {
+	u.SetExcluded(server.FieldMemoryMB)
+	return u
+}
+
+// AddMemoryMB adds v to the "memory_mb" field.
+func (u *ServerUpsert) AddMemoryMB(v int) *ServerUpsert {
+	u.Add(server.FieldMemoryMB, v)
+	return u
+}
+
 // SetDiskGB sets the "disk_gb" field.
 func (u *ServerUpsert) SetDiskGB(v int) *ServerUpsert {
 	u.Set(server.FieldDiskGB, v)
@@ -893,6 +955,48 @@ func (u *ServerUpsertOne) UpdateIsoVolid() *ServerUpsertOne {
 func (u *ServerUpsertOne) ClearIsoVolid() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearIsoVolid()
+	})
+}
+
+// SetCores sets the "cores" field.
+func (u *ServerUpsertOne) SetCores(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCores(v)
+	})
+}
+
+// AddCores adds v to the "cores" field.
+func (u *ServerUpsertOne) AddCores(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddCores(v)
+	})
+}
+
+// UpdateCores sets the "cores" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateCores() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCores()
+	})
+}
+
+// SetMemoryMB sets the "memory_mb" field.
+func (u *ServerUpsertOne) SetMemoryMB(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetMemoryMB(v)
+	})
+}
+
+// AddMemoryMB adds v to the "memory_mb" field.
+func (u *ServerUpsertOne) AddMemoryMB(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddMemoryMB(v)
+	})
+}
+
+// UpdateMemoryMB sets the "memory_mb" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateMemoryMB() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateMemoryMB()
 	})
 }
 
@@ -1322,6 +1426,48 @@ func (u *ServerUpsertBulk) UpdateIsoVolid() *ServerUpsertBulk {
 func (u *ServerUpsertBulk) ClearIsoVolid() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearIsoVolid()
+	})
+}
+
+// SetCores sets the "cores" field.
+func (u *ServerUpsertBulk) SetCores(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCores(v)
+	})
+}
+
+// AddCores adds v to the "cores" field.
+func (u *ServerUpsertBulk) AddCores(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddCores(v)
+	})
+}
+
+// UpdateCores sets the "cores" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateCores() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCores()
+	})
+}
+
+// SetMemoryMB sets the "memory_mb" field.
+func (u *ServerUpsertBulk) SetMemoryMB(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetMemoryMB(v)
+	})
+}
+
+// AddMemoryMB adds v to the "memory_mb" field.
+func (u *ServerUpsertBulk) AddMemoryMB(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddMemoryMB(v)
+	})
+}
+
+// UpdateMemoryMB sets the "memory_mb" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateMemoryMB() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateMemoryMB()
 	})
 }
 

@@ -192,6 +192,9 @@ func TestCreateServerReturnsActionAndAllocatesIP(t *testing.T) {
 	require.Equal(t, "#cloud-config\nhostname: x\n", row.UserData)
 	require.Equal(t, []string{key}, row.SSHKeys)
 	require.Equal(t, e.Project, row.ProjectID)
+	require.Equal(t, 2, row.Cores)
+	require.Equal(t, 2048, row.MemoryMB)
+	require.Equal(t, 20, row.DiskGB)
 
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, out.Action.ID)
 	require.NoError(t, err)
@@ -519,4 +522,68 @@ func TestCreateWithoutJobRuntime(t *testing.T) {
 	_, err = svc.Delete(context.Background(), 1, 1)
 	require.True(t, errors.As(err, &ae), "got %v", err)
 	require.Equal(t, "service_unavailable", ae.Code)
+}
+
+// Running servers are already in the node's mem, so only not-running ones (except missing/error) reserve memory.
+func TestPlacementReservedMemory(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	noIP := map[string]any{"public_net": map[string]bool{"ipv4": false}}
+	nodeOf := func(id int64) string {
+		t.Helper()
+		r, err := e.App.Ent.Server.Get(ctx, id)
+		require.NoError(t, err)
+		return r.Node
+	}
+	setStatus := func(id int64, st server.Status) {
+		t.Helper()
+		require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetStatus(st).Exec(ctx))
+	}
+
+	a := e.CreateServer("a", noIP)
+	require.Equal(t, "pve1", nodeOf(a.ServerID))
+	setStatus(a.ServerID, server.StatusRunning)
+	b := e.CreateServer("b", noIP)
+	require.Equal(t, "pve1", nodeOf(b.ServerID), "a running server is not counted on top of node mem")
+
+	setStatus(b.ServerID, server.StatusOff)
+	c := e.CreateServer("c", noIP)
+	require.Equal(t, "pve2", nodeOf(c.ServerID), "an off server still reserves its memory")
+
+	for _, st := range []server.Status{server.StatusStarting, server.StatusStopping, server.StatusRebuilding, server.StatusDeleting, server.StatusInitializing} {
+		setStatus(b.ServerID, st)
+		setStatus(c.ServerID, server.StatusRunning)
+		d := e.CreateServer("d-"+string(st), noIP)
+		require.Equal(t, "pve2", nodeOf(d.ServerID), "%s reserves memory on pve1", st)
+		require.NoError(t, e.App.Ent.Server.DeleteOneID(d.ServerID).Exec(ctx))
+	}
+	for _, st := range []server.Status{server.StatusMissing, server.StatusError} {
+		setStatus(b.ServerID, st)
+		setStatus(c.ServerID, server.StatusOff)
+		d := e.CreateServer("d-"+string(st), noIP)
+		require.Equal(t, "pve1", nodeOf(d.ServerID), "%s does not reserve memory", st)
+		require.NoError(t, e.App.Ent.Server.DeleteOneID(d.ServerID).Exec(ctx))
+	}
+}
+
+func TestUsageUsesServerSnapshot(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.CreateServer("a", nil)
+	want := projects.Usage{Servers: 1, VCPU: 2, MemoryMB: 2048, DiskGB: 20, IPs: 1}
+	got, err := servers.Usage(ctx, e.App.Ent, e.Project)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+
+	res := e.Admin.Send(http.MethodPut, "/v1/admin/server_types/"+sid(e.Type),
+		map[string]any{"name": "small", "cores": 8, "memory_mb": 16384, "disk_gb": 80})
+	require.Equal(t, http.StatusOK, res.StatusCode, body(t, res))
+	got, err = servers.Usage(ctx, e.App.Ent, e.Project)
+	require.NoError(t, err)
+	require.Equal(t, want, got, "editing the type leaves existing servers' usage alone")
+
+	// The quota check sees the snapshot too: 2 + 1 cores fits a limit of 3.
+	e.Admin.CreateServerType("tiny", 1, 512, 10)
+	e.Admin.SetQuota(e.Project, 0, 3, 0, 0, 0)
+	e.CreateServer("b", map[string]any{"server_type": "tiny"})
 }

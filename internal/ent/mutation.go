@@ -9747,6 +9747,10 @@ type ServerMutation struct {
 	mac                *string
 	labels             *map[string]string
 	iso_volid          *string
+	cores              *int
+	addcores           *int
+	memory_mb          *int
+	addmemory_mb       *int
 	disk_gb            *int
 	adddisk_gb         *int
 	user_data          *string
@@ -10370,6 +10374,118 @@ func (m *ServerMutation) ResetIsoVolid() {
 	delete(m.clearedFields, server.FieldIsoVolid)
 }
 
+// SetCores sets the "cores" field.
+func (m *ServerMutation) SetCores(i int) {
+	m.cores = &i
+	m.addcores = nil
+}
+
+// Cores returns the value of the "cores" field in the mutation.
+func (m *ServerMutation) Cores() (r int, exists bool) {
+	v := m.cores
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCores returns the old "cores" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldCores(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCores is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCores requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCores: %w", err)
+	}
+	return oldValue.Cores, nil
+}
+
+// AddCores adds i to the "cores" field.
+func (m *ServerMutation) AddCores(i int) {
+	if m.addcores != nil {
+		*m.addcores += i
+	} else {
+		m.addcores = &i
+	}
+}
+
+// AddedCores returns the value that was added to the "cores" field in this mutation.
+func (m *ServerMutation) AddedCores() (r int, exists bool) {
+	v := m.addcores
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCores resets all changes to the "cores" field.
+func (m *ServerMutation) ResetCores() {
+	m.cores = nil
+	m.addcores = nil
+}
+
+// SetMemoryMB sets the "memory_mb" field.
+func (m *ServerMutation) SetMemoryMB(i int) {
+	m.memory_mb = &i
+	m.addmemory_mb = nil
+}
+
+// MemoryMB returns the value of the "memory_mb" field in the mutation.
+func (m *ServerMutation) MemoryMB() (r int, exists bool) {
+	v := m.memory_mb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMemoryMB returns the old "memory_mb" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldMemoryMB(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMemoryMB is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMemoryMB requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMemoryMB: %w", err)
+	}
+	return oldValue.MemoryMB, nil
+}
+
+// AddMemoryMB adds i to the "memory_mb" field.
+func (m *ServerMutation) AddMemoryMB(i int) {
+	if m.addmemory_mb != nil {
+		*m.addmemory_mb += i
+	} else {
+		m.addmemory_mb = &i
+	}
+}
+
+// AddedMemoryMB returns the value that was added to the "memory_mb" field in this mutation.
+func (m *ServerMutation) AddedMemoryMB() (r int, exists bool) {
+	v := m.addmemory_mb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMemoryMB resets all changes to the "memory_mb" field.
+func (m *ServerMutation) ResetMemoryMB() {
+	m.memory_mb = nil
+	m.addmemory_mb = nil
+}
+
 // SetDiskGB sets the "disk_gb" field.
 func (m *ServerMutation) SetDiskGB(i int) {
 	m.disk_gb = &i
@@ -10691,7 +10807,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 18)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -10727,6 +10843,12 @@ func (m *ServerMutation) Fields() []string {
 	}
 	if m.iso_volid != nil {
 		fields = append(fields, server.FieldIsoVolid)
+	}
+	if m.cores != nil {
+		fields = append(fields, server.FieldCores)
+	}
+	if m.memory_mb != nil {
+		fields = append(fields, server.FieldMemoryMB)
 	}
 	if m.disk_gb != nil {
 		fields = append(fields, server.FieldDiskGB)
@@ -10772,6 +10894,10 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.Labels()
 	case server.FieldIsoVolid:
 		return m.IsoVolid()
+	case server.FieldCores:
+		return m.Cores()
+	case server.FieldMemoryMB:
+		return m.MemoryMB()
 	case server.FieldDiskGB:
 		return m.DiskGB()
 	case server.FieldUserData:
@@ -10813,6 +10939,10 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldLabels(ctx)
 	case server.FieldIsoVolid:
 		return m.OldIsoVolid(ctx)
+	case server.FieldCores:
+		return m.OldCores(ctx)
+	case server.FieldMemoryMB:
+		return m.OldMemoryMB(ctx)
 	case server.FieldDiskGB:
 		return m.OldDiskGB(ctx)
 	case server.FieldUserData:
@@ -10914,6 +11044,20 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIsoVolid(v)
 		return nil
+	case server.FieldCores:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCores(v)
+		return nil
+	case server.FieldMemoryMB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMemoryMB(v)
+		return nil
 	case server.FieldDiskGB:
 		v, ok := value.(int)
 		if !ok {
@@ -10956,6 +11100,12 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.addtemplate_vmid != nil {
 		fields = append(fields, server.FieldTemplateVmid)
 	}
+	if m.addcores != nil {
+		fields = append(fields, server.FieldCores)
+	}
+	if m.addmemory_mb != nil {
+		fields = append(fields, server.FieldMemoryMB)
+	}
 	if m.adddisk_gb != nil {
 		fields = append(fields, server.FieldDiskGB)
 	}
@@ -10971,6 +11121,10 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedVmid()
 	case server.FieldTemplateVmid:
 		return m.AddedTemplateVmid()
+	case server.FieldCores:
+		return m.AddedCores()
+	case server.FieldMemoryMB:
+		return m.AddedMemoryMB()
 	case server.FieldDiskGB:
 		return m.AddedDiskGB()
 	}
@@ -10995,6 +11149,20 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddTemplateVmid(v)
+		return nil
+	case server.FieldCores:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCores(v)
+		return nil
+	case server.FieldMemoryMB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMemoryMB(v)
 		return nil
 	case server.FieldDiskGB:
 		v, ok := value.(int)
@@ -11080,6 +11248,12 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldIsoVolid:
 		m.ResetIsoVolid()
+		return nil
+	case server.FieldCores:
+		m.ResetCores()
+		return nil
+	case server.FieldMemoryMB:
+		m.ResetMemoryMB()
 		return nil
 	case server.FieldDiskGB:
 		m.ResetDiskGB()

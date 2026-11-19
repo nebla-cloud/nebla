@@ -376,7 +376,11 @@ func (s *Service) SyncNodes(ctx context.Context, id int64) (Location, error) {
 	return s.GetLocation(ctx, id)
 }
 
+// syncNodes locks the location's nodes in name order first, the order servers.Create uses.
 func syncNodes(ctx context.Context, tx *ent.Client, locationID int64, nodes []pve.Node) error {
+	if _, err := tx.Node.Query().Where(node.LocationID(locationID)).Order(node.ByName()).ForUpdate().All(ctx); err != nil {
+		return err
+	}
 	if err := upsertNodes(ctx, tx, locationID, nodes); err != nil {
 		return err
 	}
@@ -391,6 +395,7 @@ func syncNodes(ctx context.Context, tx *ent.Client, locationID int64, nodes []pv
 // upsertNodes inserts new nodes and refreshes stats of known ones, keeping enabled and the override.
 func upsertNodes(ctx context.Context, tx *ent.Client, locationID int64, nodes []pve.Node) error {
 	now := time.Now()
+	nodes = slices.SortedFunc(slices.Values(nodes), func(a, b pve.Node) int { return strings.Compare(a.Name, b.Name) })
 	for _, n := range nodes {
 		err := tx.Node.Create().SetLocationID(locationID).SetName(n.Name).SetStatus(n.Status).SetMaxcpu(n.MaxCPU).
 			SetMaxmem(n.MaxMem).SetCPU(n.CPU).SetMem(n.Mem).SetUpdatedAt(now).

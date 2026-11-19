@@ -46,6 +46,10 @@ type Server struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	// IsoVolid holds the value of the "iso_volid" field.
 	IsoVolid *string `json:"iso_volid,omitempty"`
+	// Cores holds the value of the "cores" field.
+	Cores int `json:"cores,omitempty"`
+	// MemoryMB holds the value of the "memory_mb" field.
+	MemoryMB int `json:"memory_mb,omitempty"`
 	// DiskGB holds the value of the "disk_gb" field.
 	DiskGB int `json:"disk_gb,omitempty"`
 	// UserData holds the value of the "user_data" field.
@@ -126,7 +130,7 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldDiskGB:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
 			values[i] = new(sql.NullInt64)
 		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldUserData:
 			values[i] = new(sql.NullString)
@@ -228,6 +232,18 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.IsoVolid = new(string)
 				*_m.IsoVolid = value.String
+			}
+		case server.FieldCores:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field cores", values[i])
+			} else if value.Valid {
+				_m.Cores = int(value.Int64)
+			}
+		case server.FieldMemoryMB:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field memory_mb", values[i])
+			} else if value.Valid {
+				_m.MemoryMB = int(value.Int64)
 			}
 		case server.FieldDiskGB:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -350,6 +366,12 @@ func (_m *Server) String() string {
 		builder.WriteString("iso_volid=")
 		builder.WriteString(*v)
 	}
+	builder.WriteString(", ")
+	builder.WriteString("cores=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Cores))
+	builder.WriteString(", ")
+	builder.WriteString("memory_mb=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MemoryMB))
 	builder.WriteString(", ")
 	builder.WriteString("disk_gb=")
 	builder.WriteString(fmt.Sprintf("%v", _m.DiskGB))

@@ -105,6 +105,16 @@ func IsoVolid(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldIsoVolid, v))
 }
 
+// Cores applies equality check predicate on the "cores" field. It's identical to CoresEQ.
+func Cores(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCores, v))
+}
+
+// MemoryMB applies equality check predicate on the "memory_mb" field. It's identical to MemoryMBEQ.
+func MemoryMB(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldMemoryMB, v))
+}
+
 // DiskGB applies equality check predicate on the "disk_gb" field. It's identical to DiskGBEQ.
 func DiskGB(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldDiskGB, v))
@@ -578,6 +588,86 @@ func IsoVolidEqualFold(v string) predicate.Server {
 // IsoVolidContainsFold applies the ContainsFold predicate on the "iso_volid" field.
 func IsoVolidContainsFold(v string) predicate.Server {
 	return predicate.Server(sql.FieldContainsFold(FieldIsoVolid, v))
+}
+
+// CoresEQ applies the EQ predicate on the "cores" field.
+func CoresEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCores, v))
+}
+
+// CoresNEQ applies the NEQ predicate on the "cores" field.
+func CoresNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldCores, v))
+}
+
+// CoresIn applies the In predicate on the "cores" field.
+func CoresIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldCores, vs...))
+}
+
+// CoresNotIn applies the NotIn predicate on the "cores" field.
+func CoresNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldCores, vs...))
+}
+
+// CoresGT applies the GT predicate on the "cores" field.
+func CoresGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldCores, v))
+}
+
+// CoresGTE applies the GTE predicate on the "cores" field.
+func CoresGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldCores, v))
+}
+
+// CoresLT applies the LT predicate on the "cores" field.
+func CoresLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldCores, v))
+}
+
+// CoresLTE applies the LTE predicate on the "cores" field.
+func CoresLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldCores, v))
+}
+
+// MemoryMBEQ applies the EQ predicate on the "memory_mb" field.
+func MemoryMBEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldMemoryMB, v))
+}
+
+// MemoryMBNEQ applies the NEQ predicate on the "memory_mb" field.
+func MemoryMBNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldMemoryMB, v))
+}
+
+// MemoryMBIn applies the In predicate on the "memory_mb" field.
+func MemoryMBIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldMemoryMB, vs...))
+}
+
+// MemoryMBNotIn applies the NotIn predicate on the "memory_mb" field.
+func MemoryMBNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldMemoryMB, vs...))
+}
+
+// MemoryMBGT applies the GT predicate on the "memory_mb" field.
+func MemoryMBGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldMemoryMB, v))
+}
+
+// MemoryMBGTE applies the GTE predicate on the "memory_mb" field.
+func MemoryMBGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldMemoryMB, v))
+}
+
+// MemoryMBLT applies the LT predicate on the "memory_mb" field.
+func MemoryMBLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldMemoryMB, v))
+}
+
+// MemoryMBLTE applies the LTE predicate on the "memory_mb" field.
+func MemoryMBLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldMemoryMB, v))
 }
 
 // DiskGBEQ applies the EQ predicate on the "disk_gb" field.
