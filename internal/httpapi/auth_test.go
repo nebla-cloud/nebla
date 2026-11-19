@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -136,4 +137,22 @@ func TestLoginRateLimited(t *testing.T) {
 	res := app.PostJSON("/v1/auth/login", b)
 	require.Equal(t, 429, res.StatusCode)
 	require.Equal(t, "rate_limited", errCode(t, app, res))
+}
+
+func TestLoginRateLimitIgnoresEmailWhitespace(t *testing.T) {
+	app := testutil.NewApp(t)
+	b := map[string]string{"email": "a@example.com", "password": "wrong-password"}
+	for range 10 {
+		require.Equal(t, 401, app.PostJSON("/v1/auth/login", b).StatusCode)
+	}
+	b["email"] = "  A@example.com "
+	res := app.PostJSON("/v1/auth/login", b)
+	require.Equal(t, 429, res.StatusCode)
+}
+
+func TestOversizeBodyRejected(t *testing.T) {
+	app := testutil.NewApp(t)
+	res := app.PostJSON("/v1/auth/login", map[string]string{"email": "a@example.com", "password": strings.Repeat("x", 2<<20)})
+	require.Equal(t, 413, res.StatusCode)
+	require.Equal(t, "request_too_large", errCode(t, app, res))
 }

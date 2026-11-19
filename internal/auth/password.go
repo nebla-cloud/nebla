@@ -1,11 +1,14 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -21,19 +24,67 @@ const (
 
 var b64 = base64.RawStdEncoding
 
+var (
+	hashMu       sync.RWMutex
+	hashSem      = make(chan struct{}, 4)
+	hashInflight atomic.Int64
+	hashPeak     atomic.Int64
+)
+
+// setHashConcurrency swaps the hashing semaphore and returns the old size (tests).
+func setHashConcurrency(n int) int {
+	hashMu.Lock()
+	defer hashMu.Unlock()
+	prev := cap(hashSem)
+	hashSem = make(chan struct{}, n)
+	hashPeak.Store(0)
+	return prev
+}
+
+// acquireHash waits for a hashing slot so argon2 memory stays bounded.
+func acquireHash(ctx context.Context) (func(), error) {
+	hashMu.RLock()
+	sem := hashSem
+	hashMu.RUnlock()
+	select {
+	case sem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	n := hashInflight.Add(1)
+	for p := hashPeak.Load(); n > p && !hashPeak.CompareAndSwap(p, n); p = hashPeak.Load() {
+	}
+	return func() {
+		hashInflight.Add(-1)
+		<-sem
+	}, nil
+}
+
+func idKey(ctx context.Context, pw, salt []byte, t, m uint32, p uint8, n uint32) ([]byte, error) {
+	release, err := acquireHash(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return argon2.IDKey(pw, salt, t, m, p, n), nil
+}
+
 // HashPassword returns a PHC-encoded argon2id hash.
-func HashPassword(pw string) (string, error) {
+func HashPassword(ctx context.Context, pw string) (string, error) {
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key := argon2.IDKey([]byte(pw), salt, argonTime, argonMem, argonThreads, argonKeyLen)
+	key, err := idKey(ctx, []byte(pw), salt, argonTime, argonMem, argonThreads, argonKeyLen)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMem, argonTime, argonThreads, b64.EncodeToString(salt), b64.EncodeToString(key)), nil
 }
 
 // VerifyPassword checks pw against an encoded hash in constant time.
-func VerifyPassword(encoded, pw string) bool {
+func VerifyPassword(ctx context.Context, encoded, pw string) bool {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {
 		return false
@@ -55,6 +106,9 @@ func VerifyPassword(encoded, pw string) bool {
 	if err != nil || len(want) == 0 {
 		return false
 	}
-	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(want)))
+	got, err := idKey(ctx, []byte(pw), salt, t, m, p, uint32(len(want)))
+	if err != nil {
+		return false
+	}
 	return subtle.ConstantTimeCompare(got, want) == 1
 }

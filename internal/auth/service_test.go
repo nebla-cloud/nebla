@@ -30,12 +30,12 @@ func requireCode(t *testing.T, err error, status int, code string) {
 }
 
 func TestPasswordHashRoundTrip(t *testing.T) {
-	h, err := auth.HashPassword(pw)
+	h, err := auth.HashPassword(context.Background(), pw)
 	require.NoError(t, err)
 	require.Contains(t, h, "$argon2id$v=19$m=65536,t=3,p=2$")
-	require.True(t, auth.VerifyPassword(h, pw))
-	require.False(t, auth.VerifyPassword(h, "nope"))
-	require.False(t, auth.VerifyPassword("garbage", pw))
+	require.True(t, auth.VerifyPassword(context.Background(), h, pw))
+	require.False(t, auth.VerifyPassword(context.Background(), h, "nope"))
+	require.False(t, auth.VerifyPassword(context.Background(), "garbage", pw))
 }
 
 func TestSetupOnlyOnce(t *testing.T) {

@@ -58,7 +58,7 @@ func (s *server) PostAuthLogin(ctx context.Context, req apigen.PostAuthLoginRequ
 	if r := requestFrom(ctx); r != nil {
 		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
 	}
-	if !s.loginLimit.Allow(strings.ToLower(req.Body.Email) + "|" + ip) {
+	if !s.loginLimit.Allow(auth.NormalizeEmail(req.Body.Email) + "|" + ip) {
 		return nil, apierr.New(http.StatusTooManyRequests, "rate_limited", "too many login attempts, try again later")
 	}
 	code := ""

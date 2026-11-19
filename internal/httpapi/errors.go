@@ -33,6 +33,11 @@ func (s *server) responseError(w http.ResponseWriter, _ *http.Request, err error
 }
 
 func requestError(w http.ResponseWriter, _ *http.Request, err error) {
+	var mbe *http.MaxBytesError
+	if errors.As(err, &mbe) {
+		WriteError(w, http.StatusRequestEntityTooLarge, "request_too_large", "request body too large")
+		return
+	}
 	WriteError(w, http.StatusBadRequest, "invalid_input", err.Error())
 }
 
