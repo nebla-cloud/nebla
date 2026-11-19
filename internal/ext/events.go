@@ -46,6 +46,11 @@ func (b *Bus) Publish(ctx context.Context, e Event) {
 		b.wg.Add(1)
 		go func() {
 			defer b.wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("event sink panicked", "kind", e.Kind, "server_id", e.ServerID, "panic", r)
+				}
+			}()
 			if err := s.Handle(ctx, e); err != nil {
 				slog.Error("event sink failed", "kind", e.Kind, "server_id", e.ServerID, "err", err)
 			}

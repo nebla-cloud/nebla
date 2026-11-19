@@ -81,3 +81,15 @@ func TestDefaultRegistrationReadsSetting(t *testing.T) {
 	require.False(t, ext.Defaults(nil).SelfSignupEnabled(context.Background()))
 	require.False(t, ext.Defaults(staticSettings{}).SelfSignupEnabled(context.Background()))
 }
+
+type panicSink struct{}
+
+func (panicSink) Handle(context.Context, ext.Event) error { panic("sink exploded") }
+
+func TestBusRecoversFromSinkPanic(t *testing.T) {
+	good := &recSink{}
+	bus := ext.NewBus(panicSink{}, good)
+	bus.Publish(context.Background(), ext.Event{Kind: ext.ServerCreated})
+	bus.Close()
+	require.Len(t, good.events(), 1)
+}

@@ -12,3 +12,27 @@ type SchemaInfo struct {
 	ID        int32
 	CreatedAt pgtype.Timestamptz
 }
+
+type Session struct {
+	TokenHash []byte
+	UserID    int64
+	ExpiresAt pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+}
+
+type Setting struct {
+	Key   string
+	Value string
+}
+
+type User struct {
+	ID                int64
+	Email             string
+	Name              string
+	PasswordHash      string
+	IsAdmin           bool
+	TotpSecret        pgtype.Text
+	TotpPendingSecret pgtype.Text
+	TotpEnabled       bool
+	CreatedAt         pgtype.Timestamptz
+}

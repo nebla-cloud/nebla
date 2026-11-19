@@ -7,13 +7,18 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/apigen"
+	"github.com/Hexeption/nebla/internal/auth"
 	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/ext"
+	"github.com/Hexeption/nebla/internal/ratelimit"
+	"github.com/Hexeption/nebla/internal/settings"
 	"github.com/Hexeption/nebla/web"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/time/rate"
 )
 
 type Deps struct {
@@ -24,8 +29,11 @@ type Deps struct {
 }
 
 type server struct {
-	deps Deps
-	log  *slog.Logger
+	deps       Deps
+	log        *slog.Logger
+	auth       *auth.Service
+	settings   *settings.Store
+	loginLimit *ratelimit.Limiter
 }
 
 var _ apigen.StrictServerInterface = (*server)(nil)
@@ -40,9 +48,16 @@ func New(deps Deps) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
-	deps.Ext = deps.Ext.WithDefaults(nil)
-	s := &server{deps: deps, log: log}
-	strict := apigen.NewStrictHandlerWithOptions(s, nil, apigen.StrictHTTPServerOptions{
+	st := settings.New(deps.Pool)
+	deps.Ext = deps.Ext.WithDefaults(st)
+	s := &server{
+		deps:       deps,
+		log:        log,
+		auth:       auth.New(deps.Pool, deps.Ext.Registration),
+		settings:   st,
+		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
+	}
+	strict := apigen.NewStrictHandlerWithOptions(s, []apigen.StrictMiddlewareFunc{s.authMiddleware}, apigen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  requestError,
 		ResponseErrorHandlerFunc: s.responseError,
 	})
