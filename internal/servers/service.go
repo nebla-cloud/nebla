@@ -11,11 +11,13 @@ import (
 	"net/netip"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/actions"
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/catalog"
+	"github.com/Hexeption/nebla/internal/cloudinit"
 	"github.com/Hexeption/nebla/internal/db"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ent/ipallocation"
@@ -192,6 +194,9 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	if len(in.UserData) > MaxUserData {
 		return Server{}, actions.Action{}, invalid("user_data must be at most %d bytes", MaxUserData)
 	}
+	if err := cloudinit.ValidateUserData(in.UserData); err != nil {
+		return Server{}, actions.Action{}, invalid("user_data: %s", strings.TrimPrefix(err.Error(), "cloudinit: "))
+	}
 	typ, err := s.o.Catalog.ServerTypeByRef(ctx, in.ServerType)
 	if err != nil {
 		return Server{}, actions.Action{}, err
@@ -310,8 +315,7 @@ func (s *Service) resolveKeys(ctx context.Context, projectID int64, refs []strin
 	return out, nil
 }
 
-// lockNodes share-locks the location, locks its nodes in name order and returns their loads.
-// The name order matches catalog's syncNodes, so the two cannot deadlock.
+// lockNodes locks the location's nodes in name order, as syncNodes does, and returns their loads.
 func lockNodes(ctx context.Context, tx *ent.Client, locationID int64) ([]NodeLoad, error) {
 	if _, err := tx.Location.Query().Where(location.ID(locationID)).ForShare().Only(ctx); err != nil {
 		return nil, notFound(err)

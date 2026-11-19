@@ -20,8 +20,7 @@ services:
       PANEL_BASE_URL: ${PANEL_BASE_URL:?set PANEL_BASE_URL in .env}
       PANEL_SECRET_KEY: ${PANEL_SECRET_KEY:?set PANEL_SECRET_KEY in .env}
       PANEL_SMTP_URL: ${PANEL_SMTP_URL:-}
-      # Only set this when a reverse proxy sits in front; its X-Forwarded-For is then trusted.
-      # PANEL_TRUSTED_PROXIES: "172.16.0.0/12,10.0.0.5"
+      PANEL_TRUSTED_PROXIES: ${PANEL_TRUSTED_PROXIES:-}
     healthcheck:
       test: ["CMD", "/nebla-server", "healthcheck"]
       interval: 15s

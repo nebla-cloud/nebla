@@ -90,6 +90,9 @@ func run() error {
 		Handler: httpapi.New(httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: cfg, Logger: log, Mail: sender, Jobs: runner,
 			Ext: exts, Bus: bus, Catalog: cat, CatalogHooks: catalogHooks, ProjectHooks: projectHooks}),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// No WriteTimeout: it would cut console websockets.
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()

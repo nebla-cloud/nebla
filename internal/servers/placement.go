@@ -9,12 +9,11 @@ import (
 
 // NodeLoad is a node's memory picture; Reserved is the memory of panel servers placed on it. All in bytes.
 type NodeLoad struct {
-	Name    string
-	Enabled bool
-	Status  string
-	MaxMem  int64
-	Mem     int64
-	// Reserved is the memory of panel servers placed on the node.
+	Name     string
+	Enabled  bool
+	Status   string
+	MaxMem   int64
+	Mem      int64
 	Reserved int64
 }
 
@@ -22,8 +21,7 @@ func (n NodeLoad) free() int64 { return n.MaxMem - n.Mem - n.Reserved }
 
 var errNoCapacity = apierr.New(http.StatusUnprocessableEntity, "resource_unavailable", "no node in this location has capacity for this server")
 
-// Place picks the usable node with a template and the most free memory, ties to the lowest name.
-// A node-specific template wins over a shared one on that node.
+// Place picks the usable node with a template and the most free memory; a node's own template beats a shared one.
 func Place(nodes []NodeLoad, tmpls []catalog.Template, t catalog.ServerType) (string, int, error) {
 	shared := 0
 	local := map[string]int{}

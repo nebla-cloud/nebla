@@ -26,8 +26,7 @@ import (
 )
 
 const (
-	// TokenTTL is how long a console token can be redeemed.
-	// TokenTTL matches the ~10s Proxmox's vncproxy listener waits, so a late redeem is a 404 rather than a 502.
+	// TokenTTL matches the ~10s vncproxy listen window, so a late redeem is a 404, not a 502.
 	TokenTTL = 10 * time.Second
 	// MaxSession and IdleTimeout are the defaults for Options.
 	MaxSession  = 8 * time.Hour
@@ -82,18 +81,16 @@ func New(o Options) *Service {
 	}
 	s := &Service{o: o}
 	base := strings.TrimRight(o.BaseURL, "/")
-	if u, err := url.Parse(base); err == nil {
-		if u.Scheme != "" && u.Host != "" {
-			s.baseOrigin = strings.ToLower(u.Scheme + "://" + u.Host)
+	s.wsBase = base
+	if u, err := url.Parse(base); err == nil && u.Scheme != "" && u.Host != "" {
+		s.baseOrigin = strings.ToLower(u.Scheme + "://" + u.Host)
+		switch strings.ToLower(u.Scheme) {
+		case "https":
+			u.Scheme = "wss"
+		case "http":
+			u.Scheme = "ws"
 		}
-	}
-	switch {
-	case strings.HasPrefix(base, "https://"):
-		s.wsBase = "wss://" + strings.TrimPrefix(base, "https://")
-	case strings.HasPrefix(base, "http://"):
-		s.wsBase = "ws://" + strings.TrimPrefix(base, "http://")
-	default:
-		s.wsBase = base
+		s.wsBase = u.String()
 	}
 	return s
 }

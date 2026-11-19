@@ -67,8 +67,7 @@ func newAPILimiter(l *ratelimit.Limiter) *ratelimit.Limiter {
 	return l
 }
 
-// rateLimitMiddleware wraps /v1. Credentialed requests are limited by principal in authenticate
-// (one lookup, no repeat); others by IP here. The writer is a fallback so every response has headers.
+// rateLimitMiddleware limits anonymous requests by IP; authenticate limits credentialed ones by principal.
 func (s *server) rateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		st := &rlState{s: s, w: w, ip: realip.ClientIP(r, s.deps.Config.TrustedProxies)}

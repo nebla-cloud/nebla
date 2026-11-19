@@ -115,8 +115,7 @@ func (j *Jobs) InsertTx(ctx context.Context, tx *sql.Tx, args river.JobArgs, opt
 	return j.inserter.InsertTx(ctx, tx, args, opts)
 }
 
-// StartAction creates a running action and the job that runs it in one transaction; args receives the action id.
-// Worker contract: Succeed or Fail before returning nil, JobCancel after a terminal Fail, AttachJob when chaining.
+// StartAction creates a running action and its job in tx; workers must Succeed or Fail it before returning nil.
 func (j *Jobs) StartAction(ctx context.Context, tx *sql.Tx, etx *ent.Client, projectID int64, command string,
 	resources []actions.Resource, args func(actionID int64) river.JobArgs, opts *river.InsertOpts) (actions.Action, error) {
 	a, err := actions.Create(ctx, etx, projectID, command, resources)

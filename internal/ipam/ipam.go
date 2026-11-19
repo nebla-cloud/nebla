@@ -362,8 +362,7 @@ func lowestFree(start, end, gateway netip.Addr, used []netip.Addr) (netip.Addr, 
 	return cand, cand.IsValid() && cand.Compare(end) <= 0
 }
 
-// Allocate takes the lowest free address from the location's lowest-id pool of that family that has one.
-// It locks the pool rows in id order, so concurrent callers serialize; run it inside the caller's transaction.
+// Allocate takes the lowest free address of the family, locking pools in id order; call it inside a transaction.
 func Allocate(ctx context.Context, tx *ent.Client, locationID int64, family string, serverID int64) (Assignment, error) {
 	pools, err := tx.IPPool.Query().Where(ippool.LocationID(locationID), ippool.Family(family)).
 		Order(ent.Asc(ippool.FieldID)).ForUpdate().All(ctx)

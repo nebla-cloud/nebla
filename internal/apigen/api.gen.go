@@ -170,6 +170,21 @@ func (e GetHealthz200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetHealthz503JSONResponseBodyStatus.
+const (
+	Unavailable GetHealthz503JSONResponseBodyStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the GetHealthz503JSONResponseBodyStatus enum.
+func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case Unavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Action defines model for Action.
 type Action struct {
 	Command string `json:"command"`
@@ -674,6 +689,9 @@ type PostAuthLoginJSONBody struct {
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
 
+// GetHealthz503JSONResponseBodyStatus defines parameters for GetHealthz.
+type GetHealthz503JSONResponseBodyStatus string
+
 // GetImagesParams defines parameters for GetImages.
 type GetImagesParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -962,7 +980,7 @@ type ServerInterface interface {
 	// PostAuthTotpVerify Confirm enrollment and enable TOTP
 	// (POST /auth/totp/verify)
 	PostAuthTotpVerify(w http.ResponseWriter, r *http.Request)
-	// GetHealthz Liveness check
+	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
 	// GetImages List images, optionally only those available in a location
@@ -1313,7 +1331,7 @@ func (_ Unimplemented) PostAuthTotpVerify(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// GetHealthz Liveness check
+// GetHealthz Liveness check; pings the database
 // (GET /healthz)
 func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -4340,6 +4358,23 @@ func (response GetActions422JSONResponse) VisitGetActionsResponse(w http.Respons
 	return err
 }
 
+type GetActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetActionsdefaultJSONResponse) VisitGetActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetActionRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -4386,6 +4421,23 @@ func (response GetAction404JSONResponse) VisitGetActionResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetActiondefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetActiondefaultJSONResponse) VisitGetActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4439,6 +4491,23 @@ func (response GetAdminImages403JSONResponse) VisitGetAdminImagesResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImagesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminImagesdefaultJSONResponse) VisitGetAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4521,6 +4590,23 @@ func (response PostAdminImages422JSONResponse) VisitPostAdminImagesResponse(w ht
 	return err
 }
 
+type PostAdminImagesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminImagesdefaultJSONResponse) VisitPostAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteAdminImageRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -4593,6 +4679,23 @@ func (response DeleteAdminImage409JSONResponse) VisitDeleteAdminImageResponse(w 
 	return err
 }
 
+type DeleteAdminImagedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminImagedefaultJSONResponse) VisitDeleteAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminImageRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -4653,6 +4756,23 @@ func (response GetAdminImage404JSONResponse) VisitGetAdminImageResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImagedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminImagedefaultJSONResponse) VisitGetAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4750,6 +4870,23 @@ func (response PutAdminImage422JSONResponse) VisitPutAdminImageResponse(w http.R
 	return err
 }
 
+type PutAdminImagedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminImagedefaultJSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminIpPoolsRequestObject struct {
 	Params GetAdminIpPoolsParams
 }
@@ -4799,6 +4936,23 @@ func (response GetAdminIpPools403JSONResponse) VisitGetAdminIpPoolsResponse(w ht
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPoolsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminIpPoolsdefaultJSONResponse) VisitGetAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4881,6 +5035,23 @@ func (response PostAdminIpPools422JSONResponse) VisitPostAdminIpPoolsResponse(w 
 	return err
 }
 
+type PostAdminIpPoolsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminIpPoolsdefaultJSONResponse) VisitPostAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteAdminIpPoolRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -4953,6 +5124,23 @@ func (response DeleteAdminIpPool409JSONResponse) VisitDeleteAdminIpPoolResponse(
 	return err
 }
 
+type DeleteAdminIpPooldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminIpPooldefaultJSONResponse) VisitDeleteAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminIpPoolRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -5013,6 +5201,23 @@ func (response GetAdminIpPool404JSONResponse) VisitGetAdminIpPoolResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPooldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminIpPooldefaultJSONResponse) VisitGetAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5110,6 +5315,23 @@ func (response PutAdminIpPool422JSONResponse) VisitPutAdminIpPoolResponse(w http
 	return err
 }
 
+type PutAdminIpPooldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminIpPooldefaultJSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminLocationsRequestObject struct {
 	Params GetAdminLocationsParams
 }
@@ -5159,6 +5381,23 @@ func (response GetAdminLocations403JSONResponse) VisitGetAdminLocationsResponse(
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminLocationsdefaultJSONResponse) VisitGetAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5241,6 +5480,23 @@ func (response PostAdminLocations422JSONResponse) VisitPostAdminLocationsRespons
 	return err
 }
 
+type PostAdminLocationsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminLocationsdefaultJSONResponse) VisitPostAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteAdminLocationRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -5313,6 +5569,23 @@ func (response DeleteAdminLocation409JSONResponse) VisitDeleteAdminLocationRespo
 	return err
 }
 
+type DeleteAdminLocationdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminLocationdefaultJSONResponse) VisitDeleteAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminLocationRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -5373,6 +5646,23 @@ func (response GetAdminLocation404JSONResponse) VisitGetAdminLocationResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminLocationdefaultJSONResponse) VisitGetAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5470,6 +5760,23 @@ func (response PutAdminLocation422JSONResponse) VisitPutAdminLocationResponse(w 
 	return err
 }
 
+type PutAdminLocationdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminLocationdefaultJSONResponse) VisitPutAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PutAdminLocationNodeRequestObject struct {
 	Id     ID    `json:"id"`
 	NodeId int64 `json:"node_id"`
@@ -5550,6 +5857,23 @@ func (response PutAdminLocationNode422JSONResponse) VisitPutAdminLocationNodeRes
 	return err
 }
 
+type PutAdminLocationNodedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminLocationNodedefaultJSONResponse) VisitPutAdminLocationNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostAdminLocationSyncNodesRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -5624,6 +5948,23 @@ func (response PostAdminLocationSyncNodes422JSONResponse) VisitPostAdminLocation
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationSyncNodesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminLocationSyncNodesdefaultJSONResponse) VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5707,6 +6048,23 @@ func (response PutAdminProjectQuota422JSONResponse) VisitPutAdminProjectQuotaRes
 	return err
 }
 
+type PutAdminProjectQuotadefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminProjectQuotadefaultJSONResponse) VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminServerTypesRequestObject struct {
 	Params GetAdminServerTypesParams
 }
@@ -5753,6 +6111,23 @@ func (response GetAdminServerTypes403JSONResponse) VisitGetAdminServerTypesRespo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerTypesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminServerTypesdefaultJSONResponse) VisitGetAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5835,6 +6210,23 @@ func (response PostAdminServerTypes422JSONResponse) VisitPostAdminServerTypesRes
 	return err
 }
 
+type PostAdminServerTypesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminServerTypesdefaultJSONResponse) VisitPostAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteAdminServerTypeRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -5907,6 +6299,23 @@ func (response DeleteAdminServerType409JSONResponse) VisitDeleteAdminServerTypeR
 	return err
 }
 
+type DeleteAdminServerTypedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminServerTypedefaultJSONResponse) VisitDeleteAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminServerTypeRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -5967,6 +6376,23 @@ func (response GetAdminServerType404JSONResponse) VisitGetAdminServerTypeRespons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerTypedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminServerTypedefaultJSONResponse) VisitGetAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6064,6 +6490,23 @@ func (response PutAdminServerType422JSONResponse) VisitPutAdminServerTypeRespons
 	return err
 }
 
+type PutAdminServerTypedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminServerTypedefaultJSONResponse) VisitPutAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminSettingsRequestObject struct {
 }
 
@@ -6109,6 +6552,23 @@ func (response GetAdminSettings403JSONResponse) VisitGetAdminSettingsResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminSettingsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminSettingsdefaultJSONResponse) VisitGetAdminSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6163,6 +6623,23 @@ func (response PutAdminSettings403JSONResponse) VisitPutAdminSettingsResponse(w 
 	return err
 }
 
+type PutAdminSettingsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminSettingsdefaultJSONResponse) VisitPutAdminSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminUsersRequestObject struct {
 	Params GetAdminUsersParams
 }
@@ -6212,6 +6689,23 @@ func (response GetAdminUsers403JSONResponse) VisitGetAdminUsersResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsersdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminUsersdefaultJSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6294,6 +6788,23 @@ func (response PostAdminUsers422JSONResponse) VisitPostAdminUsersResponse(w http
 	return err
 }
 
+type PostAdminUsersdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminUsersdefaultJSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostAuthLoginRequestObject struct {
 	Body *PostAuthLoginJSONRequestBody
 }
@@ -6354,6 +6865,23 @@ func (response PostAuthLogin429JSONResponse) VisitPostAuthLoginResponse(w http.R
 	return err
 }
 
+type PostAuthLogindefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAuthLogindefaultJSONResponse) VisitPostAuthLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostAuthLogoutRequestObject struct {
 }
 
@@ -6391,6 +6919,23 @@ func (response PostAuthLogout401JSONResponse) VisitPostAuthLogoutResponse(w http
 	return err
 }
 
+type PostAuthLogoutdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAuthLogoutdefaultJSONResponse) VisitPostAuthLogoutResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostAuthTotpDisableRequestObject struct {
 	Body *PostAuthTotpDisableJSONRequestBody
 }
@@ -6417,6 +6962,23 @@ func (response PostAuthTotpDisable401JSONResponse) VisitPostAuthTotpDisableRespo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthTotpDisabledefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAuthTotpDisabledefaultJSONResponse) VisitPostAuthTotpDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6455,6 +7017,23 @@ func (response PostAuthTotpEnroll401JSONResponse) VisitPostAuthTotpEnrollRespons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthTotpEnrolldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAuthTotpEnrolldefaultJSONResponse) VisitPostAuthTotpEnrollResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6503,6 +7082,23 @@ func (response PostAuthTotpVerify422JSONResponse) VisitPostAuthTotpVerifyRespons
 	return err
 }
 
+type PostAuthTotpVerifydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAuthTotpVerifydefaultJSONResponse) VisitPostAuthTotpVerifyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthzRequestObject struct {
 }
 
@@ -6522,6 +7118,39 @@ func (response GetHealthz200JSONResponse) VisitGetHealthzResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHealthz503JSONResponse struct {
+	Status GetHealthz503JSONResponseBodyStatus `json:"status"`
+}
+
+func (response GetHealthz503JSONResponse) VisitGetHealthzResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHealthzdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetHealthzdefaultJSONResponse) VisitGetHealthzResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6579,6 +7208,23 @@ func (response GetImages404JSONResponse) VisitGetImagesResponse(w http.ResponseW
 	return err
 }
 
+type GetImagesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetImagesdefaultJSONResponse) VisitGetImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetImageRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -6625,6 +7271,23 @@ func (response GetImage404JSONResponse) VisitGetImageResponse(w http.ResponseWri
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetImagedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetImagedefaultJSONResponse) VisitGetImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6718,6 +7381,23 @@ func (response PostInviteAccept422JSONResponse) VisitPostInviteAcceptResponse(w 
 	return err
 }
 
+type PostInviteAcceptdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostInviteAcceptdefaultJSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetLocationsRequestObject struct {
 	Params GetLocationsParams
 }
@@ -6767,6 +7447,23 @@ func (response GetLocations404JSONResponse) VisitGetLocationsResponse(w http.Res
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLocationsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetLocationsdefaultJSONResponse) VisitGetLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6821,6 +7518,23 @@ func (response GetLocation404JSONResponse) VisitGetLocationResponse(w http.Respo
 	return err
 }
 
+type GetLocationdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetLocationdefaultJSONResponse) VisitGetLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -6852,6 +7566,23 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetMedefaultJSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6889,6 +7620,23 @@ func (response GetProjects401JSONResponse) VisitGetProjectsResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetProjectsdefaultJSONResponse) VisitGetProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6939,6 +7687,23 @@ func (response PostProjects422JSONResponse) VisitPostProjectsResponse(w http.Res
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostProjectsdefaultJSONResponse) VisitPostProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7015,6 +7780,23 @@ func (response DeleteProject409JSONResponse) VisitDeleteProjectResponse(w http.R
 	return err
 }
 
+type DeleteProjectdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteProjectdefaultJSONResponse) VisitDeleteProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProjectRequestObject struct {
 	Id ProjectID `json:"id"`
 }
@@ -7061,6 +7843,23 @@ func (response GetProject404JSONResponse) VisitGetProjectResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetProjectdefaultJSONResponse) VisitGetProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7144,6 +7943,23 @@ func (response PutProject422JSONResponse) VisitPutProjectResponse(w http.Respons
 	return err
 }
 
+type PutProjectdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutProjectdefaultJSONResponse) VisitPutProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProjectInvitesRequestObject struct {
 	Id ProjectID `json:"id"`
 }
@@ -7206,6 +8022,23 @@ func (response GetProjectInvites404JSONResponse) VisitGetProjectInvitesResponse(
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectInvitesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetProjectInvitesdefaultJSONResponse) VisitGetProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7291,6 +8124,23 @@ func (response PostProjectInvites422JSONResponse) VisitPostProjectInvitesRespons
 	return err
 }
 
+type PostProjectInvitesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostProjectInvitesdefaultJSONResponse) VisitPostProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProjectInviteRequestObject struct {
 	Id       ProjectID `json:"id"`
 	InviteId int64     `json:"invite_id"`
@@ -7350,6 +8200,23 @@ func (response DeleteProjectInvite404JSONResponse) VisitDeleteProjectInviteRespo
 	return err
 }
 
+type DeleteProjectInvitedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteProjectInvitedefaultJSONResponse) VisitDeleteProjectInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProjectMembersRequestObject struct {
 	Id ProjectID `json:"id"`
 }
@@ -7398,6 +8265,23 @@ func (response GetProjectMembers404JSONResponse) VisitGetProjectMembersResponse(
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMembersdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetProjectMembersdefaultJSONResponse) VisitGetProjectMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7475,6 +8359,23 @@ func (response DeleteProjectMember409JSONResponse) VisitDeleteProjectMemberRespo
 	return err
 }
 
+type DeleteProjectMemberdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteProjectMemberdefaultJSONResponse) VisitDeleteProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProjectMemberRequestObject struct {
 	Id     ProjectID `json:"id"`
 	UserId int64     `json:"user_id"`
@@ -7522,6 +8423,23 @@ func (response GetProjectMember404JSONResponse) VisitGetProjectMemberResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMemberdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetProjectMemberdefaultJSONResponse) VisitGetProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7606,6 +8524,23 @@ func (response PutProjectMember409JSONResponse) VisitPutProjectMemberResponse(w 
 	return err
 }
 
+type PutProjectMemberdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutProjectMemberdefaultJSONResponse) VisitPutProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProjectTokensRequestObject struct {
 	Id ProjectID `json:"id"`
 }
@@ -7668,6 +8603,23 @@ func (response GetProjectTokens404JSONResponse) VisitGetProjectTokensResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectTokensdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetProjectTokensdefaultJSONResponse) VisitGetProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7758,6 +8710,23 @@ func (response PostProjectTokens422JSONResponse) VisitPostProjectTokensResponse(
 	return err
 }
 
+type PostProjectTokensdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostProjectTokensdefaultJSONResponse) VisitPostProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProjectTokenRequestObject struct {
 	Id      ProjectID `json:"id"`
 	TokenId int64     `json:"token_id"`
@@ -7817,6 +8786,23 @@ func (response DeleteProjectToken404JSONResponse) VisitDeleteProjectTokenRespons
 	return err
 }
 
+type DeleteProjectTokendefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteProjectTokendefaultJSONResponse) VisitDeleteProjectTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetServerTypesRequestObject struct {
 	Params GetServerTypesParams
 }
@@ -7867,6 +8853,23 @@ func (response GetServerTypes404JSONResponse) VisitGetServerTypesResponse(w http
 	return err
 }
 
+type GetServerTypesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServerTypesdefaultJSONResponse) VisitGetServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetServerTypeRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -7913,6 +8916,23 @@ func (response GetServerType404JSONResponse) VisitGetServerTypeResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerTypedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServerTypedefaultJSONResponse) VisitGetServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7980,6 +9000,23 @@ func (response GetServers422JSONResponse) VisitGetServersResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServersdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServersdefaultJSONResponse) VisitGetServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8094,6 +9131,23 @@ func (response PostServers503JSONResponse) VisitPostServersResponse(w http.Respo
 	return err
 }
 
+type PostServersdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostServersdefaultJSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteServerRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -8188,6 +9242,23 @@ func (response DeleteServer503JSONResponse) VisitDeleteServerResponse(w http.Res
 	return err
 }
 
+type DeleteServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteServerdefaultJSONResponse) VisitDeleteServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetServerRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -8234,6 +9305,23 @@ func (response GetServer404JSONResponse) VisitGetServerResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServerdefaultJSONResponse) VisitGetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8331,6 +9419,23 @@ func (response PutServer422JSONResponse) VisitPutServerResponse(w http.ResponseW
 	return err
 }
 
+type PutServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutServerdefaultJSONResponse) VisitPutServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetServerActionsRequestObject struct {
 	Id     ID `json:"id"`
 	Params GetServerActionsParams
@@ -8395,6 +9500,23 @@ func (response GetServerActions422JSONResponse) VisitGetServerActionsResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServerActionsdefaultJSONResponse) VisitGetServerActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8506,6 +9628,23 @@ func (response ChangeServerType503JSONResponse) VisitChangeServerTypeResponse(w 
 	return err
 }
 
+type ChangeServerTypedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ChangeServerTypedefaultJSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PoweroffServerRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -8594,6 +9733,23 @@ func (response PoweroffServer503JSONResponse) VisitPoweroffServerResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PoweroffServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PoweroffServerdefaultJSONResponse) VisitPoweroffServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8690,6 +9846,23 @@ func (response PoweronServer503JSONResponse) VisitPoweronServerResponse(w http.R
 	return err
 }
 
+type PoweronServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PoweronServerdefaultJSONResponse) VisitPoweronServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RebootServerRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -8778,6 +9951,23 @@ func (response RebootServer503JSONResponse) VisitRebootServerResponse(w http.Res
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RebootServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RebootServerdefaultJSONResponse) VisitRebootServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8889,6 +10079,23 @@ func (response RebuildServer503JSONResponse) VisitRebuildServerResponse(w http.R
 	return err
 }
 
+type RebuildServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RebuildServerdefaultJSONResponse) VisitRebuildServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RequestServerConsoleRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -8977,6 +10184,23 @@ func (response RequestServerConsole502JSONResponse) VisitRequestServerConsoleRes
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestServerConsoledefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RequestServerConsoledefaultJSONResponse) VisitRequestServerConsoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9073,6 +10297,23 @@ func (response ResetServer503JSONResponse) VisitResetServerResponse(w http.Respo
 	return err
 }
 
+type ResetServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ResetServerdefaultJSONResponse) VisitResetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ShutdownServerRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -9161,6 +10402,23 @@ func (response ShutdownServer503JSONResponse) VisitShutdownServerResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ShutdownServerdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ShutdownServerdefaultJSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9260,6 +10518,23 @@ func (response GetServerMetrics502JSONResponse) VisitGetServerMetricsResponse(w 
 	return err
 }
 
+type GetServerMetricsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServerMetricsdefaultJSONResponse) VisitGetServerMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostSetupRequestObject struct {
 	Body *PostSetupJSONRequestBody
 }
@@ -9306,6 +10581,23 @@ func (response PostSetup422JSONResponse) VisitPostSetupResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSetupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostSetupdefaultJSONResponse) VisitPostSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9384,6 +10676,23 @@ func (response PostSignup422JSONResponse) VisitPostSignupResponse(w http.Respons
 	return err
 }
 
+type PostSignupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostSignupdefaultJSONResponse) VisitPostSignupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSshKeysRequestObject struct {
 	Params GetSshKeysParams
 }
@@ -9433,6 +10742,23 @@ func (response GetSshKeys404JSONResponse) VisitGetSshKeysResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSshKeysdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetSshKeysdefaultJSONResponse) VisitGetSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9529,6 +10855,23 @@ func (response PostSshKeys422JSONResponse) VisitPostSshKeysResponse(w http.Respo
 	return err
 }
 
+type PostSshKeysdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostSshKeysdefaultJSONResponse) VisitPostSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteSshKeyRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -9587,6 +10930,23 @@ func (response DeleteSshKey404JSONResponse) VisitDeleteSshKeyResponse(w http.Res
 	return err
 }
 
+type DeleteSshKeydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteSshKeydefaultJSONResponse) VisitDeleteSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSshKeyRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -9633,6 +10993,23 @@ func (response GetSshKey404JSONResponse) VisitGetSshKeyResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSshKeydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetSshKeydefaultJSONResponse) VisitGetSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9730,6 +11107,23 @@ func (response PutSshKey422JSONResponse) VisitPutSshKeyResponse(w http.ResponseW
 	return err
 }
 
+type PutSshKeydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutSshKeydefaultJSONResponse) VisitPutSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetUiManifestRequestObject struct {
 }
 
@@ -9747,6 +11141,23 @@ func (response GetUiManifest200JSONResponse) VisitGetUiManifestResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUiManifestdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetUiManifestdefaultJSONResponse) VisitGetUiManifestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9855,7 +11266,7 @@ type StrictServerInterface interface {
 	// PostAuthTotpVerify Confirm enrollment and enable TOTP
 	// (POST /auth/totp/verify)
 	PostAuthTotpVerify(ctx context.Context, request PostAuthTotpVerifyRequestObject) (PostAuthTotpVerifyResponseObject, error)
-	// GetHealthz Liveness check
+	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
 	// GetImages List images, optionally only those available in a location

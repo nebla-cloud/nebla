@@ -204,8 +204,7 @@ const cleanupTimeout = 2 * time.Minute
 // errUnproven means an untagged VM sits at the vmid and nothing was saved that could prove it ours.
 var errUnproven = errors.New("no clone proof")
 
-// destroyVM removes vmid if it is serverID's VM, proven by tags, a successful saved clone task, or the clone nonce.
-// It returns nil only when no VM of ours is left at vmid; a VM proven foreign is left alone.
+// destroyVM removes vmid if proven serverID's; nil means no VM of ours is left there.
 func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, proof CloneProof) error {
 	v, ok, err := findVM(ctx, pc, vmid)
 	if err != nil || !ok {

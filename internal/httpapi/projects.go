@@ -198,13 +198,7 @@ func (s *server) DeleteProjectToken(ctx context.Context, req apigen.DeleteProjec
 }
 
 func (s *server) GetAdminUsers(ctx context.Context, req apigen.GetAdminUsersRequestObject) (apigen.GetAdminUsersResponseObject, error) {
-	page, perPage := 1, 25
-	if p := req.Params.Page; p != nil && *p > 0 {
-		page = min(*p, 1_000_000)
-	}
-	if p := req.Params.PerPage; p != nil && *p > 0 {
-		perPage = min(*p, 50)
-	}
+	page, perPage := pageParams(req.Params.Page, req.Params.PerPage)
 	us, total, err := s.auth.ListUsers(ctx, page, perPage)
 	if err != nil {
 		return nil, err
@@ -213,7 +207,7 @@ func (s *server) GetAdminUsers(ctx context.Context, req apigen.GetAdminUsersRequ
 	for i, u := range us {
 		out.Users[i] = apiUser(u)
 	}
-	out.Meta.Pagination.Page, out.Meta.Pagination.PerPage, out.Meta.Pagination.TotalEntries = page, perPage, total
+	out.Meta = meta(page, perPage, total)
 	return out, nil
 }
 

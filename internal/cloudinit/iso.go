@@ -97,6 +97,12 @@ func isCloudConfig(ud string) bool {
 	return strings.TrimSpace(first) == cloudConfigHeader
 }
 
+// ValidateUserData checks user data builds; #cloud-config must be a YAML mapping.
+func ValidateUserData(ud string) error {
+	_, err := userData(ud, nil)
+	return err
+}
+
 func userData(ud string, keys []string) ([]byte, error) {
 	switch {
 	case strings.TrimSpace(ud) == "":
