@@ -33,10 +33,12 @@ func run() error {
 	if err := db.Migrate(ctx, pool); err != nil {
 		return err
 	}
+	client := db.NewEnt(pool)
+	defer client.Close()
 	log := slog.Default()
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           httpapi.New(httpapi.Deps{Pool: pool, Config: cfg, Logger: log}),
+		Handler:           httpapi.New(httpapi.Deps{Pool: pool, Ent: client, Config: cfg, Logger: log}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Info("listening", "addr", cfg.Listen)

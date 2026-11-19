@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/auth"
+	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/httpapi"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,6 +21,7 @@ import (
 type App struct {
 	URL  string
 	Pool *pgxpool.Pool
+	Ent  *ent.Client
 	Auth *auth.Service
 	t    *testing.T
 }
@@ -30,9 +32,10 @@ const Password = "correct-horse-battery"
 func NewApp(t *testing.T) *App {
 	t.Helper()
 	pool := NewDB(t)
-	srv := httptest.NewServer(httpapi.New(httpapi.Deps{Pool: pool}))
+	client := entFor(t, pool)
+	srv := httptest.NewServer(httpapi.New(httpapi.Deps{Pool: pool, Ent: client}))
 	t.Cleanup(srv.Close)
-	return &App{URL: srv.URL, Pool: pool, Auth: auth.New(pool, ext.Defaults(nil).Registration), t: t}
+	return &App{URL: srv.URL, Pool: pool, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration), t: t}
 }
 
 func (a *App) Do(req *http.Request) *http.Response {

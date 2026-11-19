@@ -18,7 +18,7 @@ import (
 const pw = "correct-horse-battery"
 
 func newSvc(t *testing.T) *auth.Service {
-	return auth.New(testutil.NewDB(t), ext.Defaults(nil).Registration)
+	return auth.New(testutil.NewEnt(t), ext.Defaults(nil).Registration)
 }
 
 func requireCode(t *testing.T, err error, status int, code string) {
