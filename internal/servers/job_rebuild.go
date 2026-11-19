@@ -196,7 +196,7 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 
 func (r *rebuildRun) retire(ctx context.Context) error {
 	if r.b.st.Vmid != nil {
-		if err := destroyOrForget(ctx, r.b.pc, r.row.ID, *r.b.st.Vmid, r.b.st.proof()); err != nil {
+		if err := destroyOrForget(ctx, r.b.pc, r.row.ID, *r.b.st.Vmid, CloneProof{}); err != nil {
 			return err
 		}
 	}

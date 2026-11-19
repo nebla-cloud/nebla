@@ -2,11 +2,13 @@ package servers
 
 import (
 	"context"
+	"database/sql"
 	"strconv"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/actions"
 	"github.com/Hexeption/nebla/internal/catalog"
+	"github.com/Hexeption/nebla/internal/db"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/projects"
@@ -27,12 +29,13 @@ type Spec struct {
 	DiskGB   int   `json:"disk_gb"`
 }
 
-// ChangeTypeArgs is the change_server_type job; From is the snapshot to restore if it fails.
+// ChangeTypeArgs is the change_server_type job: To is applied on success, From restored on failure.
 type ChangeTypeArgs struct {
 	ServerID    int64 `json:"server_id"`
 	ActionID    int64 `json:"action_id"`
 	UpgradeDisk bool  `json:"upgrade_disk"`
 	From        Spec  `json:"from"`
+	To          Spec  `json:"to"`
 }
 
 func (ChangeTypeArgs) Kind() string                 { return KindChangeType }
@@ -46,7 +49,7 @@ func (s Spec) apply(u *ent.ServerUpdateOne) *ent.ServerUpdateOne {
 	return u.SetServerTypeID(s.TypeID).SetCores(s.Cores).SetMemoryMB(s.MemoryMB).SetDiskGB(s.DiskGB)
 }
 
-// ChangeType writes the new snapshot with its quota reservation and queues the job; failure restores the old one.
+// ChangeType reserves max(from, to) per dimension on the row and queues the job; only success frees a downsize.
 func (s *Service) ChangeType(ctx context.Context, projectID, id int64, typeRef string, upgradeDisk bool) (actions.Action, error) {
 	typ, err := s.o.Catalog.ServerTypeByRef(ctx, typeRef)
 	if err != nil {
@@ -58,15 +61,16 @@ func (s *Service) ChangeType(ctx context.Context, projectID, id int64, typeRef s
 			return nil, err
 		}
 		from := specOf(row)
-		delta := projects.Usage{VCPU: to.Cores - from.Cores, MemoryMB: to.MemoryMB - from.MemoryMB, DiskGB: to.DiskGB - from.DiskGB}
+		held := Spec{TypeID: from.TypeID, Cores: max(from.Cores, to.Cores), MemoryMB: max(from.MemoryMB, to.MemoryMB), DiskGB: max(from.DiskGB, to.DiskGB)}
+		delta := projects.Usage{VCPU: held.Cores - from.Cores, MemoryMB: held.MemoryMB - from.MemoryMB, DiskGB: held.DiskGB - from.DiskGB}
 		if err := s.o.Projects.ReserveQuota(ctx, etx, projectID, delta); err != nil {
 			return nil, err
 		}
-		if err := to.apply(etx.Server.UpdateOneID(id)).Exec(ctx); err != nil {
+		if err := held.apply(etx.Server.UpdateOneID(id)).Exec(ctx); err != nil {
 			return nil, writeErr(err)
 		}
 		return func(actionID int64) river.JobArgs {
-			return ChangeTypeArgs{ServerID: id, ActionID: actionID, UpgradeDisk: upgradeDisk, From: from}
+			return ChangeTypeArgs{ServerID: id, ActionID: actionID, UpgradeDisk: upgradeDisk, From: from, To: to}
 		}, nil
 	})
 }
@@ -154,19 +158,27 @@ func (w *ChangeTypeWorker) run(ctx context.Context, pc pve.Client, row *ent.Serv
 	case v.Status != "stopped":
 		return permanent("vm %d must be stopped", v.VMID)
 	}
-	kv := map[string]string{"cores": strconv.Itoa(row.Cores), "memory": strconv.Itoa(row.MemoryMB)}
+	kv := map[string]string{"cores": strconv.Itoa(a.To.Cores), "memory": strconv.Itoa(a.To.MemoryMB)}
 	if err := pc.SetConfig(ctx, v.Node, v.VMID, kv); err != nil {
 		return &stepError{"configure vm", err}
 	}
 	if a.UpgradeDisk {
-		if err := growDisk(ctx, pc, v, row.DiskGB); err != nil {
+		if err := growDisk(ctx, pc, v, a.To.DiskGB); err != nil {
 			return &stepError{"resize disk", err}
 		}
 	}
-	if err := actions.Succeed(ctx, w.o.Ent, a.ActionID); err != nil {
+	var done *ent.Server
+	err = db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		var err error
+		if done, err = a.To.apply(etx.Server.UpdateOneID(row.ID)).Save(ctx); err != nil {
+			return err
+		}
+		return actions.Succeed(ctx, etx, a.ActionID)
+	})
+	if err != nil {
 		return err
 	}
-	w.o.publish(ctx, ext.ServerTypeChanged, row, map[string]any{"cores": row.Cores, "memory_mb": row.MemoryMB, "disk_gb": row.DiskGB,
+	w.o.publish(ctx, ext.ServerTypeChanged, done, map[string]any{"cores": done.Cores, "memory_mb": done.MemoryMB, "disk_gb": done.DiskGB,
 		"previous_server_type_id": a.From.TypeID})
 	return nil
 }

@@ -267,7 +267,8 @@ func (b *builder) tag(ctx context.Context) error {
 	if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), map[string]string{"tags": vmTags(b.row.ID)}); err != nil {
 		return err
 	}
-	return b.done(ctx, stepClone)
+	// Once tagged, the clone proof is spent: it must never vouch for a later VM at this vmid.
+	return b.update(ctx, func(s *buildState) { s.Upid, s.Nonce, s.Step = nil, nil, stepClone })
 }
 
 func (b *builder) net0(ctx context.Context) (string, error) {

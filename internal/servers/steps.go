@@ -240,6 +240,10 @@ func destroyOrForget(ctx context.Context, pc pve.Client, serverID int64, vmid in
 
 // provenOurs decides an untagged VM at our vmid; an error means it could not be decided.
 func provenOurs(ctx context.Context, pc pve.Client, serverID int64, v pve.VM, proof CloneProof) (bool, error) {
+	if hasTag(v.Tags, TagNebla) && !hasTag(v.Tags, ServerTag(serverID)) {
+		// Another panel VM: never ours, whatever was saved.
+		return false, nil
+	}
 	if proof.UPID != nil {
 		err := pc.WaitTask(ctx, upidNode(*proof.UPID), pve.UPID(*proof.UPID))
 		switch {

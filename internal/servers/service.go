@@ -530,7 +530,7 @@ func LockServer(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.
 	return row, nil
 }
 
-// queue runs prepare under the server lock and starts its job; nil args records an already-succeeded action.
+// queue runs prepare under the server lock and starts the job it returns args for.
 func (s *Service) queue(ctx context.Context, projectID, id int64, command string,
 	prepare func(etx *ent.Client, row *ent.Server) (func(actionID int64) river.JobArgs, error)) (actions.Action, error) {
 	if s.o.Jobs == nil {
@@ -546,18 +546,7 @@ func (s *Service) queue(ctx context.Context, projectID, id int64, command string
 		if err != nil {
 			return err
 		}
-		res := []actions.Resource{{ID: id, Type: ResourceType}}
-		if args != nil {
-			act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, command, res, args, nil)
-			return err
-		}
-		if act, err = actions.Create(ctx, etx, projectID, command, res); err != nil {
-			return err
-		}
-		if err := actions.Succeed(ctx, etx, act.ID); err != nil {
-			return err
-		}
-		act, err = actions.Get(ctx, etx, projectID, act.ID)
+		act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, command, []actions.Resource{{ID: id, Type: ResourceType}}, args, nil)
 		return err
 	})
 	return act, err

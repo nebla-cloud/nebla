@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Hexeption/nebla/internal/actions"
+	"github.com/Hexeption/nebla/internal/ent/ipallocation"
 	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/pve"
@@ -131,17 +132,22 @@ func TestPowerOffSetsOff(t *testing.T) {
 	vm, _ := e.App.PVE.VM(vmid)
 	require.Equal(t, "stopped", vm.Status)
 
-	// Already off: a finished no-op action, with no Proxmox call.
+	// Already off: the job sees it in Proxmox and makes no call.
 	stops := countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/stop", vmid))
-	out, _ := expect[actionBody](t, act(e, s.ServerID, "poweroff", nil), http.StatusCreated)
-	require.Equal(t, actions.StatusSuccess, out.Action.Status)
-	require.Equal(t, 100, out.Action.Progress)
+	waitOK(t, e, startAction(t, e, s.ServerID, "poweroff", nil))
 	require.Equal(t, stops, countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/stop", vmid)))
 
 	waitOK(t, e, startAction(t, e, s.ServerID, "poweron", nil))
 	require.Equal(t, servers.StatusRunning, status(t, e, s.ServerID))
-	out, _ = expect[actionBody](t, act(e, s.ServerID, "poweron", nil), http.StatusCreated)
-	require.Equal(t, actions.StatusSuccess, out.Action.Status, "poweron on running is a no-op")
+	waitOK(t, e, startAction(t, e, s.ServerID, "poweron", nil))
+
+	// The DB says running but Proxmox has it stopped: poweron must really start it.
+	e.App.PVE.SetVMStatus(vmid, "stopped")
+	starts := countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/start", vmid))
+	waitOK(t, e, startAction(t, e, s.ServerID, "poweron", nil))
+	require.Equal(t, starts+1, countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/start", vmid)))
+	vm, _ = e.App.PVE.VM(vmid)
+	require.Equal(t, "running", vm.Status)
 
 	waitOK(t, e, startAction(t, e, s.ServerID, "reboot", nil))
 	waitOK(t, e, startAction(t, e, s.ServerID, "reset", nil))
@@ -166,7 +172,7 @@ func TestPowerOffSetsOff(t *testing.T) {
 	expectErr(t, ro.Send(http.MethodPost, spath(s.ServerID)+"/actions/poweron", nil), http.StatusForbidden, "forbidden")
 	n, err := e.App.Ent.Action.Query().Count(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 9, n)
+	require.Equal(t, 10, n)
 }
 
 func TestPowerShutdownTimeout(t *testing.T) {
@@ -278,9 +284,12 @@ func TestChangeTypeNoShrink(t *testing.T) {
 	require.False(t, args.UpgradeDisk)
 	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
 	require.NoError(t, err)
-	require.Equal(t, 20, row.DiskGB, "the disk keeps its size")
-	require.Equal(t, 1, row.Cores)
-	require.Equal(t, 1024, row.MemoryMB)
+	require.Equal(t, 1, args.To.Cores)
+	require.Equal(t, 20, args.To.DiskGB, "the disk keeps its size")
+	require.Equal(t, 1024, args.To.MemoryMB)
+	// A downsize holds the larger spec until it succeeds.
+	require.Equal(t, e.Type, row.ServerTypeID)
+	require.Equal(t, []int{2, 2048, 20}, []int{row.Cores, row.MemoryMB, row.DiskGB})
 }
 
 func TestChangeTypeFailureReverts(t *testing.T) {
@@ -351,12 +360,27 @@ func TestChangeTypeQuotaRace(t *testing.T) {
 	e.CreateServer("other", nil)
 	expectErr(t, act(e, s.ServerID, "change_type", map[string]any{"server_type": "big", "upgrade_disk": false}),
 		http.StatusUnprocessableEntity, "quota_exceeded")
-	// A downsize is allowed even at the limit.
+
+	// A pending downsize frees nothing: a create cannot take the vCPU it would release.
+	e = newEnv(t)
+	e.Admin.CreateServerType("big", 3, 2048, 20)
 	e.Admin.CreateServerType("one", 1, 1024, 20)
-	startAction(t, e, s.ServerID, "change_type", map[string]any{"server_type": "one", "upgrade_disk": false})
+	s = e.CreateServer("web", map[string]any{"server_type": "big"})
+	settle(t, e, s, servers.StatusOff)
+	e.Admin.SetQuota(e.Project, 0, 4, 0, 0, 0)
+	id := startAction(t, e, s.ServerID, "change_type", map[string]any{"server_type": "one", "upgrade_disk": false})
+	expectErr(t, post(e, map[string]any{"name": "other"}), http.StatusUnprocessableEntity, "quota_exceeded")
+	// The downsize fails (the queued row has no VM in Proxmox) and the old spec stays.
+	w := servers.NewChangeTypeWorker(opts(e))
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(w.Work(ctx, jobOf(queuedArgs[servers.ChangeTypeArgs](t, e, id), 1)), &cancel))
 	u, err := servers.Usage(ctx, e.App.Ent, e.Project)
 	require.NoError(t, err)
-	require.Equal(t, 3, u.VCPU, "the reservation shows in usage before the job runs")
+	require.Equal(t, 3, u.VCPU)
+	require.LessOrEqual(t, u.VCPU, 4)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, 3, row.Cores)
 }
 
 func TestRebuildKeepsIPAndMAC(t *testing.T) {
@@ -397,9 +421,11 @@ func TestRebuildKeepsIPAndMAC(t *testing.T) {
 	require.False(t, ok, "old ISO deleted")
 	_, ok = e.App.PVE.Volume(*after.IsoVolid)
 	require.True(t, ok)
-	require.NotNil(t, after.CloneNonce)
-	require.NotEqual(t, *before.CloneNonce, *after.CloneNonce)
-	require.Contains(t, vm.Config["description"], *after.CloneNonce)
+	require.Nil(t, before.CloneUpid, "clone proofs are spent once the VM is tagged")
+	require.Nil(t, before.CloneNonce)
+	require.Nil(t, after.CloneUpid)
+	require.Nil(t, after.CloneNonce)
+	require.Contains(t, vm.Config["description"], "nebla "+tag(s.ServerID))
 	require.Nil(t, after.RebuildVmid)
 	require.Nil(t, after.RebuildCloneUpid)
 	require.Nil(t, after.RebuildCloneNonce)
@@ -704,4 +730,50 @@ func TestRebuildFailureAfterSwapKeepsNewVM(t *testing.T) {
 	require.Equal(t, 1, vmCount(t, e))
 	require.Nil(t, row.RebuildVmid)
 	require.Zero(t, row.RebuildStep)
+}
+
+// TestDeleteSparesReusedVMID: our VM vanished and Proxmox handed its vmid to someone else.
+func TestDeleteSparesReusedVMID(t *testing.T) {
+	ctx := context.Background()
+	e, cw := directEnv(t)
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	w := servers.NewDeleteServerWorker(opts(e))
+	deleteIt := func(s testutil.CreatedServer) {
+		t.Helper()
+		del, _ := expect[actionBody](t, e.C.Send(http.MethodDelete, spath(s.ServerID), nil), http.StatusOK)
+		require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.DeleteServerArgs](t, e, del.Action.ID), 1)))
+		waitOK(t, e, del.Action.ID)
+		_, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+		require.Error(t, err)
+		n, err := e.App.Ent.IPAllocation.Query().Where(ipallocation.ServerID(s.ServerID)).Count(ctx)
+		require.NoError(t, err)
+		require.Zero(t, n)
+	}
+
+	// (1) Another server's tagged VM, even with a successful clone task saved for ours.
+	a := builtServer(t, e, cw, "a")
+	vmid := vmidOf(t, e, a.ServerID)
+	e.App.PVE.DeleteVM(vmid)
+	e.App.PVE.AddVM("pve1", vmid, "b")
+	require.NoError(t, pc.SetConfig(ctx, "pve1", vmid, map[string]string{"tags": "nebla;nb-srv-999"}))
+	e.App.PVE.AddVM("pve1", 990, "x")
+	up, err := pc.Power(ctx, "pve1", 990, pve.PowerStart)
+	require.NoError(t, err)
+	require.NoError(t, pc.WaitTask(ctx, "pve1", up))
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(a.ServerID).SetCloneUpid(string(up)).Exec(ctx))
+	deleteIt(a)
+	other, ok := e.App.PVE.VM(vmid)
+	require.True(t, ok, "another server's VM survives")
+	require.Equal(t, "nebla;nb-srv-999", other.Tags)
+
+	// (2) An untagged VM: the spent clone proof no longer vouches for it.
+	b := builtServer(t, e, cw, "c")
+	vmid = vmidOf(t, e, b.ServerID)
+	e.App.PVE.DeleteVM(vmid)
+	e.App.PVE.AddVM("pve1", vmid, "stranger")
+	deleteIt(b)
+	stranger, ok := e.App.PVE.VM(vmid)
+	require.True(t, ok, "untagged VM survives")
+	require.Empty(t, stranger.Tags)
 }

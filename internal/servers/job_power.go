@@ -1,6 +1,7 @@
 package servers
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -20,11 +21,12 @@ const (
 	powerTimeout    = 5 * time.Minute
 )
 
-// PowerServerArgs is the power_server job; Op is a pve.PowerOp.
+// PowerServerArgs is the power_server job; From is the status when it was requested.
 type PowerServerArgs struct {
 	ServerID int64       `json:"server_id"`
 	ActionID int64       `json:"action_id"`
 	Op       pve.PowerOp `json:"op"`
+	From     string      `json:"from_status"`
 }
 
 func (PowerServerArgs) Kind() string                 { return KindPowerServer }
@@ -39,7 +41,7 @@ var powerCommand = map[pve.PowerOp]string{
 // stops reports whether op leaves the VM stopped.
 func stops(op pve.PowerOp) bool { return op == pve.PowerStop || op == pve.PowerShutdown }
 
-// Power queues a power op; start on a running or stop on an off server is an already-finished action.
+// Power queues a power op; the job skips Proxmox when the VM is already in the target state.
 func (s *Service) Power(ctx context.Context, projectID, id int64, op pve.PowerOp) (actions.Action, error) {
 	cmd, ok := powerCommand[op]
 	if !ok {
@@ -51,10 +53,11 @@ func (s *Service) Power(ctx context.Context, projectID, id int64, op pve.PowerOp
 			return nil, errMissing
 		case row.Vmid == nil:
 			return nil, errNotReady
-		case op == pve.PowerStart && row.Status == StatusRunning, op == pve.PowerStop && row.Status == StatusOff:
-			return nil, nil
 		}
-		return func(actionID int64) river.JobArgs { return PowerServerArgs{ServerID: id, ActionID: actionID, Op: op} }, nil
+		from := string(row.Status)
+		return func(actionID int64) river.JobArgs {
+			return PowerServerArgs{ServerID: id, ActionID: actionID, Op: op, From: from}
+		}, nil
 	})
 }
 
@@ -89,7 +92,7 @@ func (w *PowerServerWorker) Work(ctx context.Context, job *river.Job[PowerServer
 		if pc == nil {
 			pc, _ = w.o.Catalog.ProxmoxFor(ctx, row.LocationID)
 		}
-		st := realStatus(ctx, pc, row.ID, row.Vmid, string(row.Status))
+		st := realStatus(ctx, pc, row.ID, row.Vmid, cmp.Or(a.From, string(row.Status)))
 		if err := w.o.Ent.Server.UpdateOneID(row.ID).SetStatus(server.Status(st)).Exec(ctx); err != nil {
 			return err
 		}
