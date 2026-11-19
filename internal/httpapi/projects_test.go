@@ -231,3 +231,37 @@ func TestAdminUsersAndQuota(t *testing.T) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestInviteListRevokeAndMismatch(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("a@example.com", false)
+	app.CreateUser("b@example.com", false)
+	owner := app.Login("a@example.com")
+	id := owner.CreateProject("Web")
+	tok := owner.Invite(id, "c@example.com", "admin")
+
+	res := app.Login("b@example.com").Send(http.MethodPost, "/v1/invites/"+tok+"/accept", nil)
+	require.Equal(t, 403, res.StatusCode)
+	require.Equal(t, "invite_email_mismatch", errCode(t, app, res))
+
+	res = owner.Get("/v1/projects/" + itoa(id) + "/invites")
+	require.Equal(t, 200, res.StatusCode)
+	list := decode[struct {
+		Invites []struct {
+			ID        int64  `json:"id"`
+			Email     string `json:"email"`
+			Role      string `json:"role"`
+			CreatedBy int64  `json:"created_by"`
+		}
+	}](t, app, res)
+	require.Len(t, list.Invites, 1)
+	require.Equal(t, "c@example.com", list.Invites[0].Email)
+	require.Equal(t, "admin", list.Invites[0].Role)
+
+	res = owner.Send(http.MethodDelete, "/v1/projects/"+itoa(id)+"/invites/"+itoa(list.Invites[0].ID), nil)
+	require.Equal(t, 204, res.StatusCode)
+	res.Body.Close()
+	res = app.NewClient().Send(http.MethodPost, "/v1/invites/"+tok+"/accept", map[string]string{"name": "C", "password": testutil.Password})
+	require.Equal(t, 404, res.StatusCode)
+	res.Body.Close()
+}

@@ -32,14 +32,13 @@ var publicOps = map[string]bool{
 	"PostInviteAccept": true,
 }
 
-// isAdminOp matches operation IDs named <method>Admin..., i.e. the /admin paths.
-func isAdminOp(op string) bool {
-	for _, m := range []string{"Get", "Post", "Put", "Patch", "Delete"} {
-		if rest, ok := strings.CutPrefix(op, m); ok && strings.HasPrefix(rest, "Admin") {
-			return true
-		}
-	}
-	return false
+// adminOps need a panel admin; TestAdminOpsMatchSpec keeps it equal to the spec's /admin/ paths.
+var adminOps = map[string]bool{
+	"GetAdminSettings":     true,
+	"PutAdminSettings":     true,
+	"GetAdminUsers":        true,
+	"PostAdminUsers":       true,
+	"PutAdminProjectQuota": true,
 }
 
 // UserFrom returns the authenticated user set by RequireUser or a session scope.
@@ -114,7 +113,7 @@ func (s *server) authMiddleware(next apigen.StrictHandlerFunc, op string) apigen
 	case publicOps[op]:
 	case projectScopedOps[op]:
 		h = s.RequireScope(h)
-	case isAdminOp(op):
+	case adminOps[op]:
 		h = s.RequireUser(s.RequireAdmin(h))
 	default:
 		h = s.RequireUser(h)

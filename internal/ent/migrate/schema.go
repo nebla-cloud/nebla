@@ -55,6 +55,7 @@ var (
 		{Name: "accepted_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "created_by", Type: field.TypeInt64},
 	}
 	// InvitesTable holds the schema information for the "invites" table.
 	InvitesTable = &schema.Table{
@@ -68,6 +69,12 @@ var (
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
+			{
+				Symbol:     "invites_users_creator",
+				Columns:    []*schema.Column{InvitesColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
 		},
 		Indexes: []*schema.Index{
 			{
@@ -76,9 +83,9 @@ var (
 				Columns: []*schema.Column{InvitesColumns[3]},
 			},
 			{
-				Name:    "invites_project_id_idx",
+				Name:    "invites_project_id_created_by_idx",
 				Unique:  false,
-				Columns: []*schema.Column{InvitesColumns[7]},
+				Columns: []*schema.Column{InvitesColumns[7], InvitesColumns[8]},
 			},
 		},
 	}
@@ -214,6 +221,7 @@ func init() {
 		Table: "api_tokens",
 	}
 	InvitesTable.ForeignKeys[0].RefTable = ProjectsTable
+	InvitesTable.ForeignKeys[1].RefTable = UsersTable
 	ProjectMembersTable.ForeignKeys[0].RefTable = ProjectsTable
 	ProjectMembersTable.ForeignKeys[1].RefTable = UsersTable
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable

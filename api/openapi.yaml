@@ -406,6 +406,24 @@ paths:
   /projects/{id}/invites:
     parameters:
       - $ref: "#/components/parameters/ProjectID"
+    get:
+      operationId: getProjectInvites
+      summary: List pending invites
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invites]
+                properties:
+                  invites:
+                    type: array
+                    items: { $ref: "#/components/schemas/Invite" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
     post:
       operationId: postProjectInvites
       summary: Invite someone by email
@@ -433,6 +451,21 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/invites/{invite_id}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectID"
+      - name: invite_id
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    delete:
+      operationId: deleteProjectInvite
+      summary: Revoke a pending invite
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /invites/{token}/accept:
     post:
       operationId: postInviteAccept
@@ -460,6 +493,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Project" }
+        "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
@@ -595,6 +629,15 @@ components:
         email: { type: string }
         name: { type: string }
         role: { $ref: "#/components/schemas/Role" }
+    Invite:
+      type: object
+      required: [id, email, role, created_by, expires]
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        created_by: { type: integer, format: int64 }
+        expires: { type: string, format: date-time }
     ApiToken:
       type: object
       required: [id, name, permission, created, last_used]

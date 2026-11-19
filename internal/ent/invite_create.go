@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Hexeption/nebla/internal/ent/invite"
 	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
 // InviteCreate is the builder for creating a Invite entity.
@@ -26,6 +27,12 @@ type InviteCreate struct {
 // SetProjectID sets the "project_id" field.
 func (_c *InviteCreate) SetProjectID(v int64) *InviteCreate {
 	_c.mutation.SetProjectID(v)
+	return _c
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (_c *InviteCreate) SetCreatedBy(v int64) *InviteCreate {
+	_c.mutation.SetCreatedBy(v)
 	return _c
 }
 
@@ -92,6 +99,17 @@ func (_c *InviteCreate) SetProject(v *Project) *InviteCreate {
 	return _c.SetProjectID(v.ID)
 }
 
+// SetCreatorID sets the "creator" edge to the User entity by ID.
+func (_c *InviteCreate) SetCreatorID(id int64) *InviteCreate {
+	_c.mutation.SetCreatorID(id)
+	return _c
+}
+
+// SetCreator sets the "creator" edge to the User entity.
+func (_c *InviteCreate) SetCreator(v *User) *InviteCreate {
+	return _c.SetCreatorID(v.ID)
+}
+
 // Mutation returns the InviteMutation object of the builder.
 func (_c *InviteCreate) Mutation() *InviteMutation {
 	return _c.mutation
@@ -138,6 +156,9 @@ func (_c *InviteCreate) check() error {
 	if _, ok := _c.mutation.ProjectID(); !ok {
 		return &ValidationError{Name: "project_id", err: errors.New(`ent: missing required field "Invite.project_id"`)}
 	}
+	if _, ok := _c.mutation.CreatedBy(); !ok {
+		return &ValidationError{Name: "created_by", err: errors.New(`ent: missing required field "Invite.created_by"`)}
+	}
 	if _, ok := _c.mutation.Email(); !ok {
 		return &ValidationError{Name: "email", err: errors.New(`ent: missing required field "Invite.email"`)}
 	}
@@ -152,6 +173,9 @@ func (_c *InviteCreate) check() error {
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "Invite.project"`)}
+	}
+	if len(_c.mutation.CreatorIDs()) == 0 {
+		return &ValidationError{Name: "creator", err: errors.New(`ent: missing required edge "Invite.creator"`)}
 	}
 	return nil
 }
@@ -225,6 +249,23 @@ func (_c *InviteCreate) createSpec() (*Invite, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.ProjectID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.CreatorIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   invite.CreatorTable,
+			Columns: []string{invite.CreatorColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.CreatedBy = nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
@@ -316,6 +357,9 @@ func (u *InviteUpsertOne) UpdateNewValues() *InviteUpsertOne {
 		}
 		if _, exists := u.create.mutation.ProjectID(); exists {
 			s.SetIgnore(invite.FieldProjectID)
+		}
+		if _, exists := u.create.mutation.CreatedBy(); exists {
+			s.SetIgnore(invite.FieldCreatedBy)
 		}
 		if _, exists := u.create.mutation.Email(); exists {
 			s.SetIgnore(invite.FieldEmail)
@@ -568,6 +612,9 @@ func (u *InviteUpsertBulk) UpdateNewValues() *InviteUpsertBulk {
 			}
 			if _, exists := b.mutation.ProjectID(); exists {
 				s.SetIgnore(invite.FieldProjectID)
+			}
+			if _, exists := b.mutation.CreatedBy(); exists {
+				s.SetIgnore(invite.FieldCreatedBy)
 			}
 			if _, exists := b.mutation.Email(); exists {
 				s.SetIgnore(invite.FieldEmail)

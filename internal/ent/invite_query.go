@@ -15,6 +15,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/invite"
 	"github.com/Hexeption/nebla/internal/ent/predicate"
 	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
 // InviteQuery is the builder for querying Invite entities.
@@ -25,6 +26,7 @@ type InviteQuery struct {
 	inters      []Interceptor
 	predicates  []predicate.Invite
 	withProject *ProjectQuery
+	withCreator *UserQuery
 	modifiers   []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -77,6 +79,28 @@ func (_q *InviteQuery) QueryProject() *ProjectQuery {
 			sqlgraph.From(invite.Table, invite.FieldID, selector),
 			sqlgraph.To(project.Table, project.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, false, invite.ProjectTable, invite.ProjectColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryCreator chains the current query on the "creator" edge.
+func (_q *InviteQuery) QueryCreator() *UserQuery {
+	query := (&UserClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(invite.Table, invite.FieldID, selector),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, invite.CreatorTable, invite.CreatorColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -277,6 +301,7 @@ func (_q *InviteQuery) Clone() *InviteQuery {
 		inters:      append([]Interceptor{}, _q.inters...),
 		predicates:  append([]predicate.Invite{}, _q.predicates...),
 		withProject: _q.withProject.Clone(),
+		withCreator: _q.withCreator.Clone(),
 		// clone intermediate query.
 		sql:       _q.sql.Clone(),
 		path:      _q.path,
@@ -292,6 +317,17 @@ func (_q *InviteQuery) WithProject(opts ...func(*ProjectQuery)) *InviteQuery {
 		opt(query)
 	}
 	_q.withProject = query
+	return _q
+}
+
+// WithCreator tells the query-builder to eager-load the nodes that are connected to
+// the "creator" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *InviteQuery) WithCreator(opts ...func(*UserQuery)) *InviteQuery {
+	query := (&UserClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withCreator = query
 	return _q
 }
 
@@ -373,8 +409,9 @@ func (_q *InviteQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Invit
 	var (
 		nodes       = []*Invite{}
 		_spec       = _q.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			_q.withProject != nil,
+			_q.withCreator != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -404,6 +441,12 @@ func (_q *InviteQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Invit
 			return nil, err
 		}
 	}
+	if query := _q.withCreator; query != nil {
+		if err := _q.loadCreator(ctx, query, nodes, nil,
+			func(n *Invite, e *User) { n.Edges.Creator = e }); err != nil {
+			return nil, err
+		}
+	}
 	return nodes, nil
 }
 
@@ -429,6 +472,35 @@ func (_q *InviteQuery) loadProject(ctx context.Context, query *ProjectQuery, nod
 		nodes, ok := nodeids[n.ID]
 		if !ok {
 			return fmt.Errorf(`unexpected foreign-key "project_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (_q *InviteQuery) loadCreator(ctx context.Context, query *UserQuery, nodes []*Invite, init func(*Invite), assign func(*Invite, *User)) error {
+	ids := make([]int64, 0, len(nodes))
+	nodeids := make(map[int64][]*Invite)
+	for i := range nodes {
+		fk := nodes[i].CreatedBy
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(user.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "created_by" returned %v`, n.ID)
 		}
 		for i := range nodes {
 			assign(nodes[i], n)
@@ -467,6 +539,9 @@ func (_q *InviteQuery) querySpec() *sqlgraph.QuerySpec {
 		}
 		if _q.withProject != nil {
 			_spec.Node.AddColumnOnce(invite.FieldProjectID)
+		}
+		if _q.withCreator != nil {
+			_spec.Node.AddColumnOnce(invite.FieldCreatedBy)
 		}
 	}
 	if ps := _q.predicates; len(ps) > 0 {

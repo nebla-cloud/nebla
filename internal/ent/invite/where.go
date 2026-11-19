@@ -60,6 +60,11 @@ func ProjectID(v int64) predicate.Invite {
 	return predicate.Invite(sql.FieldEQ(FieldProjectID, v))
 }
 
+// CreatedBy applies equality check predicate on the "created_by" field. It's identical to CreatedByEQ.
+func CreatedBy(v int64) predicate.Invite {
+	return predicate.Invite(sql.FieldEQ(FieldCreatedBy, v))
+}
+
 // Email applies equality check predicate on the "email" field. It's identical to EmailEQ.
 func Email(v string) predicate.Invite {
 	return predicate.Invite(sql.FieldEQ(FieldEmail, v))
@@ -108,6 +113,26 @@ func ProjectIDIn(vs ...int64) predicate.Invite {
 // ProjectIDNotIn applies the NotIn predicate on the "project_id" field.
 func ProjectIDNotIn(vs ...int64) predicate.Invite {
 	return predicate.Invite(sql.FieldNotIn(FieldProjectID, vs...))
+}
+
+// CreatedByEQ applies the EQ predicate on the "created_by" field.
+func CreatedByEQ(v int64) predicate.Invite {
+	return predicate.Invite(sql.FieldEQ(FieldCreatedBy, v))
+}
+
+// CreatedByNEQ applies the NEQ predicate on the "created_by" field.
+func CreatedByNEQ(v int64) predicate.Invite {
+	return predicate.Invite(sql.FieldNEQ(FieldCreatedBy, v))
+}
+
+// CreatedByIn applies the In predicate on the "created_by" field.
+func CreatedByIn(vs ...int64) predicate.Invite {
+	return predicate.Invite(sql.FieldIn(FieldCreatedBy, vs...))
+}
+
+// CreatedByNotIn applies the NotIn predicate on the "created_by" field.
+func CreatedByNotIn(vs ...int64) predicate.Invite {
+	return predicate.Invite(sql.FieldNotIn(FieldCreatedBy, vs...))
 }
 
 // EmailEQ applies the EQ predicate on the "email" field.
@@ -425,6 +450,29 @@ func HasProject() predicate.Invite {
 func HasProjectWith(preds ...predicate.Project) predicate.Invite {
 	return predicate.Invite(func(s *sql.Selector) {
 		step := newProjectStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasCreator applies the HasEdge predicate on the "creator" edge.
+func HasCreator() predicate.Invite {
+	return predicate.Invite(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, CreatorTable, CreatorColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCreatorWith applies the HasEdge predicate on the "creator" edge with a given conditions (other predicates).
+func HasCreatorWith(preds ...predicate.User) predicate.Invite {
+	return predicate.Invite(func(s *sql.Selector) {
+		step := newCreatorStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

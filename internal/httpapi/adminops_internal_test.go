@@ -1,0 +1,32 @@
+package httpapi
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/stretchr/testify/require"
+)
+
+// TestAdminOpsMatchSpec keeps adminOps equal to the operations under /admin/ in the spec.
+func TestAdminOpsMatchSpec(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+	want := map[string]bool{}
+	all := map[string]bool{}
+	for path, item := range doc.Paths.Map() {
+		for _, op := range item.Operations() {
+			id := strings.ToUpper(op.OperationID[:1]) + op.OperationID[1:]
+			all[id] = true
+			if strings.HasPrefix(path, "/admin/") {
+				want[id] = true
+			}
+		}
+	}
+	require.NotEmpty(t, want)
+	require.Equal(t, want, adminOps)
+	for id := range publicOps {
+		require.True(t, all[id], "publicOps has unknown op %s", id)
+		require.False(t, adminOps[id], "%s is both public and admin", id)
+	}
+}

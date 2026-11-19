@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/ent/invite"
 	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
 // Invite is the model entity for the Invite schema.
@@ -20,6 +21,8 @@ type Invite struct {
 	ID int64 `json:"id,omitempty"`
 	// ProjectID holds the value of the "project_id" field.
 	ProjectID int64 `json:"project_id,omitempty"`
+	// CreatedBy holds the value of the "created_by" field.
+	CreatedBy int64 `json:"created_by,omitempty"`
 	// Email holds the value of the "email" field.
 	Email string `json:"email,omitempty"`
 	// Role holds the value of the "role" field.
@@ -42,9 +45,11 @@ type Invite struct {
 type InviteEdges struct {
 	// Project holds the value of the project edge.
 	Project *Project `json:"project,omitempty"`
+	// Creator holds the value of the creator edge.
+	Creator *User `json:"creator,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // ProjectOrErr returns the Project value or an error if the edge
@@ -58,6 +63,17 @@ func (e InviteEdges) ProjectOrErr() (*Project, error) {
 	return nil, &NotLoadedError{edge: "project"}
 }
 
+// CreatorOrErr returns the Creator value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e InviteEdges) CreatorOrErr() (*User, error) {
+	if e.Creator != nil {
+		return e.Creator, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: user.Label}
+	}
+	return nil, &NotLoadedError{edge: "creator"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Invite) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -65,7 +81,7 @@ func (*Invite) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case invite.FieldTokenHash:
 			values[i] = new([]byte)
-		case invite.FieldID, invite.FieldProjectID:
+		case invite.FieldID, invite.FieldProjectID, invite.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
 		case invite.FieldEmail, invite.FieldRole:
 			values[i] = new(sql.NullString)
@@ -97,6 +113,12 @@ func (_m *Invite) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field project_id", values[i])
 			} else if value.Valid {
 				_m.ProjectID = value.Int64
+			}
+		case invite.FieldCreatedBy:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field created_by", values[i])
+			} else if value.Valid {
+				_m.CreatedBy = value.Int64
 			}
 		case invite.FieldEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -153,6 +175,11 @@ func (_m *Invite) QueryProject() *ProjectQuery {
 	return NewInviteClient(_m.config).QueryProject(_m)
 }
 
+// QueryCreator queries the "creator" edge of the Invite entity.
+func (_m *Invite) QueryCreator() *UserQuery {
+	return NewInviteClient(_m.config).QueryCreator(_m)
+}
+
 // Update returns a builder for updating this Invite.
 // Note that you need to call Invite.Unwrap() before calling this method if this Invite
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -178,6 +205,9 @@ func (_m *Invite) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("project_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ProjectID))
+	builder.WriteString(", ")
+	builder.WriteString("created_by=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CreatedBy))
 	builder.WriteString(", ")
 	builder.WriteString("email=")
 	builder.WriteString(_m.Email)
