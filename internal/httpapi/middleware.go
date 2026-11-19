@@ -17,18 +17,32 @@ type ctxKey int
 const (
 	userKey ctxKey = iota
 	requestKey
+	scopeKey
 )
+
+var errUnauthorized = apierr.New(http.StatusUnauthorized, "unauthorized", "authentication required")
 
 // publicOps are the operations that need no authentication.
 var publicOps = map[string]bool{
-	"GetHealthz":    true,
-	"GetUiManifest": true,
-	"PostSetup":     true,
-	"PostAuthLogin": true,
-	"PostSignup":    true,
+	"GetHealthz":       true,
+	"GetUiManifest":    true,
+	"PostSetup":        true,
+	"PostAuthLogin":    true,
+	"PostSignup":       true,
+	"PostInviteAccept": true,
 }
 
-// UserFrom returns the authenticated user set by RequireUser.
+// isAdminOp matches operation IDs named <method>Admin..., i.e. the /admin paths.
+func isAdminOp(op string) bool {
+	for _, m := range []string{"Get", "Post", "Put", "Patch", "Delete"} {
+		if rest, ok := strings.CutPrefix(op, m); ok && strings.HasPrefix(rest, "Admin") {
+			return true
+		}
+	}
+	return false
+}
+
+// UserFrom returns the authenticated user set by RequireUser or a session scope.
 func UserFrom(ctx context.Context) (auth.User, bool) {
 	u, ok := ctx.Value(userKey).(auth.User)
 	return u, ok
@@ -39,18 +53,47 @@ func requestFrom(ctx context.Context) *http.Request {
 	return r
 }
 
-// RequireUser authenticates the session cookie and stores the user on the context.
+// principal is who a request authenticates as: a session user or a project API token.
+type principal struct {
+	user  *auth.User
+	token *auth.APIToken
+}
+
+// authenticate prefers an Authorization bearer token and falls back to the session cookie.
+func (s *server) authenticate(ctx context.Context, r *http.Request) (principal, error) {
+	if h := r.Header.Get("Authorization"); h != "" {
+		tok, ok := strings.CutPrefix(h, "Bearer ")
+		if !ok {
+			return principal{}, errUnauthorized
+		}
+		t, err := s.auth.AuthenticateToken(ctx, strings.TrimSpace(tok))
+		if err != nil {
+			return principal{}, err
+		}
+		return principal{token: &t}, nil
+	}
+	c, err := r.Cookie(sessionCookie)
+	if err != nil {
+		return principal{}, errUnauthorized
+	}
+	u, err := s.auth.UserFromSession(ctx, c.Value)
+	if err != nil {
+		return principal{}, err
+	}
+	return principal{user: &u}, nil
+}
+
+// RequireUser needs a session; API tokens are rejected as unauthorized.
 func (s *server) RequireUser(next apigen.StrictHandlerFunc) apigen.StrictHandlerFunc {
 	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, req any) (any, error) {
-		c, err := r.Cookie(sessionCookie)
-		if err != nil {
-			return nil, apierr.New(http.StatusUnauthorized, "unauthorized", "authentication required")
-		}
-		u, err := s.auth.UserFromSession(ctx, c.Value)
+		p, err := s.authenticate(ctx, r)
 		if err != nil {
 			return nil, err
 		}
-		return next(context.WithValue(ctx, userKey, u), w, r, req)
+		if p.user == nil {
+			return nil, apierr.New(http.StatusUnauthorized, "unauthorized", "this endpoint needs a user session")
+		}
+		return next(context.WithValue(ctx, userKey, *p.user), w, r, req)
 	}
 }
 
@@ -64,18 +107,19 @@ func (s *server) RequireAdmin(next apigen.StrictHandlerFunc) apigen.StrictHandle
 	}
 }
 
-// authMiddleware protects every operation except publicOps; /v1/admin/* needs an admin.
+// authMiddleware: publicOps are open, projectScopedOps go through Scope, admin ops need an admin, the rest a session.
 func (s *server) authMiddleware(next apigen.StrictHandlerFunc, op string) apigen.StrictHandlerFunc {
-	inner := next
+	h := next
+	switch {
+	case publicOps[op]:
+	case projectScopedOps[op]:
+		h = s.RequireScope(h)
+	case isAdminOp(op):
+		h = s.RequireUser(s.RequireAdmin(h))
+	default:
+		h = s.RequireUser(h)
+	}
 	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, req any) (any, error) {
-		ctx = context.WithValue(ctx, requestKey, r)
-		h := inner
-		if !publicOps[op] {
-			if strings.HasPrefix(r.URL.Path, "/v1/admin/") {
-				h = s.RequireAdmin(h)
-			}
-			h = s.RequireUser(h)
-		}
-		return h(ctx, w, r, req)
+		return h(context.WithValue(ctx, requestKey, r), w, r, req)
 	}
 }

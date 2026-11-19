@@ -12,6 +12,10 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/projectmember"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
 	"github.com/Hexeption/nebla/internal/ent/user"
@@ -75,9 +79,13 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			session.Table: session.ValidColumn,
-			setting.Table: setting.ValidColumn,
-			user.Table:    user.ValidColumn,
+			apitoken.Table:      apitoken.ValidColumn,
+			invite.Table:        invite.ValidColumn,
+			project.Table:       project.ValidColumn,
+			projectmember.Table: projectmember.ValidColumn,
+			session.Table:       session.ValidColumn,
+			setting.Table:       setting.ValidColumn,
+			user.Table:          user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

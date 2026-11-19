@@ -3,11 +3,14 @@ package testutil
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/auth"
@@ -21,6 +24,7 @@ import (
 type App struct {
 	URL  string
 	Pool *pgxpool.Pool
+	SQL  *sql.DB
 	Ent  *ent.Client
 	Auth *auth.Service
 	t    *testing.T
@@ -29,13 +33,18 @@ type App struct {
 // Password is the password used by fixture users.
 const Password = "correct-horse-battery"
 
-func NewApp(t *testing.T) *App {
+// NewApp starts the API; opts may adjust Deps (hooks, extra scoped routes) before it is built.
+func NewApp(t *testing.T, opts ...func(*httpapi.Deps)) *App {
 	t.Helper()
 	pool := NewDB(t)
-	client := entFor(t, pool)
-	srv := httptest.NewServer(httpapi.New(httpapi.Deps{Pool: pool, Ent: client}))
+	client, sqlDB := entFor(t, pool)
+	deps := httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client}
+	for _, o := range opts {
+		o(&deps)
+	}
+	srv := httptest.NewServer(httpapi.New(deps))
 	t.Cleanup(srv.Close)
-	return &App{URL: srv.URL, Pool: pool, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration), t: t}
+	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration), t: t}
 }
 
 func (a *App) Do(req *http.Request) *http.Response {
@@ -84,13 +93,71 @@ func (a *App) CreateUser(email string, admin bool) auth.User {
 
 // Client is a cookie-aware HTTP client bound to an App.
 type Client struct {
-	app *App
-	hc  *http.Client
+	app    *App
+	hc     *http.Client
+	header http.Header
 }
 
 func (a *App) NewClient() *Client {
 	jar, _ := cookiejar.New(nil)
-	return &Client{app: a, hc: &http.Client{Jar: jar}}
+	return &Client{app: a, hc: &http.Client{Jar: jar}, header: http.Header{}}
+}
+
+// TokenClient returns a cookieless client that sends Authorization: Bearer token.
+func (a *App) TokenClient(token string) *Client {
+	c := &Client{app: a, hc: &http.Client{}, header: http.Header{}}
+	c.header.Set("Authorization", "Bearer "+token)
+	return c
+}
+
+// WithProject returns a copy of c, sharing its cookies, that sends the Project-ID header.
+func (c *Client) WithProject(id int64) *Client {
+	cp := &Client{app: c.app, hc: c.hc, header: c.header.Clone()}
+	cp.header.Set(httpapi.ProjectHeader, strconv.FormatInt(id, 10))
+	return cp
+}
+
+// CreateProject creates a project owned by c's user and returns its id.
+func (c *Client) CreateProject(name string) int64 {
+	c.app.t.Helper()
+	var p struct {
+		ID int64 `json:"id"`
+	}
+	c.decode(c.Send(http.MethodPost, "/v1/projects", map[string]string{"name": name}), http.StatusCreated, &p)
+	return p.ID
+}
+
+// CreateToken creates an API token (read or read_write) in a project and returns the plaintext.
+func (c *Client) CreateToken(projectID int64, permission string) string {
+	c.app.t.Helper()
+	var tok struct {
+		Token string `json:"token"`
+	}
+	path := "/v1/projects/" + strconv.FormatInt(projectID, 10) + "/tokens"
+	c.decode(c.Send(http.MethodPost, path, map[string]string{"name": "test", "permission": permission}), http.StatusCreated, &tok)
+	return tok.Token
+}
+
+// Invite invites email to a project and returns the raw invite token.
+func (c *Client) Invite(projectID int64, email, role string) string {
+	c.app.t.Helper()
+	var inv struct {
+		URL string `json:"invite_url"`
+	}
+	path := "/v1/projects/" + strconv.FormatInt(projectID, 10) + "/invites"
+	c.decode(c.Send(http.MethodPost, path, map[string]string{"email": email, "role": role}), http.StatusCreated, &inv)
+	return inv.URL[strings.LastIndex(inv.URL, "/")+1:]
+}
+
+func (c *Client) decode(res *http.Response, want int, v any) {
+	c.app.t.Helper()
+	body := c.app.Body(res)
+	if res.StatusCode != want {
+		c.app.t.Fatalf("%s %s: status %d: %s", res.Request.Method, res.Request.URL.Path, res.StatusCode, body)
+	}
+	if err := json.Unmarshal([]byte(body), v); err != nil {
+		c.app.t.Fatal(err)
+	}
 }
 
 // Login returns a client logged in as an existing fixture user.
@@ -115,7 +182,11 @@ func (a *App) LoginAdmin() *Client {
 // Send performs a request with an optional JSON body.
 func (c *Client) Send(method, path string, body any) *http.Response {
 	c.app.t.Helper()
-	res, err := c.hc.Do(newReq(c.app.t, method, c.app.URL+path, body))
+	req := newReq(c.app.t, method, c.app.URL+path, body)
+	for k, v := range c.header {
+		req.Header[k] = v
+	}
+	res, err := c.hc.Do(req)
 	if err != nil {
 		c.app.t.Fatal(err)
 	}

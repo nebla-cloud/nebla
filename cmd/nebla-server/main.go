@@ -10,6 +10,7 @@ import (
 	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/db"
 	"github.com/Hexeption/nebla/internal/httpapi"
+	"github.com/Hexeption/nebla/internal/mail"
 )
 
 func main() {
@@ -33,12 +34,16 @@ func run() error {
 	if err := db.Migrate(ctx, pool); err != nil {
 		return err
 	}
-	client := db.NewEnt(pool)
+	sender, err := mail.New(cfg.SMTPURL, cfg.BaseURL)
+	if err != nil {
+		return err
+	}
+	client, sqlDB := db.NewEnt(pool)
 	defer client.Close()
 	log := slog.Default()
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           httpapi.New(httpapi.Deps{Pool: pool, Ent: client, Config: cfg, Logger: log}),
+		Handler:           httpapi.New(httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: cfg, Logger: log, Mail: sender}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Info("listening", "addr", cfg.Listen)

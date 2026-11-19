@@ -192,6 +192,342 @@ paths:
               schema: { $ref: "#/components/schemas/AdminSettings" }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      summary: List all users
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users, meta]
+                properties:
+                  users:
+                    type: array
+                    items: { $ref: "#/components/schemas/User" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postAdminUsers
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                name: { type: string }
+                is_admin: { type: boolean }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /admin/projects/{id}/quota:
+    put:
+      operationId: putAdminProjectQuota
+      summary: Set a project's quota (0 = unlimited)
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Quota" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quota" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects:
+    get:
+      operationId: getProjects
+      summary: List the caller's projects
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projects]
+                properties:
+                  projects:
+                    type: array
+                    items: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postProjects
+      summary: Create a project owned by the caller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectID"
+    get:
+      operationId: getProject
+      summary: Get a project
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putProject
+      summary: Rename a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteProject
+      summary: Delete an empty project
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /projects/{id}/members:
+    parameters:
+      - $ref: "#/components/parameters/ProjectID"
+    get:
+      operationId: getProjectMembers
+      summary: List project members
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [members]
+                properties:
+                  members:
+                    type: array
+                    items: { $ref: "#/components/schemas/Member" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /projects/{id}/members/{user_id}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectID"
+      - name: user_id
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    get:
+      operationId: getProjectMember
+      summary: Get a project member
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Member" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putProjectMember
+      summary: Change a member's role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: "#/components/schemas/Role" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Member" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteProjectMember
+      summary: Remove a member
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /projects/{id}/invites:
+    parameters:
+      - $ref: "#/components/parameters/ProjectID"
+    post:
+      operationId: postProjectInvites
+      summary: Invite someone by email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string }
+                role: { $ref: "#/components/schemas/Role" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite_url]
+                properties:
+                  invite_url: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /invites/{token}/accept:
+    post:
+      operationId: postInviteAccept
+      summary: Accept an invite, creating an account when not logged in
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/tokens:
+    parameters:
+      - $ref: "#/components/parameters/ProjectID"
+    get:
+      operationId: getProjectTokens
+      summary: List API tokens
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tokens]
+                properties:
+                  tokens:
+                    type: array
+                    items: { $ref: "#/components/schemas/ApiToken" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postProjectTokens
+      summary: Create an API token; the plaintext is returned once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, permission]
+              properties:
+                name: { type: string }
+                permission: { $ref: "#/components/schemas/TokenPermission" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiToken"
+                  - type: object
+                    required: [token]
+                    properties:
+                      token: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/tokens/{token_id}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectID"
+      - name: token_id
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    delete:
+      operationId: deleteProjectToken
+      summary: Revoke an API token
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
 components:
   responses:
     Error:
@@ -208,6 +544,11 @@ components:
       in: cookie
       name: nb_session
   parameters:
+    ProjectID:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     Page:
       name: page
       in: query
@@ -217,6 +558,52 @@ components:
       in: query
       schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
   schemas:
+    Role:
+      type: string
+      enum: [owner, admin, member, read_only]
+    TokenPermission:
+      type: string
+      enum: [read, read_write]
+    Quota:
+      type: object
+      required: [max_servers, max_vcpu, max_memory_mb, max_disk_gb, max_ips]
+      properties:
+        max_servers: { type: integer, minimum: 0 }
+        max_vcpu: { type: integer, minimum: 0 }
+        max_memory_mb: { type: integer, minimum: 0 }
+        max_disk_gb: { type: integer, minimum: 0 }
+        max_ips: { type: integer, minimum: 0 }
+    ProjectInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    Project:
+      type: object
+      required: [id, name, role, quota, created]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        quota: { $ref: "#/components/schemas/Quota" }
+        created: { type: string, format: date-time }
+    Member:
+      type: object
+      required: [user_id, email, name, role]
+      properties:
+        user_id: { type: integer, format: int64 }
+        email: { type: string }
+        name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+    ApiToken:
+      type: object
+      required: [id, name, permission, created, last_used]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        permission: { $ref: "#/components/schemas/TokenPermission" }
+        created: { type: string, format: date-time }
+        last_used: { type: string, format: date-time, nullable: true }
     User:
       type: object
       required: [id, email, name, is_admin, totp_enabled]

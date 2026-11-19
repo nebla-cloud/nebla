@@ -3,11 +3,142 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
 
 var (
+	// APITokensColumns holds the columns for the "api_tokens" table.
+	APITokensColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "permission", Type: field.TypeString, Size: 2147483647},
+		{Name: "token_hash", Type: field.TypeBytes},
+		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+	}
+	// APITokensTable holds the schema information for the "api_tokens" table.
+	APITokensTable = &schema.Table{
+		Name:       "api_tokens",
+		Columns:    APITokensColumns,
+		PrimaryKey: []*schema.Column{APITokensColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "api_tokens_projects_project",
+				Columns:    []*schema.Column{APITokensColumns[6]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "api_tokens_token_hash_key",
+				Unique:  true,
+				Columns: []*schema.Column{APITokensColumns[3]},
+			},
+			{
+				Name:    "api_tokens_project_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{APITokensColumns[6]},
+			},
+		},
+	}
+	// InvitesColumns holds the columns for the "invites" table.
+	InvitesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "email", Type: field.TypeString, Size: 2147483647},
+		{Name: "role", Type: field.TypeString, Size: 2147483647},
+		{Name: "token_hash", Type: field.TypeBytes},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "accepted_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+	}
+	// InvitesTable holds the schema information for the "invites" table.
+	InvitesTable = &schema.Table{
+		Name:       "invites",
+		Columns:    InvitesColumns,
+		PrimaryKey: []*schema.Column{InvitesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "invites_projects_project",
+				Columns:    []*schema.Column{InvitesColumns[7]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "invites_token_hash_key",
+				Unique:  true,
+				Columns: []*schema.Column{InvitesColumns[3]},
+			},
+			{
+				Name:    "invites_project_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{InvitesColumns[7]},
+			},
+		},
+	}
+	// ProjectsColumns holds the columns for the "projects" table.
+	ProjectsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "max_servers", Type: field.TypeInt, Default: 0},
+		{Name: "max_vcpu", Type: field.TypeInt, Default: 0},
+		{Name: "max_memory_mb", Type: field.TypeInt, Default: 0},
+		{Name: "max_disk_gb", Type: field.TypeInt, Default: 0},
+		{Name: "max_ips", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+	}
+	// ProjectsTable holds the schema information for the "projects" table.
+	ProjectsTable = &schema.Table{
+		Name:       "projects",
+		Columns:    ProjectsColumns,
+		PrimaryKey: []*schema.Column{ProjectsColumns[0]},
+	}
+	// ProjectMembersColumns holds the columns for the "project_members" table.
+	ProjectMembersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "role", Type: field.TypeString, Size: 2147483647},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// ProjectMembersTable holds the schema information for the "project_members" table.
+	ProjectMembersTable = &schema.Table{
+		Name:       "project_members",
+		Columns:    ProjectMembersColumns,
+		PrimaryKey: []*schema.Column{ProjectMembersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "project_members_projects_project",
+				Columns:    []*schema.Column{ProjectMembersColumns[3]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "project_members_users_user",
+				Columns:    []*schema.Column{ProjectMembersColumns[4]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "project_members_project_user_key",
+				Unique:  true,
+				Columns: []*schema.Column{ProjectMembersColumns[3], ProjectMembersColumns[4]},
+			},
+			{
+				Name:    "project_members_user_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ProjectMembersColumns[4]},
+			},
+		},
+	}
 	// SessionsColumns holds the columns for the "sessions" table.
 	SessionsColumns = []*schema.Column{
 		{Name: "token_hash", Type: field.TypeBytes},
@@ -67,6 +198,10 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		APITokensTable,
+		InvitesTable,
+		ProjectsTable,
+		ProjectMembersTable,
 		SessionsTable,
 		SettingsTable,
 		UsersTable,
@@ -74,5 +209,12 @@ var (
 )
 
 func init() {
+	APITokensTable.ForeignKeys[0].RefTable = ProjectsTable
+	APITokensTable.Annotation = &entsql.Annotation{
+		Table: "api_tokens",
+	}
+	InvitesTable.ForeignKeys[0].RefTable = ProjectsTable
+	ProjectMembersTable.ForeignKeys[0].RefTable = ProjectsTable
+	ProjectMembersTable.ForeignKeys[1].RefTable = UsersTable
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable
 }
