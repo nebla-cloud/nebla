@@ -9747,6 +9747,10 @@ type ServerMutation struct {
 	mac                *string
 	labels             *map[string]string
 	iso_volid          *string
+	iso_generation     *int
+	addiso_generation  *int
+	create_step        *int
+	addcreate_step     *int
 	cores              *int
 	addcores           *int
 	memory_mb          *int
@@ -10374,6 +10378,118 @@ func (m *ServerMutation) ResetIsoVolid() {
 	delete(m.clearedFields, server.FieldIsoVolid)
 }
 
+// SetIsoGeneration sets the "iso_generation" field.
+func (m *ServerMutation) SetIsoGeneration(i int) {
+	m.iso_generation = &i
+	m.addiso_generation = nil
+}
+
+// IsoGeneration returns the value of the "iso_generation" field in the mutation.
+func (m *ServerMutation) IsoGeneration() (r int, exists bool) {
+	v := m.iso_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsoGeneration returns the old "iso_generation" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldIsoGeneration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsoGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsoGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsoGeneration: %w", err)
+	}
+	return oldValue.IsoGeneration, nil
+}
+
+// AddIsoGeneration adds i to the "iso_generation" field.
+func (m *ServerMutation) AddIsoGeneration(i int) {
+	if m.addiso_generation != nil {
+		*m.addiso_generation += i
+	} else {
+		m.addiso_generation = &i
+	}
+}
+
+// AddedIsoGeneration returns the value that was added to the "iso_generation" field in this mutation.
+func (m *ServerMutation) AddedIsoGeneration() (r int, exists bool) {
+	v := m.addiso_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetIsoGeneration resets all changes to the "iso_generation" field.
+func (m *ServerMutation) ResetIsoGeneration() {
+	m.iso_generation = nil
+	m.addiso_generation = nil
+}
+
+// SetCreateStep sets the "create_step" field.
+func (m *ServerMutation) SetCreateStep(i int) {
+	m.create_step = &i
+	m.addcreate_step = nil
+}
+
+// CreateStep returns the value of the "create_step" field in the mutation.
+func (m *ServerMutation) CreateStep() (r int, exists bool) {
+	v := m.create_step
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreateStep returns the old "create_step" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldCreateStep(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreateStep is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreateStep requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreateStep: %w", err)
+	}
+	return oldValue.CreateStep, nil
+}
+
+// AddCreateStep adds i to the "create_step" field.
+func (m *ServerMutation) AddCreateStep(i int) {
+	if m.addcreate_step != nil {
+		*m.addcreate_step += i
+	} else {
+		m.addcreate_step = &i
+	}
+}
+
+// AddedCreateStep returns the value that was added to the "create_step" field in this mutation.
+func (m *ServerMutation) AddedCreateStep() (r int, exists bool) {
+	v := m.addcreate_step
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreateStep resets all changes to the "create_step" field.
+func (m *ServerMutation) ResetCreateStep() {
+	m.create_step = nil
+	m.addcreate_step = nil
+}
+
 // SetCores sets the "cores" field.
 func (m *ServerMutation) SetCores(i int) {
 	m.cores = &i
@@ -10807,7 +10923,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 18)
+	fields := make([]string, 0, 20)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -10843,6 +10959,12 @@ func (m *ServerMutation) Fields() []string {
 	}
 	if m.iso_volid != nil {
 		fields = append(fields, server.FieldIsoVolid)
+	}
+	if m.iso_generation != nil {
+		fields = append(fields, server.FieldIsoGeneration)
+	}
+	if m.create_step != nil {
+		fields = append(fields, server.FieldCreateStep)
 	}
 	if m.cores != nil {
 		fields = append(fields, server.FieldCores)
@@ -10894,6 +11016,10 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.Labels()
 	case server.FieldIsoVolid:
 		return m.IsoVolid()
+	case server.FieldIsoGeneration:
+		return m.IsoGeneration()
+	case server.FieldCreateStep:
+		return m.CreateStep()
 	case server.FieldCores:
 		return m.Cores()
 	case server.FieldMemoryMB:
@@ -10939,6 +11065,10 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldLabels(ctx)
 	case server.FieldIsoVolid:
 		return m.OldIsoVolid(ctx)
+	case server.FieldIsoGeneration:
+		return m.OldIsoGeneration(ctx)
+	case server.FieldCreateStep:
+		return m.OldCreateStep(ctx)
 	case server.FieldCores:
 		return m.OldCores(ctx)
 	case server.FieldMemoryMB:
@@ -11044,6 +11174,20 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIsoVolid(v)
 		return nil
+	case server.FieldIsoGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsoGeneration(v)
+		return nil
+	case server.FieldCreateStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreateStep(v)
+		return nil
 	case server.FieldCores:
 		v, ok := value.(int)
 		if !ok {
@@ -11100,6 +11244,12 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.addtemplate_vmid != nil {
 		fields = append(fields, server.FieldTemplateVmid)
 	}
+	if m.addiso_generation != nil {
+		fields = append(fields, server.FieldIsoGeneration)
+	}
+	if m.addcreate_step != nil {
+		fields = append(fields, server.FieldCreateStep)
+	}
 	if m.addcores != nil {
 		fields = append(fields, server.FieldCores)
 	}
@@ -11121,6 +11271,10 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedVmid()
 	case server.FieldTemplateVmid:
 		return m.AddedTemplateVmid()
+	case server.FieldIsoGeneration:
+		return m.AddedIsoGeneration()
+	case server.FieldCreateStep:
+		return m.AddedCreateStep()
 	case server.FieldCores:
 		return m.AddedCores()
 	case server.FieldMemoryMB:
@@ -11149,6 +11303,20 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddTemplateVmid(v)
+		return nil
+	case server.FieldIsoGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddIsoGeneration(v)
+		return nil
+	case server.FieldCreateStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreateStep(v)
 		return nil
 	case server.FieldCores:
 		v, ok := value.(int)
@@ -11248,6 +11416,12 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldIsoVolid:
 		m.ResetIsoVolid()
+		return nil
+	case server.FieldIsoGeneration:
+		m.ResetIsoGeneration()
+		return nil
+	case server.FieldCreateStep:
+		m.ResetCreateStep()
 		return nil
 	case server.FieldCores:
 		m.ResetCores()

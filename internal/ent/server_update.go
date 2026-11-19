@@ -175,6 +175,48 @@ func (_u *ServerUpdate) ClearIsoVolid() *ServerUpdate {
 	return _u
 }
 
+// SetIsoGeneration sets the "iso_generation" field.
+func (_u *ServerUpdate) SetIsoGeneration(v int) *ServerUpdate {
+	_u.mutation.ResetIsoGeneration()
+	_u.mutation.SetIsoGeneration(v)
+	return _u
+}
+
+// SetNillableIsoGeneration sets the "iso_generation" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableIsoGeneration(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetIsoGeneration(*v)
+	}
+	return _u
+}
+
+// AddIsoGeneration adds value to the "iso_generation" field.
+func (_u *ServerUpdate) AddIsoGeneration(v int) *ServerUpdate {
+	_u.mutation.AddIsoGeneration(v)
+	return _u
+}
+
+// SetCreateStep sets the "create_step" field.
+func (_u *ServerUpdate) SetCreateStep(v int) *ServerUpdate {
+	_u.mutation.ResetCreateStep()
+	_u.mutation.SetCreateStep(v)
+	return _u
+}
+
+// SetNillableCreateStep sets the "create_step" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableCreateStep(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetCreateStep(*v)
+	}
+	return _u
+}
+
+// AddCreateStep adds value to the "create_step" field.
+func (_u *ServerUpdate) AddCreateStep(v int) *ServerUpdate {
+	_u.mutation.AddCreateStep(v)
+	return _u
+}
+
 // SetCores sets the "cores" field.
 func (_u *ServerUpdate) SetCores(v int) *ServerUpdate {
 	_u.mutation.ResetCores()
@@ -390,6 +432,18 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.IsoVolidCleared() {
 		_spec.ClearField(server.FieldIsoVolid, field.TypeString)
+	}
+	if value, ok := _u.mutation.IsoGeneration(); ok {
+		_spec.SetField(server.FieldIsoGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedIsoGeneration(); ok {
+		_spec.AddField(server.FieldIsoGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CreateStep(); ok {
+		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCreateStep(); ok {
+		_spec.AddField(server.FieldCreateStep, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.Cores(); ok {
 		_spec.SetField(server.FieldCores, field.TypeInt, value)
@@ -644,6 +698,48 @@ func (_u *ServerUpdateOne) ClearIsoVolid() *ServerUpdateOne {
 	return _u
 }
 
+// SetIsoGeneration sets the "iso_generation" field.
+func (_u *ServerUpdateOne) SetIsoGeneration(v int) *ServerUpdateOne {
+	_u.mutation.ResetIsoGeneration()
+	_u.mutation.SetIsoGeneration(v)
+	return _u
+}
+
+// SetNillableIsoGeneration sets the "iso_generation" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableIsoGeneration(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetIsoGeneration(*v)
+	}
+	return _u
+}
+
+// AddIsoGeneration adds value to the "iso_generation" field.
+func (_u *ServerUpdateOne) AddIsoGeneration(v int) *ServerUpdateOne {
+	_u.mutation.AddIsoGeneration(v)
+	return _u
+}
+
+// SetCreateStep sets the "create_step" field.
+func (_u *ServerUpdateOne) SetCreateStep(v int) *ServerUpdateOne {
+	_u.mutation.ResetCreateStep()
+	_u.mutation.SetCreateStep(v)
+	return _u
+}
+
+// SetNillableCreateStep sets the "create_step" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableCreateStep(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetCreateStep(*v)
+	}
+	return _u
+}
+
+// AddCreateStep adds value to the "create_step" field.
+func (_u *ServerUpdateOne) AddCreateStep(v int) *ServerUpdateOne {
+	_u.mutation.AddCreateStep(v)
+	return _u
+}
+
 // SetCores sets the "cores" field.
 func (_u *ServerUpdateOne) SetCores(v int) *ServerUpdateOne {
 	_u.mutation.ResetCores()
@@ -889,6 +985,18 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if _u.mutation.IsoVolidCleared() {
 		_spec.ClearField(server.FieldIsoVolid, field.TypeString)
+	}
+	if value, ok := _u.mutation.IsoGeneration(); ok {
+		_spec.SetField(server.FieldIsoGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedIsoGeneration(); ok {
+		_spec.AddField(server.FieldIsoGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.CreateStep(); ok {
+		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCreateStep(); ok {
+		_spec.AddField(server.FieldCreateStep, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.Cores(); ok {
 		_spec.SetField(server.FieldCores, field.TypeInt, value)

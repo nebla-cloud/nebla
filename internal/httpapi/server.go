@@ -38,6 +38,8 @@ type Deps struct {
 	Config config.Config
 	Logger *slog.Logger
 	Ext    ext.Extensions
+	// Bus carries domain events to Ext.BillingSink; workers publish on it.
+	Bus *ext.Bus
 	// Mail defaults to a no-op sender.
 	Mail         mail.Sender
 	ProjectHooks projects.Hooks

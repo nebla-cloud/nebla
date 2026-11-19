@@ -68,6 +68,10 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 	if deps.Catalog == nil {
 		deps.Catalog = catalog.New(sqlDB, client, CatalogOptions(deps.CatalogHooks))
 	}
+	if deps.Bus == nil {
+		deps.Bus = ext.NewBus(deps.Ext.WithDefaults(nil).BillingSink)
+		t.Cleanup(deps.Bus.Close)
+	}
 	if deps.Jobs == nil {
 		workers := river.NewWorkers()
 		if setup != nil {

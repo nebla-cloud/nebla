@@ -202,12 +202,20 @@ func init() {
 	serverDescNode := serverFields[4].Descriptor()
 	// server.DefaultNode holds the default value on creation for the node field.
 	server.DefaultNode = serverDescNode.Default.(string)
+	// serverDescIsoGeneration is the schema descriptor for iso_generation field.
+	serverDescIsoGeneration := serverFields[13].Descriptor()
+	// server.DefaultIsoGeneration holds the default value on creation for the iso_generation field.
+	server.DefaultIsoGeneration = serverDescIsoGeneration.Default.(int)
+	// serverDescCreateStep is the schema descriptor for create_step field.
+	serverDescCreateStep := serverFields[14].Descriptor()
+	// server.DefaultCreateStep holds the default value on creation for the create_step field.
+	server.DefaultCreateStep = serverDescCreateStep.Default.(int)
 	// serverDescUserData is the schema descriptor for user_data field.
-	serverDescUserData := serverFields[16].Descriptor()
+	serverDescUserData := serverFields[18].Descriptor()
 	// server.DefaultUserData holds the default value on creation for the user_data field.
 	server.DefaultUserData = serverDescUserData.Default.(string)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[18].Descriptor()
+	serverDescCreatedAt := serverFields[20].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()

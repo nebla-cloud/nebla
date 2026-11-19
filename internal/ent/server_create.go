@@ -130,6 +130,34 @@ func (_c *ServerCreate) SetNillableIsoVolid(v *string) *ServerCreate {
 	return _c
 }
 
+// SetIsoGeneration sets the "iso_generation" field.
+func (_c *ServerCreate) SetIsoGeneration(v int) *ServerCreate {
+	_c.mutation.SetIsoGeneration(v)
+	return _c
+}
+
+// SetNillableIsoGeneration sets the "iso_generation" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableIsoGeneration(v *int) *ServerCreate {
+	if v != nil {
+		_c.SetIsoGeneration(*v)
+	}
+	return _c
+}
+
+// SetCreateStep sets the "create_step" field.
+func (_c *ServerCreate) SetCreateStep(v int) *ServerCreate {
+	_c.mutation.SetCreateStep(v)
+	return _c
+}
+
+// SetNillableCreateStep sets the "create_step" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableCreateStep(v *int) *ServerCreate {
+	if v != nil {
+		_c.SetCreateStep(*v)
+	}
+	return _c
+}
+
 // SetCores sets the "cores" field.
 func (_c *ServerCreate) SetCores(v int) *ServerCreate {
 	_c.mutation.SetCores(v)
@@ -251,6 +279,14 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.IsoGeneration(); !ok {
+		v := server.DefaultIsoGeneration
+		_c.mutation.SetIsoGeneration(v)
+	}
+	if _, ok := _c.mutation.CreateStep(); !ok {
+		v := server.DefaultCreateStep
+		_c.mutation.SetCreateStep(v)
+	}
 	if _, ok := _c.mutation.UserData(); !ok {
 		v := server.DefaultUserData
 		_c.mutation.SetUserData(v)
@@ -297,6 +333,12 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.Labels(); !ok {
 		return &ValidationError{Name: "labels", err: errors.New(`ent: missing required field "Server.labels"`)}
+	}
+	if _, ok := _c.mutation.IsoGeneration(); !ok {
+		return &ValidationError{Name: "iso_generation", err: errors.New(`ent: missing required field "Server.iso_generation"`)}
+	}
+	if _, ok := _c.mutation.CreateStep(); !ok {
+		return &ValidationError{Name: "create_step", err: errors.New(`ent: missing required field "Server.create_step"`)}
 	}
 	if _, ok := _c.mutation.Cores(); !ok {
 		return &ValidationError{Name: "cores", err: errors.New(`ent: missing required field "Server.cores"`)}
@@ -389,6 +431,14 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsoVolid(); ok {
 		_spec.SetField(server.FieldIsoVolid, field.TypeString, value)
 		_node.IsoVolid = &value
+	}
+	if value, ok := _c.mutation.IsoGeneration(); ok {
+		_spec.SetField(server.FieldIsoGeneration, field.TypeInt, value)
+		_node.IsoGeneration = value
+	}
+	if value, ok := _c.mutation.CreateStep(); ok {
+		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
+		_node.CreateStep = value
 	}
 	if value, ok := _c.mutation.Cores(); ok {
 		_spec.SetField(server.FieldCores, field.TypeInt, value)
@@ -663,6 +713,42 @@ func (u *ServerUpsert) UpdateIsoVolid() *ServerUpsert {
 // ClearIsoVolid clears the value of the "iso_volid" field.
 func (u *ServerUpsert) ClearIsoVolid() *ServerUpsert {
 	u.SetNull(server.FieldIsoVolid)
+	return u
+}
+
+// SetIsoGeneration sets the "iso_generation" field.
+func (u *ServerUpsert) SetIsoGeneration(v int) *ServerUpsert {
+	u.Set(server.FieldIsoGeneration, v)
+	return u
+}
+
+// UpdateIsoGeneration sets the "iso_generation" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateIsoGeneration() *ServerUpsert {
+	u.SetExcluded(server.FieldIsoGeneration)
+	return u
+}
+
+// AddIsoGeneration adds v to the "iso_generation" field.
+func (u *ServerUpsert) AddIsoGeneration(v int) *ServerUpsert {
+	u.Add(server.FieldIsoGeneration, v)
+	return u
+}
+
+// SetCreateStep sets the "create_step" field.
+func (u *ServerUpsert) SetCreateStep(v int) *ServerUpsert {
+	u.Set(server.FieldCreateStep, v)
+	return u
+}
+
+// UpdateCreateStep sets the "create_step" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateCreateStep() *ServerUpsert {
+	u.SetExcluded(server.FieldCreateStep)
+	return u
+}
+
+// AddCreateStep adds v to the "create_step" field.
+func (u *ServerUpsert) AddCreateStep(v int) *ServerUpsert {
+	u.Add(server.FieldCreateStep, v)
 	return u
 }
 
@@ -955,6 +1041,48 @@ func (u *ServerUpsertOne) UpdateIsoVolid() *ServerUpsertOne {
 func (u *ServerUpsertOne) ClearIsoVolid() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearIsoVolid()
+	})
+}
+
+// SetIsoGeneration sets the "iso_generation" field.
+func (u *ServerUpsertOne) SetIsoGeneration(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetIsoGeneration(v)
+	})
+}
+
+// AddIsoGeneration adds v to the "iso_generation" field.
+func (u *ServerUpsertOne) AddIsoGeneration(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddIsoGeneration(v)
+	})
+}
+
+// UpdateIsoGeneration sets the "iso_generation" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateIsoGeneration() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateIsoGeneration()
+	})
+}
+
+// SetCreateStep sets the "create_step" field.
+func (u *ServerUpsertOne) SetCreateStep(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCreateStep(v)
+	})
+}
+
+// AddCreateStep adds v to the "create_step" field.
+func (u *ServerUpsertOne) AddCreateStep(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddCreateStep(v)
+	})
+}
+
+// UpdateCreateStep sets the "create_step" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateCreateStep() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCreateStep()
 	})
 }
 
@@ -1426,6 +1554,48 @@ func (u *ServerUpsertBulk) UpdateIsoVolid() *ServerUpsertBulk {
 func (u *ServerUpsertBulk) ClearIsoVolid() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearIsoVolid()
+	})
+}
+
+// SetIsoGeneration sets the "iso_generation" field.
+func (u *ServerUpsertBulk) SetIsoGeneration(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetIsoGeneration(v)
+	})
+}
+
+// AddIsoGeneration adds v to the "iso_generation" field.
+func (u *ServerUpsertBulk) AddIsoGeneration(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddIsoGeneration(v)
+	})
+}
+
+// UpdateIsoGeneration sets the "iso_generation" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateIsoGeneration() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateIsoGeneration()
+	})
+}
+
+// SetCreateStep sets the "create_step" field.
+func (u *ServerUpsertBulk) SetCreateStep(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCreateStep(v)
+	})
+}
+
+// AddCreateStep adds v to the "create_step" field.
+func (u *ServerUpsertBulk) AddCreateStep(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddCreateStep(v)
+	})
+}
+
+// UpdateCreateStep sets the "create_step" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateCreateStep() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCreateStep()
 	})
 }
 

@@ -21,6 +21,8 @@ import (
 const (
 	QueueDefault = river.QueueDefault
 	MaxWorkers   = 10
+	// RescueStuckJobsAfter must exceed every worker's Timeout.
+	RescueStuckJobsAfter = 15 * time.Minute
 )
 
 // Jobs holds the worker client and an insert-only client over the shared *sql.DB.
@@ -70,10 +72,11 @@ func New(pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.Workers, opts ...Opti
 		return nil, fmt.Errorf("river workers: %w", err)
 	}
 	cfg := &river.Config{
-		Queues:       map[string]river.QueueConfig{QueueDefault: {MaxWorkers: MaxWorkers}},
-		Workers:      workers,
-		PeriodicJobs: o.periodic,
-		Logger:       o.logger,
+		Queues:               map[string]river.QueueConfig{QueueDefault: {MaxWorkers: MaxWorkers}},
+		Workers:              workers,
+		PeriodicJobs:         o.periodic,
+		Logger:               o.logger,
+		RescueStuckJobsAfter: RescueStuckJobsAfter,
 	}
 	if o.pollInterval > 0 {
 		cfg.FetchPollInterval = o.pollInterval
@@ -96,6 +99,7 @@ func (j *Jobs) InsertTx(ctx context.Context, tx *sql.Tx, args river.JobArgs, opt
 }
 
 // StartAction creates a running action and the job that runs it in one transaction; args receives the action id.
+// Worker contract: Succeed or Fail before returning nil, JobCancel after a terminal Fail, AttachJob when chaining.
 func (j *Jobs) StartAction(ctx context.Context, tx *sql.Tx, etx *ent.Client, projectID int64, command string,
 	resources []actions.Resource, args func(actionID int64) river.JobArgs, opts *river.InsertOpts) (actions.Action, error) {
 	a, err := actions.Create(ctx, etx, projectID, command, resources)

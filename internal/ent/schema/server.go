@@ -28,6 +28,10 @@ func (Server) Fields() []ent.Field {
 		field.Text("mac").Immutable(),
 		field.JSON("labels", map[string]string{}),
 		field.Text("iso_volid").Optional().Nillable(),
+		// iso_generation numbers the cloud-init ISO; rebuild increments it.
+		field.Int("iso_generation").Default(1),
+		// create_step is the last finished create-job step, so retries resume.
+		field.Int("create_step").Default(0),
 		// cores, memory_mb and disk_gb are snapshots of the type; change-type updates them.
 		field.Int("cores"),
 		field.Int("memory_mb"),

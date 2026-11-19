@@ -39,6 +39,10 @@ const (
 	FieldLabels = "labels"
 	// FieldIsoVolid holds the string denoting the iso_volid field in the database.
 	FieldIsoVolid = "iso_volid"
+	// FieldIsoGeneration holds the string denoting the iso_generation field in the database.
+	FieldIsoGeneration = "iso_generation"
+	// FieldCreateStep holds the string denoting the create_step field in the database.
+	FieldCreateStep = "create_step"
 	// FieldCores holds the string denoting the cores field in the database.
 	FieldCores = "cores"
 	// FieldMemoryMB holds the string denoting the memory_mb field in the database.
@@ -106,6 +110,8 @@ var Columns = []string{
 	FieldMAC,
 	FieldLabels,
 	FieldIsoVolid,
+	FieldIsoGeneration,
+	FieldCreateStep,
 	FieldCores,
 	FieldMemoryMB,
 	FieldDiskGB,
@@ -127,6 +133,10 @@ func ValidColumn(column string) bool {
 var (
 	// DefaultNode holds the default value on creation for the "node" field.
 	DefaultNode string
+	// DefaultIsoGeneration holds the default value on creation for the "iso_generation" field.
+	DefaultIsoGeneration int
+	// DefaultCreateStep holds the default value on creation for the "create_step" field.
+	DefaultCreateStep int
 	// DefaultUserData holds the default value on creation for the "user_data" field.
 	DefaultUserData string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -227,6 +237,16 @@ func ByMAC(opts ...sql.OrderTermOption) OrderOption {
 // ByIsoVolid orders the results by the iso_volid field.
 func ByIsoVolid(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsoVolid, opts...).ToFunc()
+}
+
+// ByIsoGeneration orders the results by the iso_generation field.
+func ByIsoGeneration(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIsoGeneration, opts...).ToFunc()
+}
+
+// ByCreateStep orders the results by the create_step field.
+func ByCreateStep(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreateStep, opts...).ToFunc()
 }
 
 // ByCores orders the results by the cores field.
