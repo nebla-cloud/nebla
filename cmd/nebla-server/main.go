@@ -5,12 +5,16 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/db"
 	"github.com/Hexeption/nebla/internal/httpapi"
+	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/mail"
+	"github.com/riverqueue/river"
 )
 
 func main() {
@@ -41,11 +45,43 @@ func run() error {
 	client, sqlDB := db.NewEnt(pool)
 	defer client.Close()
 	log := slog.Default()
+	workers := river.NewWorkers()
+	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log))
+	if err != nil {
+		return err
+	}
+	n, err := runner.FailOrphanedActions(ctx)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		log.Warn("failed orphaned actions", "count", n)
+	}
+	if err := runner.Start(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := runner.Stop(sctx); err != nil {
+			log.Error("stop jobs", "err", err)
+		}
+	}()
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           httpapi.New(httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: cfg, Logger: log, Mail: sender}),
+		Handler:           httpapi.New(httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: cfg, Logger: log, Mail: sender, Jobs: runner}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("listening", "addr", cfg.Listen)
-	return srv.ListenAndServe()
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	select {
+	case err := <-errc:
+		return err
+	case <-sig:
+		log.Info("shutting down")
+		return srv.Close()
+	}
 }

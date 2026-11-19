@@ -17,6 +17,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/ipam"
+	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/mail"
 	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/ratelimit"
@@ -42,6 +43,8 @@ type Deps struct {
 	// Catalog defaults to a service keyed by Config.SecretKey with CatalogHooks.
 	Catalog      *catalog.Service
 	CatalogHooks catalog.Hooks
+	// Jobs enqueues background work; nil means no job runtime.
+	Jobs *jobs.Jobs
 	// ScopedRoutes mounts extra non-strict routes under /v1 behind the project scope.
 	ScopedRoutes func(r chi.Router)
 }

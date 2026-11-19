@@ -8,6 +8,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -107,6 +108,33 @@ func (f TraverseAPIToken) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.APITokenQuery", q)
+}
+
+// The ActionFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ActionFunc func(context.Context, *ent.ActionQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ActionFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ActionQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ActionQuery", q)
+}
+
+// The TraverseAction type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseAction func(context.Context, *ent.ActionQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseAction) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseAction) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ActionQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ActionQuery", q)
 }
 
 // The IPAllocationFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -492,6 +520,8 @@ func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
 	case *ent.APITokenQuery:
 		return &query[*ent.APITokenQuery, predicate.APIToken, apitoken.OrderOption]{typ: ent.TypeAPIToken, tq: q}, nil
+	case *ent.ActionQuery:
+		return &query[*ent.ActionQuery, predicate.Action, action.OrderOption]{typ: ent.TypeAction, tq: q}, nil
 	case *ent.IPAllocationQuery:
 		return &query[*ent.IPAllocationQuery, predicate.IPAllocation, ipallocation.OrderOption]{typ: ent.TypeIPAllocation, tq: q}, nil
 	case *ent.IPPoolQuery:

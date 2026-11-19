@@ -5,6 +5,7 @@ package ent
 import (
 	"time"
 
+	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -32,6 +33,32 @@ func init() {
 	apitokenDescCreatedAt := apitokenFields[6].Descriptor()
 	// apitoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	apitoken.DefaultCreatedAt = apitokenDescCreatedAt.Default.(func() time.Time)
+	actionFields := schema.Action{}.Fields()
+	_ = actionFields
+	// actionDescProgress is the schema descriptor for progress field.
+	actionDescProgress := actionFields[4].Descriptor()
+	// action.DefaultProgress holds the default value on creation for the progress field.
+	action.DefaultProgress = actionDescProgress.Default.(int)
+	// action.ProgressValidator is a validator for the "progress" field. It is called by the builders before save.
+	action.ProgressValidator = func() func(int) error {
+		validators := actionDescProgress.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(progress int) error {
+			for _, fn := range fns {
+				if err := fn(progress); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// actionDescStarted is the schema descriptor for started field.
+	actionDescStarted := actionFields[8].Descriptor()
+	// action.DefaultStarted holds the default value on creation for the started field.
+	action.DefaultStarted = actionDescStarted.Default.(func() time.Time)
 	ipallocationFields := schema.IPAllocation{}.Fields()
 	_ = ipallocationFields
 	// ipallocationDescCreatedAt is the schema descriptor for created_at field.

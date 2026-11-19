@@ -11,6 +11,7 @@ import (
 	"slices"
 	"time"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/db"
 	"github.com/Hexeption/nebla/internal/ent"
@@ -193,6 +194,13 @@ func checkOverlap(ctx context.Context, tx *ent.Client, locationID, skipID int64,
 	return nil
 }
 
+// lockLocation takes FOR NO KEY UPDATE so it does not block FK KEY SHARE locks from inserts referencing the location.
+func lockLocation(ctx context.Context, tx *ent.Client, id int64) error {
+	_, err := tx.Location.Query().Where(location.ID(id)).
+		Modify(func(s *entsql.Selector) { s.For(entsql.LockNoKeyUpdate) }).Only(ctx)
+	return err
+}
+
 func (s *Service) Create(ctx context.Context, in PoolInput) (Pool, error) {
 	v, err := validate(in)
 	if err != nil {
@@ -201,7 +209,7 @@ func (s *Service) Create(ctx context.Context, in PoolInput) (Pool, error) {
 	var out Pool
 	err = s.withTx(ctx, func(tx *ent.Client) error {
 		// The location lock serializes overlap checks for one location.
-		if _, err := tx.Location.Query().Where(location.ID(in.LocationID)).ForUpdate().Only(ctx); err != nil {
+		if err := lockLocation(ctx, tx, in.LocationID); err != nil {
 			if ent.IsNotFound(err) {
 				return invalid("location_id does not exist")
 			}
@@ -271,15 +279,21 @@ func (s *Service) Update(ctx context.Context, id int64, in PoolInput) (Pool, err
 	}
 	var out Pool
 	err = s.withTx(ctx, func(tx *ent.Client) error {
-		cur, err := tx.IPPool.Query().Where(ippool.ID(id)).ForUpdate().Only(ctx)
+		// location_id is immutable, so read it unlocked and take the location lock before the pool's.
+		pre, err := tx.IPPool.Get(ctx, id)
 		if err != nil {
 			return notFound(err)
 		}
-		if in.LocationID != cur.LocationID {
+		locID := pre.LocationID
+		if in.LocationID != locID {
 			return invalid("location_id cannot change")
 		}
-		if _, err := tx.Location.Query().Where(location.ID(cur.LocationID)).ForUpdate().Only(ctx); err != nil {
+		if err := lockLocation(ctx, tx, locID); err != nil {
 			return err
+		}
+		cur, err := tx.IPPool.Query().Where(ippool.ID(id)).ForUpdate().Only(ctx)
+		if err != nil {
+			return notFound(err)
 		}
 		if err := checkOverlap(ctx, tx, cur.LocationID, id, v.start, v.end); err != nil {
 			return err

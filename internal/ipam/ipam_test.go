@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/db"
@@ -147,21 +148,28 @@ func TestAllocateConcurrentLastIP(t *testing.T) {
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.10"))
 	require.NoError(t, err)
 
-	const n = 2
-	var barrier, wg sync.WaitGroup
-	barrier.Add(n)
-	errs := make([]error, n)
-	for i := range n {
-		wg.Go(func() {
-			errs[i] = db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error {
-				// Both transactions are open before either allocates.
-				barrier.Done()
-				barrier.Wait()
-				_, err := ipam.Allocate(ctx, tx, e.loc, "ipv4", int64(i+1))
+	// A allocates and holds its tx open; B issues its Allocate while A still holds the pool lock.
+	allocated := make(chan struct{})
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		errs[0] = db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error {
+			_, err := ipam.Allocate(ctx, tx, e.loc, "ipv4", 1)
+			close(allocated)
+			if err != nil {
 				return err
-			})
+			}
+			time.Sleep(300 * time.Millisecond)
+			return nil
 		})
-	}
+	})
+	wg.Go(func() {
+		<-allocated
+		errs[1] = db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error {
+			_, err := ipam.Allocate(ctx, tx, e.loc, "ipv4", 2)
+			return err
+		})
+	})
 	wg.Wait()
 
 	var ok, exhausted int

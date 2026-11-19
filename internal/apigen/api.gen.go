@@ -17,6 +17,27 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ActionStatus.
+const (
+	ActionStatusError   ActionStatus = "error"
+	ActionStatusRunning ActionStatus = "running"
+	ActionStatusSuccess ActionStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the ActionStatus enum.
+func (e ActionStatus) Valid() bool {
+	switch e {
+	case ActionStatusError:
+		return true
+	case ActionStatusRunning:
+		return true
+	case ActionStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IpPoolFamily.
 const (
 	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
@@ -109,6 +130,27 @@ func (e GetHealthz200JSONResponseBodyStatus) Valid() bool {
 		return false
 	}
 }
+
+// Action defines model for Action.
+type Action struct {
+	Command string `json:"command"`
+	Error   *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+	Finished  *time.Time `json:"finished"`
+	Id        int64      `json:"id"`
+	Progress  int        `json:"progress"`
+	Resources []struct {
+		Id   int64  `json:"id"`
+		Type string `json:"type"`
+	} `json:"resources"`
+	Started time.Time    `json:"started"`
+	Status  ActionStatus `json:"status"`
+}
+
+// ActionStatus defines model for Action.Status.
+type ActionStatus string
 
 // AdminImage defines model for AdminImage.
 type AdminImage struct {
@@ -430,6 +472,18 @@ type PerPage = int
 // ProjectID defines model for ProjectID.
 type ProjectID = int64
 
+// GetActionsParams defines parameters for GetActions.
+type GetActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetAdminImagesParams defines parameters for GetAdminImages.
 type GetAdminImagesParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -617,6 +671,12 @@ type PutSshKeyJSONRequestBody PutSshKeyJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetActions List the project's actions
+	// (GET /actions)
+	GetActions(w http.ResponseWriter, r *http.Request, params GetActionsParams)
+	// GetAction Get an action
+	// (GET /actions/{id})
+	GetAction(w http.ResponseWriter, r *http.Request, id ID)
 	// GetAdminImages List images with their templates
 	// (GET /admin/images)
 	GetAdminImages(w http.ResponseWriter, r *http.Request, params GetAdminImagesParams)
@@ -814,6 +874,18 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// GetActions List the project's actions
+// (GET /actions)
+func (_ Unimplemented) GetActions(w http.ResponseWriter, r *http.Request, params GetActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAction Get an action
+// (GET /actions/{id})
+func (_ Unimplemented) GetAction(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // GetAdminImages List images with their templates
 // (GET /admin/images)
@@ -1207,6 +1279,104 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetActions operation middleware
+func (siw *ServerInterfaceWrapper) GetActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetActions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAction operation middleware
+func (siw *ServerInterfaceWrapper) GetAction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAction(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAdminImages operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminImages(w http.ResponseWriter, r *http.Request) {
@@ -3197,11 +3367,134 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/ssh_keys/{id}", wrapper.PutSshKey)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/actions", wrapper.GetActions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/actions/{id}", wrapper.GetAction)
+	})
 
 	return r
 }
 
 type ErrorJSONResponse Error
+
+type GetActionsRequestObject struct {
+	Params GetActionsParams
+}
+
+type GetActionsResponseObject interface {
+	VisitGetActionsResponse(w http.ResponseWriter) error
+}
+
+type GetActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetActions200JSONResponse) VisitGetActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetActions401JSONResponse) VisitGetActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetActions404JSONResponse Error
+
+func (response GetActions404JSONResponse) VisitGetActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetActions422JSONResponse Error
+
+func (response GetActions422JSONResponse) VisitGetActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetActionRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetActionResponseObject interface {
+	VisitGetActionResponse(w http.ResponseWriter) error
+}
+
+type GetAction200JSONResponse Action
+
+func (response GetAction200JSONResponse) VisitGetActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAction401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAction401JSONResponse) VisitGetActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAction404JSONResponse Error
+
+func (response GetAction404JSONResponse) VisitGetActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type GetAdminImagesRequestObject struct {
 	Params GetAdminImagesParams
@@ -7223,6 +7516,12 @@ func (response GetUiManifest200JSONResponse) VisitGetUiManifestResponse(w http.R
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetActions List the project's actions
+	// (GET /actions)
+	GetActions(ctx context.Context, request GetActionsRequestObject) (GetActionsResponseObject, error)
+	// GetAction Get an action
+	// (GET /actions/{id})
+	GetAction(ctx context.Context, request GetActionRequestObject) (GetActionResponseObject, error)
 	// GetAdminImages List images with their templates
 	// (GET /admin/images)
 	GetAdminImages(ctx context.Context, request GetAdminImagesRequestObject) (GetAdminImagesResponseObject, error)
@@ -7454,6 +7753,58 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetActions operation middleware
+func (sh *strictHandler) GetActions(w http.ResponseWriter, r *http.Request, params GetActionsParams) {
+	var request GetActionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetActions(ctx, request.(GetActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetActionsResponseObject); ok {
+		if err := validResponse.VisitGetActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAction operation middleware
+func (sh *strictHandler) GetAction(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetActionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAction(ctx, request.(GetActionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAction")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetActionResponseObject); ok {
+		if err := validResponse.VisitGetActionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAdminImages operation middleware

@@ -9,6 +9,9 @@ import (
 // APIToken is the predicate function for apitoken builders.
 type APIToken func(*sql.Selector)
 
+// Action is the predicate function for action builders.
+type Action func(*sql.Selector)
+
 // IPAllocation is the predicate function for ipallocation builders.
 type IPAllocation func(*sql.Selector)
 
