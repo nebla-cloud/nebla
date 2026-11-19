@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -91,6 +92,27 @@ func (n *num) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*n = num(f)
+	return nil
+}
+
+// optNum is a num where null, empty, NaN and Inf decode as nil.
+type optNum struct{ v *float64 }
+
+func (n *optNum) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	if s == "" || s == "null" {
+		n.v = nil
+		return nil
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return err
+	}
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		n.v = nil
+		return nil
+	}
+	n.v = &f
 	return nil
 }
 
@@ -452,14 +474,14 @@ func (c *httpClient) VNCWebsocketURL(node string, vmid int, t VNCTicket) string 
 
 func (c *httpClient) RRD(ctx context.Context, node string, vmid int, timeframe string) ([]RRDPoint, error) {
 	var raw []struct {
-		Time      num `json:"time"`
-		CPU       num `json:"cpu"`
-		Mem       num `json:"mem"`
-		MaxMem    num `json:"maxmem"`
-		NetIn     num `json:"netin"`
-		NetOut    num `json:"netout"`
-		DiskRead  num `json:"diskread"`
-		DiskWrite num `json:"diskwrite"`
+		Time      num    `json:"time"`
+		CPU       optNum `json:"cpu"`
+		Mem       optNum `json:"mem"`
+		MaxMem    optNum `json:"maxmem"`
+		NetIn     optNum `json:"netin"`
+		NetOut    optNum `json:"netout"`
+		DiskRead  optNum `json:"diskread"`
+		DiskWrite optNum `json:"diskwrite"`
 	}
 	f := url.Values{"timeframe": {timeframe}, "cf": {"AVERAGE"}}
 	if err := c.do(ctx, http.MethodGet, vmPath(node, vmid)+"/rrddata", f, &raw); err != nil {
@@ -467,8 +489,8 @@ func (c *httpClient) RRD(ctx context.Context, node string, vmid int, timeframe s
 	}
 	out := make([]RRDPoint, len(raw))
 	for i, r := range raw {
-		out[i] = RRDPoint{Time: int64(r.Time), CPU: float64(r.CPU), Mem: float64(r.Mem), MaxMem: float64(r.MaxMem),
-			NetIn: float64(r.NetIn), NetOut: float64(r.NetOut), DiskRead: float64(r.DiskRead), DiskWrite: float64(r.DiskWrite)}
+		out[i] = RRDPoint{Time: int64(r.Time), CPU: r.CPU.v, Mem: r.Mem.v, MaxMem: r.MaxMem.v,
+			NetIn: r.NetIn.v, NetOut: r.NetOut.v, DiskRead: r.DiskRead.v, DiskWrite: r.DiskWrite.v}
 	}
 	return out, nil
 }

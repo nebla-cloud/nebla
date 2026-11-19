@@ -1948,14 +1948,14 @@ components:
           type: object
           description: >-
             Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s).
-            Each value is a list of [unix_ts, value] pairs.
+            Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample.
           additionalProperties:
             type: array
             items:
               type: array
               minItems: 2
               maxItems: 2
-              items: { type: number, format: double }
+              items: { type: number, format: double, nullable: true }
     ChangeTypeInput:
       type: object
       required: [server_type, upgrade_disk]

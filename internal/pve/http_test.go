@@ -434,3 +434,25 @@ func TestDeleteVolumeNeedsEscapedVolid(t *testing.T) {
 		t.Fatalf("unescaped slash status = %d", res.StatusCode)
 	}
 }
+
+func TestRRDGapsAreNil(t *testing.T) {
+	f, c := setup(t)
+	f.AddVM("pve1", 101, "a")
+	f.SetRRD([]map[string]any{
+		{"time": 1, "cpu": 0.5, "netin": "12"},
+		{"time": 2, "cpu": nil, "netin": "NaN", "diskread": "nan"},
+		{"time": 3},
+	})
+	pts, err := c.RRD(ctx(t), "pve1", 101, "hour")
+	if err != nil || len(pts) != 3 {
+		t.Fatalf("pts = %+v err=%v", pts, err)
+	}
+	if pts[0].CPU == nil || *pts[0].CPU != 0.5 || pts[0].NetIn == nil || *pts[0].NetIn != 12 || pts[0].DiskRead != nil {
+		t.Fatalf("point 0 = %+v", pts[0])
+	}
+	for _, p := range pts[1:] {
+		if p.CPU != nil || p.NetIn != nil || p.DiskRead != nil || p.NetOut != nil {
+			t.Fatalf("gap point = %+v", p)
+		}
+	}
+}

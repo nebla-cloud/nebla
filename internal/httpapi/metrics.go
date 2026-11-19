@@ -20,11 +20,16 @@ var (
 	errPVE       = apierr.New(http.StatusBadGateway, "pve_unreachable", "could not read metrics from Proxmox")
 )
 
-// series maps RRD points to [unix_ts, value] pairs.
-func series(pts []pve.RRDPoint, f func(pve.RRDPoint) float64) [][]float64 {
-	out := make([][]float64, len(pts))
+// series maps RRD points to [unix_ts, value] pairs; a gap stays null.
+func series(pts []pve.RRDPoint, scale float64, f func(pve.RRDPoint) *float64) [][]*float64 {
+	out := make([][]*float64, len(pts))
 	for i, p := range pts {
-		out[i] = []float64{float64(p.Time), f(p)}
+		ts := float64(p.Time)
+		var v *float64
+		if x := f(p); x != nil {
+			v = new(*x * scale)
+		}
+		out[i] = []*float64{&ts, v}
 	}
 	return out
 }
@@ -63,7 +68,7 @@ func (s *server) GetServerMetrics(ctx context.Context, req apigen.GetServerMetri
 		s.log.Warn("metrics: rrd", "server_id", req.Id, "err", err)
 		return nil, errPVE
 	}
-	m := apigen.Metrics{TimeSeries: map[string][][]float64{}}
+	m := apigen.Metrics{TimeSeries: map[string][][]*float64{}}
 	if len(pts) > 0 {
 		m.Start, m.End = time.Unix(pts[0].Time, 0).UTC(), time.Unix(pts[len(pts)-1].Time, 0).UTC()
 	}
@@ -74,13 +79,13 @@ func (s *server) GetServerMetrics(ctx context.Context, req apigen.GetServerMetri
 		switch t {
 		case "cpu":
 			// Proxmox reports cpu as a 0-1 fraction of the VM's cores; the API uses percent.
-			m.TimeSeries["cpu"] = series(pts, func(p pve.RRDPoint) float64 { return p.CPU * 100 })
+			m.TimeSeries["cpu"] = series(pts, 100, func(p pve.RRDPoint) *float64 { return p.CPU })
 		case "disk":
-			m.TimeSeries["disk.read"] = series(pts, func(p pve.RRDPoint) float64 { return p.DiskRead })
-			m.TimeSeries["disk.write"] = series(pts, func(p pve.RRDPoint) float64 { return p.DiskWrite })
+			m.TimeSeries["disk.read"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.DiskRead })
+			m.TimeSeries["disk.write"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.DiskWrite })
 		case "network":
-			m.TimeSeries["network.in"] = series(pts, func(p pve.RRDPoint) float64 { return p.NetIn })
-			m.TimeSeries["network.out"] = series(pts, func(p pve.RRDPoint) float64 { return p.NetOut })
+			m.TimeSeries["network.in"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.NetIn })
+			m.TimeSeries["network.out"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.NetOut })
 		}
 	}
 	return apigen.GetServerMetrics200JSONResponse{Metrics: m}, nil

@@ -1,17 +1,24 @@
 package console_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/auth"
+	"github.com/Hexeption/nebla/internal/console"
 	"github.com/Hexeption/nebla/internal/ent/consoletoken"
+	"github.com/Hexeption/nebla/internal/httpapi"
 	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
@@ -195,4 +202,74 @@ func TestConsoleRejectsForeignOrigin(t *testing.T) {
 	c, _, err := dial(t, g.WSSURL, &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {e.App.URL}}})
 	require.NoError(t, err)
 	c.CloseNow()
+}
+
+// syncBuf is a goroutine-safe log sink.
+type syncBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuf) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+func TestConsoleDialFailureDoesNotLogTicket(t *testing.T) {
+	ctx := context.Background()
+	logs := &syncBuf{}
+	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t), func(d *httpapi.Deps) {
+		d.Logger = slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	}))
+	s := e.RunningServer("web")
+	g := request(t, e, e.C, s.ServerID)
+
+	// Point the location at a closed port so the upstream dial fails.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	closed := "https://" + l.Addr().String()
+	require.NoError(t, l.Close())
+	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.Location).SetPveURL(closed).Exec(ctx))
+
+	_, res, err := dial(t, g.WSSURL, nil)
+	require.Error(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, http.StatusBadGateway, res.StatusCode)
+	out := logs.String()
+	require.Contains(t, out, "console: dial proxmox")
+	require.NotContains(t, out, g.Password)
+	require.NotContains(t, out, url.QueryEscape(g.Password))
+	require.NotContains(t, out, "vncticket")
+}
+
+func TestConsolePlainGETKeepsToken(t *testing.T) {
+	e, s := env(t)
+	g := request(t, e, e.C, s.ServerID)
+	res, err := http.Get("http" + strings.TrimPrefix(g.WSSURL, "ws"))
+	require.NoError(t, err)
+	body := e.App.Body(res)
+	require.Equal(t, http.StatusBadRequest, res.StatusCode, body)
+	require.Contains(t, body, `"invalid_input"`)
+
+	c, _, err := dial(t, g.WSSURL, nil)
+	require.NoError(t, err)
+	c.CloseNow()
+}
+
+func TestConsoleTokenTTL(t *testing.T) {
+	ctx := context.Background()
+	e, s := env(t)
+	before := time.Now()
+	request(t, e, e.C, s.ServerID)
+	row, err := e.App.Ent.ConsoleToken.Query().Only(ctx)
+	require.NoError(t, err)
+	require.WithinDuration(t, before.Add(console.TokenTTL), row.ExpiresAt, 2*time.Second)
+	require.Equal(t, 10*time.Second, console.TokenTTL)
 }
