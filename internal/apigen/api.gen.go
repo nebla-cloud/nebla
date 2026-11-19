@@ -230,6 +230,14 @@ type AdminLocation struct {
 	Updated     time.Time     `json:"updated"`
 }
 
+// AdminProject defines model for AdminProject.
+type AdminProject struct {
+	Id         int64  `json:"id"`
+	Name       string `json:"name"`
+	OwnerEmail string `json:"owner_email"`
+	Quota      Quota  `json:"quota"`
+}
+
 // AdminSettings defines model for AdminSettings.
 type AdminSettings struct {
 	SelfSignup bool `json:"self_signup"`
@@ -659,6 +667,12 @@ type GetAdminLocationsParams struct {
 	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
 }
 
+// GetAdminProjectsParams defines parameters for GetAdminProjects.
+type GetAdminProjectsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
 // GetAdminServerTypesParams defines parameters for GetAdminServerTypes.
 type GetAdminServerTypesParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -935,6 +949,9 @@ type ServerInterface interface {
 	// PostAdminLocationSyncNodes Rediscover nodes; vanished nodes are disabled, never deleted
 	// (POST /admin/locations/{id}/sync_nodes)
 	PostAdminLocationSyncNodes(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminProjects List all projects
+	// (GET /admin/projects)
+	GetAdminProjects(w http.ResponseWriter, r *http.Request, params GetAdminProjectsParams)
 	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
 	// (PUT /admin/projects/{id}/quota)
 	PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID)
@@ -1238,6 +1255,12 @@ func (_ Unimplemented) PutAdminLocationNode(w http.ResponseWriter, r *http.Reque
 // PostAdminLocationSyncNodes Rediscover nodes; vanished nodes are disabled, never deleted
 // (POST /admin/locations/{id}/sync_nodes)
 func (_ Unimplemented) PostAdminLocationSyncNodes(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminProjects List all projects
+// (GET /admin/projects)
+func (_ Unimplemented) GetAdminProjects(w http.ResponseWriter, r *http.Request, params GetAdminProjectsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2199,6 +2222,52 @@ func (siw *ServerInterfaceWrapper) PostAdminLocationSyncNodes(w http.ResponseWri
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAdminLocationSyncNodes(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProjects operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProjects(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminProjectsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProjects(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4081,6 +4150,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/admin/users", wrapper.PostAdminUsers)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/projects", wrapper.GetAdminProjects)
+	})
+	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/admin/projects/{id}/quota", wrapper.PutAdminProjectQuota)
 	})
 	r.Group(func(r chi.Router) {
@@ -5958,6 +6030,76 @@ type PostAdminLocationSyncNodesdefaultJSONResponse struct {
 }
 
 func (response PostAdminLocationSyncNodesdefaultJSONResponse) VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectsRequestObject struct {
+	Params GetAdminProjectsParams
+}
+
+type GetAdminProjectsResponseObject interface {
+	VisitGetAdminProjectsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProjects200JSONResponse struct {
+	Meta     Meta           `json:"meta"`
+	Projects []AdminProject `json:"projects"`
+}
+
+func (response GetAdminProjects200JSONResponse) VisitGetAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjects401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminProjects401JSONResponse) VisitGetAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjects403JSONResponse Error
+
+func (response GetAdminProjects403JSONResponse) VisitGetAdminProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminProjectsdefaultJSONResponse) VisitGetAdminProjectsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -11221,6 +11363,9 @@ type StrictServerInterface interface {
 	// PostAdminLocationSyncNodes Rediscover nodes; vanished nodes are disabled, never deleted
 	// (POST /admin/locations/{id}/sync_nodes)
 	PostAdminLocationSyncNodes(ctx context.Context, request PostAdminLocationSyncNodesRequestObject) (PostAdminLocationSyncNodesResponseObject, error)
+	// GetAdminProjects List all projects
+	// (GET /admin/projects)
+	GetAdminProjects(ctx context.Context, request GetAdminProjectsRequestObject) (GetAdminProjectsResponseObject, error)
 	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
 	// (PUT /admin/projects/{id}/quota)
 	PutAdminProjectQuota(ctx context.Context, request PutAdminProjectQuotaRequestObject) (PutAdminProjectQuotaResponseObject, error)
@@ -11979,6 +12124,32 @@ func (sh *strictHandler) PostAdminLocationSyncNodes(w http.ResponseWriter, r *ht
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAdminLocationSyncNodesResponseObject); ok {
 		if err := validResponse.VisitPostAdminLocationSyncNodesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProjects operation middleware
+func (sh *strictHandler) GetAdminProjects(w http.ResponseWriter, r *http.Request, params GetAdminProjectsParams) {
+	var request GetAdminProjectsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProjects(ctx, request.(GetAdminProjectsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProjects")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProjectsResponseObject); ok {
+		if err := validResponse.VisitGetAdminProjectsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -20,7 +20,7 @@ func twoOwners(t *testing.T) (*projects.Service, *auth.Service, auth.User, auth.
 	au := auth.New(client, ext.Defaults(nil).Registration)
 	b, err := au.CreateUser(ctx, "b@example.test", testutil.Password, "B", false)
 	require.NoError(t, err)
-	p, err := svc.Create(ctx, a.ID, "P")
+	p, err := svc.Create(ctx, a.ID, false, "P")
 	require.NoError(t, err)
 	l, err := svc.Invite(ctx, a.ID, p.ID, "b@example.test", projects.RoleOwner)
 	require.NoError(t, err)

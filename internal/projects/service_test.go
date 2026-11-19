@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func setup(t *testing.T, opts projects.Options) (*projects.Service, *ent.Client,
 func TestCreatorIsOwner(t *testing.T) {
 	ctx := context.Background()
 	svc, _, _, u := setup(t, projects.Options{})
-	p, err := svc.Create(ctx, u.ID, "Web")
+	p, err := svc.Create(ctx, u.ID, false, "Web")
 	require.NoError(t, err)
 	require.Equal(t, projects.RoleOwner, p.Role)
 
@@ -56,7 +57,7 @@ func TestQuotaExceeded(t *testing.T) {
 			return existing, nil
 		},
 	}})
-	p, err := svc.Create(ctx, u.ID, "Web")
+	p, err := svc.Create(ctx, u.ID, false, "Web")
 	require.NoError(t, err)
 	_, err = svc.SetQuota(ctx, p.ID, projects.Quota{MaxServers: 1})
 	require.NoError(t, err)
@@ -90,7 +91,7 @@ func TestInviteEmailMismatch(t *testing.T) {
 	au := auth.New(client, ext.Defaults(nil).Registration)
 	other, err := au.CreateUser(ctx, "other@example.com", testutil.Password, "Other", false)
 	require.NoError(t, err)
-	p, err := svc.Create(ctx, owner.ID, "Web")
+	p, err := svc.Create(ctx, owner.ID, false, "Web")
 	require.NoError(t, err)
 	link, err := svc.Invite(ctx, owner.ID, p.ID, "invited@example.com", projects.RoleAdmin)
 	require.NoError(t, err)
@@ -105,7 +106,7 @@ func TestInviteEmailMismatch(t *testing.T) {
 func TestRevokedInviteNotFound(t *testing.T) {
 	ctx := context.Background()
 	svc, _, _, owner := setup(t, projects.Options{})
-	p, err := svc.Create(ctx, owner.ID, "Web")
+	p, err := svc.Create(ctx, owner.ID, false, "Web")
 	require.NoError(t, err)
 	link, err := svc.Invite(ctx, owner.ID, p.ID, "new@example.com", projects.RoleMember)
 	require.NoError(t, err)
@@ -129,7 +130,7 @@ func TestRemovingCreatorKillsInvites(t *testing.T) {
 	au := auth.New(client, ext.Defaults(nil).Registration)
 	adm, err := au.CreateUser(ctx, "adm@example.com", testutil.Password, "Adm", false)
 	require.NoError(t, err)
-	p, err := svc.Create(ctx, owner.ID, "Web")
+	p, err := svc.Create(ctx, owner.ID, false, "Web")
 	require.NoError(t, err)
 	link, err := svc.Invite(ctx, owner.ID, p.ID, "adm@example.com", projects.RoleAdmin)
 	require.NoError(t, err)
@@ -158,11 +159,48 @@ func TestServiceReusesCallerTx(t *testing.T) {
 	_, client, sqlDB, u := setup(t, projects.Options{})
 	boom := errors.New("boom")
 	err := db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
-		if _, err := projects.New(etx, projects.Options{}).Create(ctx, u.ID, "Web"); err != nil {
+		if _, err := projects.New(etx, projects.Options{}).Create(ctx, u.ID, false, "Web"); err != nil {
 			return err
 		}
 		return boom
 	})
 	require.ErrorIs(t, err, boom, "withTx must join the caller's tx, not nest")
 	require.Zero(t, client.Project.Query().CountX(ctx), "rolled back with the caller")
+}
+
+func TestNewProjectGetsDefaultQuota(t *testing.T) {
+	ctx := context.Background()
+	dq := projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5}
+	svc, _, _, u := setup(t, projects.Options{DefaultQuota: dq})
+	p, err := svc.Create(ctx, u.ID, false, "Web")
+	require.NoError(t, err)
+	require.Equal(t, dq, p.Quota)
+	got, err := svc.Get(ctx, u.ID, p.ID)
+	require.NoError(t, err)
+	require.Equal(t, dq, got.Quota)
+}
+
+func TestProjectCapPerUser(t *testing.T) {
+	ctx := context.Background()
+	svc, _, _, u := setup(t, projects.Options{MaxOwnedProjects: 3})
+	for _, n := range []string{"a", "b", "c"} {
+		_, err := svc.Create(ctx, u.ID, false, n)
+		require.NoError(t, err)
+	}
+	_, err := svc.Create(ctx, u.ID, false, "d")
+	var ae apierr.E
+	require.ErrorAs(t, err, &ae)
+	require.Equal(t, http.StatusUnprocessableEntity, ae.Status)
+	require.Equal(t, "quota_exceeded", ae.Code)
+	require.Equal(t, "project limit reached", ae.Msg)
+}
+
+func TestAdminProjectsUnlimited(t *testing.T) {
+	ctx := context.Background()
+	svc, _, _, u := setup(t, projects.Options{DefaultQuota: projects.Quota{MaxServers: 1}, MaxOwnedProjects: 1})
+	for _, n := range []string{"a", "b", "c"} {
+		p, err := svc.Create(ctx, u.ID, true, n)
+		require.NoError(t, err)
+		require.Equal(t, projects.Quota{}, p.Quota)
+	}
 }

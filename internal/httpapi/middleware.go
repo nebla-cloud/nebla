@@ -40,6 +40,7 @@ var adminOps = map[string]bool{
 	"GetAdminUsers":        true,
 	"PostAdminUsers":       true,
 	"PutAdminProjectQuota": true,
+	"GetAdminProjects":     true,
 
 	"GetAdminLocations":          true,
 	"PostAdminLocations":         true,

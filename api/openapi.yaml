@@ -264,6 +264,29 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /admin/projects:
+    get:
+      operationId: getAdminProjects
+      summary: List all projects
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projects, meta]
+                properties:
+                  projects:
+                    type: array
+                    items: { $ref: "#/components/schemas/AdminProject" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
   /admin/projects/{id}/quota:
     put:
       operationId: putAdminProjectQuota
@@ -1682,6 +1705,14 @@ components:
         role: { $ref: "#/components/schemas/Role" }
         quota: { $ref: "#/components/schemas/Quota" }
         created: { type: string, format: date-time }
+    AdminProject:
+      type: object
+      required: [id, name, quota, owner_email]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        quota: { $ref: "#/components/schemas/Quota" }
+        owner_email: { type: string }
     Member:
       type: object
       required: [user_id, email, name, role]

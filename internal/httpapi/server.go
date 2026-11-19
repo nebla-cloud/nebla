@@ -106,6 +106,7 @@ func New(deps Deps) http.Handler {
 	}
 	proj := projects.New(deps.Ent, projects.Options{
 		Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
+		DefaultQuota: deps.Config.DefaultQuota, MaxOwnedProjects: deps.Config.MaxProjectsPerUser,
 	})
 	s := &server{
 		deps:       deps,

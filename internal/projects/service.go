@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"entgo.io/ent/dialect/sql"
+
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/auth"
 	"github.com/Hexeption/nebla/internal/ent"
@@ -63,6 +65,10 @@ type Options struct {
 	Mail    mail.Sender
 	BaseURL string
 	Logger  *slog.Logger
+	// DefaultQuota is applied to projects created by non-admins; zero fields are unlimited.
+	DefaultQuota Quota
+	// MaxOwnedProjects caps projects a non-admin owns; 0 is unlimited.
+	MaxOwnedProjects int
 	Hooks
 }
 
@@ -181,14 +187,33 @@ func (s *Service) require(ctx context.Context, userID, projectID int64, allowed 
 	return r, nil
 }
 
-func (s *Service) Create(ctx context.Context, userID int64, name string) (Project, error) {
+// Create makes a project owned by userID; non-admins get DefaultQuota and the owned-project cap.
+func (s *Service) Create(ctx context.Context, userID int64, isAdmin bool, name string) (Project, error) {
 	name, err := validName(name)
 	if err != nil {
 		return Project{}, err
 	}
 	var p *ent.Project
 	err = withTx(ctx, s.db, func(tx *ent.Client) error {
-		if p, err = tx.Project.Create().SetName(name).Save(ctx); err != nil {
+		c := tx.Project.Create().SetName(name)
+		if !isAdmin {
+			if s.opts.MaxOwnedProjects > 0 {
+				// Lock the user row so concurrent creates cannot pass the cap together.
+				if _, err := tx.User.Query().Where(user.ID(userID)).ForUpdate().Only(ctx); err != nil {
+					return err
+				}
+				n, err := tx.ProjectMember.Query().Where(projectmember.UserID(userID), projectmember.Role(RoleOwner)).Count(ctx)
+				if err != nil {
+					return err
+				}
+				if n >= s.opts.MaxOwnedProjects {
+					return apierr.New(http.StatusUnprocessableEntity, "quota_exceeded", "project limit reached")
+				}
+			}
+			q := s.opts.DefaultQuota
+			c.SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).SetMaxMemoryMB(q.MaxMemoryMB).SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs)
+		}
+		if p, err = c.Save(ctx); err != nil {
 			return err
 		}
 		return tx.ProjectMember.Create().SetProjectID(p.ID).SetUserID(userID).SetRole(RoleOwner).Exec(ctx)
@@ -197,6 +222,46 @@ func (s *Service) Create(ctx context.Context, userID int64, name string) (Projec
 		return Project{}, err
 	}
 	return toProject(p, RoleOwner), nil
+}
+
+// AdminProject is a project with its first owner's email, for the admin list.
+type AdminProject struct {
+	ID         int64
+	Name       string
+	Quota      Quota
+	OwnerEmail string
+}
+
+// ListAll returns one page of every project ordered by id, plus the total count.
+func (s *Service) ListAll(ctx context.Context, page, perPage int) ([]AdminProject, int, error) {
+	total, err := s.db.Project.Query().Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := s.db.Project.Query().Order(project.ByID()).Offset((page - 1) * perPage).Limit(perPage).All(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	ids := make([]int64, len(rows))
+	for i, r := range rows {
+		ids[i] = r.ID
+	}
+	owners, err := s.db.ProjectMember.Query().Where(projectmember.ProjectIDIn(ids...), projectmember.Role(RoleOwner)).
+		WithUser().Order(projectmember.ByUserID(sql.OrderDesc())).All(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	email := map[int64]string{}
+	for _, m := range owners {
+		if m.Edges.User != nil {
+			email[m.ProjectID] = m.Edges.User.Email // descending order leaves the lowest user id last
+		}
+	}
+	out := make([]AdminProject, len(rows))
+	for i, r := range rows {
+		out[i] = AdminProject{ID: r.ID, Name: r.Name, Quota: quotaOf(r), OwnerEmail: email[r.ID]}
+	}
+	return out, total, nil
 }
 
 func (s *Service) List(ctx context.Context, userID int64) ([]Project, error) {

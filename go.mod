@@ -49,7 +49,7 @@ require (
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dprotaso/go-yit v0.0.0-20261106020759-d8881214a0db // indirect
+	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect; pinned for oapi-codegen v2.8.2
 	github.com/ebitengine/purego v0.11.3 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
@@ -98,9 +98,8 @@ require (
 	github.com/sethvargo/go-retry v0.5.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.10 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect
-	github.com/speakeasy-api/jsonpath v0.7.1 // indirect
-	github.com/speakeasy-api/openapi v1.28.0 // indirect
-	github.com/speakeasy-api/yaml-jsonpath v0.0.0-20261016002013-07e5f48e6d17 // indirect
+	github.com/speakeasy-api/jsonpath v0.6.3 // indirect; pinned for oapi-codegen v2.8.2
+	github.com/speakeasy-api/openapi v1.24.0 // indirect; pinned for oapi-codegen v2.8.2
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/tidwall/gjson v1.20.4 // indirect
@@ -109,6 +108,7 @@ require (
 	github.com/tidwall/sjson v1.2.10 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
+	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty v1.20.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.2.0 // indirect
