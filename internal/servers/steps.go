@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -82,17 +84,19 @@ type stepError struct {
 func (e *stepError) Error() string { return e.step + ": " + e.err.Error() }
 func (e *stepError) Unwrap() error { return e.err }
 
-// errorMessage is the Proxmox message behind err, prefixed with the step.
+// errorMessage is the tenant-safe message behind err, prefixed with the step.
 func errorMessage(err error) string {
 	var se *stepError
 	inner := err
 	if errors.As(err, &se) {
 		inner = se.err
 	}
-	msg := inner.Error()
+	msg := "unexpected error"
 	var pe *pve.Error
 	var te *pve.TaskError
 	var perm *permanentError
+	var ue *url.Error
+	var ne net.Error
 	switch {
 	case errors.As(inner, &perm):
 		msg = perm.msg
@@ -100,6 +104,8 @@ func errorMessage(err error) string {
 		msg = te.ExitStatus
 	case errors.As(inner, &pe):
 		msg = pe.Message
+	case errors.As(inner, &ue), errors.As(inner, &ne), errors.Is(inner, context.DeadlineExceeded):
+		msg = "could not reach Proxmox"
 	}
 	if se != nil {
 		return se.step + ": " + msg

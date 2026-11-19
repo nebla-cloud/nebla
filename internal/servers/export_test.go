@@ -22,3 +22,9 @@ const (
 func SetRebuildAfterStep(w *RebuildServerWorker, f func(step int)) { w.afterStep = f }
 
 var CloudinitDrives = cloudinitDrives
+
+var ErrorMessage = errorMessage
+
+var Permanent = permanent
+
+func StepError(step string, err error) error { return &stepError{step: step, err: err} }
