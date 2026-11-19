@@ -2,13 +2,13 @@ package httpapi
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"strings"
 
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/Hexeption/nebla/internal/auth"
+	"github.com/Hexeption/nebla/internal/realip"
 )
 
 func apiUser(u auth.User) apigen.User {
@@ -56,7 +56,7 @@ func (s *server) PostSignup(ctx context.Context, req apigen.PostSignupRequestObj
 func (s *server) PostAuthLogin(ctx context.Context, req apigen.PostAuthLoginRequestObject) (apigen.PostAuthLoginResponseObject, error) {
 	ip := ""
 	if r := requestFrom(ctx); r != nil {
-		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+		ip = realip.ClientIP(r, s.deps.Config.TrustedProxies)
 	}
 	if !s.loginLimit.Allow(auth.NormalizeEmail(req.Body.Email) + "|" + ip) {
 		return nil, apierr.New(http.StatusTooManyRequests, "rate_limited", "too many login attempts, try again later")
