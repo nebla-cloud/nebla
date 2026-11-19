@@ -137,8 +137,12 @@ func validRole(r string) error {
 	return nil
 }
 
+// withTx opens a tx on db, or runs fn on db directly when db is already tx-bound.
 func withTx(ctx context.Context, db *ent.Client, fn func(tx *ent.Client) error) error {
 	tx, err := db.Tx(ctx)
+	if errors.Is(err, ent.ErrTxStarted) {
+		return fn(db)
+	}
 	if err != nil {
 		return err
 	}

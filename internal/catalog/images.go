@@ -62,8 +62,12 @@ type ImageInput struct {
 
 var imageNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
-// bootDisks are checked in order to find a template's boot volume.
-var bootDisks = []string{"scsi0", "virtio0", "sata0", "ide0"}
+var (
+	volumeKeyRE = regexp.MustCompile(`^((scsi|virtio|sata|ide)\d+|efidisk0|tpmstate0|unused\d+)$`)
+	busKeyRE    = regexp.MustCompile(`^(scsi|virtio|sata|ide)\d+$`)
+	// bootFallback is tried in order when the config has no usable boot order.
+	bootFallback = []string{"scsi0", "virtio0", "sata0", "ide0"}
+)
 
 func templateNotFound(format string, a ...any) error {
 	return apierr.New(http.StatusUnprocessableEntity, "template_not_found", fmt.Sprintf(format, a...))
@@ -162,11 +166,8 @@ func checkLocationTemplates(ctx context.Context, c pve.Client, locName string, t
 			return templateNotFound("VMID %d is not a template in location %s", t.VMID, locName)
 		}
 		vm := vms[i]
-		if t.Node != "" {
-			if vm.Node != t.Node {
-				return templateNotFound("VMID %d is not a template on node %s", t.VMID, t.Node)
-			}
-			continue
+		if t.Node != "" && vm.Node != t.Node {
+			return templateNotFound("VMID %d is not a template on node %s", t.VMID, t.Node)
 		}
 		cfg, err := c.Config(ctx, vm.Node, vm.VMID)
 		if errors.Is(err, pve.ErrNotFound) {
@@ -175,33 +176,86 @@ func checkLocationTemplates(ctx context.Context, c pve.Client, locName string, t
 		if err != nil {
 			return unreachable(err)
 		}
-		st := bootStorage(cfg)
-		if st == "" {
-			return templateNotShared("VMID %d has no boot disk on shared storage; set node", t.VMID)
+		vols := templateVolumes(cfg)
+		if len(vols) == 0 {
+			return templateNotFound("VMID %d has no disks", t.VMID)
+		}
+		if t.Node != "" {
+			continue
 		}
 		if _, ok := storages[vm.Node]; !ok {
 			if storages[vm.Node], err = c.Storages(ctx, vm.Node); err != nil {
 				return unreachable(err)
 			}
 		}
-		j := slices.IndexFunc(storages[vm.Node], func(x pve.Storage) bool { return x.ID == st })
-		if j < 0 || !storages[vm.Node][j].Shared {
-			return templateNotShared("VMID %d is on storage %q, which is not shared; set node", t.VMID, st)
+		for _, v := range vols {
+			if v.Storage == "" {
+				return templateNotShared("VMID %d volume %s is not on a Proxmox storage; set node", t.VMID, v.Key)
+			}
+			j := slices.IndexFunc(storages[vm.Node], func(x pve.Storage) bool { return x.ID == v.Storage })
+			if j < 0 || !storages[vm.Node][j].Shared {
+				return templateNotShared("VMID %d volume %s is on storage %q, which is not shared; set node", t.VMID, v.Key, v.Storage)
+			}
 		}
 	}
 	return nil
 }
 
-// bootStorage returns the storage id of the first disk volume in bootDisks order.
-func bootStorage(cfg map[string]string) string {
-	for _, k := range bootDisks {
-		v, ok := cfg[k]
-		if !ok || strings.Contains(v, "media=cdrom") {
+type volume struct{ Key, Storage string }
+
+// volumeOf splits a drive value into its volume id and whether it is a disk (not an ISO, empty or physical drive).
+func volumeOf(v string) (string, bool) {
+	vol, _, _ := strings.Cut(v, ",")
+	_, path, _ := strings.Cut(vol, ":")
+	return vol, vol != "" && vol != "none" && vol != "cdrom" && !strings.HasPrefix(path, "iso/")
+}
+
+// templateVolumes lists every disk-like volume in cfg, cloud-init drives included, sorted by key.
+func templateVolumes(cfg map[string]string) []volume {
+	var out []volume
+	for k, v := range cfg {
+		if !volumeKeyRE.MatchString(k) {
 			continue
 		}
-		vol, _, _ := strings.Cut(v, ",")
-		if st, _, ok := strings.Cut(vol, ":"); ok {
-			return st
+		vol, ok := volumeOf(v)
+		if !ok {
+			continue
+		}
+		st, _, found := strings.Cut(vol, ":")
+		if !found {
+			st = ""
+		}
+		out = append(out, volume{Key: k, Storage: st})
+	}
+	slices.SortFunc(out, func(a, b volume) int { return strings.Compare(a.Key, b.Key) })
+	return out
+}
+
+func isBootDisk(cfg map[string]string, key string) bool {
+	v, ok := cfg[key]
+	if !ok || !busKeyRE.MatchString(key) || strings.Contains(v, "media=cdrom") {
+		return false
+	}
+	_, disk := volumeOf(v)
+	return disk
+}
+
+// BootDisk returns the boot disk key (e.g. "scsi0") from boot order=..., else the first of scsi0/virtio0/sata0/ide0; "" if none.
+func BootDisk(cfg map[string]string) string {
+	for _, part := range strings.Split(cfg["boot"], ",") {
+		order, ok := strings.CutPrefix(strings.TrimSpace(part), "order=")
+		if !ok {
+			continue
+		}
+		for _, dev := range strings.Split(order, ";") {
+			if dev = strings.TrimSpace(dev); isBootDisk(cfg, dev) {
+				return dev
+			}
+		}
+	}
+	for _, k := range bootFallback {
+		if isBootDisk(cfg, k) {
+			return k
 		}
 	}
 	return ""

@@ -64,3 +64,51 @@ func TestWithTxSupportsUpdateOne(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "2", client.Setting.GetX(ctx, "k").Value)
 }
+
+func TestWithTxNestedTxFails(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.NewDB(t)
+	client, sqlDB := db.NewEnt(pool)
+	t.Cleanup(func() { client.Close() })
+
+	err := db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+		_, err := etx.Tx(ctx)
+		return err
+	})
+	require.ErrorIs(t, err, ent.ErrTxStarted)
+}
+
+func TestWithTxEdgeWritesShareTx(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.NewDB(t)
+	client, sqlDB := db.NewEnt(pool)
+	t.Cleanup(func() { client.Close() })
+	loc := client.Location.Create().SetName("eu-1").SetPveURL("https://pve:8006").SetTokenID("a@pam!b").
+		SetTokenSecret([]byte{1}).SetDiskStorage("ceph").SetIsoStorage("local").SaveX(ctx)
+
+	write := func(name string, fail error) error {
+		return db.WithTx(ctx, sqlDB, func(tx *sql.Tx, etx *ent.Client) error {
+			st, err := etx.ServerType.Create().SetName(name).SetCores(1).SetMemoryMB(512).SetDiskGB(5).AddLocationIDs(loc.ID).Save(ctx)
+			if err != nil {
+				return err
+			}
+			if err := etx.ServerType.UpdateOne(st).SetDeprecated(true).ClearLocations().AddLocationIDs(loc.ID).Exec(ctx); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, "insert into settings (key, value) values ($1, '1')", name); err != nil {
+				return err
+			}
+			return fail
+		})
+	}
+	boom := errors.New("boom")
+	require.ErrorIs(t, write("rolled", boom), boom)
+	require.Zero(t, client.ServerType.Query().CountX(ctx))
+	require.Zero(t, client.Setting.Query().CountX(ctx))
+
+	require.NoError(t, write("kept", nil))
+	st := client.ServerType.Query().WithLocations().OnlyX(ctx)
+	require.True(t, st.Deprecated)
+	require.Len(t, st.Edges.Locations, 1)
+	require.Equal(t, []string{"kept"}, client.Setting.Query().IDsX(ctx))
+}

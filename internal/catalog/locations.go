@@ -20,7 +20,7 @@ import (
 	"github.com/Hexeption/nebla/internal/pve"
 )
 
-// NodeMissing is the status of a node Proxmox no longer reports.
+// NodeMissing is the status of a node Proxmox no longer reports; placement needs Enabled and status "online".
 const NodeMissing = "missing"
 
 type Location struct {
@@ -347,7 +347,7 @@ func (s *Service) DeleteLocation(ctx context.Context, id int64) error {
 	return err
 }
 
-// SyncNodes refreshes node capacity and load; nodes Proxmox no longer lists are disabled, never deleted.
+// SyncNodes refreshes status, capacity and load; vanished nodes become status missing and enabled is left alone.
 func (s *Service) SyncNodes(ctx context.Context, id int64) (Location, error) {
 	c, err := s.ProxmoxFor(ctx, id)
 	if err != nil {
@@ -377,7 +377,7 @@ func syncNodes(ctx context.Context, tx *ent.Client, locationID int64, nodes []pv
 		names[i] = n.Name
 	}
 	return tx.Node.Update().Where(node.LocationID(locationID), node.NameNotIn(names...)).
-		SetEnabled(false).SetStatus(NodeMissing).Exec(ctx)
+		SetStatus(NodeMissing).Exec(ctx)
 }
 
 // upsertNodes inserts new nodes and refreshes stats of known ones, keeping enabled and the override.
