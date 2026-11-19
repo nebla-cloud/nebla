@@ -1189,6 +1189,167 @@ paths:
               schema: { $ref: "#/components/schemas/Action" }
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /servers:
+    get:
+      operationId: getServers
+      x-nebla-scope: project
+      summary: List the project's servers
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: label_selector
+          in: query
+          description: "Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)"
+          schema: { type: string }
+        - name: name
+          in: query
+          description: Exact server name
+          schema: { type: string }
+        - name: status
+          in: query
+          description: Only servers in these statuses; repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [servers, meta]
+                properties:
+                  servers:
+                    type: array
+                    items: { $ref: "#/components/schemas/Server" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postServers
+      x-nebla-scope: project
+      summary: Create a server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServerInput" }
+      responses:
+        "201":
+          description: Created; the create_server action runs in the background
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [server, action, next_actions]
+                properties:
+                  server: { $ref: "#/components/schemas/Server" }
+                  action: { $ref: "#/components/schemas/Action" }
+                  next_actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getServer
+      x-nebla-scope: project
+      summary: Get a server
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Server" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putServer
+      x-nebla-scope: project
+      summary: Rename a server or replace its labels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServerUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Server" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteServer
+      x-nebla-scope: project
+      summary: Delete a server
+      responses:
+        "200":
+          description: The delete_server action
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action]
+                properties:
+                  action: { $ref: "#/components/schemas/Action" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getServerActions
+      x-nebla-scope: project
+      summary: List a server's actions
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          description: Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: sort
+          in: query
+          description: "id, id:asc or id:desc (default)"
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, meta]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
 components:
   responses:
     Error:
@@ -1559,4 +1720,60 @@ components:
         name: { type: string }
         public_key: { type: string }
         fingerprint: { type: string, description: "MD5, colon-hex" }
+        created: { type: string, format: date-time }
+    Labels:
+      type: object
+      description: "At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty"
+      additionalProperties: { type: string }
+    ServerInput:
+      type: object
+      required: [name, server_type, image, location]
+      properties:
+        name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" }
+        server_type: { type: string, description: Server type id or name }
+        image: { type: string, description: Image id or name }
+        location: { type: string, description: Location id or name }
+        ssh_keys:
+          type: array
+          description: The project's SSH key ids or names
+          items: { type: string }
+        user_data: { type: string, description: "Cloud-init user data, at most 32 KiB" }
+        public_net:
+          type: object
+          properties:
+            ipv4: { type: boolean, default: true }
+            ipv6: { type: boolean, default: false }
+        labels: { $ref: "#/components/schemas/Labels" }
+        start_after_create: { type: boolean, default: true }
+    ServerUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+    ServerIp:
+      type: object
+      nullable: true
+      required: [ip]
+      properties:
+        ip: { type: string }
+    Server:
+      type: object
+      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, created]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        status:
+          type: string
+          enum: [initializing, starting, running, stopping, "off", rebuilding, deleting, missing, error]
+        location: { $ref: "#/components/schemas/Location" }
+        server_type: { $ref: "#/components/schemas/ServerType" }
+        image: { $ref: "#/components/schemas/Image" }
+        public_net:
+          type: object
+          required: [ipv4, ipv6]
+          properties:
+            ipv4: { $ref: "#/components/schemas/ServerIp" }
+            ipv6: { $ref: "#/components/schemas/ServerIp" }
+        labels: { $ref: "#/components/schemas/Labels" }
+        disk_gb: { type: integer }
         created: { type: string, format: date-time }

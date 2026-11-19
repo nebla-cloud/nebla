@@ -42,6 +42,9 @@ type ProjectMember func(*sql.Selector)
 // SSHKey is the predicate function for sshkey builders.
 type SSHKey func(*sql.Selector)
 
+// Server is the predicate function for server builders.
+type Server func(*sql.Selector)
+
 // ServerType is the predicate function for servertype builders.
 type ServerType func(*sql.Selector)
 

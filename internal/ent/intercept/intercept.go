@@ -20,6 +20,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/predicate"
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
@@ -407,6 +408,33 @@ func (f TraverseSSHKey) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.SSHKeyQuery", q)
 }
 
+// The ServerFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ServerFunc func(context.Context, *ent.ServerQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ServerFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ServerQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ServerQuery", q)
+}
+
+// The TraverseServer type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseServer func(context.Context, *ent.ServerQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseServer) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseServer) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ServerQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ServerQuery", q)
+}
+
 // The ServerTypeFunc type is an adapter to allow the use of ordinary function as a Querier.
 type ServerTypeFunc func(context.Context, *ent.ServerTypeQuery) (ent.Value, error)
 
@@ -542,6 +570,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ProjectMemberQuery, predicate.ProjectMember, projectmember.OrderOption]{typ: ent.TypeProjectMember, tq: q}, nil
 	case *ent.SSHKeyQuery:
 		return &query[*ent.SSHKeyQuery, predicate.SSHKey, sshkey.OrderOption]{typ: ent.TypeSSHKey, tq: q}, nil
+	case *ent.ServerQuery:
+		return &query[*ent.ServerQuery, predicate.Server, server.OrderOption]{typ: ent.TypeServer, tq: q}, nil
 	case *ent.ServerTypeQuery:
 		return &query[*ent.ServerTypeQuery, predicate.ServerType, servertype.OrderOption]{typ: ent.TypeServerType, tq: q}, nil
 	case *ent.SessionQuery:

@@ -295,3 +295,27 @@ func TestListPools(t *testing.T) {
 	require.Zero(t, total)
 	require.Empty(t, ps)
 }
+
+func TestAssignmentsMatchAllocate(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
+	require.NoError(t, err)
+	vlan := 7
+	_, err = e.svc.Create(ctx, ipam.PoolInput{LocationID: e.loc, Family: "ipv6", Bridge: "vmbr1", VLANTag: &vlan, CIDR: "2001:db8::/64",
+		Gateway: "2001:db8::1", DNS: []string{"2001:db8::53"}, RangeStart: "2001:db8::10", RangeEnd: "2001:db8::20"})
+	require.NoError(t, err)
+	a4, err := e.allocate(ctx, "ipv4", 5)
+	require.NoError(t, err)
+	a6, err := e.allocate(ctx, "ipv6", 5)
+	require.NoError(t, err)
+	_, err = e.allocate(ctx, "ipv4", 6)
+	require.NoError(t, err)
+
+	got, err := ipam.Assignments(ctx, e.ent, 5)
+	require.NoError(t, err)
+	require.Equal(t, []ipam.Assignment{a4, a6}, got, "ipv4 first, then ipv6")
+	got, err = ipam.Assignments(ctx, e.ent, 99)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}

@@ -23,6 +23,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
@@ -100,6 +101,7 @@ func checkColumn(t, c string) error {
 			project.Table:       project.ValidColumn,
 			projectmember.Table: projectmember.ValidColumn,
 			sshkey.Table:        sshkey.ValidColumn,
+			server.Table:        server.ValidColumn,
 			servertype.Table:    servertype.ValidColumn,
 			session.Table:       session.ValidColumn,
 			setting.Table:       setting.ValidColumn,

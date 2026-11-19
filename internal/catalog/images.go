@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -331,6 +332,20 @@ func insertTemplates(ctx context.Context, tx *ent.Client, imageID int64, ts []Te
 
 func (s *Service) GetImage(ctx context.Context, id int64) (Image, error) {
 	i, err := s.db.Image.Query().Where(image.ID(id)).WithTemplates(withTemplates).Only(ctx)
+	if err != nil {
+		return Image{}, notFound(err)
+	}
+	return toImage(i), nil
+}
+
+// ImageByRef finds an image by numeric id or by name.
+func (s *Service) ImageByRef(ctx context.Context, ref string) (Image, error) {
+	if id, err := strconv.ParseInt(ref, 10, 64); err == nil {
+		if i, err := s.GetImage(ctx, id); err == nil {
+			return i, nil
+		}
+	}
+	i, err := s.db.Image.Query().Where(image.Name(ref)).WithTemplates(withTemplates).Only(ctx)
 	if err != nil {
 		return Image{}, notFound(err)
 	}

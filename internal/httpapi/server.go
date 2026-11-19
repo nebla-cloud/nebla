@@ -21,6 +21,7 @@ import (
 	"github.com/Hexeption/nebla/internal/mail"
 	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/ratelimit"
+	"github.com/Hexeption/nebla/internal/servers"
 	"github.com/Hexeption/nebla/internal/settings"
 	"github.com/Hexeption/nebla/internal/sshkeys"
 	"github.com/Hexeption/nebla/web"
@@ -43,7 +44,7 @@ type Deps struct {
 	// Catalog defaults to a service keyed by Config.SecretKey with CatalogHooks.
 	Catalog      *catalog.Service
 	CatalogHooks catalog.Hooks
-	// Jobs enqueues background work; nil means no job runtime.
+	// Jobs enqueues background work; nil makes server create and delete return 503 service_unavailable.
 	Jobs *jobs.Jobs
 	// ScopedRoutes mounts extra non-strict routes under /v1 behind the project scope.
 	ScopedRoutes func(r chi.Router)
@@ -58,6 +59,7 @@ type server struct {
 	catalog    *catalog.Service
 	ipam       *ipam.Service
 	sshkeys    *sshkeys.Service
+	servers    *servers.Service
 	loginLimit *ratelimit.Limiter
 }
 
@@ -81,20 +83,23 @@ func New(deps Deps) http.Handler {
 		deps.Mail = mail.Noop{}
 	}
 	au := auth.New(deps.Ent, deps.Ext.Registration)
+	deps.ProjectHooks, deps.CatalogHooks = ServerHooks(deps.ProjectHooks, deps.CatalogHooks)
 	if deps.Catalog == nil {
 		deps.Catalog = catalog.New(deps.SQL, deps.Ent, catalog.Options{SecretKey: deps.Config.SecretKey, Hooks: deps.CatalogHooks})
 	}
+	proj := projects.New(deps.Ent, projects.Options{
+		Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
+	})
 	s := &server{
-		deps: deps,
-		log:  log,
-		auth: au,
-		projects: projects.New(deps.Ent, projects.Options{
-			Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
-		}),
+		deps:       deps,
+		log:        log,
+		auth:       au,
+		projects:   proj,
 		settings:   st,
 		catalog:    deps.Catalog,
 		ipam:       ipam.New(deps.SQL, deps.Ent),
 		sshkeys:    sshkeys.New(deps.Ent),
+		servers:    servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
 		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
 	}
 	strict := apigen.NewStrictHandlerWithOptions(s, []apigen.StrictMiddlewareFunc{s.authMiddleware}, apigen.StrictHTTPServerOptions{
@@ -125,6 +130,20 @@ func New(deps Deps) http.Handler {
 	r.Mount("/v1", api)
 	r.NotFound(spaHandler(web.Dist).ServeHTTP)
 	return r
+}
+
+// ServerHooks fills unset project and catalog hooks with the servers implementations.
+func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hooks) {
+	if p.HasServers == nil {
+		p.HasServers = servers.HasServers
+	}
+	if p.Usage == nil {
+		p.Usage = servers.Usage
+	}
+	if c.LocationInUse == nil {
+		c.LocationInUse = servers.LocationInUse
+	}
+	return p, c
 }
 
 func spaHandler(dist fs.FS) http.Handler {

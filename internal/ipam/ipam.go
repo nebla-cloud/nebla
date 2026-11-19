@@ -371,10 +371,6 @@ func Allocate(ctx context.Context, tx *ent.Client, locationID int64, family stri
 		return Assignment{}, err
 	}
 	for _, p := range pools {
-		prefix, err := netip.ParsePrefix(p.Cidr)
-		if err != nil {
-			return Assignment{}, fmt.Errorf("pool %d cidr: %w", p.ID, err)
-		}
 		start, err1 := netip.ParseAddr(p.RangeStart)
 		end, err2 := netip.ParseAddr(p.RangeEnd)
 		gw, err3 := netip.ParseAddr(p.Gateway)
@@ -392,17 +388,56 @@ func Allocate(ctx context.Context, tx *ent.Client, locationID int64, family stri
 		if _, err := tx.IPAllocation.Create().SetPoolID(p.ID).SetIP(ip.String()).SetServerID(serverID).Save(ctx); err != nil {
 			return Assignment{}, err
 		}
-		dns := make([]netip.Addr, 0, len(p.DNS))
-		for _, d := range p.DNS {
-			a, err := netip.ParseAddr(d)
-			if err != nil {
-				return Assignment{}, fmt.Errorf("pool %d dns: %w", p.ID, err)
-			}
-			dns = append(dns, a)
-		}
-		return Assignment{PoolID: p.ID, Family: p.Family, IP: ip, Prefix: prefix.Bits(), Gateway: gw, DNS: dns, Bridge: p.Bridge, VLAN: p.VlanTag}, nil
+		return assignment(p, ip)
 	}
 	return Assignment{}, conflict("ip_pool_exhausted", "no free "+family+" address in this location")
+}
+
+func assignment(p *ent.IPPool, ip netip.Addr) (Assignment, error) {
+	prefix, err1 := netip.ParsePrefix(p.Cidr)
+	gw, err2 := netip.ParseAddr(p.Gateway)
+	if err := firstErr(err1, err2); err != nil {
+		return Assignment{}, fmt.Errorf("pool %d: %w", p.ID, err)
+	}
+	dns := make([]netip.Addr, 0, len(p.DNS))
+	for _, d := range p.DNS {
+		a, err := netip.ParseAddr(d)
+		if err != nil {
+			return Assignment{}, fmt.Errorf("pool %d dns: %w", p.ID, err)
+		}
+		dns = append(dns, a)
+	}
+	return Assignment{PoolID: p.ID, Family: p.Family, IP: ip, Prefix: prefix.Bits(), Gateway: gw, DNS: dns, Bridge: p.Bridge, VLAN: p.VlanTag}, nil
+}
+
+// Assignments returns a server's addresses with their pool settings, ipv4 first.
+func Assignments(ctx context.Context, c *ent.Client, serverID int64) ([]Assignment, error) {
+	rows, err := c.IPAllocation.Query().Where(ipallocation.ServerID(serverID)).WithPool().All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Assignment, 0, len(rows))
+	for _, r := range rows {
+		ip, err := netip.ParseAddr(r.IP)
+		if err != nil {
+			return nil, fmt.Errorf("allocation %d: %w", r.ID, err)
+		}
+		a, err := assignment(r.Edges.Pool, ip)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	slices.SortFunc(out, func(a, b Assignment) int {
+		if a.Family != b.Family {
+			if a.Family == FamilyIPv4 {
+				return -1
+			}
+			return 1
+		}
+		return a.IP.Compare(b.IP)
+	})
+	return out, nil
 }
 
 func firstErr(errs ...error) error {

@@ -83,6 +83,14 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{ActionsColumns[2]},
 			},
+			{
+				Name:    "actions_resources_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ActionsColumns[4]},
+				Annotation: &entsql.IndexAnnotation{
+					Type: "GIN",
+				},
+			},
 		},
 	}
 	// IPAllocationsColumns holds the columns for the "ip_allocations" table.
@@ -416,6 +424,85 @@ var (
 			},
 		},
 	}
+	// ServersColumns holds the columns for the "servers" table.
+	ServersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "node", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "vmid", Type: field.TypeInt, Nullable: true},
+		{Name: "template_vmid", Type: field.TypeInt},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"initializing", "starting", "running", "stopping", "off", "rebuilding", "deleting", "missing", "error"}, Default: "initializing"},
+		{Name: "mac", Type: field.TypeString, Size: 2147483647},
+		{Name: "labels", Type: field.TypeJSON},
+		{Name: "iso_volid", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "disk_gb", Type: field.TypeInt},
+		{Name: "user_data", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "ssh_keys", Type: field.TypeJSON},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+		{Name: "server_type_id", Type: field.TypeInt64},
+		{Name: "image_id", Type: field.TypeInt64},
+	}
+	// ServersTable holds the schema information for the "servers" table.
+	ServersTable = &schema.Table{
+		Name:       "servers",
+		Columns:    ServersColumns,
+		PrimaryKey: []*schema.Column{ServersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "servers_projects_project",
+				Columns:    []*schema.Column{ServersColumns[13]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "servers_locations_location",
+				Columns:    []*schema.Column{ServersColumns[14]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "servers_server_types_server_type",
+				Columns:    []*schema.Column{ServersColumns[15]},
+				RefColumns: []*schema.Column{ServerTypesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "servers_images_image",
+				Columns:    []*schema.Column{ServersColumns[16]},
+				RefColumns: []*schema.Column{ImagesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "servers_project_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{ServersColumns[13], ServersColumns[1]},
+			},
+			{
+				Name:    "servers_mac_key",
+				Unique:  true,
+				Columns: []*schema.Column{ServersColumns[6]},
+			},
+			{
+				Name:    "servers_location_node_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ServersColumns[14], ServersColumns[2]},
+			},
+			{
+				Name:    "servers_server_type_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ServersColumns[15]},
+			},
+			{
+				Name:    "servers_image_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ServersColumns[16]},
+			},
+		},
+	}
 	// ServerTypesColumns holds the columns for the "server_types" table.
 	ServerTypesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -536,6 +623,7 @@ var (
 		ProjectsTable,
 		ProjectMembersTable,
 		SSHKeysTable,
+		ServersTable,
 		ServerTypesTable,
 		SessionsTable,
 		SettingsTable,
@@ -563,6 +651,10 @@ func init() {
 	SSHKeysTable.Annotation = &entsql.Annotation{
 		Table: "ssh_keys",
 	}
+	ServersTable.ForeignKeys[0].RefTable = ProjectsTable
+	ServersTable.ForeignKeys[1].RefTable = LocationsTable
+	ServersTable.ForeignKeys[2].RefTable = ServerTypesTable
+	ServersTable.ForeignKeys[3].RefTable = ImagesTable
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable
 	ServerTypeLocationsTable.ForeignKeys[0].RefTable = ServerTypesTable
 	ServerTypeLocationsTable.ForeignKeys[1].RefTable = LocationsTable

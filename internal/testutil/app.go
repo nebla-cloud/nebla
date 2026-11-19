@@ -64,6 +64,7 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 	for _, o := range opts {
 		o(&deps)
 	}
+	deps.ProjectHooks, deps.CatalogHooks = httpapi.ServerHooks(deps.ProjectHooks, deps.CatalogHooks)
 	if deps.Catalog == nil {
 		deps.Catalog = catalog.New(sqlDB, client, CatalogOptions(deps.CatalogHooks))
 	}

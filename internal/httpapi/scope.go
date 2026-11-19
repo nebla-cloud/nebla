@@ -14,19 +14,25 @@ import (
 // projectScopedOps are operations on project resources; they accept a token or a session plus Project-ID.
 // TestProjectScopedOpsMatchSpec keeps it equal to the spec's x-nebla-scope: project operations.
 var projectScopedOps = map[string]bool{
-	"GetLocations":   true,
-	"GetLocation":    true,
-	"GetServerTypes": true,
-	"GetServerType":  true,
-	"GetImages":      true,
-	"GetImage":       true,
-	"GetSshKeys":     true,
-	"PostSshKeys":    true,
-	"GetSshKey":      true,
-	"PutSshKey":      true,
-	"DeleteSshKey":   true,
-	"GetActions":     true,
-	"GetAction":      true,
+	"GetLocations":     true,
+	"GetLocation":      true,
+	"GetServerTypes":   true,
+	"GetServerType":    true,
+	"GetImages":        true,
+	"GetImage":         true,
+	"GetSshKeys":       true,
+	"PostSshKeys":      true,
+	"GetSshKey":        true,
+	"PutSshKey":        true,
+	"DeleteSshKey":     true,
+	"GetActions":       true,
+	"GetAction":        true,
+	"GetServers":       true,
+	"PostServers":      true,
+	"GetServer":        true,
+	"PutServer":        true,
+	"DeleteServer":     true,
+	"GetServerActions": true,
 }
 
 // RoleAPIToken is Scope.Role for requests authenticated by an API token.

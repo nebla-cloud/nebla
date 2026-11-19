@@ -17,6 +17,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
 	"github.com/Hexeption/nebla/internal/ent/schema"
+	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/sshkey"
@@ -195,6 +196,20 @@ func init() {
 	sshkeyDescCreatedAt := sshkeyFields[5].Descriptor()
 	// sshkey.DefaultCreatedAt holds the default value on creation for the created_at field.
 	sshkey.DefaultCreatedAt = sshkeyDescCreatedAt.Default.(func() time.Time)
+	serverFields := schema.Server{}.Fields()
+	_ = serverFields
+	// serverDescNode is the schema descriptor for node field.
+	serverDescNode := serverFields[4].Descriptor()
+	// server.DefaultNode holds the default value on creation for the node field.
+	server.DefaultNode = serverDescNode.Default.(string)
+	// serverDescUserData is the schema descriptor for user_data field.
+	serverDescUserData := serverFields[14].Descriptor()
+	// server.DefaultUserData holds the default value on creation for the user_data field.
+	server.DefaultUserData = serverDescUserData.Default.(string)
+	// serverDescCreatedAt is the schema descriptor for created_at field.
+	serverDescCreatedAt := serverFields[16].Descriptor()
+	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
+	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()
 	_ = servertypeFields
 	// servertypeDescDescription is the schema descriptor for description field.

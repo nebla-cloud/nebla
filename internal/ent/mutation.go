@@ -24,6 +24,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
 	"github.com/Hexeption/nebla/internal/ent/schema"
+	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
@@ -52,6 +53,7 @@ const (
 	TypeProject       = "Project"
 	TypeProjectMember = "ProjectMember"
 	TypeSSHKey        = "SSHKey"
+	TypeServer        = "Server"
 	TypeServerType    = "ServerType"
 	TypeSession       = "Session"
 	TypeSetting       = "Setting"
@@ -9727,6 +9729,1500 @@ func (m *SSHKeyMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown SSHKey edge %s", name)
+}
+
+// ServerMutation represents an operation that mutates the Server nodes in the graph.
+type ServerMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *int64
+	name               *string
+	node               *string
+	vmid               *int
+	addvmid            *int
+	template_vmid      *int
+	addtemplate_vmid   *int
+	status             *server.Status
+	mac                *string
+	labels             *map[string]string
+	iso_volid          *string
+	disk_gb            *int
+	adddisk_gb         *int
+	user_data          *string
+	ssh_keys           *[]string
+	appendssh_keys     []string
+	created_at         *time.Time
+	clearedFields      map[string]struct{}
+	project            *int64
+	clearedproject     bool
+	location           *int64
+	clearedlocation    bool
+	server_type        *int64
+	clearedserver_type bool
+	image              *int64
+	clearedimage       bool
+	done               bool
+	oldValue           func(context.Context) (*Server, error)
+	predicates         []predicate.Server
+}
+
+var _ ent.Mutation = (*ServerMutation)(nil)
+
+// serverOption allows management of the mutation configuration using functional options.
+type serverOption func(*ServerMutation)
+
+// newServerMutation creates new mutation for the Server entity.
+func newServerMutation(c config, op Op, opts ...serverOption) *ServerMutation {
+	m := &ServerMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeServer,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withServerID sets the ID field of the mutation.
+func withServerID(id int64) serverOption {
+	return func(m *ServerMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Server
+		)
+		m.oldValue = func(ctx context.Context) (*Server, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Server.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withServer sets the old Server of the mutation.
+func withServer(node *Server) serverOption {
+	return func(m *ServerMutation) {
+		m.oldValue = func(context.Context) (*Server, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ServerMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ServerMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Server entities.
+func (m *ServerMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ServerMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ServerMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Server.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *ServerMutation) SetProjectID(i int64) {
+	m.project = &i
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *ServerMutation) ProjectID() (r int64, exists bool) {
+	v := m.project
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldProjectID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *ServerMutation) ResetProjectID() {
+	m.project = nil
+}
+
+// SetName sets the "name" field.
+func (m *ServerMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *ServerMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *ServerMutation) ResetName() {
+	m.name = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *ServerMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *ServerMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *ServerMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetNode sets the "node" field.
+func (m *ServerMutation) SetNode(s string) {
+	m.node = &s
+}
+
+// Node returns the value of the "node" field in the mutation.
+func (m *ServerMutation) Node() (r string, exists bool) {
+	v := m.node
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNode returns the old "node" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldNode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNode: %w", err)
+	}
+	return oldValue.Node, nil
+}
+
+// ResetNode resets all changes to the "node" field.
+func (m *ServerMutation) ResetNode() {
+	m.node = nil
+}
+
+// SetVmid sets the "vmid" field.
+func (m *ServerMutation) SetVmid(i int) {
+	m.vmid = &i
+	m.addvmid = nil
+}
+
+// Vmid returns the value of the "vmid" field in the mutation.
+func (m *ServerMutation) Vmid() (r int, exists bool) {
+	v := m.vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVmid returns the old "vmid" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldVmid(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVmid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVmid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVmid: %w", err)
+	}
+	return oldValue.Vmid, nil
+}
+
+// AddVmid adds i to the "vmid" field.
+func (m *ServerMutation) AddVmid(i int) {
+	if m.addvmid != nil {
+		*m.addvmid += i
+	} else {
+		m.addvmid = &i
+	}
+}
+
+// AddedVmid returns the value that was added to the "vmid" field in this mutation.
+func (m *ServerMutation) AddedVmid() (r int, exists bool) {
+	v := m.addvmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearVmid clears the value of the "vmid" field.
+func (m *ServerMutation) ClearVmid() {
+	m.vmid = nil
+	m.addvmid = nil
+	m.clearedFields[server.FieldVmid] = struct{}{}
+}
+
+// VmidCleared returns if the "vmid" field was cleared in this mutation.
+func (m *ServerMutation) VmidCleared() bool {
+	_, ok := m.clearedFields[server.FieldVmid]
+	return ok
+}
+
+// ResetVmid resets all changes to the "vmid" field.
+func (m *ServerMutation) ResetVmid() {
+	m.vmid = nil
+	m.addvmid = nil
+	delete(m.clearedFields, server.FieldVmid)
+}
+
+// SetTemplateVmid sets the "template_vmid" field.
+func (m *ServerMutation) SetTemplateVmid(i int) {
+	m.template_vmid = &i
+	m.addtemplate_vmid = nil
+}
+
+// TemplateVmid returns the value of the "template_vmid" field in the mutation.
+func (m *ServerMutation) TemplateVmid() (r int, exists bool) {
+	v := m.template_vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTemplateVmid returns the old "template_vmid" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldTemplateVmid(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTemplateVmid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTemplateVmid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTemplateVmid: %w", err)
+	}
+	return oldValue.TemplateVmid, nil
+}
+
+// AddTemplateVmid adds i to the "template_vmid" field.
+func (m *ServerMutation) AddTemplateVmid(i int) {
+	if m.addtemplate_vmid != nil {
+		*m.addtemplate_vmid += i
+	} else {
+		m.addtemplate_vmid = &i
+	}
+}
+
+// AddedTemplateVmid returns the value that was added to the "template_vmid" field in this mutation.
+func (m *ServerMutation) AddedTemplateVmid() (r int, exists bool) {
+	v := m.addtemplate_vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTemplateVmid resets all changes to the "template_vmid" field.
+func (m *ServerMutation) ResetTemplateVmid() {
+	m.template_vmid = nil
+	m.addtemplate_vmid = nil
+}
+
+// SetServerTypeID sets the "server_type_id" field.
+func (m *ServerMutation) SetServerTypeID(i int64) {
+	m.server_type = &i
+}
+
+// ServerTypeID returns the value of the "server_type_id" field in the mutation.
+func (m *ServerMutation) ServerTypeID() (r int64, exists bool) {
+	v := m.server_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerTypeID returns the old "server_type_id" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldServerTypeID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerTypeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerTypeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerTypeID: %w", err)
+	}
+	return oldValue.ServerTypeID, nil
+}
+
+// ResetServerTypeID resets all changes to the "server_type_id" field.
+func (m *ServerMutation) ResetServerTypeID() {
+	m.server_type = nil
+}
+
+// SetImageID sets the "image_id" field.
+func (m *ServerMutation) SetImageID(i int64) {
+	m.image = &i
+}
+
+// ImageID returns the value of the "image_id" field in the mutation.
+func (m *ServerMutation) ImageID() (r int64, exists bool) {
+	v := m.image
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageID returns the old "image_id" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldImageID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageID: %w", err)
+	}
+	return oldValue.ImageID, nil
+}
+
+// ResetImageID resets all changes to the "image_id" field.
+func (m *ServerMutation) ResetImageID() {
+	m.image = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *ServerMutation) SetStatus(s server.Status) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *ServerMutation) Status() (r server.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldStatus(ctx context.Context) (v server.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *ServerMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetMAC sets the "mac" field.
+func (m *ServerMutation) SetMAC(s string) {
+	m.mac = &s
+}
+
+// MAC returns the value of the "mac" field in the mutation.
+func (m *ServerMutation) MAC() (r string, exists bool) {
+	v := m.mac
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMAC returns the old "mac" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldMAC(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMAC is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMAC requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMAC: %w", err)
+	}
+	return oldValue.MAC, nil
+}
+
+// ResetMAC resets all changes to the "mac" field.
+func (m *ServerMutation) ResetMAC() {
+	m.mac = nil
+}
+
+// SetLabels sets the "labels" field.
+func (m *ServerMutation) SetLabels(value map[string]string) {
+	m.labels = &value
+}
+
+// Labels returns the value of the "labels" field in the mutation.
+func (m *ServerMutation) Labels() (r map[string]string, exists bool) {
+	v := m.labels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabels returns the old "labels" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldLabels(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabels is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabels requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabels: %w", err)
+	}
+	return oldValue.Labels, nil
+}
+
+// ResetLabels resets all changes to the "labels" field.
+func (m *ServerMutation) ResetLabels() {
+	m.labels = nil
+}
+
+// SetIsoVolid sets the "iso_volid" field.
+func (m *ServerMutation) SetIsoVolid(s string) {
+	m.iso_volid = &s
+}
+
+// IsoVolid returns the value of the "iso_volid" field in the mutation.
+func (m *ServerMutation) IsoVolid() (r string, exists bool) {
+	v := m.iso_volid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsoVolid returns the old "iso_volid" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldIsoVolid(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsoVolid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsoVolid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsoVolid: %w", err)
+	}
+	return oldValue.IsoVolid, nil
+}
+
+// ClearIsoVolid clears the value of the "iso_volid" field.
+func (m *ServerMutation) ClearIsoVolid() {
+	m.iso_volid = nil
+	m.clearedFields[server.FieldIsoVolid] = struct{}{}
+}
+
+// IsoVolidCleared returns if the "iso_volid" field was cleared in this mutation.
+func (m *ServerMutation) IsoVolidCleared() bool {
+	_, ok := m.clearedFields[server.FieldIsoVolid]
+	return ok
+}
+
+// ResetIsoVolid resets all changes to the "iso_volid" field.
+func (m *ServerMutation) ResetIsoVolid() {
+	m.iso_volid = nil
+	delete(m.clearedFields, server.FieldIsoVolid)
+}
+
+// SetDiskGB sets the "disk_gb" field.
+func (m *ServerMutation) SetDiskGB(i int) {
+	m.disk_gb = &i
+	m.adddisk_gb = nil
+}
+
+// DiskGB returns the value of the "disk_gb" field in the mutation.
+func (m *ServerMutation) DiskGB() (r int, exists bool) {
+	v := m.disk_gb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDiskGB returns the old "disk_gb" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldDiskGB(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDiskGB is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDiskGB requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDiskGB: %w", err)
+	}
+	return oldValue.DiskGB, nil
+}
+
+// AddDiskGB adds i to the "disk_gb" field.
+func (m *ServerMutation) AddDiskGB(i int) {
+	if m.adddisk_gb != nil {
+		*m.adddisk_gb += i
+	} else {
+		m.adddisk_gb = &i
+	}
+}
+
+// AddedDiskGB returns the value that was added to the "disk_gb" field in this mutation.
+func (m *ServerMutation) AddedDiskGB() (r int, exists bool) {
+	v := m.adddisk_gb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDiskGB resets all changes to the "disk_gb" field.
+func (m *ServerMutation) ResetDiskGB() {
+	m.disk_gb = nil
+	m.adddisk_gb = nil
+}
+
+// SetUserData sets the "user_data" field.
+func (m *ServerMutation) SetUserData(s string) {
+	m.user_data = &s
+}
+
+// UserData returns the value of the "user_data" field in the mutation.
+func (m *ServerMutation) UserData() (r string, exists bool) {
+	v := m.user_data
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserData returns the old "user_data" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldUserData(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserData is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserData requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserData: %w", err)
+	}
+	return oldValue.UserData, nil
+}
+
+// ResetUserData resets all changes to the "user_data" field.
+func (m *ServerMutation) ResetUserData() {
+	m.user_data = nil
+}
+
+// SetSSHKeys sets the "ssh_keys" field.
+func (m *ServerMutation) SetSSHKeys(s []string) {
+	m.ssh_keys = &s
+	m.appendssh_keys = nil
+}
+
+// SSHKeys returns the value of the "ssh_keys" field in the mutation.
+func (m *ServerMutation) SSHKeys() (r []string, exists bool) {
+	v := m.ssh_keys
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSSHKeys returns the old "ssh_keys" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldSSHKeys(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSSHKeys is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSSHKeys requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSSHKeys: %w", err)
+	}
+	return oldValue.SSHKeys, nil
+}
+
+// AppendSSHKeys adds s to the "ssh_keys" field.
+func (m *ServerMutation) AppendSSHKeys(s []string) {
+	m.appendssh_keys = append(m.appendssh_keys, s...)
+}
+
+// AppendedSSHKeys returns the list of values that were appended to the "ssh_keys" field in this mutation.
+func (m *ServerMutation) AppendedSSHKeys() ([]string, bool) {
+	if len(m.appendssh_keys) == 0 {
+		return nil, false
+	}
+	return m.appendssh_keys, true
+}
+
+// ResetSSHKeys resets all changes to the "ssh_keys" field.
+func (m *ServerMutation) ResetSSHKeys() {
+	m.ssh_keys = nil
+	m.appendssh_keys = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ServerMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ServerMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ServerMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (m *ServerMutation) ClearProject() {
+	m.clearedproject = true
+	m.clearedFields[server.FieldProjectID] = struct{}{}
+}
+
+// ProjectCleared reports if the "project" edge to the Project entity was cleared.
+func (m *ServerMutation) ProjectCleared() bool {
+	return m.clearedproject
+}
+
+// ProjectIDs returns the "project" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ProjectID instead. It exists only for internal usage by the builders.
+func (m *ServerMutation) ProjectIDs() (ids []int64) {
+	if id := m.project; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetProject resets all changes to the "project" edge.
+func (m *ServerMutation) ResetProject() {
+	m.project = nil
+	m.clearedproject = false
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *ServerMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[server.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *ServerMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *ServerMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *ServerMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// ClearServerType clears the "server_type" edge to the ServerType entity.
+func (m *ServerMutation) ClearServerType() {
+	m.clearedserver_type = true
+	m.clearedFields[server.FieldServerTypeID] = struct{}{}
+}
+
+// ServerTypeCleared reports if the "server_type" edge to the ServerType entity was cleared.
+func (m *ServerMutation) ServerTypeCleared() bool {
+	return m.clearedserver_type
+}
+
+// ServerTypeIDs returns the "server_type" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServerTypeID instead. It exists only for internal usage by the builders.
+func (m *ServerMutation) ServerTypeIDs() (ids []int64) {
+	if id := m.server_type; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetServerType resets all changes to the "server_type" edge.
+func (m *ServerMutation) ResetServerType() {
+	m.server_type = nil
+	m.clearedserver_type = false
+}
+
+// ClearImage clears the "image" edge to the Image entity.
+func (m *ServerMutation) ClearImage() {
+	m.clearedimage = true
+	m.clearedFields[server.FieldImageID] = struct{}{}
+}
+
+// ImageCleared reports if the "image" edge to the Image entity was cleared.
+func (m *ServerMutation) ImageCleared() bool {
+	return m.clearedimage
+}
+
+// ImageIDs returns the "image" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ImageID instead. It exists only for internal usage by the builders.
+func (m *ServerMutation) ImageIDs() (ids []int64) {
+	if id := m.image; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetImage resets all changes to the "image" edge.
+func (m *ServerMutation) ResetImage() {
+	m.image = nil
+	m.clearedimage = false
+}
+
+// Where appends a list predicates to the ServerMutation builder.
+func (m *ServerMutation) Where(ps ...predicate.Server) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ServerMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ServerMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Server, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ServerMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ServerMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Server).
+func (m *ServerMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ServerMutation) Fields() []string {
+	fields := make([]string, 0, 16)
+	if m.project != nil {
+		fields = append(fields, server.FieldProjectID)
+	}
+	if m.name != nil {
+		fields = append(fields, server.FieldName)
+	}
+	if m.location != nil {
+		fields = append(fields, server.FieldLocationID)
+	}
+	if m.node != nil {
+		fields = append(fields, server.FieldNode)
+	}
+	if m.vmid != nil {
+		fields = append(fields, server.FieldVmid)
+	}
+	if m.template_vmid != nil {
+		fields = append(fields, server.FieldTemplateVmid)
+	}
+	if m.server_type != nil {
+		fields = append(fields, server.FieldServerTypeID)
+	}
+	if m.image != nil {
+		fields = append(fields, server.FieldImageID)
+	}
+	if m.status != nil {
+		fields = append(fields, server.FieldStatus)
+	}
+	if m.mac != nil {
+		fields = append(fields, server.FieldMAC)
+	}
+	if m.labels != nil {
+		fields = append(fields, server.FieldLabels)
+	}
+	if m.iso_volid != nil {
+		fields = append(fields, server.FieldIsoVolid)
+	}
+	if m.disk_gb != nil {
+		fields = append(fields, server.FieldDiskGB)
+	}
+	if m.user_data != nil {
+		fields = append(fields, server.FieldUserData)
+	}
+	if m.ssh_keys != nil {
+		fields = append(fields, server.FieldSSHKeys)
+	}
+	if m.created_at != nil {
+		fields = append(fields, server.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ServerMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case server.FieldProjectID:
+		return m.ProjectID()
+	case server.FieldName:
+		return m.Name()
+	case server.FieldLocationID:
+		return m.LocationID()
+	case server.FieldNode:
+		return m.Node()
+	case server.FieldVmid:
+		return m.Vmid()
+	case server.FieldTemplateVmid:
+		return m.TemplateVmid()
+	case server.FieldServerTypeID:
+		return m.ServerTypeID()
+	case server.FieldImageID:
+		return m.ImageID()
+	case server.FieldStatus:
+		return m.Status()
+	case server.FieldMAC:
+		return m.MAC()
+	case server.FieldLabels:
+		return m.Labels()
+	case server.FieldIsoVolid:
+		return m.IsoVolid()
+	case server.FieldDiskGB:
+		return m.DiskGB()
+	case server.FieldUserData:
+		return m.UserData()
+	case server.FieldSSHKeys:
+		return m.SSHKeys()
+	case server.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case server.FieldProjectID:
+		return m.OldProjectID(ctx)
+	case server.FieldName:
+		return m.OldName(ctx)
+	case server.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case server.FieldNode:
+		return m.OldNode(ctx)
+	case server.FieldVmid:
+		return m.OldVmid(ctx)
+	case server.FieldTemplateVmid:
+		return m.OldTemplateVmid(ctx)
+	case server.FieldServerTypeID:
+		return m.OldServerTypeID(ctx)
+	case server.FieldImageID:
+		return m.OldImageID(ctx)
+	case server.FieldStatus:
+		return m.OldStatus(ctx)
+	case server.FieldMAC:
+		return m.OldMAC(ctx)
+	case server.FieldLabels:
+		return m.OldLabels(ctx)
+	case server.FieldIsoVolid:
+		return m.OldIsoVolid(ctx)
+	case server.FieldDiskGB:
+		return m.OldDiskGB(ctx)
+	case server.FieldUserData:
+		return m.OldUserData(ctx)
+	case server.FieldSSHKeys:
+		return m.OldSSHKeys(ctx)
+	case server.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Server field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ServerMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case server.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
+		return nil
+	case server.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case server.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case server.FieldNode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNode(v)
+		return nil
+	case server.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVmid(v)
+		return nil
+	case server.FieldTemplateVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTemplateVmid(v)
+		return nil
+	case server.FieldServerTypeID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerTypeID(v)
+		return nil
+	case server.FieldImageID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageID(v)
+		return nil
+	case server.FieldStatus:
+		v, ok := value.(server.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case server.FieldMAC:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMAC(v)
+		return nil
+	case server.FieldLabels:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabels(v)
+		return nil
+	case server.FieldIsoVolid:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsoVolid(v)
+		return nil
+	case server.FieldDiskGB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDiskGB(v)
+		return nil
+	case server.FieldUserData:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserData(v)
+		return nil
+	case server.FieldSSHKeys:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSSHKeys(v)
+		return nil
+	case server.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Server field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ServerMutation) AddedFields() []string {
+	var fields []string
+	if m.addvmid != nil {
+		fields = append(fields, server.FieldVmid)
+	}
+	if m.addtemplate_vmid != nil {
+		fields = append(fields, server.FieldTemplateVmid)
+	}
+	if m.adddisk_gb != nil {
+		fields = append(fields, server.FieldDiskGB)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case server.FieldVmid:
+		return m.AddedVmid()
+	case server.FieldTemplateVmid:
+		return m.AddedTemplateVmid()
+	case server.FieldDiskGB:
+		return m.AddedDiskGB()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ServerMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case server.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVmid(v)
+		return nil
+	case server.FieldTemplateVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTemplateVmid(v)
+		return nil
+	case server.FieldDiskGB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDiskGB(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Server numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ServerMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(server.FieldVmid) {
+		fields = append(fields, server.FieldVmid)
+	}
+	if m.FieldCleared(server.FieldIsoVolid) {
+		fields = append(fields, server.FieldIsoVolid)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ServerMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ServerMutation) ClearField(name string) error {
+	switch name {
+	case server.FieldVmid:
+		m.ClearVmid()
+		return nil
+	case server.FieldIsoVolid:
+		m.ClearIsoVolid()
+		return nil
+	}
+	return fmt.Errorf("unknown Server nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ServerMutation) ResetField(name string) error {
+	switch name {
+	case server.FieldProjectID:
+		m.ResetProjectID()
+		return nil
+	case server.FieldName:
+		m.ResetName()
+		return nil
+	case server.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case server.FieldNode:
+		m.ResetNode()
+		return nil
+	case server.FieldVmid:
+		m.ResetVmid()
+		return nil
+	case server.FieldTemplateVmid:
+		m.ResetTemplateVmid()
+		return nil
+	case server.FieldServerTypeID:
+		m.ResetServerTypeID()
+		return nil
+	case server.FieldImageID:
+		m.ResetImageID()
+		return nil
+	case server.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case server.FieldMAC:
+		m.ResetMAC()
+		return nil
+	case server.FieldLabels:
+		m.ResetLabels()
+		return nil
+	case server.FieldIsoVolid:
+		m.ResetIsoVolid()
+		return nil
+	case server.FieldDiskGB:
+		m.ResetDiskGB()
+		return nil
+	case server.FieldUserData:
+		m.ResetUserData()
+		return nil
+	case server.FieldSSHKeys:
+		m.ResetSSHKeys()
+		return nil
+	case server.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Server field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ServerMutation) AddedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.project != nil {
+		edges = append(edges, server.EdgeProject)
+	}
+	if m.location != nil {
+		edges = append(edges, server.EdgeLocation)
+	}
+	if m.server_type != nil {
+		edges = append(edges, server.EdgeServerType)
+	}
+	if m.image != nil {
+		edges = append(edges, server.EdgeImage)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ServerMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case server.EdgeProject:
+		if id := m.project; id != nil {
+			return []ent.Value{*id}
+		}
+	case server.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	case server.EdgeServerType:
+		if id := m.server_type; id != nil {
+			return []ent.Value{*id}
+		}
+	case server.EdgeImage:
+		if id := m.image; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ServerMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 4)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ServerMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ServerMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.clearedproject {
+		edges = append(edges, server.EdgeProject)
+	}
+	if m.clearedlocation {
+		edges = append(edges, server.EdgeLocation)
+	}
+	if m.clearedserver_type {
+		edges = append(edges, server.EdgeServerType)
+	}
+	if m.clearedimage {
+		edges = append(edges, server.EdgeImage)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ServerMutation) EdgeCleared(name string) bool {
+	switch name {
+	case server.EdgeProject:
+		return m.clearedproject
+	case server.EdgeLocation:
+		return m.clearedlocation
+	case server.EdgeServerType:
+		return m.clearedserver_type
+	case server.EdgeImage:
+		return m.clearedimage
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ServerMutation) ClearEdge(name string) error {
+	switch name {
+	case server.EdgeProject:
+		m.ClearProject()
+		return nil
+	case server.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	case server.EdgeServerType:
+		m.ClearServerType()
+		return nil
+	case server.EdgeImage:
+		m.ClearImage()
+		return nil
+	}
+	return fmt.Errorf("unknown Server unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ServerMutation) ResetEdge(name string) error {
+	switch name {
+	case server.EdgeProject:
+		m.ResetProject()
+		return nil
+	case server.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	case server.EdgeServerType:
+		m.ResetServerType()
+		return nil
+	case server.EdgeImage:
+		m.ResetImage()
+		return nil
+	}
+	return fmt.Errorf("unknown Server edge %s", name)
 }
 
 // ServerTypeMutation represents an operation that mutates the ServerType nodes in the graph.

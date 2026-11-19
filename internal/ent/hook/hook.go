@@ -153,6 +153,18 @@ func (f SSHKeyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SSHKeyMutation", m)
 }
 
+// The ServerFunc type is an adapter to allow the use of ordinary
+// function as Server mutator.
+type ServerFunc func(context.Context, *ent.ServerMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ServerFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ServerMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ServerMutation", m)
+}
+
 // The ServerTypeFunc type is an adapter to allow the use of ordinary
 // function as ServerType mutator.
 type ServerTypeFunc func(context.Context, *ent.ServerTypeMutation) (ent.Value, error)
