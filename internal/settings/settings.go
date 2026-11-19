@@ -5,21 +5,21 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/Hexeption/nebla/internal/db/gen"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/setting"
 )
 
-type Store struct{ q *gen.Queries }
+type Store struct{ db *ent.Client }
 
-func New(pool *pgxpool.Pool) *Store { return &Store{q: gen.New(pool)} }
+func New(db *ent.Client) *Store { return &Store{db: db} }
 
 // Bool implements ext.SettingsReader.
 func (s *Store) Bool(ctx context.Context, key string, def bool) bool {
-	v, err := s.q.GetSetting(ctx, key)
+	row, err := s.db.Setting.Get(ctx, key)
 	if err != nil {
 		return def
 	}
-	b, err := strconv.ParseBool(v)
+	b, err := strconv.ParseBool(row.Value)
 	if err != nil {
 		return def
 	}
@@ -27,5 +27,6 @@ func (s *Store) Bool(ctx context.Context, key string, def bool) bool {
 }
 
 func (s *Store) SetBool(ctx context.Context, key string, v bool) error {
-	return s.q.UpsertSetting(ctx, gen.UpsertSettingParams{Key: key, Value: strconv.FormatBool(v)})
+	return s.db.Setting.Create().SetID(key).SetValue(strconv.FormatBool(v)).
+		OnConflictColumns(setting.FieldID).UpdateValue().Exec(ctx)
 }

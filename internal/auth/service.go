@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/db/gen"
+	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/session"
+	"github.com/Hexeption/nebla/internal/ent/user"
 	"github.com/Hexeption/nebla/internal/ext"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type User struct {
@@ -25,21 +25,20 @@ type User struct {
 	TOTPEnabled bool
 }
 
-func toUser(u gen.User) User {
+func toUser(u *ent.User) User {
 	return User{ID: u.ID, Email: u.Email, Name: u.Name, IsAdmin: u.IsAdmin, TOTPEnabled: u.TotpEnabled}
 }
 
 type Service struct {
-	pool *pgxpool.Pool
-	q    *gen.Queries
-	reg  ext.Registration
+	db  *ent.Client
+	reg ext.Registration
 	// dummyHash keeps unknown-email logins as slow as real ones.
 	dummyHash string
 }
 
-func New(pool *pgxpool.Pool, reg ext.Registration) *Service {
+func New(db *ent.Client, reg ext.Registration) *Service {
 	h, _ := HashPassword(context.Background(), "nebla-dummy-password")
-	return &Service{pool: pool, q: gen.New(pool), reg: reg, dummyHash: h}
+	return &Service{db: db, reg: reg, dummyHash: h}
 }
 
 var (
@@ -75,27 +74,26 @@ func (s *Service) Setup(ctx context.Context, email, pw, name string) (User, erro
 	if err != nil {
 		return User{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return User{}, err
 	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, "select pg_advisory_xact_lock(4001)"); err != nil {
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, "select pg_advisory_xact_lock(4001)"); err != nil {
 		return User{}, err
 	}
-	qt := s.q.WithTx(tx)
-	n, err := qt.CountUsers(ctx)
+	n, err := tx.User.Query().Count(ctx)
 	if err != nil {
 		return User{}, err
 	}
 	if n > 0 {
 		return User{}, apierr.New(http.StatusConflict, "already_setup", "setup has already been completed")
 	}
-	row, err := qt.CreateUser(ctx, gen.CreateUserParams{Email: email, Name: name, PasswordHash: hash, IsAdmin: true})
+	row, err := tx.User.Create().SetEmail(email).SetName(name).SetPasswordHash(hash).SetIsAdmin(true).Save(ctx)
 	if err != nil {
 		return User{}, mapCreateErr(err)
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return User{}, err
 	}
 	if err := s.reg.OnUserCreated(ctx, row.ID); err != nil {
@@ -114,7 +112,7 @@ func (s *Service) CreateUser(ctx context.Context, email, pw, name string, admin 
 	if err != nil {
 		return User{}, err
 	}
-	row, err := s.q.CreateUser(ctx, gen.CreateUserParams{Email: email, Name: name, PasswordHash: hash, IsAdmin: admin})
+	row, err := s.db.User.Create().SetEmail(email).SetName(name).SetPasswordHash(hash).SetIsAdmin(admin).Save(ctx)
 	if err != nil {
 		return User{}, mapCreateErr(err)
 	}
@@ -134,8 +132,8 @@ func mapCreateErr(err error) error {
 
 // Login verifies credentials (and the TOTP code when enabled) and returns a session token.
 func (s *Service) Login(ctx context.Context, email, pw, code string) (string, error) {
-	u, err := s.q.GetUserByEmail(ctx, NormalizeEmail(email))
-	if errors.Is(err, pgx.ErrNoRows) {
+	u, err := s.db.User.Query().Where(user.Email(NormalizeEmail(email))).Only(ctx)
+	if ent.IsNotFound(err) {
 		VerifyPassword(ctx, s.dummyHash, pw)
 		return "", errInvalidCreds
 	}
@@ -149,7 +147,7 @@ func (s *Service) Login(ctx context.Context, email, pw, code string) (string, er
 		if code == "" {
 			return "", apierr.New(http.StatusUnauthorized, "totp_required", "a TOTP code is required")
 		}
-		if !u.TotpSecret.Valid || !validTOTP(u.TotpSecret.String, code) {
+		if u.TotpSecret == nil || !validTOTP(*u.TotpSecret, code) {
 			return "", errInvalidCreds
 		}
 	}
@@ -166,22 +164,21 @@ func (s *Service) newSession(ctx context.Context, userID int64) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	err = s.q.CreateSession(ctx, gen.CreateSessionParams{
-		TokenHash: hash, UserID: userID, ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(SessionTTL), Valid: true},
-	})
+	err = s.db.Session.Create().SetID(hash).SetUserID(userID).SetExpiresAt(time.Now().Add(SessionTTL)).Exec(ctx)
 	return tok, err
 }
 
 func (s *Service) Logout(ctx context.Context, token string) error {
-	return s.q.DeleteSession(ctx, hashToken(token))
+	_, err := s.db.Session.Delete().Where(session.ID(hashToken(token))).Exec(ctx)
+	return err
 }
 
 func (s *Service) UserFromSession(ctx context.Context, token string) (User, error) {
 	if token == "" {
 		return User{}, errUnauthorized
 	}
-	u, err := s.q.GetSessionUser(ctx, hashToken(token))
-	if errors.Is(err, pgx.ErrNoRows) {
+	u, err := s.db.Session.Query().Where(session.ID(hashToken(token)), sessionLive).QueryUser().Only(ctx)
+	if ent.IsNotFound(err) {
 		return User{}, errUnauthorized
 	}
 	if err != nil {
@@ -190,9 +187,14 @@ func (s *Service) UserFromSession(ctx context.Context, token string) (User, erro
 	return toUser(u), nil
 }
 
+// sessionLive checks expiry against the database clock.
+func sessionLive(s *entsql.Selector) {
+	s.Where(entsql.ExprP(s.C(session.FieldExpiresAt) + " > now()"))
+}
+
 // EnrollTOTP stores a pending secret and returns it with its otpauth URL.
 func (s *Service) EnrollTOTP(ctx context.Context, userID int64) (secret, url string, err error) {
-	u, err := s.q.GetUser(ctx, userID)
+	u, err := s.db.User.Get(ctx, userID)
 	if err != nil {
 		return "", "", err
 	}
@@ -203,7 +205,7 @@ func (s *Service) EnrollTOTP(ctx context.Context, userID int64) (secret, url str
 	if err != nil {
 		return "", "", err
 	}
-	if err := s.q.SetTOTPPending(ctx, gen.SetTOTPPendingParams{ID: userID, TotpPendingSecret: pgtype.Text{String: key.Secret(), Valid: true}}); err != nil {
+	if err := s.db.User.UpdateOneID(userID).SetTotpPendingSecret(key.Secret()).Exec(ctx); err != nil {
 		return "", "", err
 	}
 	return key.Secret(), key.URL(), nil
@@ -211,26 +213,28 @@ func (s *Service) EnrollTOTP(ctx context.Context, userID int64) (secret, url str
 
 // VerifyTOTP activates the pending secret when code is valid.
 func (s *Service) VerifyTOTP(ctx context.Context, userID int64, code string) error {
-	u, err := s.q.GetUser(ctx, userID)
+	u, err := s.db.User.Get(ctx, userID)
 	if err != nil {
 		return err
 	}
-	if !u.TotpPendingSecret.Valid {
+	if u.TotpPendingSecret == nil {
 		return apierr.New(http.StatusUnprocessableEntity, "totp_not_enrolled", "start enrollment first")
 	}
-	if !validTOTP(u.TotpPendingSecret.String, code) {
+	if !validTOTP(*u.TotpPendingSecret, code) {
 		return errInvalidCode
 	}
-	return s.q.EnableTOTP(ctx, userID)
+	return s.db.User.UpdateOneID(userID).
+		Modify(func(u *entsql.UpdateBuilder) { u.Set(user.FieldTotpSecret, entsql.Expr(user.FieldTotpPendingSecret)) }).
+		ClearTotpPendingSecret().SetTotpEnabled(true).Exec(ctx)
 }
 
 func (s *Service) DisableTOTP(ctx context.Context, userID int64, code string) error {
-	u, err := s.q.GetUser(ctx, userID)
+	u, err := s.db.User.Get(ctx, userID)
 	if err != nil {
 		return err
 	}
-	if !u.TotpEnabled || !u.TotpSecret.Valid || !validTOTP(u.TotpSecret.String, code) {
+	if !u.TotpEnabled || u.TotpSecret == nil || !validTOTP(*u.TotpSecret, code) {
 		return errInvalidCode
 	}
-	return s.q.DisableTOTP(ctx, userID)
+	return s.db.User.UpdateOneID(userID).ClearTotpSecret().ClearTotpPendingSecret().SetTotpEnabled(false).Exec(ctx)
 }

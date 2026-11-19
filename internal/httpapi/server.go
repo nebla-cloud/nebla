@@ -12,6 +12,7 @@ import (
 	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/Hexeption/nebla/internal/auth"
 	"github.com/Hexeption/nebla/internal/config"
+	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/ratelimit"
 	"github.com/Hexeption/nebla/internal/settings"
@@ -23,6 +24,7 @@ import (
 
 type Deps struct {
 	Pool   *pgxpool.Pool
+	Ent    *ent.Client
 	Config config.Config
 	Logger *slog.Logger
 	Ext    ext.Extensions
@@ -50,12 +52,12 @@ func New(deps Deps) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
-	st := settings.New(deps.Pool)
+	st := settings.New(deps.Ent)
 	deps.Ext = deps.Ext.WithDefaults(st)
 	s := &server{
 		deps:       deps,
 		log:        log,
-		auth:       auth.New(deps.Pool, deps.Ext.Registration),
+		auth:       auth.New(deps.Ent, deps.Ext.Registration),
 		settings:   st,
 		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
 	}

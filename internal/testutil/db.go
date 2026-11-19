@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/db"
+	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -39,4 +40,16 @@ func NewDB(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	return pool
+}
+
+// NewEnt starts a migrated Postgres like NewDB and returns an ent client over it.
+func NewEnt(t *testing.T) *ent.Client {
+	t.Helper()
+	return entFor(t, NewDB(t))
+}
+
+func entFor(t *testing.T, pool *pgxpool.Pool) *ent.Client {
+	c := db.NewEnt(pool)
+	t.Cleanup(func() { c.Close() })
+	return c
 }
