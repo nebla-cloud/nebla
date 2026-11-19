@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/db"
 	"github.com/Hexeption/nebla/internal/ent"
@@ -111,4 +113,48 @@ func TestWithTxEdgeWritesShareTx(t *testing.T) {
 	require.True(t, st.Deprecated)
 	require.Len(t, st.Edges.Locations, 1)
 	require.Equal(t, []string{"kept"}, client.Setting.Query().IDsX(ctx))
+}
+
+func TestWithTxRollsBackOnGoexitAndPanic(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.NewDB(t)
+	client, sqlDB := db.NewEnt(pool)
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, client.Setting.Create().SetID("k").SetValue("1").Exec(ctx))
+	lock := func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, "select 1 from settings where key = 'k' for update")
+		return err
+	}
+
+	locked := make(chan error, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = db.WithTx(ctx, sqlDB, func(tx *sql.Tx, _ *ent.Client) error {
+			locked <- lock(ctx, tx)
+			runtime.Goexit()
+			return nil
+		})
+	}()
+	require.NoError(t, <-locked)
+	<-done
+
+	tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	require.NoError(t, db.WithTx(tctx, sqlDB, func(tx *sql.Tx, _ *ent.Client) error { return lock(tctx, tx) }),
+		"a Goexit inside WithTx must release the row lock")
+
+	require.PanicsWithValue(t, "boom", func() {
+		_ = db.WithTx(ctx, sqlDB, func(tx *sql.Tx, etx *ent.Client) error {
+			if err := lock(ctx, tx); err != nil {
+				return err
+			}
+			etx.Setting.UpdateOneID("k").SetValue("2").ExecX(ctx)
+			panic("boom")
+		})
+	})
+	require.Equal(t, "1", client.Setting.GetX(ctx, "k").Value, "panics roll back")
+	tctx2, cancel2 := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel2()
+	require.NoError(t, db.WithTx(tctx2, sqlDB, func(tx *sql.Tx, _ *ent.Client) error { return lock(tctx2, tx) }))
 }

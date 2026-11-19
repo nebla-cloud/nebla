@@ -43,33 +43,32 @@ func EntFromSQL(sqlDB *sql.DB) *ent.Client {
 	return ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, sqlDB)))
 }
 
-// WithTx runs fn in one *sql.Tx with an ent client bound to it; fn's error rolls back.
+// WithTx runs fn in one *sql.Tx with an ent client bound to it; any exit but a commit rolls back.
 func WithTx(ctx context.Context, sqlDB *sql.DB, fn func(tx *sql.Tx, etx *ent.Client) error) error {
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
+	committed := false
+	// Runs on error returns, panics (which keep propagating) and runtime.Goexit alike.
 	defer func() {
-		if p := recover(); p != nil {
+		if !committed {
 			_ = tx.Rollback()
-			panic(p)
 		}
 	}()
 	// ent's own Tx over the joined driver: builders join it and a nested Tx() fails with ent.ErrTxStarted.
 	entTx, err := ent.NewClient(ent.Driver(joinDriver{entsql.NewDriver(dialect.Postgres, entsql.Conn{ExecQuerier: tx})})).Tx(ctx)
 	if err != nil {
-		_ = tx.Rollback()
 		return err
 	}
 	if err := fn(tx, entTx.Client()); err != nil {
 		_ = entTx.Rollback()
-		_ = tx.Rollback()
 		return err
 	}
 	if err := entTx.Commit(); err != nil {
-		_ = tx.Rollback()
 		return err
 	}
+	committed = true
 	return tx.Commit()
 }
 
