@@ -20,3 +20,5 @@ const (
 
 // SetRebuildAfterStep installs a hook called after each rebuild step is persisted.
 func SetRebuildAfterStep(w *RebuildServerWorker, f func(step int)) { w.afterStep = f }
+
+var CloudinitDrives = cloudinitDrives

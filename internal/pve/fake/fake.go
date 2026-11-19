@@ -143,6 +143,14 @@ func (s *Server) AddTemplate(nodeName string, vmid int, storageID string) {
 	}}
 }
 
+// SetVMConfig sets one config key on a VM or template, e.g. a cloud-init drive clones then inherit.
+func (s *Server) SetVMConfig(vmid int, key, value string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep()
+	s.vms[vmid].config[key] = value
+}
+
 // AddVM adds a stopped, non-template VM with a scsi0 disk.
 func (s *Server) AddVM(nodeName string, vmid int, name string) {
 	s.mu.Lock()
