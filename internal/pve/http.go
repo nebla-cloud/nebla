@@ -1,6 +1,7 @@
 package pve
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
@@ -412,32 +413,31 @@ func (c *httpClient) settle(ctx context.Context, node string, data string) error
 	return nil
 }
 
+// UploadISO buffers the form because pveproxy rejects chunked uploads; seed ISOs are small.
 func (c *httpClient) UploadISO(ctx context.Context, node, storage, filename string, r io.Reader) error {
-	pr, pw := io.Pipe()
-	mw := multipart.NewWriter(pw)
-	go func() {
-		err := mw.WriteField("content", "iso")
-		if err == nil {
-			var part io.Writer
-			if part, err = mw.CreateFormFile("filename", filename); err == nil {
-				_, err = io.Copy(part, r)
-			}
-		}
-		if err == nil {
-			err = mw.Close()
-		}
-		pw.CloseWithError(err)
-	}()
-	target := c.conn.BaseURL + apiPrefix + "/nodes/" + url.PathEscape(node) + "/storage/" + url.PathEscape(storage) + "/upload"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, pr)
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	if err := mw.WriteField("content", "iso"); err != nil {
+		return err
+	}
+	part, err := mw.CreateFormFile("filename", filename)
 	if err != nil {
-		pr.Close()
+		return err
+	}
+	if _, err := io.Copy(part, r); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	target := c.conn.BaseURL + apiPrefix + "/nodes/" + url.PathEscape(node) + "/storage/" + url.PathEscape(storage) + "/upload"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body.Bytes()))
+	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	var up string
 	if err := c.send(req, &up); err != nil {
-		pr.CloseWithError(err)
 		return err
 	}
 	return c.settle(ctx, node, up)

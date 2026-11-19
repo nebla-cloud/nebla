@@ -9,7 +9,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/netip"
@@ -114,13 +113,16 @@ func waitAction(t *testing.T, app *testutil.App, c *testutil.Client, id int64) {
 	t.Helper()
 	deadline := time.Now().Add(actionTimeout)
 	for {
-		var a actionBody
+		var a action
 		call(t, app, c, http.MethodGet, fmt.Sprintf("/v1/actions/%d", id), nil, http.StatusOK, &a)
-		switch a.Action.Status {
+		switch a.Status {
 		case "success":
 			return
 		case "error":
-			t.Fatalf("action %d failed: %+v", id, a.Action.Error)
+			t.Fatalf("action %d failed: %+v", id, a.Error)
+		case "running":
+		default:
+			t.Fatalf("action %d has unexpected status %q", id, a.Status)
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("action %d still running after %s", id, actionTimeout)
@@ -172,12 +174,14 @@ func sshKey(t *testing.T) string {
 
 func TestSmoke(t *testing.T) {
 	tg := loadTarget(t)
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Job and Proxmox logs go to stderr so a failed run shows how far each step got.
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	workers := func(w *river.Workers, d *httpapi.Deps, _ *fake.Server) {
 		servers.RegisterWorkers(w, servers.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
 			PollInterval: time.Second})
 	}
 	app := testutil.NewAppWithWorkers(t, workers, func(d *httpapi.Deps) {
+		d.Logger = log
 		d.ProjectHooks, d.CatalogHooks = httpapi.ServerHooks(d.ProjectHooks, d.CatalogHooks)
 		d.Catalog = catalog.New(d.SQL, d.Ent, catalog.Options{SecretKey: []byte(testutil.SecretKey), PollInterval: time.Second,
 			Hooks: d.CatalogHooks})

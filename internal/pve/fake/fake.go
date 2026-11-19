@@ -731,6 +731,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}), nil
 	})
 	s.handle(mux, "POST /nodes/{node}/storage/{storage}/upload", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		// pveproxy rejects uploads without a Content-Length.
+		if slices.Contains(r.TransferEncoding, "chunked") || r.ContentLength < 0 {
+			return nil, &apiErr{501, "chunked transfer encoding not supported"}
+		}
 		mr, err := r.MultipartReader()
 		if err != nil {
 			return nil, &apiErr{400, "multipart required"}
