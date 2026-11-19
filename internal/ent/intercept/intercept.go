@@ -9,12 +9,18 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/image"
+	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/predicate"
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
+	"github.com/Hexeption/nebla/internal/ent/sshkey"
 	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
@@ -101,6 +107,60 @@ func (f TraverseAPIToken) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.APITokenQuery", q)
 }
 
+// The ImageFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ImageFunc func(context.Context, *ent.ImageQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ImageFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ImageQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ImageQuery", q)
+}
+
+// The TraverseImage type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseImage func(context.Context, *ent.ImageQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseImage) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseImage) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ImageQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ImageQuery", q)
+}
+
+// The ImageTemplateFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ImageTemplateFunc func(context.Context, *ent.ImageTemplateQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ImageTemplateFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ImageTemplateQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ImageTemplateQuery", q)
+}
+
+// The TraverseImageTemplate type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseImageTemplate func(context.Context, *ent.ImageTemplateQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseImageTemplate) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseImageTemplate) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ImageTemplateQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ImageTemplateQuery", q)
+}
+
 // The InviteFunc type is an adapter to allow the use of ordinary function as a Querier.
 type InviteFunc func(context.Context, *ent.InviteQuery) (ent.Value, error)
 
@@ -126,6 +186,60 @@ func (f TraverseInvite) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.InviteQuery", q)
+}
+
+// The LocationFunc type is an adapter to allow the use of ordinary function as a Querier.
+type LocationFunc func(context.Context, *ent.LocationQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f LocationFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.LocationQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.LocationQuery", q)
+}
+
+// The TraverseLocation type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseLocation func(context.Context, *ent.LocationQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseLocation) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseLocation) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.LocationQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.LocationQuery", q)
+}
+
+// The NodeFunc type is an adapter to allow the use of ordinary function as a Querier.
+type NodeFunc func(context.Context, *ent.NodeQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f NodeFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.NodeQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.NodeQuery", q)
+}
+
+// The TraverseNode type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseNode func(context.Context, *ent.NodeQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseNode) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseNode) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.NodeQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.NodeQuery", q)
 }
 
 // The ProjectFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -180,6 +294,60 @@ func (f TraverseProjectMember) Traverse(ctx context.Context, q ent.Query) error 
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ProjectMemberQuery", q)
+}
+
+// The SSHKeyFunc type is an adapter to allow the use of ordinary function as a Querier.
+type SSHKeyFunc func(context.Context, *ent.SSHKeyQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f SSHKeyFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.SSHKeyQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.SSHKeyQuery", q)
+}
+
+// The TraverseSSHKey type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseSSHKey func(context.Context, *ent.SSHKeyQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseSSHKey) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseSSHKey) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.SSHKeyQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.SSHKeyQuery", q)
+}
+
+// The ServerTypeFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ServerTypeFunc func(context.Context, *ent.ServerTypeQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ServerTypeFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ServerTypeQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ServerTypeQuery", q)
+}
+
+// The TraverseServerType type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseServerType func(context.Context, *ent.ServerTypeQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseServerType) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseServerType) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ServerTypeQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ServerTypeQuery", q)
 }
 
 // The SessionFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -268,12 +436,24 @@ func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
 	case *ent.APITokenQuery:
 		return &query[*ent.APITokenQuery, predicate.APIToken, apitoken.OrderOption]{typ: ent.TypeAPIToken, tq: q}, nil
+	case *ent.ImageQuery:
+		return &query[*ent.ImageQuery, predicate.Image, image.OrderOption]{typ: ent.TypeImage, tq: q}, nil
+	case *ent.ImageTemplateQuery:
+		return &query[*ent.ImageTemplateQuery, predicate.ImageTemplate, imagetemplate.OrderOption]{typ: ent.TypeImageTemplate, tq: q}, nil
 	case *ent.InviteQuery:
 		return &query[*ent.InviteQuery, predicate.Invite, invite.OrderOption]{typ: ent.TypeInvite, tq: q}, nil
+	case *ent.LocationQuery:
+		return &query[*ent.LocationQuery, predicate.Location, location.OrderOption]{typ: ent.TypeLocation, tq: q}, nil
+	case *ent.NodeQuery:
+		return &query[*ent.NodeQuery, predicate.Node, node.OrderOption]{typ: ent.TypeNode, tq: q}, nil
 	case *ent.ProjectQuery:
 		return &query[*ent.ProjectQuery, predicate.Project, project.OrderOption]{typ: ent.TypeProject, tq: q}, nil
 	case *ent.ProjectMemberQuery:
 		return &query[*ent.ProjectMemberQuery, predicate.ProjectMember, projectmember.OrderOption]{typ: ent.TypeProjectMember, tq: q}, nil
+	case *ent.SSHKeyQuery:
+		return &query[*ent.SSHKeyQuery, predicate.SSHKey, sshkey.OrderOption]{typ: ent.TypeSSHKey, tq: q}, nil
+	case *ent.ServerTypeQuery:
+		return &query[*ent.ServerTypeQuery, predicate.ServerType, servertype.OrderOption]{typ: ent.TypeServerType, tq: q}, nil
 	case *ent.SessionQuery:
 		return &query[*ent.SessionQuery, predicate.Session, session.OrderOption]{typ: ent.TypeSession, tq: q}, nil
 	case *ent.SettingQuery:

@@ -21,6 +21,30 @@ func (f APITokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.APITokenMutation", m)
 }
 
+// The ImageFunc type is an adapter to allow the use of ordinary
+// function as Image mutator.
+type ImageFunc func(context.Context, *ent.ImageMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ImageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ImageMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ImageMutation", m)
+}
+
+// The ImageTemplateFunc type is an adapter to allow the use of ordinary
+// function as ImageTemplate mutator.
+type ImageTemplateFunc func(context.Context, *ent.ImageTemplateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ImageTemplateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ImageTemplateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ImageTemplateMutation", m)
+}
+
 // The InviteFunc type is an adapter to allow the use of ordinary
 // function as Invite mutator.
 type InviteFunc func(context.Context, *ent.InviteMutation) (ent.Value, error)
@@ -31,6 +55,30 @@ func (f InviteFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.InviteMutation", m)
+}
+
+// The LocationFunc type is an adapter to allow the use of ordinary
+// function as Location mutator.
+type LocationFunc func(context.Context, *ent.LocationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f LocationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.LocationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LocationMutation", m)
+}
+
+// The NodeFunc type is an adapter to allow the use of ordinary
+// function as Node mutator.
+type NodeFunc func(context.Context, *ent.NodeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f NodeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.NodeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NodeMutation", m)
 }
 
 // The ProjectFunc type is an adapter to allow the use of ordinary
@@ -55,6 +103,30 @@ func (f ProjectMemberFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProjectMemberMutation", m)
+}
+
+// The SSHKeyFunc type is an adapter to allow the use of ordinary
+// function as SSHKey mutator.
+type SSHKeyFunc func(context.Context, *ent.SSHKeyMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SSHKeyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SSHKeyMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SSHKeyMutation", m)
+}
+
+// The ServerTypeFunc type is an adapter to allow the use of ordinary
+// function as ServerType mutator.
+type ServerTypeFunc func(context.Context, *ent.ServerTypeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ServerTypeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ServerTypeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ServerTypeMutation", m)
 }
 
 // The SessionFunc type is an adapter to allow the use of ordinary

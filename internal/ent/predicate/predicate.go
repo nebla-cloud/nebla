@@ -9,14 +9,32 @@ import (
 // APIToken is the predicate function for apitoken builders.
 type APIToken func(*sql.Selector)
 
+// Image is the predicate function for image builders.
+type Image func(*sql.Selector)
+
+// ImageTemplate is the predicate function for imagetemplate builders.
+type ImageTemplate func(*sql.Selector)
+
 // Invite is the predicate function for invite builders.
 type Invite func(*sql.Selector)
+
+// Location is the predicate function for location builders.
+type Location func(*sql.Selector)
+
+// Node is the predicate function for node builders.
+type Node func(*sql.Selector)
 
 // Project is the predicate function for project builders.
 type Project func(*sql.Selector)
 
 // ProjectMember is the predicate function for projectmember builders.
 type ProjectMember func(*sql.Selector)
+
+// SSHKey is the predicate function for sshkey builders.
+type SSHKey func(*sql.Selector)
+
+// ServerType is the predicate function for servertype builders.
+type ServerType func(*sql.Selector)
 
 // Session is the predicate function for session builders.
 type Session func(*sql.Selector)

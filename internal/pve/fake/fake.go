@@ -143,20 +143,31 @@ func (s *Server) AddTemplate(nodeName string, vmid int, storageID string) {
 func (s *Server) AddVM(nodeName string, vmid int, name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	s.vms[vmid] = &vm{node: nodeName, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{}, config: map[string]string{
 		"name": name, "memory": "1024", "cores": "1", "scsi0": fmt.Sprintf("local-lvm:vm-%d-disk-0,size=10G", vmid),
 	}}
 }
 
+// RemoveNode drops a node from the cluster listing; its VMs stay.
+func (s *Server) RemoveNode(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep()
+	delete(s.nodes, name)
+}
+
 func (s *Server) DeleteVM(vmid int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	delete(s.vms, vmid)
 }
 
 func (s *Server) MoveVM(vmid int, nodeName string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	if v, ok := s.vms[vmid]; ok {
 		v.node = nodeName
 	}
@@ -165,6 +176,7 @@ func (s *Server) MoveVM(vmid int, nodeName string) {
 func (s *Server) SetVMStatus(vmid int, status string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	if v, ok := s.vms[vmid]; ok {
 		v.status = status
 	}
@@ -173,6 +185,7 @@ func (s *Server) SetVMStatus(vmid int, status string) {
 func (s *Server) SetNodeLoad(name string, cpu float64, memUsedMB int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	if n, ok := s.nodes[name]; ok {
 		n.cpu, n.memUsed = cpu, memUsedMB
 	}
@@ -292,10 +305,12 @@ func (s *Server) handle(mux *http.ServeMux, pattern string, taskEndpoint bool, h
 }
 
 // sweep runs the effects of due tasks in start order; caller holds s.mu.
-func (s *Server) sweep() {
+func (s *Server) sweep() { s.sweepAt(time.Now()) }
+
+func (s *Server) sweepAt(now time.Time) {
 	var due []string
 	for id, tk := range s.tasks {
-		if !tk.done && !time.Now().Before(tk.ready) {
+		if !tk.done && !now.Before(tk.ready) {
 			due = append(due, id)
 		}
 	}
@@ -454,12 +469,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 	s.handle(mux, "GET /nodes/{node}/tasks/{upid}/status", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		s.sweep()
+		now := time.Now()
+		s.sweepAt(now)
 		tk, ok := s.tasks[r.PathValue("upid")]
 		if !ok {
 			return nil, &apiErr{500, "no such task"}
 		}
-		if time.Now().Before(tk.ready) {
+		if now.Before(tk.ready) {
 			return map[string]any{"status": "running"}, nil
 		}
 		return map[string]any{"status": "stopped", "exitstatus": tk.exit}, nil
