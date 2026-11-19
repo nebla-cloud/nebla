@@ -55,3 +55,9 @@ func entFor(t *testing.T, pool *pgxpool.Pool) (*ent.Client, *sql.DB) {
 	t.Cleanup(func() { c.Close() })
 	return c, sqlDB
 }
+
+// NewEntSQL is NewEnt plus the *sql.DB the client shares, for db.WithTx.
+func NewEntSQL(t *testing.T) (*ent.Client, *sql.DB) {
+	t.Helper()
+	return entFor(t, NewDB(t))
+}

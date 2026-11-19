@@ -17,6 +17,42 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for IpPoolFamily.
+const (
+	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
+	IpPoolFamilyIpv6 IpPoolFamily = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the IpPoolFamily enum.
+func (e IpPoolFamily) Valid() bool {
+	switch e {
+	case IpPoolFamilyIpv4:
+		return true
+	case IpPoolFamilyIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IpPoolInputFamily.
+const (
+	IpPoolInputFamilyIpv4 IpPoolInputFamily = "ipv4"
+	IpPoolInputFamilyIpv6 IpPoolInputFamily = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the IpPoolInputFamily enum.
+func (e IpPoolInputFamily) Valid() bool {
+	switch e {
+	case IpPoolInputFamilyIpv4:
+		return true
+	case IpPoolInputFamilyIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Role.
 const (
 	RoleAdmin    Role = "admin"
@@ -163,6 +199,41 @@ type Invite struct {
 	Id        int64     `json:"id"`
 	Role      Role      `json:"role"`
 }
+
+// IpPool defines model for IpPool.
+type IpPool struct {
+	Allocated  int          `json:"allocated"`
+	Bridge     string       `json:"bridge"`
+	Cidr       string       `json:"cidr"`
+	Created    time.Time    `json:"created"`
+	Dns        []string     `json:"dns"`
+	Family     IpPoolFamily `json:"family"`
+	Gateway    string       `json:"gateway"`
+	Id         int64        `json:"id"`
+	LocationId int64        `json:"location_id"`
+	RangeEnd   string       `json:"range_end"`
+	RangeStart string       `json:"range_start"`
+	VlanTag    *int         `json:"vlan_tag,omitempty"`
+}
+
+// IpPoolFamily defines model for IpPool.Family.
+type IpPoolFamily string
+
+// IpPoolInput defines model for IpPoolInput.
+type IpPoolInput struct {
+	Bridge     string            `json:"bridge"`
+	Cidr       string            `json:"cidr"`
+	Dns        []string          `json:"dns"`
+	Family     IpPoolInputFamily `json:"family"`
+	Gateway    string            `json:"gateway"`
+	LocationId int64             `json:"location_id"`
+	RangeEnd   string            `json:"range_end"`
+	RangeStart string            `json:"range_start"`
+	VlanTag    *int              `json:"vlan_tag,omitempty"`
+}
+
+// IpPoolInputFamily defines model for IpPoolInput.Family.
+type IpPoolInputFamily string
 
 // Location defines model for Location.
 type Location struct {
@@ -365,6 +436,13 @@ type GetAdminImagesParams struct {
 	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
 }
 
+// GetAdminIpPoolsParams defines parameters for GetAdminIpPools.
+type GetAdminIpPoolsParams struct {
+	Page       *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage    *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+	LocationId *int64   `form:"location_id,omitempty" json:"location_id,omitempty"`
+}
+
 // GetAdminLocationsParams defines parameters for GetAdminLocations.
 type GetAdminLocationsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -468,6 +546,12 @@ type PostAdminImagesJSONRequestBody = ImageInput
 // PutAdminImageJSONRequestBody defines body for PutAdminImage for application/json ContentType.
 type PutAdminImageJSONRequestBody = ImageInput
 
+// PostAdminIpPoolsJSONRequestBody defines body for PostAdminIpPools for application/json ContentType.
+type PostAdminIpPoolsJSONRequestBody = IpPoolInput
+
+// PutAdminIpPoolJSONRequestBody defines body for PutAdminIpPool for application/json ContentType.
+type PutAdminIpPoolJSONRequestBody = IpPoolInput
+
 // PostAdminLocationsJSONRequestBody defines body for PostAdminLocations for application/json ContentType.
 type PostAdminLocationsJSONRequestBody = LocationInput
 
@@ -548,6 +632,21 @@ type ServerInterface interface {
 	// PutAdminImage Update an image; templates are replaced
 	// (PUT /admin/images/{id})
 	PutAdminImage(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminIpPools List IP pools, optionally for one location
+	// (GET /admin/ip_pools)
+	GetAdminIpPools(w http.ResponseWriter, r *http.Request, params GetAdminIpPoolsParams)
+	// PostAdminIpPools Create an IP pool
+	// (POST /admin/ip_pools)
+	PostAdminIpPools(w http.ResponseWriter, r *http.Request)
+	// DeleteAdminIpPool Delete a pool without allocations
+	// (DELETE /admin/ip_pools/{id})
+	DeleteAdminIpPool(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminIpPool Get an IP pool
+	// (GET /admin/ip_pools/{id})
+	GetAdminIpPool(w http.ResponseWriter, r *http.Request, id ID)
+	// PutAdminIpPool Update an IP pool; its location cannot change
+	// (PUT /admin/ip_pools/{id})
+	PutAdminIpPool(w http.ResponseWriter, r *http.Request, id ID)
 	// GetAdminLocations List locations with their Proxmox connection and nodes
 	// (GET /admin/locations)
 	GetAdminLocations(w http.ResponseWriter, r *http.Request, params GetAdminLocationsParams)
@@ -743,6 +842,36 @@ func (_ Unimplemented) GetAdminImage(w http.ResponseWriter, r *http.Request, id 
 // PutAdminImage Update an image; templates are replaced
 // (PUT /admin/images/{id})
 func (_ Unimplemented) PutAdminImage(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminIpPools List IP pools, optionally for one location
+// (GET /admin/ip_pools)
+func (_ Unimplemented) GetAdminIpPools(w http.ResponseWriter, r *http.Request, params GetAdminIpPoolsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminIpPools Create an IP pool
+// (POST /admin/ip_pools)
+func (_ Unimplemented) PostAdminIpPools(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminIpPool Delete a pool without allocations
+// (DELETE /admin/ip_pools/{id})
+func (_ Unimplemented) DeleteAdminIpPool(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminIpPool Get an IP pool
+// (GET /admin/ip_pools/{id})
+func (_ Unimplemented) GetAdminIpPool(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAdminIpPool Update an IP pool; its location cannot change
+// (PUT /admin/ip_pools/{id})
+func (_ Unimplemented) PutAdminIpPool(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1208,6 +1337,157 @@ func (siw *ServerInterfaceWrapper) PutAdminImage(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutAdminImage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminIpPools operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminIpPools(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminIpPoolsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "location_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location_id", r.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "location_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location_id", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminIpPools(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminIpPools operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminIpPools(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminIpPools(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminIpPool operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminIpPool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminIpPool(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminIpPool operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminIpPool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminIpPool(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAdminIpPool operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminIpPool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminIpPool(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2870,6 +3150,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/admin/images/{id}", wrapper.PutAdminImage)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/ip_pools", wrapper.GetAdminIpPools)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/ip_pools", wrapper.PostAdminIpPools)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/ip_pools/{id}", wrapper.DeleteAdminIpPool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/ip_pools/{id}", wrapper.GetAdminIpPool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/admin/ip_pools/{id}", wrapper.PutAdminIpPool)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/locations", wrapper.GetLocations)
 	})
 	r.Group(func(r chi.Router) {
@@ -3257,6 +3552,366 @@ func (response PutAdminImage409JSONResponse) VisitPutAdminImageResponse(w http.R
 type PutAdminImage422JSONResponse Error
 
 func (response PutAdminImage422JSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPoolsRequestObject struct {
+	Params GetAdminIpPoolsParams
+}
+
+type GetAdminIpPoolsResponseObject interface {
+	VisitGetAdminIpPoolsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminIpPools200JSONResponse struct {
+	IpPools []IpPool `json:"ip_pools"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetAdminIpPools200JSONResponse) VisitGetAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPools401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminIpPools401JSONResponse) VisitGetAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPools403JSONResponse Error
+
+func (response GetAdminIpPools403JSONResponse) VisitGetAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminIpPoolsRequestObject struct {
+	Body *PostAdminIpPoolsJSONRequestBody
+}
+
+type PostAdminIpPoolsResponseObject interface {
+	VisitPostAdminIpPoolsResponse(w http.ResponseWriter) error
+}
+
+type PostAdminIpPools201JSONResponse IpPool
+
+func (response PostAdminIpPools201JSONResponse) VisitPostAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminIpPools401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminIpPools401JSONResponse) VisitPostAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminIpPools403JSONResponse Error
+
+func (response PostAdminIpPools403JSONResponse) VisitPostAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminIpPools409JSONResponse Error
+
+func (response PostAdminIpPools409JSONResponse) VisitPostAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminIpPools422JSONResponse Error
+
+func (response PostAdminIpPools422JSONResponse) VisitPostAdminIpPoolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminIpPoolRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteAdminIpPoolResponseObject interface {
+	VisitDeleteAdminIpPoolResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminIpPool204Response struct {
+}
+
+func (response DeleteAdminIpPool204Response) VisitDeleteAdminIpPoolResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminIpPool401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminIpPool401JSONResponse) VisitDeleteAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminIpPool403JSONResponse Error
+
+func (response DeleteAdminIpPool403JSONResponse) VisitDeleteAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminIpPool404JSONResponse Error
+
+func (response DeleteAdminIpPool404JSONResponse) VisitDeleteAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminIpPool409JSONResponse Error
+
+func (response DeleteAdminIpPool409JSONResponse) VisitDeleteAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPoolRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetAdminIpPoolResponseObject interface {
+	VisitGetAdminIpPoolResponse(w http.ResponseWriter) error
+}
+
+type GetAdminIpPool200JSONResponse IpPool
+
+func (response GetAdminIpPool200JSONResponse) VisitGetAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPool401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminIpPool401JSONResponse) VisitGetAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPool403JSONResponse Error
+
+func (response GetAdminIpPool403JSONResponse) VisitGetAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminIpPool404JSONResponse Error
+
+func (response GetAdminIpPool404JSONResponse) VisitGetAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminIpPoolRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutAdminIpPoolJSONRequestBody
+}
+
+type PutAdminIpPoolResponseObject interface {
+	VisitPutAdminIpPoolResponse(w http.ResponseWriter) error
+}
+
+type PutAdminIpPool200JSONResponse IpPool
+
+func (response PutAdminIpPool200JSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminIpPool401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutAdminIpPool401JSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminIpPool403JSONResponse Error
+
+func (response PutAdminIpPool403JSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminIpPool404JSONResponse Error
+
+func (response PutAdminIpPool404JSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminIpPool409JSONResponse Error
+
+func (response PutAdminIpPool409JSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminIpPool422JSONResponse Error
+
+func (response PutAdminIpPool422JSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6583,6 +7238,21 @@ type StrictServerInterface interface {
 	// PutAdminImage Update an image; templates are replaced
 	// (PUT /admin/images/{id})
 	PutAdminImage(ctx context.Context, request PutAdminImageRequestObject) (PutAdminImageResponseObject, error)
+	// GetAdminIpPools List IP pools, optionally for one location
+	// (GET /admin/ip_pools)
+	GetAdminIpPools(ctx context.Context, request GetAdminIpPoolsRequestObject) (GetAdminIpPoolsResponseObject, error)
+	// PostAdminIpPools Create an IP pool
+	// (POST /admin/ip_pools)
+	PostAdminIpPools(ctx context.Context, request PostAdminIpPoolsRequestObject) (PostAdminIpPoolsResponseObject, error)
+	// DeleteAdminIpPool Delete a pool without allocations
+	// (DELETE /admin/ip_pools/{id})
+	DeleteAdminIpPool(ctx context.Context, request DeleteAdminIpPoolRequestObject) (DeleteAdminIpPoolResponseObject, error)
+	// GetAdminIpPool Get an IP pool
+	// (GET /admin/ip_pools/{id})
+	GetAdminIpPool(ctx context.Context, request GetAdminIpPoolRequestObject) (GetAdminIpPoolResponseObject, error)
+	// PutAdminIpPool Update an IP pool; its location cannot change
+	// (PUT /admin/ip_pools/{id})
+	PutAdminIpPool(ctx context.Context, request PutAdminIpPoolRequestObject) (PutAdminIpPoolResponseObject, error)
 	// GetAdminLocations List locations with their Proxmox connection and nodes
 	// (GET /admin/locations)
 	GetAdminLocations(ctx context.Context, request GetAdminLocationsRequestObject) (GetAdminLocationsResponseObject, error)
@@ -6921,6 +7591,148 @@ func (sh *strictHandler) PutAdminImage(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutAdminImageResponseObject); ok {
 		if err := validResponse.VisitPutAdminImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminIpPools operation middleware
+func (sh *strictHandler) GetAdminIpPools(w http.ResponseWriter, r *http.Request, params GetAdminIpPoolsParams) {
+	var request GetAdminIpPoolsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminIpPools(ctx, request.(GetAdminIpPoolsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminIpPools")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminIpPoolsResponseObject); ok {
+		if err := validResponse.VisitGetAdminIpPoolsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminIpPools operation middleware
+func (sh *strictHandler) PostAdminIpPools(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminIpPoolsRequestObject
+
+	var body PostAdminIpPoolsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminIpPools(ctx, request.(PostAdminIpPoolsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminIpPools")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminIpPoolsResponseObject); ok {
+		if err := validResponse.VisitPostAdminIpPoolsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminIpPool operation middleware
+func (sh *strictHandler) DeleteAdminIpPool(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteAdminIpPoolRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminIpPool(ctx, request.(DeleteAdminIpPoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminIpPool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminIpPoolResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminIpPoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminIpPool operation middleware
+func (sh *strictHandler) GetAdminIpPool(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetAdminIpPoolRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminIpPool(ctx, request.(GetAdminIpPoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminIpPool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminIpPoolResponseObject); ok {
+		if err := validResponse.VisitGetAdminIpPoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAdminIpPool operation middleware
+func (sh *strictHandler) PutAdminIpPool(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutAdminIpPoolRequestObject
+
+	request.Id = id
+
+	var body PutAdminIpPoolJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminIpPool(ctx, request.(PutAdminIpPoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminIpPool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminIpPoolResponseObject); ok {
+		if err := validResponse.VisitPutAdminIpPoolResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

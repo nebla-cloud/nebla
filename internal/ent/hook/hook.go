@@ -21,6 +21,30 @@ func (f APITokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.APITokenMutation", m)
 }
 
+// The IPAllocationFunc type is an adapter to allow the use of ordinary
+// function as IPAllocation mutator.
+type IPAllocationFunc func(context.Context, *ent.IPAllocationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IPAllocationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IPAllocationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IPAllocationMutation", m)
+}
+
+// The IPPoolFunc type is an adapter to allow the use of ordinary
+// function as IPPool mutator.
+type IPPoolFunc func(context.Context, *ent.IPPoolMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IPPoolFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IPPoolMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IPPoolMutation", m)
+}
+
 // The ImageFunc type is an adapter to allow the use of ordinary
 // function as Image mutator.
 type ImageFunc func(context.Context, *ent.ImageMutation) (ent.Value, error)

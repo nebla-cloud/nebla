@@ -12,6 +12,8 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/ipallocation"
+	"github.com/Hexeption/nebla/internal/ent/ippool"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/predicate"
@@ -105,6 +107,60 @@ func (f TraverseAPIToken) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.APITokenQuery", q)
+}
+
+// The IPAllocationFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IPAllocationFunc func(context.Context, *ent.IPAllocationQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IPAllocationFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IPAllocationQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IPAllocationQuery", q)
+}
+
+// The TraverseIPAllocation type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIPAllocation func(context.Context, *ent.IPAllocationQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIPAllocation) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIPAllocation) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IPAllocationQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IPAllocationQuery", q)
+}
+
+// The IPPoolFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IPPoolFunc func(context.Context, *ent.IPPoolQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IPPoolFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IPPoolQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IPPoolQuery", q)
+}
+
+// The TraverseIPPool type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIPPool func(context.Context, *ent.IPPoolQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIPPool) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIPPool) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IPPoolQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IPPoolQuery", q)
 }
 
 // The ImageFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -436,6 +492,10 @@ func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
 	case *ent.APITokenQuery:
 		return &query[*ent.APITokenQuery, predicate.APIToken, apitoken.OrderOption]{typ: ent.TypeAPIToken, tq: q}, nil
+	case *ent.IPAllocationQuery:
+		return &query[*ent.IPAllocationQuery, predicate.IPAllocation, ipallocation.OrderOption]{typ: ent.TypeIPAllocation, tq: q}, nil
+	case *ent.IPPoolQuery:
+		return &query[*ent.IPPoolQuery, predicate.IPPool, ippool.OrderOption]{typ: ent.TypeIPPool, tq: q}, nil
 	case *ent.ImageQuery:
 		return &query[*ent.ImageQuery, predicate.Image, image.OrderOption]{typ: ent.TypeImage, tq: q}, nil
 	case *ent.ImageTemplateQuery:

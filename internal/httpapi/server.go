@@ -16,6 +16,7 @@ import (
 	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
+	"github.com/Hexeption/nebla/internal/ipam"
 	"github.com/Hexeption/nebla/internal/mail"
 	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/ratelimit"
@@ -52,6 +53,7 @@ type server struct {
 	projects   *projects.Service
 	settings   *settings.Store
 	catalog    *catalog.Service
+	ipam       *ipam.Service
 	sshkeys    *sshkeys.Service
 	loginLimit *ratelimit.Limiter
 }
@@ -88,6 +90,7 @@ func New(deps Deps) http.Handler {
 		}),
 		settings:   st,
 		catalog:    deps.Catalog,
+		ipam:       ipam.New(deps.SQL, deps.Ent),
 		sshkeys:    sshkeys.New(deps.Ent),
 		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
 	}

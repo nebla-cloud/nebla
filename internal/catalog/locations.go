@@ -14,6 +14,7 @@ import (
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
+	"github.com/Hexeption/nebla/internal/ent/ippool"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/servertype"
@@ -325,6 +326,13 @@ func (s *Service) DeleteLocation(ctx context.Context, id int64) error {
 		}
 		if types {
 			return locationInUse("server types are restricted to it")
+		}
+		pools, err := tx.IPPool.Query().Where(ippool.LocationID(id)).Exist(ctx)
+		if err != nil {
+			return err
+		}
+		if pools {
+			return locationInUse("IP pools still exist in it")
 		}
 		busy, err := s.opts.LocationInUse(ctx, tx, id)
 		if err != nil {

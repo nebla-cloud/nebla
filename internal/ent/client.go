@@ -19,6 +19,8 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/ipallocation"
+	"github.com/Hexeption/nebla/internal/ent/ippool"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
@@ -39,6 +41,10 @@ type Client struct {
 	Schema *migrate.Schema
 	// APIToken is the client for interacting with the APIToken builders.
 	APIToken *APITokenClient
+	// IPAllocation is the client for interacting with the IPAllocation builders.
+	IPAllocation *IPAllocationClient
+	// IPPool is the client for interacting with the IPPool builders.
+	IPPool *IPPoolClient
 	// Image is the client for interacting with the Image builders.
 	Image *ImageClient
 	// ImageTemplate is the client for interacting with the ImageTemplate builders.
@@ -75,6 +81,8 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIToken = NewAPITokenClient(c.config)
+	c.IPAllocation = NewIPAllocationClient(c.config)
+	c.IPPool = NewIPPoolClient(c.config)
 	c.Image = NewImageClient(c.config)
 	c.ImageTemplate = NewImageTemplateClient(c.config)
 	c.Invite = NewInviteClient(c.config)
@@ -180,6 +188,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:           ctx,
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
+		IPAllocation:  NewIPAllocationClient(cfg),
+		IPPool:        NewIPPoolClient(cfg),
 		Image:         NewImageClient(cfg),
 		ImageTemplate: NewImageTemplateClient(cfg),
 		Invite:        NewInviteClient(cfg),
@@ -212,6 +222,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:           ctx,
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
+		IPAllocation:  NewIPAllocationClient(cfg),
+		IPPool:        NewIPPoolClient(cfg),
 		Image:         NewImageClient(cfg),
 		ImageTemplate: NewImageTemplateClient(cfg),
 		Invite:        NewInviteClient(cfg),
@@ -253,8 +265,9 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIToken, c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
-		c.ProjectMember, c.SSHKey, c.ServerType, c.Session, c.Setting, c.User,
+		c.APIToken, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite,
+		c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.ServerType,
+		c.Session, c.Setting, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -264,8 +277,9 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIToken, c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
-		c.ProjectMember, c.SSHKey, c.ServerType, c.Session, c.Setting, c.User,
+		c.APIToken, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite,
+		c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.ServerType,
+		c.Session, c.Setting, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -276,6 +290,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *APITokenMutation:
 		return c.APIToken.mutate(ctx, m)
+	case *IPAllocationMutation:
+		return c.IPAllocation.mutate(ctx, m)
+	case *IPPoolMutation:
+		return c.IPPool.mutate(ctx, m)
 	case *ImageMutation:
 		return c.Image.mutate(ctx, m)
 	case *ImageTemplateMutation:
@@ -451,6 +469,320 @@ func (c *APITokenClient) mutate(ctx context.Context, m *APITokenMutation) (Value
 		return (&APITokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown APIToken mutation op: %q", m.Op())
+	}
+}
+
+// IPAllocationClient is a client for the IPAllocation schema.
+type IPAllocationClient struct {
+	config
+}
+
+// NewIPAllocationClient returns a client for the IPAllocation from the given config.
+func NewIPAllocationClient(c config) *IPAllocationClient {
+	return &IPAllocationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ipallocation.Hooks(f(g(h())))`.
+func (c *IPAllocationClient) Use(hooks ...Hook) {
+	c.hooks.IPAllocation = append(c.hooks.IPAllocation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ipallocation.Intercept(f(g(h())))`.
+func (c *IPAllocationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.IPAllocation = append(c.inters.IPAllocation, interceptors...)
+}
+
+// Create returns a builder for creating a IPAllocation entity.
+func (c *IPAllocationClient) Create() *IPAllocationCreate {
+	mutation := newIPAllocationMutation(c.config, OpCreate)
+	return &IPAllocationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of IPAllocation entities.
+func (c *IPAllocationClient) CreateBulk(builders ...*IPAllocationCreate) *IPAllocationCreateBulk {
+	return &IPAllocationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IPAllocationClient) MapCreateBulk(slice any, setFunc func(*IPAllocationCreate, int)) *IPAllocationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IPAllocationCreateBulk{err: fmt.Errorf("calling to IPAllocationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IPAllocationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IPAllocationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for IPAllocation.
+func (c *IPAllocationClient) Update() *IPAllocationUpdate {
+	mutation := newIPAllocationMutation(c.config, OpUpdate)
+	return &IPAllocationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IPAllocationClient) UpdateOne(_m *IPAllocation) *IPAllocationUpdateOne {
+	mutation := newIPAllocationMutation(c.config, OpUpdateOne, withIPAllocation(_m))
+	return &IPAllocationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IPAllocationClient) UpdateOneID(id int64) *IPAllocationUpdateOne {
+	mutation := newIPAllocationMutation(c.config, OpUpdateOne, withIPAllocationID(id))
+	return &IPAllocationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for IPAllocation.
+func (c *IPAllocationClient) Delete() *IPAllocationDelete {
+	mutation := newIPAllocationMutation(c.config, OpDelete)
+	return &IPAllocationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IPAllocationClient) DeleteOne(_m *IPAllocation) *IPAllocationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IPAllocationClient) DeleteOneID(id int64) *IPAllocationDeleteOne {
+	builder := c.Delete().Where(ipallocation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IPAllocationDeleteOne{builder}
+}
+
+// Query returns a query builder for IPAllocation.
+func (c *IPAllocationClient) Query() *IPAllocationQuery {
+	return &IPAllocationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIPAllocation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a IPAllocation entity by its id.
+func (c *IPAllocationClient) Get(ctx context.Context, id int64) (*IPAllocation, error) {
+	return c.Query().Where(ipallocation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IPAllocationClient) GetX(ctx context.Context, id int64) *IPAllocation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryPool queries the pool edge of a IPAllocation.
+func (c *IPAllocationClient) QueryPool(_m *IPAllocation) *IPPoolQuery {
+	query := (&IPPoolClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ipallocation.Table, ipallocation.FieldID, id),
+			sqlgraph.To(ippool.Table, ippool.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ipallocation.PoolTable, ipallocation.PoolColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IPAllocationClient) Hooks() []Hook {
+	return c.hooks.IPAllocation
+}
+
+// Interceptors returns the client interceptors.
+func (c *IPAllocationClient) Interceptors() []Interceptor {
+	return c.inters.IPAllocation
+}
+
+func (c *IPAllocationClient) mutate(ctx context.Context, m *IPAllocationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IPAllocationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IPAllocationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IPAllocationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IPAllocationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown IPAllocation mutation op: %q", m.Op())
+	}
+}
+
+// IPPoolClient is a client for the IPPool schema.
+type IPPoolClient struct {
+	config
+}
+
+// NewIPPoolClient returns a client for the IPPool from the given config.
+func NewIPPoolClient(c config) *IPPoolClient {
+	return &IPPoolClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ippool.Hooks(f(g(h())))`.
+func (c *IPPoolClient) Use(hooks ...Hook) {
+	c.hooks.IPPool = append(c.hooks.IPPool, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ippool.Intercept(f(g(h())))`.
+func (c *IPPoolClient) Intercept(interceptors ...Interceptor) {
+	c.inters.IPPool = append(c.inters.IPPool, interceptors...)
+}
+
+// Create returns a builder for creating a IPPool entity.
+func (c *IPPoolClient) Create() *IPPoolCreate {
+	mutation := newIPPoolMutation(c.config, OpCreate)
+	return &IPPoolCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of IPPool entities.
+func (c *IPPoolClient) CreateBulk(builders ...*IPPoolCreate) *IPPoolCreateBulk {
+	return &IPPoolCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IPPoolClient) MapCreateBulk(slice any, setFunc func(*IPPoolCreate, int)) *IPPoolCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IPPoolCreateBulk{err: fmt.Errorf("calling to IPPoolClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IPPoolCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IPPoolCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for IPPool.
+func (c *IPPoolClient) Update() *IPPoolUpdate {
+	mutation := newIPPoolMutation(c.config, OpUpdate)
+	return &IPPoolUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IPPoolClient) UpdateOne(_m *IPPool) *IPPoolUpdateOne {
+	mutation := newIPPoolMutation(c.config, OpUpdateOne, withIPPool(_m))
+	return &IPPoolUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IPPoolClient) UpdateOneID(id int64) *IPPoolUpdateOne {
+	mutation := newIPPoolMutation(c.config, OpUpdateOne, withIPPoolID(id))
+	return &IPPoolUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for IPPool.
+func (c *IPPoolClient) Delete() *IPPoolDelete {
+	mutation := newIPPoolMutation(c.config, OpDelete)
+	return &IPPoolDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IPPoolClient) DeleteOne(_m *IPPool) *IPPoolDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IPPoolClient) DeleteOneID(id int64) *IPPoolDeleteOne {
+	builder := c.Delete().Where(ippool.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IPPoolDeleteOne{builder}
+}
+
+// Query returns a query builder for IPPool.
+func (c *IPPoolClient) Query() *IPPoolQuery {
+	return &IPPoolQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIPPool},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a IPPool entity by its id.
+func (c *IPPoolClient) Get(ctx context.Context, id int64) (*IPPool, error) {
+	return c.Query().Where(ippool.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IPPoolClient) GetX(ctx context.Context, id int64) *IPPool {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryLocation queries the location edge of a IPPool.
+func (c *IPPoolClient) QueryLocation(_m *IPPool) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ippool.Table, ippool.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ippool.LocationTable, ippool.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAllocations queries the allocations edge of a IPPool.
+func (c *IPPoolClient) QueryAllocations(_m *IPPool) *IPAllocationQuery {
+	query := (&IPAllocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ippool.Table, ippool.FieldID, id),
+			sqlgraph.To(ipallocation.Table, ipallocation.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, ippool.AllocationsTable, ippool.AllocationsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IPPoolClient) Hooks() []Hook {
+	return c.hooks.IPPool
+}
+
+// Interceptors returns the client interceptors.
+func (c *IPPoolClient) Interceptors() []Interceptor {
+	return c.inters.IPPool
+}
+
+func (c *IPPoolClient) mutate(ctx context.Context, m *IPPoolMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IPPoolCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IPPoolUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IPPoolUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IPPoolDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown IPPool mutation op: %q", m.Op())
 	}
 }
 
@@ -2277,12 +2609,13 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIToken, Image, ImageTemplate, Invite, Location, Node, Project, ProjectMember,
-		SSHKey, ServerType, Session, Setting, User []ent.Hook
+		APIToken, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location, Node,
+		Project, ProjectMember, SSHKey, ServerType, Session, Setting, User []ent.Hook
 	}
 	inters struct {
-		APIToken, Image, ImageTemplate, Invite, Location, Node, Project, ProjectMember,
-		SSHKey, ServerType, Session, Setting, User []ent.Interceptor
+		APIToken, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location, Node,
+		Project, ProjectMember, SSHKey, ServerType, Session, Setting,
+		User []ent.Interceptor
 	}
 )
 

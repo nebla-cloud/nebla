@@ -45,6 +45,75 @@ var (
 			},
 		},
 	}
+	// IPAllocationsColumns holds the columns for the "ip_allocations" table.
+	IPAllocationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "ip", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
+		{Name: "server_id", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "pool_id", Type: field.TypeInt64},
+	}
+	// IPAllocationsTable holds the schema information for the "ip_allocations" table.
+	IPAllocationsTable = &schema.Table{
+		Name:       "ip_allocations",
+		Columns:    IPAllocationsColumns,
+		PrimaryKey: []*schema.Column{IPAllocationsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "ip_allocations_ip_pools_pool",
+				Columns:    []*schema.Column{IPAllocationsColumns[4]},
+				RefColumns: []*schema.Column{IPPoolsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ip_allocations_pool_ip_key",
+				Unique:  true,
+				Columns: []*schema.Column{IPAllocationsColumns[4], IPAllocationsColumns[1]},
+			},
+			{
+				Name:    "ip_allocations_server_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{IPAllocationsColumns[2]},
+			},
+		},
+	}
+	// IPPoolsColumns holds the columns for the "ip_pools" table.
+	IPPoolsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "family", Type: field.TypeString, Size: 2147483647},
+		{Name: "bridge", Type: field.TypeString, Size: 2147483647},
+		{Name: "vlan_tag", Type: field.TypeInt, Nullable: true},
+		{Name: "cidr", Type: field.TypeString, SchemaType: map[string]string{"postgres": "cidr"}},
+		{Name: "gateway", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
+		{Name: "dns", Type: field.TypeJSON},
+		{Name: "range_start", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
+		{Name: "range_end", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "location_id", Type: field.TypeInt64},
+	}
+	// IPPoolsTable holds the schema information for the "ip_pools" table.
+	IPPoolsTable = &schema.Table{
+		Name:       "ip_pools",
+		Columns:    IPPoolsColumns,
+		PrimaryKey: []*schema.Column{IPPoolsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "ip_pools_locations_location",
+				Columns:    []*schema.Column{IPPoolsColumns[10]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ip_pools_location_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{IPPoolsColumns[10]},
+			},
+		},
+	}
 	// ImagesColumns holds the columns for the "images" table.
 	ImagesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -416,6 +485,8 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APITokensTable,
+		IPAllocationsTable,
+		IPPoolsTable,
 		ImagesTable,
 		ImageTemplatesTable,
 		InvitesTable,
@@ -437,6 +508,8 @@ func init() {
 	APITokensTable.Annotation = &entsql.Annotation{
 		Table: "api_tokens",
 	}
+	IPAllocationsTable.ForeignKeys[0].RefTable = IPPoolsTable
+	IPPoolsTable.ForeignKeys[0].RefTable = LocationsTable
 	ImageTemplatesTable.ForeignKeys[0].RefTable = ImagesTable
 	ImageTemplatesTable.ForeignKeys[1].RefTable = LocationsTable
 	InvitesTable.ForeignKeys[0].RefTable = ProjectsTable

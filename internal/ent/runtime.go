@@ -9,6 +9,8 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/ipallocation"
+	"github.com/Hexeption/nebla/internal/ent/ippool"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
@@ -30,6 +32,18 @@ func init() {
 	apitokenDescCreatedAt := apitokenFields[6].Descriptor()
 	// apitoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	apitoken.DefaultCreatedAt = apitokenDescCreatedAt.Default.(func() time.Time)
+	ipallocationFields := schema.IPAllocation{}.Fields()
+	_ = ipallocationFields
+	// ipallocationDescCreatedAt is the schema descriptor for created_at field.
+	ipallocationDescCreatedAt := ipallocationFields[4].Descriptor()
+	// ipallocation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	ipallocation.DefaultCreatedAt = ipallocationDescCreatedAt.Default.(func() time.Time)
+	ippoolFields := schema.IPPool{}.Fields()
+	_ = ippoolFields
+	// ippoolDescCreatedAt is the schema descriptor for created_at field.
+	ippoolDescCreatedAt := ippoolFields[10].Descriptor()
+	// ippool.DefaultCreatedAt holds the default value on creation for the created_at field.
+	ippool.DefaultCreatedAt = ippoolDescCreatedAt.Default.(func() time.Time)
 	imageFields := schema.Image{}.Fields()
 	_ = imageFields
 	// imageDescDescription is the schema descriptor for description field.

@@ -9,6 +9,12 @@ import (
 // APIToken is the predicate function for apitoken builders.
 type APIToken func(*sql.Selector)
 
+// IPAllocation is the predicate function for ipallocation builders.
+type IPAllocation func(*sql.Selector)
+
+// IPPool is the predicate function for ippool builders.
+type IPPool func(*sql.Selector)
+
 // Image is the predicate function for image builders.
 type Image func(*sql.Selector)
 

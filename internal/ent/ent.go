@@ -16,6 +16,8 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/ipallocation"
+	"github.com/Hexeption/nebla/internal/ent/ippool"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
@@ -86,6 +88,8 @@ func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			apitoken.Table:      apitoken.ValidColumn,
+			ipallocation.Table:  ipallocation.ValidColumn,
+			ippool.Table:        ippool.ValidColumn,
 			image.Table:         image.ValidColumn,
 			imagetemplate.Table: imagetemplate.ValidColumn,
 			invite.Table:        invite.ValidColumn,
