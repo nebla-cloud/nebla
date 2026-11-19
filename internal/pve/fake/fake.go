@@ -87,6 +87,7 @@ type Server struct {
 	calls   []string
 	delay   time.Duration
 	seq     int
+	rrd     []map[string]any
 }
 
 // New starts a fake PVE over TLS and stops it when the test ends.
@@ -158,6 +159,13 @@ func (s *Server) RemoveNode(name string) {
 	defer s.mu.Unlock()
 	s.sweep()
 	delete(s.nodes, name)
+}
+
+// SetRRD replaces the rrddata every VM returns; nil restores the default five points.
+func (s *Server) SetRRD(points []map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rrd = points
 }
 
 func (s *Server) DeleteVM(vmid int) {
@@ -816,6 +824,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		if !slices.Contains([]string{"hour", "day", "week", "month", "year"}, r.URL.Query().Get("timeframe")) {
 			return nil, &apiErr{400, "parameter verification failed: timeframe"}
+		}
+		if s.rrd != nil {
+			return s.rrd, nil
 		}
 		out := []map[string]any{}
 		for i := range 5 {

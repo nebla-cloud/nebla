@@ -70,9 +70,10 @@ type VNCTicket struct {
 	Ticket, User string
 }
 
+// RRDPoint is one RRD sample; a nil value is a gap (null or NaN in Proxmox).
 type RRDPoint struct {
 	Time                                                 int64
-	CPU, Mem, MaxMem, NetIn, NetOut, DiskRead, DiskWrite float64
+	CPU, Mem, MaxMem, NetIn, NetOut, DiskRead, DiskWrite *float64
 }
 
 type Client interface {

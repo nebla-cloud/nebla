@@ -90,3 +90,30 @@ func TestMetricsRejectsBadInput(t *testing.T) {
 	res = e.C.Get(metricsPath(999999, "type=cpu&timeframe=hour"))
 	require.Equal(t, http.StatusNotFound, res.StatusCode, e.App.Body(res))
 }
+
+// TestMetricsGapsAreNull checks Proxmox nulls and NaN come out as JSON null, not 0.
+func TestMetricsGapsAreNull(t *testing.T) {
+	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
+	s := e.RunningServer("web")
+	e.App.PVE.SetRRD([]map[string]any{
+		{"time": 1_700_000_000, "cpu": 0.25, "netin": 10, "netout": 0},
+		{"time": 1_700_000_060, "cpu": nil, "netin": "NaN"},
+	})
+	res := e.C.Get(metricsPath(s.ServerID, "type=cpu,network&timeframe=hour"))
+	body := e.App.Body(res)
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	var m struct {
+		Metrics struct {
+			TimeSeries map[string][][]*float64 `json:"time_series"`
+		} `json:"metrics"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &m))
+	ts := m.Metrics.TimeSeries
+	require.InDelta(t, 25, *ts["cpu"][0][1], 1e-9)
+	require.Equal(t, 0.0, *ts["network.out"][0][1])
+	for _, k := range []string{"cpu", "network.in", "network.out"} {
+		require.Equal(t, 1_700_000_060.0, *ts[k][1][0], k)
+		require.Nil(t, ts[k][1][1], k)
+	}
+	require.Contains(t, body, `[1700000060,null]`)
+}

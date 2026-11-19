@@ -375,8 +375,8 @@ type Metrics struct {
 	// Step Seconds between points
 	Step int `json:"step"`
 
-	// TimeSeries Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s). Each value is a list of [unix_ts, value] pairs.
-	TimeSeries map[string][][]float64 `json:"time_series"`
+	// TimeSeries Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s). Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample.
+	TimeSeries map[string][][]*float64 `json:"time_series"`
 }
 
 // Node defines model for Node.

@@ -26,7 +26,8 @@ import (
 
 const (
 	// TokenTTL is how long a console token can be redeemed.
-	TokenTTL = 60 * time.Second
+	// TokenTTL matches the ~10s Proxmox's vncproxy listener waits, so a late redeem is a 404 rather than a 502.
+	TokenTTL = 10 * time.Second
 	// MaxSession and IdleTimeout are the defaults for Options.
 	MaxSession  = 8 * time.Hour
 	IdleTimeout = 30 * time.Minute
@@ -45,6 +46,7 @@ var (
 	errNotRunning = apierr.New(http.StatusConflict, "server_not_running", "the server must be running")
 	errUpstream   = apierr.New(http.StatusBadGateway, "pve_unreachable", "could not reach the Proxmox console")
 	errOrigin     = apierr.New(http.StatusForbidden, "forbidden", "origin not allowed")
+	errHandshake  = apierr.New(http.StatusBadRequest, "invalid_input", "a websocket upgrade request is required")
 )
 
 type Options struct {
@@ -61,9 +63,10 @@ type Options struct {
 }
 
 type Service struct {
-	o        Options
-	wsBase   string
-	baseHost string
+	o      Options
+	wsBase string
+	// baseOrigin is scheme://host[:port] of BaseURL; it is the only allowed browser Origin.
+	baseOrigin string
 }
 
 func New(o Options) *Service {
@@ -79,7 +82,9 @@ func New(o Options) *Service {
 	s := &Service{o: o}
 	base := strings.TrimRight(o.BaseURL, "/")
 	if u, err := url.Parse(base); err == nil {
-		s.baseHost = u.Host
+		if u.Scheme != "" && u.Host != "" {
+			s.baseOrigin = strings.ToLower(u.Scheme + "://" + u.Host)
+		}
 	}
 	switch {
 	case strings.HasPrefix(base, "https://"):
@@ -161,17 +166,34 @@ func (s *Service) consume(ctx context.Context, tok string) (redeemed, bool, erro
 	return t, err == nil, err
 }
 
-// originOK allows no Origin (non-browser clients), the request host and the panel's own host.
+// originOK allows no Origin (non-browser clients) or exactly the panel's own origin.
 func (s *Service) originOK(r *http.Request) bool {
 	o := r.Header.Get("Origin")
 	if o == "" {
 		return true
 	}
 	u, err := url.Parse(o)
-	if err != nil || u.Host == "" {
+	if err != nil || u.Host == "" || s.baseOrigin == "" {
 		return false
 	}
-	return strings.EqualFold(u.Host, r.Host) || (s.baseHost != "" && strings.EqualFold(u.Host, s.baseHost))
+	return strings.EqualFold(u.Scheme+"://"+u.Host, s.baseOrigin)
+}
+
+// isUpgrade reports whether r is a websocket version 13 handshake.
+func isUpgrade(r *http.Request) bool {
+	return headerHas(r.Header, "Upgrade", "websocket") && headerHas(r.Header, "Connection", "upgrade") &&
+		r.Header.Get("Sec-WebSocket-Version") == "13" && r.Header.Get("Sec-WebSocket-Key") != ""
+}
+
+func headerHas(h http.Header, key, token string) bool {
+	for _, v := range h.Values(key) {
+		for p := range strings.SplitSeq(v, ",") {
+			if strings.EqualFold(strings.TrimSpace(p), token) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *Service) fail(w http.ResponseWriter, err error) {
@@ -186,6 +208,10 @@ func (s *Service) fail(w http.ResponseWriter, err error) {
 func (s *Service) Serve(w http.ResponseWriter, r *http.Request, tok string) {
 	if !s.originOK(r) {
 		s.fail(w, errOrigin)
+		return
+	}
+	if !isUpgrade(r) {
+		s.fail(w, errHandshake)
 		return
 	}
 	ctx := r.Context()
@@ -215,8 +241,8 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request, tok string) {
 		return
 	}
 	opts := &websocket.AcceptOptions{Subprotocols: []string{subprotocol}}
-	if s.baseHost != "" {
-		opts.OriginPatterns = []string{escapePattern(s.baseHost)}
+	if s.baseOrigin != "" {
+		opts.OriginPatterns = []string{escapePattern(s.baseOrigin)}
 	}
 	browser, err := websocket.Accept(w, r, opts)
 	if err != nil {
@@ -241,7 +267,7 @@ func (s *Service) dial(ctx context.Context, row *ent.Server, t redeemed) (*webso
 	c, _, err := websocket.Dial(dctx, pc.VNCWebsocketURL(row.Node, t.vmid, pve.VNCTicket{Port: t.port, Ticket: t.ticket}),
 		&websocket.DialOptions{HTTPClient: hc, HTTPHeader: pc.AuthHeader(), Subprotocols: []string{subprotocol}})
 	if err != nil {
-		return nil, err
+		return nil, scrub(err, t.ticket)
 	}
 	c.SetReadLimit(MaxUpstreamMessage)
 	return c, nil
@@ -336,4 +362,32 @@ func closeBoth(a, b *websocket.Conn, code websocket.StatusCode, reason string) {
 // escapePattern quotes path.Match metacharacters in a host.
 func escapePattern(h string) string {
 	return strings.NewReplacer(`\`, `\\`, `*`, `\*`, `?`, `\?`, `[`, `\[`, `]`, `\]`).Replace(h)
+}
+
+// scrubbed is a dial error with the VNC websocket URL's query and the ticket removed.
+type scrubbed struct {
+	msg   string
+	inner error
+}
+
+func (e *scrubbed) Error() string { return e.msg }
+func (e *scrubbed) Unwrap() error { return e.inner }
+
+// scrub strips the query (port and vncticket) from any URL in err and redacts the ticket itself.
+func scrub(err error, ticket string) error {
+	msg := err.Error()
+	var inner error
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		bare := ue.URL
+		if i := strings.IndexByte(bare, '?'); i >= 0 {
+			bare = bare[:i]
+		}
+		msg = strings.ReplaceAll(msg, ue.URL, bare)
+		inner = ue.Err
+	}
+	if ticket != "" {
+		msg = strings.NewReplacer(ticket, "[redacted]", url.QueryEscape(ticket), "[redacted]").Replace(msg)
+	}
+	return &scrubbed{msg: msg, inner: inner}
 }
