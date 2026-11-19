@@ -36,7 +36,7 @@ func pendingCleanup(job *rivertype.JobRow) (string, bool) {
 
 func lastError(job *rivertype.JobRow) string {
 	if n := len(job.Errors); n > 0 {
-		return ": " + job.Errors[n-1].Error
+		return job.Errors[n-1].Error
 	}
 	return ""
 }
@@ -61,7 +61,8 @@ func (k contract) work(ctx context.Context) error {
 	}
 	if pending || k.job.Attempt > MaxAttempts {
 		if !pending {
-			msg = k.name + " did not finish after " + strconv.Itoa(MaxAttempts) + " attempts" + lastError(k.job)
+			msg = k.name + " did not finish after " + strconv.Itoa(MaxAttempts) + " attempts"
+			k.log.Error("attempts exhausted", "last_error", lastError(k.job))
 		}
 		return k.finish(ctx, msg, errors.New(msg))
 	}
@@ -76,6 +77,7 @@ func (k contract) work(ctx context.Context) error {
 	if retry && k.job.Attempt < MaxAttempts {
 		return err
 	}
+	k.log.Error("action failed", "err", err)
 	return k.finish(ctx, errorMessage(err), err)
 }
 
