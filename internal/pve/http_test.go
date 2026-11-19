@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"net/http"
 	"net/netip"
 	"slices"
 	"strings"
@@ -118,13 +121,13 @@ func TestTLSModes(t *testing.T) {
 	cn := f.Conn()
 	bad := cn
 	bad.CAFingerprint = strings.Repeat("00:", 31) + "00"
-	if _, err := pve.New(bad).Version(ctx(t)); err == nil || !pve.IsTransient(err) {
-		t.Fatalf("wrong fingerprint accepted: %v", err)
+	if _, err := pve.New(bad).Version(ctx(t)); !errors.Is(err, pve.ErrFingerprint) || pve.IsTransient(err) {
+		t.Fatalf("wrong fingerprint: %v", err)
 	}
 	none := cn
 	none.CAFingerprint = ""
-	if _, err := pve.New(none).Version(ctx(t)); err == nil {
-		t.Fatal("untrusted cert accepted")
+	if _, err := pve.New(none).Version(ctx(t)); err == nil || pve.IsTransient(err) {
+		t.Fatalf("untrusted cert: %v", err)
 	}
 	none.InsecureTLS = true
 	if v, err := pve.New(none).Version(ctx(t)); err != nil || v == "" {
@@ -265,5 +268,150 @@ func TestRRDAndHooks(t *testing.T) {
 	}
 	if _, err := c.Version(ctx(t)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestIsTransient(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"502", &pve.Error{Status: 502, Message: "bad gateway"}, true},
+		{"503", &pve.Error{Status: 503, Message: "x"}, true},
+		{"504", &pve.Error{Status: 504, Message: "x"}, true},
+		{"500 timeout", &pve.Error{Status: 500, Message: "got timeout"}, true},
+		{"500 lock", &pve.Error{Status: 500, Message: "can't lock file '/var/lock/qemu-server/lock-101.conf' - got timeout"}, true},
+		{"500 refused", &pve.Error{Status: 500, Message: "Connection refused"}, true},
+		{"500 unable", &pve.Error{Status: 500, Message: "unable to connect to VM 101 qmp socket"}, true},
+		{"500 exists", &pve.Error{Status: 500, Message: "unable to create VM 101: config file already exists"}, false},
+		{"500 running", &pve.Error{Status: 500, Message: "VM 101 is running - destroy failed"}, false},
+		{"500 missing", &pve.Error{Status: 500, Message: "Configuration file does not exist"}, false},
+		{"400", &pve.Error{Status: 400, Message: "bad"}, false},
+		{"401", &pve.Error{Status: 401, Message: "no ticket"}, false},
+		{"404", &pve.Error{Status: 404, Message: "x"}, false},
+		{"canceled", context.Canceled, false},
+		{"deadline", context.DeadlineExceeded, false},
+		{"fingerprint", fmt.Errorf("dial: %w", pve.ErrFingerprint), false},
+		{"net", &net.OpError{Op: "dial", Err: errors.New("refused")}, true},
+		{"plain", errors.New("boom"), false},
+	}
+	for _, c := range cases {
+		if got := pve.IsTransient(c.err); got != c.want {
+			t.Errorf("%s: got %v want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestWaitTaskToleratesPollErrors(t *testing.T) {
+	f, c := setup(t)
+	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		f.FailNext("/status", 503)
+	}
+	if err := c.WaitTask(ctx(t), "pve1", up); err != nil {
+		t.Fatalf("3 transient errors should be tolerated: %v", err)
+	}
+	for range 4 {
+		f.FailNext("/status", 503)
+	}
+	err = c.WaitTask(ctx(t), "pve1", up)
+	var pe *pve.Error
+	if !errors.As(err, &pe) || pe.Status != 503 {
+		t.Fatalf("4th consecutive error should abort: %v", err)
+	}
+	f.FailNext("/status", 400)
+	if err := c.WaitTask(ctx(t), "pve1", up); err == nil {
+		t.Fatal("permanent poll error should abort")
+	}
+}
+
+func TestFakeRejectsLikeRealPVE(t *testing.T) {
+	f, c := setup(t)
+	f.AddVM("pve1", 101, "a")
+	waitErr := func(up pve.UPID, err error) error {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c.WaitTask(ctx(t), "pve1", up)
+	}
+	if err := waitErr(c.Power(ctx(t), "pve1", 101, pve.PowerStop)); err == nil || !strings.Contains(err.Error(), "not running") {
+		t.Fatalf("stop stopped vm: %v", err)
+	}
+	if err := waitErr(c.Power(ctx(t), "pve1", 101, pve.PowerStart)); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitErr(c.Power(ctx(t), "pve1", 101, pve.PowerStart)); err == nil || !strings.Contains(err.Error(), "already running") {
+		t.Fatalf("start running vm: %v", err)
+	}
+	if _, err := c.Destroy(ctx(t), "pve1", 101); err == nil || !strings.Contains(err.Error(), "VM 101 is running") {
+		t.Fatalf("destroy running vm: %v", err)
+	}
+	if _, ok := f.VM(101); !ok {
+		t.Fatal("running vm was destroyed")
+	}
+	if err := c.ResizeDisk(ctx(t), "pve1", 101, "scsi0", 5); err == nil {
+		t.Fatal("shrink accepted")
+	}
+	if err := c.SetConfig(ctx(t), "pve1", 101, map[string]string{"cores": "4", "tags": "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetConfig(ctx(t), "pve1", 101, map[string]string{"delete": "tags,cores"}); err != nil {
+		t.Fatal(err)
+	}
+	vm, _ := f.VM(101)
+	if _, ok := vm.Config["tags"]; ok || vm.Config["cores"] != "" || vm.Config["delete"] != "" {
+		t.Fatalf("config = %v", vm.Config)
+	}
+}
+
+func TestTaskEffectsApplyOnCompletion(t *testing.T) {
+	f, c := setup(t)
+	f.SetTaskDelay(200 * time.Millisecond)
+	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.VM(101); ok {
+		t.Fatal("clone applied before task completed")
+	}
+	if err := c.WaitTask(ctx(t), "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.VM(101); !ok {
+		t.Fatal("clone missing after task")
+	}
+	f.SetTaskDelay(0)
+	up, err = c.Destroy(ctx(t), "pve1", 101)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.SetTaskDelay(0)
+	if err := c.WaitTask(ctx(t), "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.VM(101); ok {
+		t.Fatal("destroy not applied")
+	}
+}
+
+func TestDeleteVolumeNeedsEscapedVolid(t *testing.T) {
+	f, _ := setup(t)
+	f.AddStorage("pve1", "local", []string{"iso"}, false)
+	cn := f.Conn()
+	req, _ := http.NewRequest(http.MethodDelete, cn.BaseURL+"/api2/json/nodes/pve1/storage/local/content/local:iso/x.iso", nil)
+	req.Header = pve.New(cn).AuthHeader()
+	res, err := f.HTTPClient().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("unescaped slash status = %d", res.StatusCode)
 	}
 }
