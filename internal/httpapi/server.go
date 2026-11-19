@@ -51,6 +51,8 @@ type Deps struct {
 	Jobs *jobs.Jobs
 	// ScopedRoutes mounts extra non-strict routes under /v1 behind the project scope.
 	ScopedRoutes func(r chi.Router)
+	// APILimiter overrides the 3600/hour, burst 100 API limiter (tests).
+	APILimiter *ratelimit.Limiter
 }
 
 type server struct {
@@ -65,6 +67,7 @@ type server struct {
 	servers    *servers.Service
 	console    *console.Service
 	loginLimit *ratelimit.Limiter
+	apiLimit   *ratelimit.Limiter
 }
 
 const maxBodyBytes = 1 << 20
@@ -105,6 +108,7 @@ func New(deps Deps) http.Handler {
 		sshkeys:    sshkeys.New(deps.Ent),
 		servers:    servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
 		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
+		apiLimit:   newAPILimiter(deps.APILimiter),
 	}
 	s.console = console.New(console.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, BaseURL: deps.Config.BaseURL,
 		Logger: log, WriteError: func(w http.ResponseWriter, err error) { s.responseError(w, nil, err) }})
@@ -115,20 +119,34 @@ func New(deps Deps) http.Handler {
 
 	r := chi.NewRouter()
 	api := chi.NewRouter()
+	api.Use(s.rateLimitMiddleware)
 	api.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 			next.ServeHTTP(w, r)
 		})
 	})
-	api.NotFound(notFound)
-	api.MethodNotAllowed(methodNotAllowed)
+	limited := func(h http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if err := rlFrom(r.Context()).byIP(); err != nil {
+				s.responseError(w, r, err)
+				return
+			}
+			h(w, r)
+		}
+	}
+	api.NotFound(limited(notFound))
+	api.MethodNotAllowed(limited(methodNotAllowed))
 	apigen.HandlerWithOptions(strict, apigen.ChiServerOptions{
 		BaseRouter:       api,
 		ErrorHandlerFunc: requestError,
 	})
 	// The console websocket is outside the spec and auth: the one-time token in the path is its only credential.
 	api.Get("/console/{token}", func(w http.ResponseWriter, r *http.Request) {
+		if err := rlFrom(r.Context()).byIP(); err != nil {
+			s.responseError(w, r, err)
+			return
+		}
 		s.console.Serve(w, r, chi.URLParam(r, "token"))
 	})
 	if deps.ScopedRoutes != nil {
