@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -302,6 +303,14 @@ func (b *builder) configure(ctx context.Context) error {
 		"net0":   net0,
 		"agent":  "1",
 	}
+	cfg, err := b.pc.Config(ctx, b.row.Node, b.vmid())
+	if err != nil {
+		return err
+	}
+	// A template's Proxmox cloud-init drive would clash with our cidata seed ISO.
+	if drives := cloudinitDrives(cfg); len(drives) > 0 {
+		kv["delete"] = strings.Join(drives, ",")
+	}
 	if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), kv); err != nil {
 		return err
 	}
@@ -423,4 +432,19 @@ func (o *WorkerOptions) loadTarget(ctx context.Context, row *ent.Server) (catalo
 		return loc, pc, nil, &stepError{"load ips", err}
 	}
 	return loc, pc, assign, nil
+}
+
+var cloudinitVolume = regexp.MustCompile(`(^|[:/])(vm|base)-\d+-cloudinit(\.[a-z0-9]+)?$`)
+
+// cloudinitDrives returns the sorted config keys that hold a Proxmox cloud-init drive.
+func cloudinitDrives(cfg map[string]string) []string {
+	var keys []string
+	for k, v := range cfg {
+		vol, _, _ := strings.Cut(v, ",")
+		if cloudinitVolume.MatchString(vol) {
+			keys = append(keys, k)
+		}
+	}
+	slices.Sort(keys)
+	return keys
 }

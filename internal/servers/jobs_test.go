@@ -777,3 +777,52 @@ func TestDeleteSparesReusedVMID(t *testing.T) {
 	require.True(t, ok, "untagged VM survives")
 	require.Empty(t, stranger.Tags)
 }
+
+// noCloudinitDrive asserts no config key of vm holds a Proxmox cloud-init drive.
+func noCloudinitDrive(t *testing.T, vm fake.FakeVM) {
+	t.Helper()
+	for k, v := range vm.Config {
+		require.NotContains(t, v, "cloudinit", "config %s", k)
+	}
+}
+
+func TestCreateAndRebuildReplaceTemplateCloudinitDrives(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t, nil)
+	e.App.PVE.SetVMConfig(testutil.TemplateVMID, "ide2", "ceph:vm-9000-cloudinit,media=cdrom")
+	e.App.PVE.SetVMConfig(testutil.TemplateVMID, "ide0", "ceph:vm-9000-cloudinit,media=cdrom")
+	e.App.PVE.AddTemplate("pve1", 9001, "ceph")
+	e.App.PVE.SetVMConfig(9001, "sata1", "ceph:vm-9001-cloudinit,media=cdrom")
+	e.Admin.CreateImage("debian", e.Location, 9001)
+
+	s := e.CreateServer("web", nil)
+	waitOK(t, e, s.ActionID)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	vm, ok := e.App.PVE.VM(*row.Vmid)
+	require.True(t, ok)
+	noCloudinitDrive(t, vm)
+	require.Equal(t, *row.IsoVolid+",media=cdrom", vm.Config["ide2"])
+
+	waitOK(t, e, startAction(t, e, s.ServerID, "rebuild", map[string]any{"image": "debian"}))
+	row, err = e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	vm, ok = e.App.PVE.VM(*row.Vmid)
+	require.True(t, ok)
+	noCloudinitDrive(t, vm)
+	require.Equal(t, *row.IsoVolid+",media=cdrom", vm.Config["ide2"])
+}
+
+func TestCloudinitDrives(t *testing.T) {
+	cfg := map[string]string{
+		"ide2":  "local-lvm:vm-9000-cloudinit,media=cdrom",
+		"ide0":  "local:100/vm-100-cloudinit.qcow2,media=cdrom",
+		"sata0": "ceph:base-9000-cloudinit,media=cdrom",
+		"ide3":  "local:iso/cloudinit-tools.iso,media=cdrom",
+		"ide1":  "local:iso/nb-srv-1-1.iso,media=cdrom",
+		"scsi0": "local-lvm:vm-100-disk-0,size=10G",
+		"name":  "cloudinit",
+	}
+	require.Equal(t, []string{"ide0", "ide2", "sata0"}, servers.CloudinitDrives(cfg))
+	require.Empty(t, servers.CloudinitDrives(map[string]string{"ide2": "none,media=cdrom"}))
+}

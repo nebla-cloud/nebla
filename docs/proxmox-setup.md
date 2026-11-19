@@ -6,32 +6,50 @@ any node.
 
 Nebla supports Proxmox VE 8 and 9.
 
-## 1. Role
+## 1. Roles
 
-Create a role named `Nebla` with exactly these privileges.
+Nebla uses two roles: `Nebla` on `/` for VMs, and `NeblaISO` on the ISO storage only, so it can delete the cloud-init
+seed ISOs it uploads.
+
+The privilege list was extended beyond the original v1 plan with `VM.Config.Cloudinit` (to remove a template's cloud-init
+drive) and the `NeblaISO` role (to clean up seed ISOs).
 
 On **PVE 8**:
 
 ```sh
-pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.PowerMgmt VM.Console VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
 ```
 
 On **PVE 9**, `VM.Monitor` no longer exists. Use `VM.GuestAgent.Audit` in its place:
 
 ```sh
-pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.PowerMgmt VM.Console VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
 ```
+
+`VM.Config.Cloudinit` lets Nebla remove a Proxmox cloud-init drive that a cloned template carries. That drive would clash
+with Nebla's own seed ISO, because both use the `cidata` label.
+
+On both versions, also create the ISO cleanup role:
+
+```sh
+pveum role add NeblaISO --privs "Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+```
+
+Proxmox only lets a user delete an ISO volume with `Datastore.Allocate` on its storage. Without it, deleting or
+rebuilding a server fails and seed ISOs pile up. `Datastore.Allocate` also lets the token delete any other volume on that
+storage, so grant it on the ISO storage only (step 2), never on `/`. A storage dedicated to Nebla's ISOs keeps this tight.
 
 ## 2. User, permissions and API token
 
 ```sh
 pveum user add nebla@pve --comment "Nebla panel"
 pveum aclmod / --users nebla@pve --roles Nebla
+pveum aclmod /storage/<iso_storage> --users nebla@pve --roles NeblaISO
 pveum user token add nebla@pve panel --privsep 0
 ```
 
-`--privsep 0` turns privilege separation off, so the token gets the user's `Nebla` role on `/`. The last command prints
-the token once:
+Replace `<iso_storage>` with the location's `iso_storage`, for example `/storage/local`. `--privsep 0` turns privilege
+separation off, so the token gets the user's permissions. The last command prints the token once:
 
 - the token ID is `nebla@pve!panel`
 - the `value` is the token secret
@@ -78,8 +96,8 @@ node's `disk_storage_override` in the admin API.
 
 ## 5. Cloud-init template (Debian 13)
 
-Servers are full clones of a template VM. Nebla attaches its own NoCloud seed ISO as `ide2`, so do **not** add a Proxmox
-cloud-init drive to the template, and leave `ide2` free.
+Servers are full clones of a template VM. Nebla attaches its own NoCloud seed ISO as `ide2`. A Proxmox cloud-init drive
+isn't needed. If the template has one, on any slot, Nebla removes it from each clone.
 
 ```sh
 cd /var/tmp
@@ -100,12 +118,17 @@ qm importdisk 9000 /var/tmp/debian-13-genericcloud-amd64.qcow2 local-lvm
 qm set 9000 --scsi0 local-lvm:vm-9000-disk-0
 ```
 
+Template requirements:
+
+- **A VGA display.** A serial-only display (`vga: serial0`) leaves the browser console blank. Nebla doesn't change
+  `vga`, so fix the template: `qm set <tpl> --vga std`.
+- **The QEMU guest agent is recommended.** The genericcloud image doesn't ship it. Install it in your image or with user
+  data (`packages: [qemu-guest-agent]`). Power actions and metrics work without it.
+
 Notes:
 
 - Nebla sets cores, memory, the network card, tags and `agent=1` on every clone, and grows the disk to the server type's
   size. Keep the template disk no larger than your smallest server type, because disks never shrink.
-- The genericcloud image doesn't ship the QEMU guest agent. Install it in your image or with user data
-  (`packages: [qemu-guest-agent]`) if you want it. Power actions and metrics work without it.
 - Nebla tags its VMs `nebla` and `nb-srv-<id>`. It never touches VMs without the `nebla` tag.
 
 ## 6. Register the template as an image
