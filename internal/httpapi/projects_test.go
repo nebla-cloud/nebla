@@ -62,6 +62,7 @@ func TestCreatorIsOwnerHTTP(t *testing.T) {
 
 func TestInviteAcceptNewUser(t *testing.T) {
 	app := testutil.NewApp(t)
+	enableSelfSignup(t, app)
 	app.CreateUser("a@example.com", false)
 	owner := app.Login("a@example.com")
 	id := owner.CreateProject("Web")
@@ -99,8 +100,8 @@ func TestInviteExistingEmailNeedsLogin(t *testing.T) {
 	token := owner.Invite(id, "b@example.com", "read_only")
 
 	res := app.NewClient().Send(http.MethodPost, "/v1/invites/"+token+"/accept", map[string]string{"name": "B", "password": testutil.Password})
-	require.Equal(t, 409, res.StatusCode)
-	require.Equal(t, "email_taken", errCode(t, app, res))
+	require.Equal(t, 401, res.StatusCode)
+	require.Equal(t, "login_required", errCode(t, app, res))
 
 	b := app.Login("b@example.com")
 	res = b.Send(http.MethodPost, "/v1/invites/"+token+"/accept", nil)
@@ -234,6 +235,7 @@ func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
 func TestInviteListRevokeAndMismatch(t *testing.T) {
 	app := testutil.NewApp(t)
+	enableSelfSignup(t, app)
 	app.CreateUser("a@example.com", false)
 	app.CreateUser("b@example.com", false)
 	owner := app.Login("a@example.com")

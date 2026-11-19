@@ -528,8 +528,10 @@ type Accepted struct {
 
 var errInviteMismatch = apierr.New(http.StatusForbidden, "invite_email_mismatch", "this invite was sent to a different email address")
 
-// AcceptInvite adds the logged-in user (whose email must match) or, when u is nil, a new account to the invite's project.
-func (s *Service) AcceptInvite(ctx context.Context, token string, u *auth.User, name, password string) (Accepted, error) {
+var errLoginRequired = apierr.New(http.StatusUnauthorized, "login_required", "log in to accept this invite")
+
+// AcceptInvite adds u, or a new account if selfSignup or an admin made the invite, to the invite's project.
+func (s *Service) AcceptInvite(ctx context.Context, token string, u *auth.User, name, password string, selfSignup bool) (Accepted, error) {
 	hash := auth.HashSecret(token)
 	inv, err := s.liveInvite(ctx, s.db, hash, false)
 	if err != nil {
@@ -537,6 +539,15 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, u *auth.User, 
 	}
 	if u != nil && auth.NormalizeEmail(u.Email) != inv.Email {
 		return Accepted{}, errInviteMismatch
+	}
+	if u == nil && !selfSignup {
+		admin, err := s.db.User.Query().Where(user.ID(inv.CreatedBy), user.IsAdmin(true)).Exist(ctx)
+		if err != nil {
+			return Accepted{}, err
+		}
+		if !admin {
+			return Accepted{}, errLoginRequired
+		}
 	}
 	var out Accepted
 	err = withTx(ctx, s.db, func(tx *ent.Client) error {

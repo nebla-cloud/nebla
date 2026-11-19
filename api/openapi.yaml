@@ -537,7 +537,10 @@ paths:
   /invites/{token}/accept:
     post:
       operationId: postInviteAccept
-      summary: Accept an invite, creating an account when not logged in
+      summary: Accept an invite
+      description: >-
+        Logged in, the caller joins the project. Not logged in, an account is created
+        only when self-signup is on or a panel admin created the invite; otherwise 401 login_required.
       security: []
       parameters:
         - name: token
@@ -561,6 +564,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Project" }
+        "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }

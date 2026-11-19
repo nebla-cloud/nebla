@@ -153,7 +153,7 @@ func (s *server) PostInviteAccept(ctx context.Context, req apigen.PostInviteAcce
 			pw = *b.Password
 		}
 	}
-	acc, err := s.projects.AcceptInvite(ctx, req.Token, me, name, pw)
+	acc, err := s.projects.AcceptInvite(ctx, req.Token, me, name, pw, me == nil && s.deps.Ext.SelfSignupEnabled(ctx))
 	if err != nil {
 		return nil, err
 	}
