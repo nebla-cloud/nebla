@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/db"
+	"github.com/Hexeption/nebla/internal/httpapi"
 )
 
 func main() {
@@ -31,10 +33,12 @@ func run() error {
 	if err := db.Migrate(ctx, pool); err != nil {
 		return err
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	slog.Info("listening", "addr", cfg.Listen)
-	return http.ListenAndServe(cfg.Listen, mux)
+	log := slog.Default()
+	srv := &http.Server{
+		Addr:              cfg.Listen,
+		Handler:           httpapi.New(httpapi.Deps{Pool: pool, Config: cfg, Logger: log}),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	log.Info("listening", "addr", cfg.Listen)
+	return srv.ListenAndServe()
 }

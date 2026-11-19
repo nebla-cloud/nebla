@@ -1,0 +1,92 @@
+openapi: 3.0.3
+info:
+  title: Nebla API
+  version: 1.0.0
+servers:
+  - url: /v1
+security:
+  - bearer: []
+  - cookie: []
+paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+    cookie:
+      type: apiKey
+      in: cookie
+      name: nebla_session
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+    Action:
+      type: object
+      required: [id, command, status, progress, resources, error, started, finished]
+      properties:
+        id: { type: integer, format: int64 }
+        command: { type: string }
+        status: { type: string, enum: [running, success, error] }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        resources:
+          type: array
+          items:
+            type: object
+            required: [id, type]
+            properties:
+              id: { type: integer, format: int64 }
+              type: { type: string }
+        error:
+          type: object
+          nullable: true
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+        started: { type: string, format: date-time }
+        finished: { type: string, format: date-time, nullable: true }
+    Meta:
+      type: object
+      required: [pagination]
+      properties:
+        pagination:
+          type: object
+          required: [page, per_page, total_entries]
+          properties:
+            page: { type: integer }
+            per_page: { type: integer }
+            total_entries: { type: integer }
