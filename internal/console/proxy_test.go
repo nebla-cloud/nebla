@@ -287,3 +287,26 @@ func TestConsoleRequiresOwnedVM(t *testing.T) {
 		require.Contains(t, body, `"server_missing"`)
 	}
 }
+
+// TestConsoleFollowsVMNode checks the ticket and the dial use the node Proxmox lists, not a stale row.
+func TestConsoleFollowsVMNode(t *testing.T) {
+	e, s := env(t)
+	row, err := e.App.Ent.Server.Get(context.Background(), s.ServerID)
+	require.NoError(t, err)
+	e.App.PVE.MoveVM(*row.Vmid, "pve2")
+	g := request(t, e, e.C, s.ServerID)
+	c, _, err := dial(t, g.WSSURL, &websocket.DialOptions{Subprotocols: []string{"binary"}})
+	require.NoError(t, err)
+	c.CloseNow()
+}
+
+// TestConsoleServeRechecksOwnership refuses a token whose VM lost its tags before the redeem.
+func TestConsoleServeRechecksOwnership(t *testing.T) {
+	e, s := env(t)
+	row, err := e.App.Ent.Server.Get(context.Background(), s.ServerID)
+	require.NoError(t, err)
+	g := request(t, e, e.C, s.ServerID)
+	e.App.PVE.SetVMConfig(*row.Vmid, "tags", "nebla;nb-srv-99999")
+	_, res, err := dial(t, g.WSSURL, nil)
+	require404(t, res, err)
+}

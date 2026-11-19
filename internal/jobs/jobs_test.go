@@ -253,3 +253,22 @@ func TestStopCancelsRunningJobs(t *testing.T) {
 func TestDefaultSoftStopTimeout(t *testing.T) {
 	require.Equal(t, 20*time.Second, jobs.SoftStopTimeout)
 }
+
+// TestOrphanSweepSkipsServerActions leaves server actions to the reconcile rescue, which repairs the row too.
+func TestOrphanSweepSkipsServerActions(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	srv, err := actions.Create(ctx, e.ent, e.pid, "test", []actions.Resource{{ID: 7, Type: "image"}, {ID: 1, Type: "server"}})
+	require.NoError(t, err)
+	other, err := actions.Create(ctx, e.ent, e.pid, "test", []actions.Resource{{ID: 1, Type: "image"}})
+	require.NoError(t, err)
+	n, err := e.jobs.FailOrphanedActions(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	got, err := actions.Get(ctx, e.ent, e.pid, srv.ID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusRunning, got.Status)
+	got, err = actions.Get(ctx, e.ent, e.pid, other.ID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusError, got.Status)
+}

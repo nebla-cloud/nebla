@@ -117,13 +117,15 @@ func (s *Service) Request(ctx context.Context, projectID, serverID int64) (Grant
 	if err != nil {
 		return Grant{}, err
 	}
-	if _, err := servers.OwnedVM(ctx, pc, row.ID, *row.Vmid); errors.Is(err, servers.ErrMissing) {
+	v, err := servers.OwnedVM(ctx, pc, row.ID, *row.Vmid)
+	if errors.Is(err, servers.ErrMissing) {
 		return Grant{}, err
-	} else if err != nil {
+	}
+	if err != nil {
 		s.o.Logger.Warn("console: list vms", "server_id", serverID, "err", err)
 		return Grant{}, errUpstream
 	}
-	t, err := pc.VNCProxy(ctx, row.Node, *row.Vmid)
+	t, err := pc.VNCProxy(ctx, v.Node, v.VMID)
 	if errors.Is(err, pve.ErrNotFound) {
 		return Grant{}, errNotRunning
 	}
@@ -238,7 +240,17 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request, tok string) {
 		s.fail(w, err)
 		return
 	}
-	up, err := s.dial(ctx, row, t)
+	node, err := s.ownedNode(ctx, row)
+	if errors.Is(err, servers.ErrMissing) {
+		s.fail(w, errNotFound)
+		return
+	}
+	if err != nil {
+		s.o.Logger.Warn("console: dial proxmox", "server_id", row.ID, "err", err)
+		s.fail(w, errUpstream)
+		return
+	}
+	up, err := s.dial(ctx, row, node, t)
 	if err != nil {
 		s.o.Logger.Warn("console: dial proxmox", "server_id", row.ID, "err", err)
 		s.fail(w, errUpstream)
@@ -256,7 +268,17 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request, tok string) {
 	s.pipe(browser, up)
 }
 
-func (s *Service) dial(ctx context.Context, row *ent.Server, t redeemed) (*websocket.Conn, error) {
+// ownedNode is the node of row's VM if it still carries row's tags.
+func (s *Service) ownedNode(ctx context.Context, row *ent.Server) (string, error) {
+	pc, err := s.o.Catalog.ProxmoxFor(ctx, row.LocationID)
+	if err != nil {
+		return "", err
+	}
+	v, err := servers.OwnedVM(ctx, pc, row.ID, *row.Vmid)
+	return v.Node, err
+}
+
+func (s *Service) dial(ctx context.Context, row *ent.Server, node string, t redeemed) (*websocket.Conn, error) {
 	conn, err := s.o.Catalog.ConnFor(ctx, row.LocationID)
 	if err != nil {
 		return nil, err
@@ -268,7 +290,7 @@ func (s *Service) dial(ctx context.Context, row *ent.Server, t redeemed) (*webso
 	dctx, cancel := context.WithTimeout(ctx, dialTimeout)
 	defer cancel()
 	hc := &http.Client{Transport: &http.Transport{TLSClientConfig: pve.TLSConfig(conn)}}
-	c, _, err := websocket.Dial(dctx, pc.VNCWebsocketURL(row.Node, t.vmid, pve.VNCTicket{Port: t.port, Ticket: t.ticket}),
+	c, _, err := websocket.Dial(dctx, pc.VNCWebsocketURL(node, t.vmid, pve.VNCTicket{Port: t.port, Ticket: t.ticket}),
 		&websocket.DialOptions{HTTPClient: hc, HTTPHeader: pc.AuthHeader(), Subprotocols: []string{subprotocol}})
 	if err != nil {
 		return nil, scrub(err, t.ticket)

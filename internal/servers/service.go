@@ -49,7 +49,7 @@ const (
 	KindCreateServer = "create_server"
 	KindDeleteServer = "delete_server"
 	// ResourceType is the actions resource type for servers.
-	ResourceType = "server"
+	ResourceType = jobs.ServerResource
 	// MaxUserData is the largest accepted user_data in bytes.
 	MaxUserData = 32 << 10
 	MaxLabels   = 64

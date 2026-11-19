@@ -55,32 +55,47 @@ func New(o Options) *Reconciler {
 // Run reconciles one location: stuck actions from the DB alone, then node load, server status and node.
 func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 	log := r.o.Logger.With("location_id", locationID)
-	reverts, errs := r.rescue(ctx, log, locationID)
+	reverts, errs, err := r.rescue(ctx, log, locationID)
+	if err != nil {
+		errs = append(errs, err)
+	}
 	if err := r.sync(ctx, log, locationID, reverts); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
 
-// RescueAll fails orphaned server actions in every location without calling Proxmox; startup runs it.
+// RescueAll fails orphaned server actions in every location without Proxmox; failed rows are logged and left to Run.
 func (r *Reconciler) RescueAll(ctx context.Context) error {
 	ids, err := r.o.Ent.Location.Query().IDs(ctx)
 	if err != nil {
 		return err
 	}
-	var errs []error
 	for _, id := range ids {
-		reverts, e := r.rescue(ctx, r.o.Logger.With("location_id", id), id)
-		for _, rv := range reverts {
-			r.o.Logger.Warn("reconcile: vm config not restored at startup", "server_id", rv.row.ID)
+		log := r.o.Logger.With("location_id", id)
+		reverts, _, err := r.rescue(ctx, log, id)
+		if err != nil {
+			return err
 		}
-		errs = append(errs, e...)
+		unrestored(log, reverts)
 	}
-	return errors.Join(errs...)
+	return nil
+}
+
+func unrestored(log *slog.Logger, reverts []revert) {
+	for _, rv := range reverts {
+		log.Warn("reconcile: vm config not restored, proxmox not read", "server_id", rv.row.ID)
+	}
 }
 
 // sync reads Proxmox and moves server rows to match it.
 func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int64, reverts []revert) error {
+	restored := false
+	defer func() {
+		if !restored {
+			unrestored(log, reverts)
+		}
+	}()
 	// SyncNodes refreshes node load and fails when Proxmox is unreachable or lists no nodes.
 	loc, err := r.o.Catalog.SyncNodes(ctx, locationID)
 	if err != nil {
@@ -123,6 +138,7 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 	}
 	vms := view{vms: tagged(all), online: online}
 	r.restore(ctx, log, pc, reverts, vms)
+	restored = true
 	if err := tooManyMissing(rows, vms); err != nil {
 		log.Error("reconcile: refusing to mark servers missing", "err", err)
 		return err
@@ -288,14 +304,14 @@ type revert struct {
 	from servers.Spec
 }
 
-// rescue fails running actions on this location's servers whose job can no longer finish them, using only the DB.
-func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, locationID int64) ([]revert, []error) {
+// rescue fails orphaned actions on this location's servers from the DB alone; err is set only if they cannot be listed.
+func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, locationID int64) (reverts []revert, rowErrs []error, err error) {
 	q, err := r.o.SQL.QueryContext(ctx, `
 		select a.id, s.id from actions a join servers s
 		on s.location_id = $1 and a.resources @> jsonb_build_array(jsonb_build_object('id', s.id, 'type', $2::text))
 		where `+jobs.Orphaned+` order by a.id`, locationID, servers.ResourceType)
 	if err != nil {
-		return nil, []error{fmt.Errorf("find orphaned actions: %w", err)}
+		return nil, nil, fmt.Errorf("find orphaned actions: %w", err)
 	}
 	type stuck struct{ action, server int64 }
 	var found []stuck
@@ -303,27 +319,25 @@ func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, locationID in
 		var s stuck
 		if err := q.Scan(&s.action, &s.server); err != nil {
 			q.Close()
-			return nil, []error{err}
+			return nil, nil, err
 		}
 		found = append(found, s)
 	}
 	if err := errors.Join(q.Err(), q.Close()); err != nil {
-		return nil, []error{err}
+		return nil, nil, err
 	}
-	var errs []error
-	var reverts []revert
 	for _, s := range found {
 		rv, err := r.rescueOne(ctx, log, s.action, s.server)
 		if err != nil {
 			log.Error("reconcile: rescue action", "action_id", s.action, "err", err)
-			errs = append(errs, fmt.Errorf("rescue action %d: %w", s.action, err))
+			rowErrs = append(rowErrs, fmt.Errorf("rescue action %d: %w", s.action, err))
 			continue
 		}
 		if rv != nil {
 			reverts = append(reverts, *rv)
 		}
 	}
-	return reverts, errs
+	return reverts, rowErrs, nil
 }
 
 func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, actionID, serverID int64) (*revert, error) {
