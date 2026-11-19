@@ -86,6 +86,7 @@ type Server struct {
 	fails   []failure
 	calls   []string
 	delay   time.Duration
+	down    bool
 	seq     int
 	rrd     []map[string]any
 }
@@ -227,6 +228,13 @@ func (s *Server) SetTaskDelay(d time.Duration) {
 	s.delay = d
 }
 
+// SetDown makes every request fail with 503 until it is set back.
+func (s *Server) SetDown(down bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.down = down
+}
+
 // FailNext fails the next "METHOD path" ending in pattern: a failed task if it creates one, else an HTTP error.
 func (s *Server) FailNext(pattern string, status int) {
 	s.mu.Lock()
@@ -297,7 +305,12 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		s.mu.Lock()
 		s.calls = append(s.calls, r.Method+" "+p)
 		s.sweep()
+		down := s.down
 		s.mu.Unlock()
+		if down {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"data": nil, "message": "proxmox down"})
+			return
+		}
 		if r.Header.Get("Authorization") != "PVEAPIToken="+s.tokenID+"="+s.secret {
 			writeJSON(w, 401, map[string]any{"data": nil, "message": "no ticket"})
 			return
