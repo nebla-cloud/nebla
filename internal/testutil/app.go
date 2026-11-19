@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/auth"
+	"github.com/Hexeption/nebla/internal/catalog"
+	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/httpapi"
@@ -29,7 +31,9 @@ type App struct {
 	Ent  *ent.Client
 	Auth *auth.Service
 	PVE  *fake.Server
-	t    *testing.T
+	// Catalog is the catalog service the API uses.
+	Catalog *catalog.Service
+	t       *testing.T
 }
 
 // Password is the password used by fixture users.
@@ -40,13 +44,17 @@ func NewApp(t *testing.T, opts ...func(*httpapi.Deps)) *App {
 	t.Helper()
 	pool := NewDB(t)
 	client, sqlDB := entFor(t, pool)
-	deps := httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client}
+	deps := httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: config.Config{SecretKey: []byte(SecretKey)}}
 	for _, o := range opts {
 		o(&deps)
 	}
+	if deps.Catalog == nil {
+		deps.Catalog = catalog.New(sqlDB, client, CatalogOptions(deps.CatalogHooks))
+	}
 	srv := httptest.NewServer(httpapi.New(deps))
 	t.Cleanup(srv.Close)
-	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration), PVE: fake.New(t), t: t}
+	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration),
+		PVE: fake.New(t), Catalog: deps.Catalog, t: t}
 }
 
 func (a *App) Do(req *http.Request) *http.Response {

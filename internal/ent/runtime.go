@@ -6,11 +6,17 @@ import (
 	"time"
 
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/image"
+	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
 	"github.com/Hexeption/nebla/internal/ent/schema"
+	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
+	"github.com/Hexeption/nebla/internal/ent/sshkey"
 	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
@@ -24,12 +30,92 @@ func init() {
 	apitokenDescCreatedAt := apitokenFields[6].Descriptor()
 	// apitoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	apitoken.DefaultCreatedAt = apitokenDescCreatedAt.Default.(func() time.Time)
+	imageFields := schema.Image{}.Fields()
+	_ = imageFields
+	// imageDescDescription is the schema descriptor for description field.
+	imageDescDescription := imageFields[2].Descriptor()
+	// image.DefaultDescription holds the default value on creation for the description field.
+	image.DefaultDescription = imageDescDescription.Default.(string)
+	// imageDescCreatedAt is the schema descriptor for created_at field.
+	imageDescCreatedAt := imageFields[5].Descriptor()
+	// image.DefaultCreatedAt holds the default value on creation for the created_at field.
+	image.DefaultCreatedAt = imageDescCreatedAt.Default.(func() time.Time)
+	imagetemplateFields := schema.ImageTemplate{}.Fields()
+	_ = imagetemplateFields
+	// imagetemplateDescNode is the schema descriptor for node field.
+	imagetemplateDescNode := imagetemplateFields[3].Descriptor()
+	// imagetemplate.DefaultNode holds the default value on creation for the node field.
+	imagetemplate.DefaultNode = imagetemplateDescNode.Default.(string)
 	inviteFields := schema.Invite{}.Fields()
 	_ = inviteFields
 	// inviteDescCreatedAt is the schema descriptor for created_at field.
 	inviteDescCreatedAt := inviteFields[8].Descriptor()
 	// invite.DefaultCreatedAt holds the default value on creation for the created_at field.
 	invite.DefaultCreatedAt = inviteDescCreatedAt.Default.(func() time.Time)
+	locationFields := schema.Location{}.Fields()
+	_ = locationFields
+	// locationDescDescription is the schema descriptor for description field.
+	locationDescDescription := locationFields[2].Descriptor()
+	// location.DefaultDescription holds the default value on creation for the description field.
+	location.DefaultDescription = locationDescDescription.Default.(string)
+	// locationDescCaFingerprint is the schema descriptor for ca_fingerprint field.
+	locationDescCaFingerprint := locationFields[6].Descriptor()
+	// location.DefaultCaFingerprint holds the default value on creation for the ca_fingerprint field.
+	location.DefaultCaFingerprint = locationDescCaFingerprint.Default.(string)
+	// locationDescInsecureTLS is the schema descriptor for insecure_tls field.
+	locationDescInsecureTLS := locationFields[7].Descriptor()
+	// location.DefaultInsecureTLS holds the default value on creation for the insecure_tls field.
+	location.DefaultInsecureTLS = locationDescInsecureTLS.Default.(bool)
+	// locationDescCreatedAt is the schema descriptor for created_at field.
+	locationDescCreatedAt := locationFields[10].Descriptor()
+	// location.DefaultCreatedAt holds the default value on creation for the created_at field.
+	location.DefaultCreatedAt = locationDescCreatedAt.Default.(func() time.Time)
+	// locationDescUpdatedAt is the schema descriptor for updated_at field.
+	locationDescUpdatedAt := locationFields[11].Descriptor()
+	// location.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
+	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	location.UpdateDefaultUpdatedAt = locationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	nodeFields := schema.Node{}.Fields()
+	_ = nodeFields
+	// nodeDescEnabled is the schema descriptor for enabled field.
+	nodeDescEnabled := nodeFields[3].Descriptor()
+	// node.DefaultEnabled holds the default value on creation for the enabled field.
+	node.DefaultEnabled = nodeDescEnabled.Default.(bool)
+	// nodeDescDiskStorageOverride is the schema descriptor for disk_storage_override field.
+	nodeDescDiskStorageOverride := nodeFields[4].Descriptor()
+	// node.DefaultDiskStorageOverride holds the default value on creation for the disk_storage_override field.
+	node.DefaultDiskStorageOverride = nodeDescDiskStorageOverride.Default.(string)
+	// nodeDescStatus is the schema descriptor for status field.
+	nodeDescStatus := nodeFields[5].Descriptor()
+	// node.DefaultStatus holds the default value on creation for the status field.
+	node.DefaultStatus = nodeDescStatus.Default.(string)
+	// nodeDescMaxcpu is the schema descriptor for maxcpu field.
+	nodeDescMaxcpu := nodeFields[6].Descriptor()
+	// node.DefaultMaxcpu holds the default value on creation for the maxcpu field.
+	node.DefaultMaxcpu = nodeDescMaxcpu.Default.(int)
+	// nodeDescMaxmem is the schema descriptor for maxmem field.
+	nodeDescMaxmem := nodeFields[7].Descriptor()
+	// node.DefaultMaxmem holds the default value on creation for the maxmem field.
+	node.DefaultMaxmem = nodeDescMaxmem.Default.(int64)
+	// nodeDescCPU is the schema descriptor for cpu field.
+	nodeDescCPU := nodeFields[8].Descriptor()
+	// node.DefaultCPU holds the default value on creation for the cpu field.
+	node.DefaultCPU = nodeDescCPU.Default.(float64)
+	// nodeDescMem is the schema descriptor for mem field.
+	nodeDescMem := nodeFields[9].Descriptor()
+	// node.DefaultMem holds the default value on creation for the mem field.
+	node.DefaultMem = nodeDescMem.Default.(int64)
+	// nodeDescCreatedAt is the schema descriptor for created_at field.
+	nodeDescCreatedAt := nodeFields[10].Descriptor()
+	// node.DefaultCreatedAt holds the default value on creation for the created_at field.
+	node.DefaultCreatedAt = nodeDescCreatedAt.Default.(func() time.Time)
+	// nodeDescUpdatedAt is the schema descriptor for updated_at field.
+	nodeDescUpdatedAt := nodeFields[11].Descriptor()
+	// node.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	node.DefaultUpdatedAt = nodeDescUpdatedAt.Default.(func() time.Time)
+	// node.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	node.UpdateDefaultUpdatedAt = nodeDescUpdatedAt.UpdateDefault.(func() time.Time)
 	projectFields := schema.Project{}.Fields()
 	_ = projectFields
 	// projectDescMaxServers is the schema descriptor for max_servers field.
@@ -62,6 +148,26 @@ func init() {
 	projectmemberDescCreatedAt := projectmemberFields[4].Descriptor()
 	// projectmember.DefaultCreatedAt holds the default value on creation for the created_at field.
 	projectmember.DefaultCreatedAt = projectmemberDescCreatedAt.Default.(func() time.Time)
+	sshkeyFields := schema.SSHKey{}.Fields()
+	_ = sshkeyFields
+	// sshkeyDescCreatedAt is the schema descriptor for created_at field.
+	sshkeyDescCreatedAt := sshkeyFields[5].Descriptor()
+	// sshkey.DefaultCreatedAt holds the default value on creation for the created_at field.
+	sshkey.DefaultCreatedAt = sshkeyDescCreatedAt.Default.(func() time.Time)
+	servertypeFields := schema.ServerType{}.Fields()
+	_ = servertypeFields
+	// servertypeDescDescription is the schema descriptor for description field.
+	servertypeDescDescription := servertypeFields[2].Descriptor()
+	// servertype.DefaultDescription holds the default value on creation for the description field.
+	servertype.DefaultDescription = servertypeDescDescription.Default.(string)
+	// servertypeDescDeprecated is the schema descriptor for deprecated field.
+	servertypeDescDeprecated := servertypeFields[6].Descriptor()
+	// servertype.DefaultDeprecated holds the default value on creation for the deprecated field.
+	servertype.DefaultDeprecated = servertypeDescDeprecated.Default.(bool)
+	// servertypeDescCreatedAt is the schema descriptor for created_at field.
+	servertypeDescCreatedAt := servertypeFields[7].Descriptor()
+	// servertype.DefaultCreatedAt holds the default value on creation for the created_at field.
+	servertype.DefaultCreatedAt = servertypeDescCreatedAt.Default.(func() time.Time)
 	sessionFields := schema.Session{}.Fields()
 	_ = sessionFields
 	// sessionDescCreatedAt is the schema descriptor for created_at field.

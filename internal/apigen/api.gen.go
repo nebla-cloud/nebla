@@ -74,6 +74,30 @@ func (e GetHealthz200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// AdminImage defines model for AdminImage.
+type AdminImage struct {
+	Created     time.Time       `json:"created"`
+	Description string          `json:"description"`
+	Id          int64           `json:"id"`
+	Name        string          `json:"name"`
+	OsFlavor    string          `json:"os_flavor"`
+	OsVersion   string          `json:"os_version"`
+	Templates   []ImageTemplate `json:"templates"`
+}
+
+// AdminLocation defines model for AdminLocation.
+type AdminLocation struct {
+	Created     time.Time     `json:"created"`
+	Description string        `json:"description"`
+	DiskStorage string        `json:"disk_storage"`
+	Id          int64         `json:"id"`
+	IsoStorage  string        `json:"iso_storage"`
+	Name        string        `json:"name"`
+	Nodes       []Node        `json:"nodes"`
+	Pve         PveConnection `json:"pve"`
+	Updated     time.Time     `json:"updated"`
+}
+
 // AdminSettings defines model for AdminSettings.
 type AdminSettings struct {
 	SelfSignup bool `json:"self_signup"`
@@ -103,6 +127,34 @@ type Error struct {
 	} `json:"error"`
 }
 
+// Image defines model for Image.
+type Image struct {
+	Description string  `json:"description"`
+	Id          int64   `json:"id"`
+	Locations   []int64 `json:"locations"`
+	Name        string  `json:"name"`
+	OsFlavor    string  `json:"os_flavor"`
+	OsVersion   string  `json:"os_version"`
+}
+
+// ImageInput defines model for ImageInput.
+type ImageInput struct {
+	Description *string         `json:"description,omitempty"`
+	Name        string          `json:"name"`
+	OsFlavor    string          `json:"os_flavor"`
+	OsVersion   string          `json:"os_version"`
+	Templates   []ImageTemplate `json:"templates"`
+}
+
+// ImageTemplate defines model for ImageTemplate.
+type ImageTemplate struct {
+	LocationId int64 `json:"location_id"`
+
+	// Node Omit when the template sits on shared storage
+	Node *string `json:"node,omitempty"`
+	Vmid int     `json:"vmid"`
+}
+
 // Invite defines model for Invite.
 type Invite struct {
 	CreatedBy int64     `json:"created_by"`
@@ -110,6 +162,22 @@ type Invite struct {
 	Expires   time.Time `json:"expires"`
 	Id        int64     `json:"id"`
 	Role      Role      `json:"role"`
+}
+
+// Location defines model for Location.
+type Location struct {
+	Description string `json:"description"`
+	Id          int64  `json:"id"`
+	Name        string `json:"name"`
+}
+
+// LocationInput defines model for LocationInput.
+type LocationInput struct {
+	Description *string            `json:"description,omitempty"`
+	DiskStorage string             `json:"disk_storage"`
+	IsoStorage  string             `json:"iso_storage"`
+	Name        string             `json:"name"`
+	Pve         PveConnectionInput `json:"pve"`
 }
 
 // Member defines model for Member.
@@ -129,6 +197,34 @@ type Meta struct {
 	} `json:"pagination"`
 }
 
+// Node defines model for Node.
+type Node struct {
+	// Cpu Load fraction 0-1
+	Cpu float64 `json:"cpu"`
+
+	// DiskStorageOverride Empty uses the location's disk_storage
+	DiskStorageOverride string `json:"disk_storage_override"`
+	Enabled             bool   `json:"enabled"`
+	Id                  int64  `json:"id"`
+	MaxCpu              int    `json:"max_cpu"`
+
+	// MaxMem Bytes
+	MaxMem int64 `json:"max_mem"`
+
+	// Mem Bytes
+	Mem     int64     `json:"mem"`
+	Name    string    `json:"name"`
+	Status  string    `json:"status"`
+	Updated time.Time `json:"updated"`
+}
+
+// NodeInput defines model for NodeInput.
+type NodeInput struct {
+	// DiskStorageOverride Empty clears the override
+	DiskStorageOverride *string `json:"disk_storage_override,omitempty"`
+	Enabled             *bool   `json:"enabled,omitempty"`
+}
+
 // Project defines model for Project.
 type Project struct {
 	Created time.Time `json:"created"`
@@ -143,6 +239,29 @@ type ProjectInput struct {
 	Name string `json:"name"`
 }
 
+// PveConnection defines model for PveConnection.
+type PveConnection struct {
+	CaFingerprint string `json:"ca_fingerprint"`
+	HasSecret     bool   `json:"has_secret"`
+	InsecureTls   bool   `json:"insecure_tls"`
+	TokenId       string `json:"token_id"`
+	Url           string `json:"url"`
+}
+
+// PveConnectionInput defines model for PveConnectionInput.
+type PveConnectionInput struct {
+	// CaFingerprint SHA-256 of the leaf certificate, colon-hex
+	CaFingerprint *string `json:"ca_fingerprint,omitempty"`
+	InsecureTls   *bool   `json:"insecure_tls,omitempty"`
+	TokenId       string  `json:"token_id"`
+
+	// TokenSecret Required on create; omitted on update keeps the stored secret
+	TokenSecret *string `json:"token_secret,omitempty"`
+
+	// Url Base URL, e.g. https://host:8006
+	Url string `json:"url"`
+}
+
 // Quota defines model for Quota.
 type Quota struct {
 	MaxDiskGb   int `json:"max_disk_gb"`
@@ -154,6 +273,48 @@ type Quota struct {
 
 // Role defines model for Role.
 type Role string
+
+// ServerType defines model for ServerType.
+type ServerType struct {
+	Cores       int     `json:"cores"`
+	Deprecated  bool    `json:"deprecated"`
+	Description string  `json:"description"`
+	DiskGb      int     `json:"disk_gb"`
+	Id          int64   `json:"id"`
+	Locations   []int64 `json:"locations"`
+	MemoryMb    int     `json:"memory_mb"`
+	Name        string  `json:"name"`
+}
+
+// ServerTypeInput defines model for ServerTypeInput.
+type ServerTypeInput struct {
+	Cores       int     `json:"cores"`
+	Deprecated  *bool   `json:"deprecated,omitempty"`
+	Description *string `json:"description,omitempty"`
+	DiskGb      int     `json:"disk_gb"`
+
+	// Locations Location ids; empty or omitted means every location
+	Locations *[]int64 `json:"locations,omitempty"`
+	MemoryMb  int      `json:"memory_mb"`
+	Name      string   `json:"name"`
+}
+
+// ServerTypeList defines model for ServerTypeList.
+type ServerTypeList struct {
+	Meta        Meta         `json:"meta"`
+	ServerTypes []ServerType `json:"server_types"`
+}
+
+// SshKey defines model for SshKey.
+type SshKey struct {
+	Created time.Time `json:"created"`
+
+	// Fingerprint MD5, colon-hex
+	Fingerprint string `json:"fingerprint"`
+	Id          int64  `json:"id"`
+	Name        string `json:"name"`
+	PublicKey   string `json:"public_key"`
+}
 
 // TokenPermission defines model for TokenPermission.
 type TokenPermission string
@@ -186,6 +347,9 @@ type User struct {
 	TotpEnabled bool   `json:"totp_enabled"`
 }
 
+// ID defines model for ID.
+type ID = int64
+
 // Page defines model for Page.
 type Page = int
 
@@ -194,6 +358,24 @@ type PerPage = int
 
 // ProjectID defines model for ProjectID.
 type ProjectID = int64
+
+// GetAdminImagesParams defines parameters for GetAdminImages.
+type GetAdminImagesParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
+// GetAdminLocationsParams defines parameters for GetAdminLocations.
+type GetAdminLocationsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
+// GetAdminServerTypesParams defines parameters for GetAdminServerTypes.
+type GetAdminServerTypesParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
 
 // GetAdminUsersParams defines parameters for GetAdminUsers.
 type GetAdminUsersParams struct {
@@ -219,10 +401,25 @@ type PostAuthLoginJSONBody struct {
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
 
+// GetImagesParams defines parameters for GetImages.
+type GetImagesParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Location Location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
 // PostInviteAcceptJSONBody defines parameters for PostInviteAccept.
 type PostInviteAcceptJSONBody struct {
 	Name     *string `json:"name,omitempty"`
 	Password *string `json:"password,omitempty"`
+}
+
+// GetLocationsParams defines parameters for GetLocations.
+type GetLocationsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
 }
 
 // PostProjectInvitesJSONBody defines parameters for PostProjectInvites.
@@ -242,8 +439,52 @@ type PostProjectTokensJSONBody struct {
 	Permission TokenPermission `json:"permission"`
 }
 
+// GetServerTypesParams defines parameters for GetServerTypes.
+type GetServerTypesParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
+// GetSshKeysParams defines parameters for GetSshKeys.
+type GetSshKeysParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
+// PostSshKeysJSONBody defines parameters for PostSshKeys.
+type PostSshKeysJSONBody struct {
+	Name      string `json:"name"`
+	PublicKey string `json:"public_key"`
+}
+
+// PutSshKeyJSONBody defines parameters for PutSshKey.
+type PutSshKeyJSONBody struct {
+	Name string `json:"name"`
+}
+
+// PostAdminImagesJSONRequestBody defines body for PostAdminImages for application/json ContentType.
+type PostAdminImagesJSONRequestBody = ImageInput
+
+// PutAdminImageJSONRequestBody defines body for PutAdminImage for application/json ContentType.
+type PutAdminImageJSONRequestBody = ImageInput
+
+// PostAdminLocationsJSONRequestBody defines body for PostAdminLocations for application/json ContentType.
+type PostAdminLocationsJSONRequestBody = LocationInput
+
+// PutAdminLocationJSONRequestBody defines body for PutAdminLocation for application/json ContentType.
+type PutAdminLocationJSONRequestBody = LocationInput
+
+// PutAdminLocationNodeJSONRequestBody defines body for PutAdminLocationNode for application/json ContentType.
+type PutAdminLocationNodeJSONRequestBody = NodeInput
+
 // PutAdminProjectQuotaJSONRequestBody defines body for PutAdminProjectQuota for application/json ContentType.
 type PutAdminProjectQuotaJSONRequestBody = Quota
+
+// PostAdminServerTypesJSONRequestBody defines body for PostAdminServerTypes for application/json ContentType.
+type PostAdminServerTypesJSONRequestBody = ServerTypeInput
+
+// PutAdminServerTypeJSONRequestBody defines body for PutAdminServerType for application/json ContentType.
+type PutAdminServerTypeJSONRequestBody = ServerTypeInput
 
 // PutAdminSettingsJSONRequestBody defines body for PutAdminSettings for application/json ContentType.
 type PutAdminSettingsJSONRequestBody = AdminSettings
@@ -284,11 +525,68 @@ type PostSetupJSONRequestBody = Credentials
 // PostSignupJSONRequestBody defines body for PostSignup for application/json ContentType.
 type PostSignupJSONRequestBody = Credentials
 
+// PostSshKeysJSONRequestBody defines body for PostSshKeys for application/json ContentType.
+type PostSshKeysJSONRequestBody PostSshKeysJSONBody
+
+// PutSshKeyJSONRequestBody defines body for PutSshKey for application/json ContentType.
+type PutSshKeyJSONRequestBody PutSshKeyJSONBody
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdminImages List images with their templates
+	// (GET /admin/images)
+	GetAdminImages(w http.ResponseWriter, r *http.Request, params GetAdminImagesParams)
+	// PostAdminImages Create an image backed by Proxmox templates
+	// (POST /admin/images)
+	PostAdminImages(w http.ResponseWriter, r *http.Request)
+	// DeleteAdminImage Delete an unused image
+	// (DELETE /admin/images/{id})
+	DeleteAdminImage(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminImage Get an image
+	// (GET /admin/images/{id})
+	GetAdminImage(w http.ResponseWriter, r *http.Request, id ID)
+	// PutAdminImage Update an image; templates are replaced
+	// (PUT /admin/images/{id})
+	PutAdminImage(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminLocations List locations with their Proxmox connection and nodes
+	// (GET /admin/locations)
+	GetAdminLocations(w http.ResponseWriter, r *http.Request, params GetAdminLocationsParams)
+	// PostAdminLocations Connect a Proxmox cluster as a location and discover its nodes
+	// (POST /admin/locations)
+	PostAdminLocations(w http.ResponseWriter, r *http.Request)
+	// DeleteAdminLocation Delete an unused location
+	// (DELETE /admin/locations/{id})
+	DeleteAdminLocation(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminLocation Get a location
+	// (GET /admin/locations/{id})
+	GetAdminLocation(w http.ResponseWriter, r *http.Request, id ID)
+	// PutAdminLocation Update a location; an omitted token_secret keeps the stored one
+	// (PUT /admin/locations/{id})
+	PutAdminLocation(w http.ResponseWriter, r *http.Request, id ID)
+	// PutAdminLocationNode Enable or disable a node or override its disk storage
+	// (PUT /admin/locations/{id}/nodes/{node_id})
+	PutAdminLocationNode(w http.ResponseWriter, r *http.Request, id ID, nodeId int64)
+	// PostAdminLocationSyncNodes Rediscover nodes; vanished nodes are disabled, never deleted
+	// (POST /admin/locations/{id}/sync_nodes)
+	PostAdminLocationSyncNodes(w http.ResponseWriter, r *http.Request, id ID)
 	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
 	// (PUT /admin/projects/{id}/quota)
 	PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// GetAdminServerTypes List server types
+	// (GET /admin/server_types)
+	GetAdminServerTypes(w http.ResponseWriter, r *http.Request, params GetAdminServerTypesParams)
+	// PostAdminServerTypes Create a server type
+	// (POST /admin/server_types)
+	PostAdminServerTypes(w http.ResponseWriter, r *http.Request)
+	// DeleteAdminServerType Delete an unused server type
+	// (DELETE /admin/server_types/{id})
+	DeleteAdminServerType(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminServerType Get a server type
+	// (GET /admin/server_types/{id})
+	GetAdminServerType(w http.ResponseWriter, r *http.Request, id ID)
+	// PutAdminServerType Update a server type
+	// (PUT /admin/server_types/{id})
+	PutAdminServerType(w http.ResponseWriter, r *http.Request, id ID)
 	// GetAdminSettings Read admin settings
 	// (GET /admin/settings)
 	GetAdminSettings(w http.ResponseWriter, r *http.Request)
@@ -319,9 +617,21 @@ type ServerInterface interface {
 	// GetHealthz Liveness check
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+	// GetImages List images, optionally only those available in a location
+	// (GET /images)
+	GetImages(w http.ResponseWriter, r *http.Request, params GetImagesParams)
+	// GetImage Get an image
+	// (GET /images/{id})
+	GetImage(w http.ResponseWriter, r *http.Request, id ID)
 	// PostInviteAccept Accept an invite, creating an account when not logged in
 	// (POST /invites/{token}/accept)
 	PostInviteAccept(w http.ResponseWriter, r *http.Request, token string)
+	// GetLocations List locations
+	// (GET /locations)
+	GetLocations(w http.ResponseWriter, r *http.Request, params GetLocationsParams)
+	// GetLocation Get a location
+	// (GET /locations/{id})
+	GetLocation(w http.ResponseWriter, r *http.Request, id ID)
 	// GetMe Current user
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -370,12 +680,33 @@ type ServerInterface interface {
 	// DeleteProjectToken Revoke an API token
 	// (DELETE /projects/{id}/tokens/{token_id})
 	DeleteProjectToken(w http.ResponseWriter, r *http.Request, id ProjectID, tokenId int64)
+	// GetServerTypes List server types, deprecated ones included
+	// (GET /server_types)
+	GetServerTypes(w http.ResponseWriter, r *http.Request, params GetServerTypesParams)
+	// GetServerType Get a server type
+	// (GET /server_types/{id})
+	GetServerType(w http.ResponseWriter, r *http.Request, id ID)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(w http.ResponseWriter, r *http.Request)
 	// PostSignup Self-service signup (when enabled)
 	// (POST /signup)
 	PostSignup(w http.ResponseWriter, r *http.Request)
+	// GetSshKeys List the project's SSH keys
+	// (GET /ssh_keys)
+	GetSshKeys(w http.ResponseWriter, r *http.Request, params GetSshKeysParams)
+	// PostSshKeys Add an SSH key
+	// (POST /ssh_keys)
+	PostSshKeys(w http.ResponseWriter, r *http.Request)
+	// DeleteSshKey Delete an SSH key
+	// (DELETE /ssh_keys/{id})
+	DeleteSshKey(w http.ResponseWriter, r *http.Request, id ID)
+	// GetSshKey Get an SSH key
+	// (GET /ssh_keys/{id})
+	GetSshKey(w http.ResponseWriter, r *http.Request, id ID)
+	// PutSshKey Rename an SSH key
+	// (PUT /ssh_keys/{id})
+	PutSshKey(w http.ResponseWriter, r *http.Request, id ID)
 	// GetUiManifest UI branding and admin sections
 	// (GET /ui/manifest)
 	GetUiManifest(w http.ResponseWriter, r *http.Request)
@@ -385,9 +716,111 @@ type ServerInterface interface {
 
 type Unimplemented struct{}
 
+// GetAdminImages List images with their templates
+// (GET /admin/images)
+func (_ Unimplemented) GetAdminImages(w http.ResponseWriter, r *http.Request, params GetAdminImagesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminImages Create an image backed by Proxmox templates
+// (POST /admin/images)
+func (_ Unimplemented) PostAdminImages(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminImage Delete an unused image
+// (DELETE /admin/images/{id})
+func (_ Unimplemented) DeleteAdminImage(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminImage Get an image
+// (GET /admin/images/{id})
+func (_ Unimplemented) GetAdminImage(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAdminImage Update an image; templates are replaced
+// (PUT /admin/images/{id})
+func (_ Unimplemented) PutAdminImage(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminLocations List locations with their Proxmox connection and nodes
+// (GET /admin/locations)
+func (_ Unimplemented) GetAdminLocations(w http.ResponseWriter, r *http.Request, params GetAdminLocationsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminLocations Connect a Proxmox cluster as a location and discover its nodes
+// (POST /admin/locations)
+func (_ Unimplemented) PostAdminLocations(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminLocation Delete an unused location
+// (DELETE /admin/locations/{id})
+func (_ Unimplemented) DeleteAdminLocation(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminLocation Get a location
+// (GET /admin/locations/{id})
+func (_ Unimplemented) GetAdminLocation(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAdminLocation Update a location; an omitted token_secret keeps the stored one
+// (PUT /admin/locations/{id})
+func (_ Unimplemented) PutAdminLocation(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAdminLocationNode Enable or disable a node or override its disk storage
+// (PUT /admin/locations/{id}/nodes/{node_id})
+func (_ Unimplemented) PutAdminLocationNode(w http.ResponseWriter, r *http.Request, id ID, nodeId int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminLocationSyncNodes Rediscover nodes; vanished nodes are disabled, never deleted
+// (POST /admin/locations/{id}/sync_nodes)
+func (_ Unimplemented) PostAdminLocationSyncNodes(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PutAdminProjectQuota Set a project's quota (0 = unlimited)
 // (PUT /admin/projects/{id}/quota)
 func (_ Unimplemented) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminServerTypes List server types
+// (GET /admin/server_types)
+func (_ Unimplemented) GetAdminServerTypes(w http.ResponseWriter, r *http.Request, params GetAdminServerTypesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminServerTypes Create a server type
+// (POST /admin/server_types)
+func (_ Unimplemented) PostAdminServerTypes(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminServerType Delete an unused server type
+// (DELETE /admin/server_types/{id})
+func (_ Unimplemented) DeleteAdminServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminServerType Get a server type
+// (GET /admin/server_types/{id})
+func (_ Unimplemented) GetAdminServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAdminServerType Update a server type
+// (PUT /admin/server_types/{id})
+func (_ Unimplemented) PutAdminServerType(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -451,9 +884,33 @@ func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetImages List images, optionally only those available in a location
+// (GET /images)
+func (_ Unimplemented) GetImages(w http.ResponseWriter, r *http.Request, params GetImagesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetImage Get an image
+// (GET /images/{id})
+func (_ Unimplemented) GetImage(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PostInviteAccept Accept an invite, creating an account when not logged in
 // (POST /invites/{token}/accept)
 func (_ Unimplemented) PostInviteAccept(w http.ResponseWriter, r *http.Request, token string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetLocations List locations
+// (GET /locations)
+func (_ Unimplemented) GetLocations(w http.ResponseWriter, r *http.Request, params GetLocationsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetLocation Get a location
+// (GET /locations/{id})
+func (_ Unimplemented) GetLocation(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -553,6 +1010,18 @@ func (_ Unimplemented) DeleteProjectToken(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetServerTypes List server types, deprecated ones included
+// (GET /server_types)
+func (_ Unimplemented) GetServerTypes(w http.ResponseWriter, r *http.Request, params GetServerTypesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetServerType Get a server type
+// (GET /server_types/{id})
+func (_ Unimplemented) GetServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PostSetup Create the first admin
 // (POST /setup)
 func (_ Unimplemented) PostSetup(w http.ResponseWriter, r *http.Request) {
@@ -562,6 +1031,36 @@ func (_ Unimplemented) PostSetup(w http.ResponseWriter, r *http.Request) {
 // PostSignup Self-service signup (when enabled)
 // (POST /signup)
 func (_ Unimplemented) PostSignup(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSshKeys List the project's SSH keys
+// (GET /ssh_keys)
+func (_ Unimplemented) GetSshKeys(w http.ResponseWriter, r *http.Request, params GetSshKeysParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostSshKeys Add an SSH key
+// (POST /ssh_keys)
+func (_ Unimplemented) PostSshKeys(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteSshKey Delete an SSH key
+// (DELETE /ssh_keys/{id})
+func (_ Unimplemented) DeleteSshKey(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSshKey Get an SSH key
+// (GET /ssh_keys/{id})
+func (_ Unimplemented) GetSshKey(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutSshKey Rename an SSH key
+// (PUT /ssh_keys/{id})
+func (_ Unimplemented) PutSshKey(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -580,6 +1079,343 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// GetAdminImages operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminImages(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminImagesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminImages(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminImages operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminImages(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminImages(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminImage operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminImage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminImage operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminImage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAdminImage operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminImage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminLocations operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminLocations(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminLocationsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminLocations(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminLocations operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminLocations(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminLocations(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminLocation operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminLocation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminLocation(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminLocation operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminLocation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminLocation(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAdminLocation operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminLocation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminLocation(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAdminLocationNode operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminLocationNode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "node_id" -------------
+	var nodeId int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "node_id", chi.URLParam(r, "node_id"), &nodeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "node_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminLocationNode(w, r, id, nodeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminLocationSyncNodes operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminLocationSyncNodes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminLocationSyncNodes(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PutAdminProjectQuota operation middleware
 func (siw *ServerInterfaceWrapper) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request) {
 
@@ -597,6 +1433,144 @@ func (siw *ServerInterfaceWrapper) PutAdminProjectQuota(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutAdminProjectQuota(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminServerTypes operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminServerTypes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminServerTypesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminServerTypes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminServerTypes operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminServerTypes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminServerTypes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminServerType operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminServerType(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminServerType(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminServerType operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminServerType(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminServerType(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAdminServerType operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminServerType(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminServerType(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -778,6 +1752,91 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetImages operation middleware
+func (siw *ServerInterfaceWrapper) GetImages(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetImagesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location", r.URL.Query(), &params.Location, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "location"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetImages(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetImage operation middleware
+func (siw *ServerInterfaceWrapper) GetImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetImage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostInviteAccept operation middleware
 func (siw *ServerInterfaceWrapper) PostInviteAccept(w http.ResponseWriter, r *http.Request) {
 
@@ -795,6 +1854,78 @@ func (siw *ServerInterfaceWrapper) PostInviteAccept(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostInviteAccept(w, r, token)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLocations operation middleware
+func (siw *ServerInterfaceWrapper) GetLocations(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLocationsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLocations(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLocation operation middleware
+func (siw *ServerInterfaceWrapper) GetLocation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLocation(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1229,6 +2360,78 @@ func (siw *ServerInterfaceWrapper) DeleteProjectToken(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// GetServerTypes operation middleware
+func (siw *ServerInterfaceWrapper) GetServerTypes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServerTypesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServerTypes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetServerType operation middleware
+func (siw *ServerInterfaceWrapper) GetServerType(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServerType(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostSetup operation middleware
 func (siw *ServerInterfaceWrapper) PostSetup(w http.ResponseWriter, r *http.Request) {
 
@@ -1248,6 +2451,144 @@ func (siw *ServerInterfaceWrapper) PostSignup(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostSignup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSshKeys operation middleware
+func (siw *ServerInterfaceWrapper) GetSshKeys(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSshKeysParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSshKeys(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostSshKeys operation middleware
+func (siw *ServerInterfaceWrapper) PostSshKeys(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostSshKeys(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSshKey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSshKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSshKey(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSshKey operation middleware
+func (siw *ServerInterfaceWrapper) GetSshKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSshKey(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSshKey operation middleware
+func (siw *ServerInterfaceWrapper) PutSshKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSshKey(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1477,11 +2818,973 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/projects/{id}/tokens/{token_id}", wrapper.DeleteProjectToken)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/locations", wrapper.GetAdminLocations)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/locations", wrapper.PostAdminLocations)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/locations/{id}", wrapper.DeleteAdminLocation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/locations/{id}", wrapper.GetAdminLocation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/admin/locations/{id}", wrapper.PutAdminLocation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/locations/{id}/sync_nodes", wrapper.PostAdminLocationSyncNodes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/admin/locations/{id}/nodes/{node_id}", wrapper.PutAdminLocationNode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/server_types", wrapper.GetAdminServerTypes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/server_types", wrapper.PostAdminServerTypes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/server_types/{id}", wrapper.DeleteAdminServerType)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/server_types/{id}", wrapper.GetAdminServerType)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/admin/server_types/{id}", wrapper.PutAdminServerType)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/images", wrapper.GetAdminImages)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/images", wrapper.PostAdminImages)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/images/{id}", wrapper.DeleteAdminImage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/images/{id}", wrapper.GetAdminImage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/admin/images/{id}", wrapper.PutAdminImage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/locations", wrapper.GetLocations)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/locations/{id}", wrapper.GetLocation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/server_types", wrapper.GetServerTypes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/server_types/{id}", wrapper.GetServerType)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/images", wrapper.GetImages)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/images/{id}", wrapper.GetImage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/ssh_keys", wrapper.GetSshKeys)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/ssh_keys", wrapper.PostSshKeys)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/ssh_keys/{id}", wrapper.DeleteSshKey)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/ssh_keys/{id}", wrapper.GetSshKey)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/ssh_keys/{id}", wrapper.PutSshKey)
+	})
 
 	return r
 }
 
 type ErrorJSONResponse Error
+
+type GetAdminImagesRequestObject struct {
+	Params GetAdminImagesParams
+}
+
+type GetAdminImagesResponseObject interface {
+	VisitGetAdminImagesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminImages200JSONResponse struct {
+	Images []AdminImage `json:"images"`
+	Meta   Meta         `json:"meta"`
+}
+
+func (response GetAdminImages200JSONResponse) VisitGetAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImages401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminImages401JSONResponse) VisitGetAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImages403JSONResponse Error
+
+func (response GetAdminImages403JSONResponse) VisitGetAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminImagesRequestObject struct {
+	Body *PostAdminImagesJSONRequestBody
+}
+
+type PostAdminImagesResponseObject interface {
+	VisitPostAdminImagesResponse(w http.ResponseWriter) error
+}
+
+type PostAdminImages201JSONResponse AdminImage
+
+func (response PostAdminImages201JSONResponse) VisitPostAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminImages401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminImages401JSONResponse) VisitPostAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminImages403JSONResponse Error
+
+func (response PostAdminImages403JSONResponse) VisitPostAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminImages409JSONResponse Error
+
+func (response PostAdminImages409JSONResponse) VisitPostAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminImages422JSONResponse Error
+
+func (response PostAdminImages422JSONResponse) VisitPostAdminImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminImageRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteAdminImageResponseObject interface {
+	VisitDeleteAdminImageResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminImage204Response struct {
+}
+
+func (response DeleteAdminImage204Response) VisitDeleteAdminImageResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminImage401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminImage401JSONResponse) VisitDeleteAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminImage403JSONResponse Error
+
+func (response DeleteAdminImage403JSONResponse) VisitDeleteAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminImage404JSONResponse Error
+
+func (response DeleteAdminImage404JSONResponse) VisitDeleteAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminImage409JSONResponse Error
+
+func (response DeleteAdminImage409JSONResponse) VisitDeleteAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImageRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetAdminImageResponseObject interface {
+	VisitGetAdminImageResponse(w http.ResponseWriter) error
+}
+
+type GetAdminImage200JSONResponse AdminImage
+
+func (response GetAdminImage200JSONResponse) VisitGetAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImage401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminImage401JSONResponse) VisitGetAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImage403JSONResponse Error
+
+func (response GetAdminImage403JSONResponse) VisitGetAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminImage404JSONResponse Error
+
+func (response GetAdminImage404JSONResponse) VisitGetAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminImageRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutAdminImageJSONRequestBody
+}
+
+type PutAdminImageResponseObject interface {
+	VisitPutAdminImageResponse(w http.ResponseWriter) error
+}
+
+type PutAdminImage200JSONResponse AdminImage
+
+func (response PutAdminImage200JSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminImage401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutAdminImage401JSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminImage403JSONResponse Error
+
+func (response PutAdminImage403JSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminImage404JSONResponse Error
+
+func (response PutAdminImage404JSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminImage409JSONResponse Error
+
+func (response PutAdminImage409JSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminImage422JSONResponse Error
+
+func (response PutAdminImage422JSONResponse) VisitPutAdminImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationsRequestObject struct {
+	Params GetAdminLocationsParams
+}
+
+type GetAdminLocationsResponseObject interface {
+	VisitGetAdminLocationsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminLocations200JSONResponse struct {
+	Locations []AdminLocation `json:"locations"`
+	Meta      Meta            `json:"meta"`
+}
+
+func (response GetAdminLocations200JSONResponse) VisitGetAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocations401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminLocations401JSONResponse) VisitGetAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocations403JSONResponse Error
+
+func (response GetAdminLocations403JSONResponse) VisitGetAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationsRequestObject struct {
+	Body *PostAdminLocationsJSONRequestBody
+}
+
+type PostAdminLocationsResponseObject interface {
+	VisitPostAdminLocationsResponse(w http.ResponseWriter) error
+}
+
+type PostAdminLocations201JSONResponse AdminLocation
+
+func (response PostAdminLocations201JSONResponse) VisitPostAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocations401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminLocations401JSONResponse) VisitPostAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocations403JSONResponse Error
+
+func (response PostAdminLocations403JSONResponse) VisitPostAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocations409JSONResponse Error
+
+func (response PostAdminLocations409JSONResponse) VisitPostAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocations422JSONResponse Error
+
+func (response PostAdminLocations422JSONResponse) VisitPostAdminLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocationRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteAdminLocationResponseObject interface {
+	VisitDeleteAdminLocationResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminLocation204Response struct {
+}
+
+func (response DeleteAdminLocation204Response) VisitDeleteAdminLocationResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminLocation401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminLocation401JSONResponse) VisitDeleteAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocation403JSONResponse Error
+
+func (response DeleteAdminLocation403JSONResponse) VisitDeleteAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocation404JSONResponse Error
+
+func (response DeleteAdminLocation404JSONResponse) VisitDeleteAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocation409JSONResponse Error
+
+func (response DeleteAdminLocation409JSONResponse) VisitDeleteAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetAdminLocationResponseObject interface {
+	VisitGetAdminLocationResponse(w http.ResponseWriter) error
+}
+
+type GetAdminLocation200JSONResponse AdminLocation
+
+func (response GetAdminLocation200JSONResponse) VisitGetAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocation401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminLocation401JSONResponse) VisitGetAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocation403JSONResponse Error
+
+func (response GetAdminLocation403JSONResponse) VisitGetAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocation404JSONResponse Error
+
+func (response GetAdminLocation404JSONResponse) VisitGetAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocationRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutAdminLocationJSONRequestBody
+}
+
+type PutAdminLocationResponseObject interface {
+	VisitPutAdminLocationResponse(w http.ResponseWriter) error
+}
+
+type PutAdminLocation200JSONResponse AdminLocation
+
+func (response PutAdminLocation200JSONResponse) VisitPutAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocation401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutAdminLocation401JSONResponse) VisitPutAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocation403JSONResponse Error
+
+func (response PutAdminLocation403JSONResponse) VisitPutAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocation404JSONResponse Error
+
+func (response PutAdminLocation404JSONResponse) VisitPutAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocation409JSONResponse Error
+
+func (response PutAdminLocation409JSONResponse) VisitPutAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocation422JSONResponse Error
+
+func (response PutAdminLocation422JSONResponse) VisitPutAdminLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocationNodeRequestObject struct {
+	Id     ID    `json:"id"`
+	NodeId int64 `json:"node_id"`
+	Body   *PutAdminLocationNodeJSONRequestBody
+}
+
+type PutAdminLocationNodeResponseObject interface {
+	VisitPutAdminLocationNodeResponse(w http.ResponseWriter) error
+}
+
+type PutAdminLocationNode200JSONResponse Node
+
+func (response PutAdminLocationNode200JSONResponse) VisitPutAdminLocationNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocationNode401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutAdminLocationNode401JSONResponse) VisitPutAdminLocationNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocationNode403JSONResponse Error
+
+func (response PutAdminLocationNode403JSONResponse) VisitPutAdminLocationNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocationNode404JSONResponse Error
+
+func (response PutAdminLocationNode404JSONResponse) VisitPutAdminLocationNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminLocationNode422JSONResponse Error
+
+func (response PutAdminLocationNode422JSONResponse) VisitPutAdminLocationNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationSyncNodesRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type PostAdminLocationSyncNodesResponseObject interface {
+	VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error
+}
+
+type PostAdminLocationSyncNodes200JSONResponse AdminLocation
+
+func (response PostAdminLocationSyncNodes200JSONResponse) VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationSyncNodes401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminLocationSyncNodes401JSONResponse) VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationSyncNodes403JSONResponse Error
+
+func (response PostAdminLocationSyncNodes403JSONResponse) VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationSyncNodes404JSONResponse Error
+
+func (response PostAdminLocationSyncNodes404JSONResponse) VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationSyncNodes422JSONResponse Error
+
+func (response PostAdminLocationSyncNodes422JSONResponse) VisitPostAdminLocationSyncNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type PutAdminProjectQuotaRequestObject struct {
 	Id   ProjectID `json:"id"`
@@ -1551,6 +3854,363 @@ func (response PutAdminProjectQuota404JSONResponse) VisitPutAdminProjectQuotaRes
 type PutAdminProjectQuota422JSONResponse Error
 
 func (response PutAdminProjectQuota422JSONResponse) VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerTypesRequestObject struct {
+	Params GetAdminServerTypesParams
+}
+
+type GetAdminServerTypesResponseObject interface {
+	VisitGetAdminServerTypesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminServerTypes200JSONResponse ServerTypeList
+
+func (response GetAdminServerTypes200JSONResponse) VisitGetAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerTypes401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminServerTypes401JSONResponse) VisitGetAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerTypes403JSONResponse Error
+
+func (response GetAdminServerTypes403JSONResponse) VisitGetAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminServerTypesRequestObject struct {
+	Body *PostAdminServerTypesJSONRequestBody
+}
+
+type PostAdminServerTypesResponseObject interface {
+	VisitPostAdminServerTypesResponse(w http.ResponseWriter) error
+}
+
+type PostAdminServerTypes201JSONResponse ServerType
+
+func (response PostAdminServerTypes201JSONResponse) VisitPostAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminServerTypes401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminServerTypes401JSONResponse) VisitPostAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminServerTypes403JSONResponse Error
+
+func (response PostAdminServerTypes403JSONResponse) VisitPostAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminServerTypes409JSONResponse Error
+
+func (response PostAdminServerTypes409JSONResponse) VisitPostAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminServerTypes422JSONResponse Error
+
+func (response PostAdminServerTypes422JSONResponse) VisitPostAdminServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminServerTypeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteAdminServerTypeResponseObject interface {
+	VisitDeleteAdminServerTypeResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminServerType204Response struct {
+}
+
+func (response DeleteAdminServerType204Response) VisitDeleteAdminServerTypeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminServerType401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminServerType401JSONResponse) VisitDeleteAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminServerType403JSONResponse Error
+
+func (response DeleteAdminServerType403JSONResponse) VisitDeleteAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminServerType404JSONResponse Error
+
+func (response DeleteAdminServerType404JSONResponse) VisitDeleteAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminServerType409JSONResponse Error
+
+func (response DeleteAdminServerType409JSONResponse) VisitDeleteAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerTypeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetAdminServerTypeResponseObject interface {
+	VisitGetAdminServerTypeResponse(w http.ResponseWriter) error
+}
+
+type GetAdminServerType200JSONResponse ServerType
+
+func (response GetAdminServerType200JSONResponse) VisitGetAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerType401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminServerType401JSONResponse) VisitGetAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerType403JSONResponse Error
+
+func (response GetAdminServerType403JSONResponse) VisitGetAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminServerType404JSONResponse Error
+
+func (response GetAdminServerType404JSONResponse) VisitGetAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminServerTypeRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutAdminServerTypeJSONRequestBody
+}
+
+type PutAdminServerTypeResponseObject interface {
+	VisitPutAdminServerTypeResponse(w http.ResponseWriter) error
+}
+
+type PutAdminServerType200JSONResponse ServerType
+
+func (response PutAdminServerType200JSONResponse) VisitPutAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminServerType401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutAdminServerType401JSONResponse) VisitPutAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminServerType403JSONResponse Error
+
+func (response PutAdminServerType403JSONResponse) VisitPutAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminServerType404JSONResponse Error
+
+func (response PutAdminServerType404JSONResponse) VisitPutAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminServerType409JSONResponse Error
+
+func (response PutAdminServerType409JSONResponse) VisitPutAdminServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminServerType422JSONResponse Error
+
+func (response PutAdminServerType422JSONResponse) VisitPutAdminServerTypeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2024,6 +4684,109 @@ func (response GetHealthz200JSONResponse) VisitGetHealthzResponse(w http.Respons
 	return err
 }
 
+type GetImagesRequestObject struct {
+	Params GetImagesParams
+}
+
+type GetImagesResponseObject interface {
+	VisitGetImagesResponse(w http.ResponseWriter) error
+}
+
+type GetImages200JSONResponse struct {
+	Images []Image `json:"images"`
+	Meta   Meta    `json:"meta"`
+}
+
+func (response GetImages200JSONResponse) VisitGetImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetImages401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetImages401JSONResponse) VisitGetImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetImages404JSONResponse Error
+
+func (response GetImages404JSONResponse) VisitGetImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetImageRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetImageResponseObject interface {
+	VisitGetImageResponse(w http.ResponseWriter) error
+}
+
+type GetImage200JSONResponse Image
+
+func (response GetImage200JSONResponse) VisitGetImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetImage401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetImage401JSONResponse) VisitGetImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetImage404JSONResponse Error
+
+func (response GetImage404JSONResponse) VisitGetImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostInviteAcceptRequestObject struct {
 	Token string `json:"token"`
 	Body  *PostInviteAcceptJSONRequestBody
@@ -2109,6 +4872,109 @@ func (response PostInviteAccept422JSONResponse) VisitPostInviteAcceptResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLocationsRequestObject struct {
+	Params GetLocationsParams
+}
+
+type GetLocationsResponseObject interface {
+	VisitGetLocationsResponse(w http.ResponseWriter) error
+}
+
+type GetLocations200JSONResponse struct {
+	Locations []Location `json:"locations"`
+	Meta      Meta       `json:"meta"`
+}
+
+func (response GetLocations200JSONResponse) VisitGetLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLocations401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetLocations401JSONResponse) VisitGetLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLocations404JSONResponse Error
+
+func (response GetLocations404JSONResponse) VisitGetLocationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLocationRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetLocationResponseObject interface {
+	VisitGetLocationResponse(w http.ResponseWriter) error
+}
+
+type GetLocation200JSONResponse Location
+
+func (response GetLocation200JSONResponse) VisitGetLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLocation401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetLocation401JSONResponse) VisitGetLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLocation404JSONResponse Error
+
+func (response GetLocation404JSONResponse) VisitGetLocationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3109,6 +5975,106 @@ func (response DeleteProjectToken404JSONResponse) VisitDeleteProjectTokenRespons
 	return err
 }
 
+type GetServerTypesRequestObject struct {
+	Params GetServerTypesParams
+}
+
+type GetServerTypesResponseObject interface {
+	VisitGetServerTypesResponse(w http.ResponseWriter) error
+}
+
+type GetServerTypes200JSONResponse ServerTypeList
+
+func (response GetServerTypes200JSONResponse) VisitGetServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerTypes401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServerTypes401JSONResponse) VisitGetServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerTypes404JSONResponse Error
+
+func (response GetServerTypes404JSONResponse) VisitGetServerTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerTypeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetServerTypeResponseObject interface {
+	VisitGetServerTypeResponse(w http.ResponseWriter) error
+}
+
+type GetServerType200JSONResponse ServerType
+
+func (response GetServerType200JSONResponse) VisitGetServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerType401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServerType401JSONResponse) VisitGetServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerType404JSONResponse Error
+
+func (response GetServerType404JSONResponse) VisitGetServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostSetupRequestObject struct {
 	Body *PostSetupJSONRequestBody
 }
@@ -3233,6 +6199,352 @@ func (response PostSignup422JSONResponse) VisitPostSignupResponse(w http.Respons
 	return err
 }
 
+type GetSshKeysRequestObject struct {
+	Params GetSshKeysParams
+}
+
+type GetSshKeysResponseObject interface {
+	VisitGetSshKeysResponse(w http.ResponseWriter) error
+}
+
+type GetSshKeys200JSONResponse struct {
+	Meta    Meta     `json:"meta"`
+	SshKeys []SshKey `json:"ssh_keys"`
+}
+
+func (response GetSshKeys200JSONResponse) VisitGetSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSshKeys401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetSshKeys401JSONResponse) VisitGetSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSshKeys404JSONResponse Error
+
+func (response GetSshKeys404JSONResponse) VisitGetSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSshKeysRequestObject struct {
+	Body *PostSshKeysJSONRequestBody
+}
+
+type PostSshKeysResponseObject interface {
+	VisitPostSshKeysResponse(w http.ResponseWriter) error
+}
+
+type PostSshKeys201JSONResponse SshKey
+
+func (response PostSshKeys201JSONResponse) VisitPostSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSshKeys401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostSshKeys401JSONResponse) VisitPostSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSshKeys403JSONResponse Error
+
+func (response PostSshKeys403JSONResponse) VisitPostSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSshKeys404JSONResponse Error
+
+func (response PostSshKeys404JSONResponse) VisitPostSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSshKeys409JSONResponse Error
+
+func (response PostSshKeys409JSONResponse) VisitPostSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSshKeys422JSONResponse Error
+
+func (response PostSshKeys422JSONResponse) VisitPostSshKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSshKeyRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteSshKeyResponseObject interface {
+	VisitDeleteSshKeyResponse(w http.ResponseWriter) error
+}
+
+type DeleteSshKey204Response struct {
+}
+
+func (response DeleteSshKey204Response) VisitDeleteSshKeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSshKey401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteSshKey401JSONResponse) VisitDeleteSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSshKey403JSONResponse Error
+
+func (response DeleteSshKey403JSONResponse) VisitDeleteSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSshKey404JSONResponse Error
+
+func (response DeleteSshKey404JSONResponse) VisitDeleteSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSshKeyRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetSshKeyResponseObject interface {
+	VisitGetSshKeyResponse(w http.ResponseWriter) error
+}
+
+type GetSshKey200JSONResponse SshKey
+
+func (response GetSshKey200JSONResponse) VisitGetSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSshKey401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetSshKey401JSONResponse) VisitGetSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSshKey404JSONResponse Error
+
+func (response GetSshKey404JSONResponse) VisitGetSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSshKeyRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutSshKeyJSONRequestBody
+}
+
+type PutSshKeyResponseObject interface {
+	VisitPutSshKeyResponse(w http.ResponseWriter) error
+}
+
+type PutSshKey200JSONResponse SshKey
+
+func (response PutSshKey200JSONResponse) VisitPutSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSshKey401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutSshKey401JSONResponse) VisitPutSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSshKey403JSONResponse Error
+
+func (response PutSshKey403JSONResponse) VisitPutSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSshKey404JSONResponse Error
+
+func (response PutSshKey404JSONResponse) VisitPutSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSshKey409JSONResponse Error
+
+func (response PutSshKey409JSONResponse) VisitPutSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSshKey422JSONResponse Error
+
+func (response PutSshKey422JSONResponse) VisitPutSshKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetUiManifestRequestObject struct {
 }
 
@@ -3256,9 +6568,60 @@ func (response GetUiManifest200JSONResponse) VisitGetUiManifestResponse(w http.R
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdminImages List images with their templates
+	// (GET /admin/images)
+	GetAdminImages(ctx context.Context, request GetAdminImagesRequestObject) (GetAdminImagesResponseObject, error)
+	// PostAdminImages Create an image backed by Proxmox templates
+	// (POST /admin/images)
+	PostAdminImages(ctx context.Context, request PostAdminImagesRequestObject) (PostAdminImagesResponseObject, error)
+	// DeleteAdminImage Delete an unused image
+	// (DELETE /admin/images/{id})
+	DeleteAdminImage(ctx context.Context, request DeleteAdminImageRequestObject) (DeleteAdminImageResponseObject, error)
+	// GetAdminImage Get an image
+	// (GET /admin/images/{id})
+	GetAdminImage(ctx context.Context, request GetAdminImageRequestObject) (GetAdminImageResponseObject, error)
+	// PutAdminImage Update an image; templates are replaced
+	// (PUT /admin/images/{id})
+	PutAdminImage(ctx context.Context, request PutAdminImageRequestObject) (PutAdminImageResponseObject, error)
+	// GetAdminLocations List locations with their Proxmox connection and nodes
+	// (GET /admin/locations)
+	GetAdminLocations(ctx context.Context, request GetAdminLocationsRequestObject) (GetAdminLocationsResponseObject, error)
+	// PostAdminLocations Connect a Proxmox cluster as a location and discover its nodes
+	// (POST /admin/locations)
+	PostAdminLocations(ctx context.Context, request PostAdminLocationsRequestObject) (PostAdminLocationsResponseObject, error)
+	// DeleteAdminLocation Delete an unused location
+	// (DELETE /admin/locations/{id})
+	DeleteAdminLocation(ctx context.Context, request DeleteAdminLocationRequestObject) (DeleteAdminLocationResponseObject, error)
+	// GetAdminLocation Get a location
+	// (GET /admin/locations/{id})
+	GetAdminLocation(ctx context.Context, request GetAdminLocationRequestObject) (GetAdminLocationResponseObject, error)
+	// PutAdminLocation Update a location; an omitted token_secret keeps the stored one
+	// (PUT /admin/locations/{id})
+	PutAdminLocation(ctx context.Context, request PutAdminLocationRequestObject) (PutAdminLocationResponseObject, error)
+	// PutAdminLocationNode Enable or disable a node or override its disk storage
+	// (PUT /admin/locations/{id}/nodes/{node_id})
+	PutAdminLocationNode(ctx context.Context, request PutAdminLocationNodeRequestObject) (PutAdminLocationNodeResponseObject, error)
+	// PostAdminLocationSyncNodes Rediscover nodes; vanished nodes are disabled, never deleted
+	// (POST /admin/locations/{id}/sync_nodes)
+	PostAdminLocationSyncNodes(ctx context.Context, request PostAdminLocationSyncNodesRequestObject) (PostAdminLocationSyncNodesResponseObject, error)
 	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
 	// (PUT /admin/projects/{id}/quota)
 	PutAdminProjectQuota(ctx context.Context, request PutAdminProjectQuotaRequestObject) (PutAdminProjectQuotaResponseObject, error)
+	// GetAdminServerTypes List server types
+	// (GET /admin/server_types)
+	GetAdminServerTypes(ctx context.Context, request GetAdminServerTypesRequestObject) (GetAdminServerTypesResponseObject, error)
+	// PostAdminServerTypes Create a server type
+	// (POST /admin/server_types)
+	PostAdminServerTypes(ctx context.Context, request PostAdminServerTypesRequestObject) (PostAdminServerTypesResponseObject, error)
+	// DeleteAdminServerType Delete an unused server type
+	// (DELETE /admin/server_types/{id})
+	DeleteAdminServerType(ctx context.Context, request DeleteAdminServerTypeRequestObject) (DeleteAdminServerTypeResponseObject, error)
+	// GetAdminServerType Get a server type
+	// (GET /admin/server_types/{id})
+	GetAdminServerType(ctx context.Context, request GetAdminServerTypeRequestObject) (GetAdminServerTypeResponseObject, error)
+	// PutAdminServerType Update a server type
+	// (PUT /admin/server_types/{id})
+	PutAdminServerType(ctx context.Context, request PutAdminServerTypeRequestObject) (PutAdminServerTypeResponseObject, error)
 	// GetAdminSettings Read admin settings
 	// (GET /admin/settings)
 	GetAdminSettings(ctx context.Context, request GetAdminSettingsRequestObject) (GetAdminSettingsResponseObject, error)
@@ -3289,9 +6652,21 @@ type StrictServerInterface interface {
 	// GetHealthz Liveness check
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
+	// GetImages List images, optionally only those available in a location
+	// (GET /images)
+	GetImages(ctx context.Context, request GetImagesRequestObject) (GetImagesResponseObject, error)
+	// GetImage Get an image
+	// (GET /images/{id})
+	GetImage(ctx context.Context, request GetImageRequestObject) (GetImageResponseObject, error)
 	// PostInviteAccept Accept an invite, creating an account when not logged in
 	// (POST /invites/{token}/accept)
 	PostInviteAccept(ctx context.Context, request PostInviteAcceptRequestObject) (PostInviteAcceptResponseObject, error)
+	// GetLocations List locations
+	// (GET /locations)
+	GetLocations(ctx context.Context, request GetLocationsRequestObject) (GetLocationsResponseObject, error)
+	// GetLocation Get a location
+	// (GET /locations/{id})
+	GetLocation(ctx context.Context, request GetLocationRequestObject) (GetLocationResponseObject, error)
 	// GetMe Current user
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -3340,12 +6715,33 @@ type StrictServerInterface interface {
 	// DeleteProjectToken Revoke an API token
 	// (DELETE /projects/{id}/tokens/{token_id})
 	DeleteProjectToken(ctx context.Context, request DeleteProjectTokenRequestObject) (DeleteProjectTokenResponseObject, error)
+	// GetServerTypes List server types, deprecated ones included
+	// (GET /server_types)
+	GetServerTypes(ctx context.Context, request GetServerTypesRequestObject) (GetServerTypesResponseObject, error)
+	// GetServerType Get a server type
+	// (GET /server_types/{id})
+	GetServerType(ctx context.Context, request GetServerTypeRequestObject) (GetServerTypeResponseObject, error)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(ctx context.Context, request PostSetupRequestObject) (PostSetupResponseObject, error)
 	// PostSignup Self-service signup (when enabled)
 	// (POST /signup)
 	PostSignup(ctx context.Context, request PostSignupRequestObject) (PostSignupResponseObject, error)
+	// GetSshKeys List the project's SSH keys
+	// (GET /ssh_keys)
+	GetSshKeys(ctx context.Context, request GetSshKeysRequestObject) (GetSshKeysResponseObject, error)
+	// PostSshKeys Add an SSH key
+	// (POST /ssh_keys)
+	PostSshKeys(ctx context.Context, request PostSshKeysRequestObject) (PostSshKeysResponseObject, error)
+	// DeleteSshKey Delete an SSH key
+	// (DELETE /ssh_keys/{id})
+	DeleteSshKey(ctx context.Context, request DeleteSshKeyRequestObject) (DeleteSshKeyResponseObject, error)
+	// GetSshKey Get an SSH key
+	// (GET /ssh_keys/{id})
+	GetSshKey(ctx context.Context, request GetSshKeyRequestObject) (GetSshKeyResponseObject, error)
+	// PutSshKey Rename an SSH key
+	// (PUT /ssh_keys/{id})
+	PutSshKey(ctx context.Context, request PutSshKeyRequestObject) (PutSshKeyResponseObject, error)
 	// GetUiManifest UI branding and admin sections
 	// (GET /ui/manifest)
 	GetUiManifest(ctx context.Context, request GetUiManifestRequestObject) (GetUiManifestResponseObject, error)
@@ -3390,6 +6786,350 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// GetAdminImages operation middleware
+func (sh *strictHandler) GetAdminImages(w http.ResponseWriter, r *http.Request, params GetAdminImagesParams) {
+	var request GetAdminImagesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminImages(ctx, request.(GetAdminImagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminImages")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminImagesResponseObject); ok {
+		if err := validResponse.VisitGetAdminImagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminImages operation middleware
+func (sh *strictHandler) PostAdminImages(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminImagesRequestObject
+
+	var body PostAdminImagesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminImages(ctx, request.(PostAdminImagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminImages")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminImagesResponseObject); ok {
+		if err := validResponse.VisitPostAdminImagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminImage operation middleware
+func (sh *strictHandler) DeleteAdminImage(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteAdminImageRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminImage(ctx, request.(DeleteAdminImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminImageResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminImage operation middleware
+func (sh *strictHandler) GetAdminImage(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetAdminImageRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminImage(ctx, request.(GetAdminImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminImageResponseObject); ok {
+		if err := validResponse.VisitGetAdminImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAdminImage operation middleware
+func (sh *strictHandler) PutAdminImage(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutAdminImageRequestObject
+
+	request.Id = id
+
+	var body PutAdminImageJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminImage(ctx, request.(PutAdminImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminImageResponseObject); ok {
+		if err := validResponse.VisitPutAdminImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminLocations operation middleware
+func (sh *strictHandler) GetAdminLocations(w http.ResponseWriter, r *http.Request, params GetAdminLocationsParams) {
+	var request GetAdminLocationsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminLocations(ctx, request.(GetAdminLocationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminLocations")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminLocationsResponseObject); ok {
+		if err := validResponse.VisitGetAdminLocationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminLocations operation middleware
+func (sh *strictHandler) PostAdminLocations(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminLocationsRequestObject
+
+	var body PostAdminLocationsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminLocations(ctx, request.(PostAdminLocationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminLocations")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminLocationsResponseObject); ok {
+		if err := validResponse.VisitPostAdminLocationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminLocation operation middleware
+func (sh *strictHandler) DeleteAdminLocation(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteAdminLocationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminLocation(ctx, request.(DeleteAdminLocationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminLocation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminLocationResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminLocationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminLocation operation middleware
+func (sh *strictHandler) GetAdminLocation(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetAdminLocationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminLocation(ctx, request.(GetAdminLocationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminLocation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminLocationResponseObject); ok {
+		if err := validResponse.VisitGetAdminLocationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAdminLocation operation middleware
+func (sh *strictHandler) PutAdminLocation(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutAdminLocationRequestObject
+
+	request.Id = id
+
+	var body PutAdminLocationJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminLocation(ctx, request.(PutAdminLocationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminLocation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminLocationResponseObject); ok {
+		if err := validResponse.VisitPutAdminLocationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAdminLocationNode operation middleware
+func (sh *strictHandler) PutAdminLocationNode(w http.ResponseWriter, r *http.Request, id ID, nodeId int64) {
+	var request PutAdminLocationNodeRequestObject
+
+	request.Id = id
+	request.NodeId = nodeId
+
+	var body PutAdminLocationNodeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminLocationNode(ctx, request.(PutAdminLocationNodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminLocationNode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminLocationNodeResponseObject); ok {
+		if err := validResponse.VisitPutAdminLocationNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminLocationSyncNodes operation middleware
+func (sh *strictHandler) PostAdminLocationSyncNodes(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PostAdminLocationSyncNodesRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminLocationSyncNodes(ctx, request.(PostAdminLocationSyncNodesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminLocationSyncNodes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminLocationSyncNodesResponseObject); ok {
+		if err := validResponse.VisitPostAdminLocationSyncNodesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PutAdminProjectQuota operation middleware
 func (sh *strictHandler) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID) {
 	var request PutAdminProjectQuotaRequestObject
@@ -3416,6 +7156,148 @@ func (sh *strictHandler) PutAdminProjectQuota(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutAdminProjectQuotaResponseObject); ok {
 		if err := validResponse.VisitPutAdminProjectQuotaResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminServerTypes operation middleware
+func (sh *strictHandler) GetAdminServerTypes(w http.ResponseWriter, r *http.Request, params GetAdminServerTypesParams) {
+	var request GetAdminServerTypesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminServerTypes(ctx, request.(GetAdminServerTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminServerTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminServerTypesResponseObject); ok {
+		if err := validResponse.VisitGetAdminServerTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminServerTypes operation middleware
+func (sh *strictHandler) PostAdminServerTypes(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminServerTypesRequestObject
+
+	var body PostAdminServerTypesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminServerTypes(ctx, request.(PostAdminServerTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminServerTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminServerTypesResponseObject); ok {
+		if err := validResponse.VisitPostAdminServerTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminServerType operation middleware
+func (sh *strictHandler) DeleteAdminServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteAdminServerTypeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminServerType(ctx, request.(DeleteAdminServerTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminServerType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminServerTypeResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminServerTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminServerType operation middleware
+func (sh *strictHandler) GetAdminServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetAdminServerTypeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminServerType(ctx, request.(GetAdminServerTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminServerType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminServerTypeResponseObject); ok {
+		if err := validResponse.VisitGetAdminServerTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAdminServerType operation middleware
+func (sh *strictHandler) PutAdminServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutAdminServerTypeRequestObject
+
+	request.Id = id
+
+	var body PutAdminServerTypeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminServerType(ctx, request.(PutAdminServerTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminServerType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminServerTypeResponseObject); ok {
+		if err := validResponse.VisitPutAdminServerTypeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3700,6 +7582,58 @@ func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetImages operation middleware
+func (sh *strictHandler) GetImages(w http.ResponseWriter, r *http.Request, params GetImagesParams) {
+	var request GetImagesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetImages(ctx, request.(GetImagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetImages")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetImagesResponseObject); ok {
+		if err := validResponse.VisitGetImagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetImage operation middleware
+func (sh *strictHandler) GetImage(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetImageRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetImage(ctx, request.(GetImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetImageResponseObject); ok {
+		if err := validResponse.VisitGetImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostInviteAccept operation middleware
 func (sh *strictHandler) PostInviteAccept(w http.ResponseWriter, r *http.Request, token string) {
 	var request PostInviteAcceptRequestObject
@@ -3729,6 +7663,58 @@ func (sh *strictHandler) PostInviteAccept(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostInviteAcceptResponseObject); ok {
 		if err := validResponse.VisitPostInviteAcceptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLocations operation middleware
+func (sh *strictHandler) GetLocations(w http.ResponseWriter, r *http.Request, params GetLocationsParams) {
+	var request GetLocationsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLocations(ctx, request.(GetLocationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLocations")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLocationsResponseObject); ok {
+		if err := validResponse.VisitGetLocationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLocation operation middleware
+func (sh *strictHandler) GetLocation(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetLocationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLocation(ctx, request.(GetLocationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLocation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLocationResponseObject); ok {
+		if err := validResponse.VisitGetLocationResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4186,6 +8172,58 @@ func (sh *strictHandler) DeleteProjectToken(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// GetServerTypes operation middleware
+func (sh *strictHandler) GetServerTypes(w http.ResponseWriter, r *http.Request, params GetServerTypesParams) {
+	var request GetServerTypesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServerTypes(ctx, request.(GetServerTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServerTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServerTypesResponseObject); ok {
+		if err := validResponse.VisitGetServerTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetServerType operation middleware
+func (sh *strictHandler) GetServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetServerTypeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServerType(ctx, request.(GetServerTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServerType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServerTypeResponseObject); ok {
+		if err := validResponse.VisitGetServerTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostSetup operation middleware
 func (sh *strictHandler) PostSetup(w http.ResponseWriter, r *http.Request) {
 	var request PostSetupRequestObject
@@ -4241,6 +8279,148 @@ func (sh *strictHandler) PostSignup(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostSignupResponseObject); ok {
 		if err := validResponse.VisitPostSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSshKeys operation middleware
+func (sh *strictHandler) GetSshKeys(w http.ResponseWriter, r *http.Request, params GetSshKeysParams) {
+	var request GetSshKeysRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSshKeys(ctx, request.(GetSshKeysRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSshKeys")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSshKeysResponseObject); ok {
+		if err := validResponse.VisitGetSshKeysResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostSshKeys operation middleware
+func (sh *strictHandler) PostSshKeys(w http.ResponseWriter, r *http.Request) {
+	var request PostSshKeysRequestObject
+
+	var body PostSshKeysJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostSshKeys(ctx, request.(PostSshKeysRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostSshKeys")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostSshKeysResponseObject); ok {
+		if err := validResponse.VisitPostSshKeysResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSshKey operation middleware
+func (sh *strictHandler) DeleteSshKey(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteSshKeyRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSshKey(ctx, request.(DeleteSshKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSshKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSshKeyResponseObject); ok {
+		if err := validResponse.VisitDeleteSshKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSshKey operation middleware
+func (sh *strictHandler) GetSshKey(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetSshKeyRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSshKey(ctx, request.(GetSshKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSshKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSshKeyResponseObject); ok {
+		if err := validResponse.VisitGetSshKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutSshKey operation middleware
+func (sh *strictHandler) PutSshKey(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutSshKeyRequestObject
+
+	request.Id = id
+
+	var body PutSshKeyJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutSshKey(ctx, request.(PutSshKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutSshKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutSshKeyResponseObject); ok {
+		if err := validResponse.VisitPutSshKeyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

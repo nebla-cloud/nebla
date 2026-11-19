@@ -12,7 +12,20 @@ import (
 )
 
 // projectScopedOps are operations on project resources; they accept a token or a session plus Project-ID.
-var projectScopedOps = map[string]bool{}
+// TestProjectScopedOpsMatchSpec keeps it equal to the spec's x-nebla-scope: project operations.
+var projectScopedOps = map[string]bool{
+	"GetLocations":   true,
+	"GetLocation":    true,
+	"GetServerTypes": true,
+	"GetServerType":  true,
+	"GetImages":      true,
+	"GetImage":       true,
+	"GetSshKeys":     true,
+	"PostSshKeys":    true,
+	"GetSshKey":      true,
+	"PutSshKey":      true,
+	"DeleteSshKey":   true,
+}
 
 // RoleAPIToken is Scope.Role for requests authenticated by an API token.
 const RoleAPIToken = "api_token"
@@ -33,6 +46,15 @@ func ScopeFrom(ctx context.Context) (Scope, bool) {
 }
 
 var errScopeNotFound = apierr.New(http.StatusNotFound, "not_found", "not found")
+
+// mustScope fails closed with not_found when a handler runs without a resolved project.
+func mustScope(ctx context.Context) (Scope, error) {
+	sc, ok := ScopeFrom(ctx)
+	if !ok || sc.ProjectID == 0 {
+		return Scope{}, errScopeNotFound
+	}
+	return sc, nil
+}
 
 // scope authenticates r and resolves its project, enforcing read-only access.
 func (s *server) scope(ctx context.Context, r *http.Request) (context.Context, error) {

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubApp mounts a fake project-scoped /v1/ssh_keys route that echoes the scope.
+// stubApp mounts a fake project-scoped /v1/scope_echo route that echoes the scope.
 func stubApp(t *testing.T) *testutil.App {
 	return testutil.NewApp(t, func(d *httpapi.Deps) {
 		d.ScopedRoutes = func(r chi.Router) {
@@ -24,8 +24,8 @@ func stubApp(t *testing.T) *testutil.App {
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(map[string]any{"project_id": sc.ProjectID, "role": sc.Role, "can_write": sc.CanWrite})
 			}
-			r.Get("/ssh_keys", echo)
-			r.Post("/ssh_keys", echo)
+			r.Get("/scope_echo", echo)
+			r.Post("/scope_echo", echo)
 		}
 	})
 }
@@ -117,15 +117,15 @@ func TestReadTokenCannotWrite(t *testing.T) {
 	id := c.CreateProject("Web")
 
 	ro := app.TokenClient(c.CreateToken(id, "read"))
-	res := ro.Get("/v1/ssh_keys")
+	res := ro.Get("/v1/scope_echo")
 	require.Equal(t, 200, res.StatusCode)
 	require.JSONEq(t, `{"project_id":`+itoa(id)+`,"role":"api_token","can_write":false}`, app.Body(res))
-	res = ro.Send(http.MethodPost, "/v1/ssh_keys", map[string]string{})
+	res = ro.Send(http.MethodPost, "/v1/scope_echo", map[string]string{})
 	require.Equal(t, 403, res.StatusCode)
 	require.Equal(t, "forbidden", errCode(t, app, res))
 
 	rw := app.TokenClient(c.CreateToken(id, "read_write"))
-	res = rw.Send(http.MethodPost, "/v1/ssh_keys", map[string]string{})
+	res = rw.Send(http.MethodPost, "/v1/scope_echo", map[string]string{})
 	require.Equal(t, 200, res.StatusCode)
 	res.Body.Close()
 
@@ -143,20 +143,20 @@ func TestSessionNeedsProjectHeader(t *testing.T) {
 	c := app.Login("a@example.com")
 	id := c.CreateProject("Web")
 
-	res := c.Get("/v1/ssh_keys")
+	res := c.Get("/v1/scope_echo")
 	require.Equal(t, 404, res.StatusCode)
 	require.Equal(t, "not_found", errCode(t, app, res))
 
-	res = c.WithProject(id).Get("/v1/ssh_keys")
+	res = c.WithProject(id).Get("/v1/scope_echo")
 	require.Equal(t, 200, res.StatusCode)
 	require.JSONEq(t, `{"project_id":`+itoa(id)+`,"role":"owner","can_write":true}`, app.Body(res))
 
 	app.CreateUser("b@example.com", false)
-	res = app.Login("b@example.com").WithProject(id).Get("/v1/ssh_keys")
+	res = app.Login("b@example.com").WithProject(id).Get("/v1/scope_echo")
 	require.Equal(t, 404, res.StatusCode, "non-members get 404")
 	res.Body.Close()
 
-	res = app.Get("/v1/ssh_keys")
+	res = app.Get("/v1/scope_echo")
 	require.Equal(t, 401, res.StatusCode)
 	res.Body.Close()
 }
@@ -168,7 +168,7 @@ func TestRevokedTokenRejected(t *testing.T) {
 	id := c.CreateProject("Web")
 	tok := c.CreateToken(id, "read_write")
 	tc := app.TokenClient(tok)
-	res := tc.Get("/v1/ssh_keys")
+	res := tc.Get("/v1/scope_echo")
 	require.Equal(t, 200, res.StatusCode)
 	res.Body.Close()
 
@@ -184,10 +184,10 @@ func TestRevokedTokenRejected(t *testing.T) {
 	require.Equal(t, 204, res.StatusCode)
 	res.Body.Close()
 
-	res = tc.Get("/v1/ssh_keys")
+	res = tc.Get("/v1/scope_echo")
 	require.Equal(t, 401, res.StatusCode)
 	require.Equal(t, "unauthorized", errCode(t, app, res))
-	res = app.TokenClient("nb_" + strings.Repeat("a", 40)).Get("/v1/ssh_keys")
+	res = app.TokenClient("nb_" + strings.Repeat("a", 40)).Get("/v1/scope_echo")
 	require.Equal(t, 401, res.StatusCode)
 	res.Body.Close()
 }

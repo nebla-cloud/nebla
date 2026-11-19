@@ -12,6 +12,7 @@ import (
 
 	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/Hexeption/nebla/internal/auth"
+	"github.com/Hexeption/nebla/internal/catalog"
 	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
@@ -19,6 +20,7 @@ import (
 	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/ratelimit"
 	"github.com/Hexeption/nebla/internal/settings"
+	"github.com/Hexeption/nebla/internal/sshkeys"
 	"github.com/Hexeption/nebla/web"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,6 +38,9 @@ type Deps struct {
 	// Mail defaults to a no-op sender.
 	Mail         mail.Sender
 	ProjectHooks projects.Hooks
+	// Catalog defaults to a service keyed by Config.SecretKey with CatalogHooks.
+	Catalog      *catalog.Service
+	CatalogHooks catalog.Hooks
 	// ScopedRoutes mounts extra non-strict routes under /v1 behind the project scope.
 	ScopedRoutes func(r chi.Router)
 }
@@ -46,6 +51,8 @@ type server struct {
 	auth       *auth.Service
 	projects   *projects.Service
 	settings   *settings.Store
+	catalog    *catalog.Service
+	sshkeys    *sshkeys.Service
 	loginLimit *ratelimit.Limiter
 }
 
@@ -69,6 +76,9 @@ func New(deps Deps) http.Handler {
 		deps.Mail = mail.Noop{}
 	}
 	au := auth.New(deps.Ent, deps.Ext.Registration)
+	if deps.Catalog == nil {
+		deps.Catalog = catalog.New(deps.SQL, deps.Ent, catalog.Options{SecretKey: deps.Config.SecretKey, Hooks: deps.CatalogHooks})
+	}
 	s := &server{
 		deps: deps,
 		log:  log,
@@ -77,6 +87,8 @@ func New(deps Deps) http.Handler {
 			Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
 		}),
 		settings:   st,
+		catalog:    deps.Catalog,
+		sshkeys:    sshkeys.New(deps.Ent),
 		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
 	}
 	strict := apigen.NewStrictHandlerWithOptions(s, []apigen.StrictMiddlewareFunc{s.authMiddleware}, apigen.StrictHTTPServerOptions{

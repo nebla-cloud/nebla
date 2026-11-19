@@ -50,3 +50,17 @@ func TestWithTxSharesOneTransaction(t *testing.T) {
 	require.ErrorIs(t, err, boom)
 	require.Equal(t, []string{"ent_ok", "raw_ok"}, keys())
 }
+
+func TestWithTxSupportsUpdateOne(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.NewDB(t)
+	client, sqlDB := db.NewEnt(pool)
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, client.Setting.Create().SetID("k").SetValue("1").Exec(ctx))
+
+	err := db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+		return etx.Setting.UpdateOneID("k").SetValue("2").Exec(ctx)
+	})
+	require.NoError(t, err)
+	require.Equal(t, "2", client.Setting.GetX(ctx, "k").Value)
+}

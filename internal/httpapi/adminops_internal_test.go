@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/require"
 )
@@ -29,4 +31,35 @@ func TestAdminOpsMatchSpec(t *testing.T) {
 		require.True(t, all[id], "publicOps has unknown op %s", id)
 		require.False(t, adminOps[id], "%s is both public and admin", id)
 	}
+}
+
+// TestProjectScopedOpsMatchSpec keeps projectScopedOps equal to the ops marked x-nebla-scope: project.
+func TestProjectScopedOpsMatchSpec(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+	want := map[string]bool{}
+	for _, item := range doc.Paths.Map() {
+		for _, op := range item.Operations() {
+			if op.Extensions["x-nebla-scope"] == "project" {
+				want[strings.ToUpper(op.OperationID[:1])+op.OperationID[1:]] = true
+			}
+		}
+	}
+	require.NotEmpty(t, want)
+	require.Equal(t, want, projectScopedOps)
+	for id := range projectScopedOps {
+		require.False(t, adminOps[id] || publicOps[id], "%s is project scoped and admin or public", id)
+	}
+}
+
+// TestScopedHandlersFailClosed checks scoped handlers return not_found when no scope is set.
+func TestScopedHandlersFailClosed(t *testing.T) {
+	s := &server{}
+	ctx := context.Background()
+	_, err := s.GetSshKeys(ctx, apigen.GetSshKeysRequestObject{})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.GetImages(ctx, apigen.GetImagesRequestObject{})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.DeleteSshKey(ctx, apigen.DeleteSshKeyRequestObject{Id: 1})
+	require.ErrorIs(t, err, errScopeNotFound)
 }

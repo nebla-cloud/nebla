@@ -16,11 +16,17 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/image"
+	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
+	"github.com/Hexeption/nebla/internal/ent/sshkey"
 	"github.com/Hexeption/nebla/internal/ent/user"
 
 	stdsql "database/sql"
@@ -33,12 +39,24 @@ type Client struct {
 	Schema *migrate.Schema
 	// APIToken is the client for interacting with the APIToken builders.
 	APIToken *APITokenClient
+	// Image is the client for interacting with the Image builders.
+	Image *ImageClient
+	// ImageTemplate is the client for interacting with the ImageTemplate builders.
+	ImageTemplate *ImageTemplateClient
 	// Invite is the client for interacting with the Invite builders.
 	Invite *InviteClient
+	// Location is the client for interacting with the Location builders.
+	Location *LocationClient
+	// Node is the client for interacting with the Node builders.
+	Node *NodeClient
 	// Project is the client for interacting with the Project builders.
 	Project *ProjectClient
 	// ProjectMember is the client for interacting with the ProjectMember builders.
 	ProjectMember *ProjectMemberClient
+	// SSHKey is the client for interacting with the SSHKey builders.
+	SSHKey *SSHKeyClient
+	// ServerType is the client for interacting with the ServerType builders.
+	ServerType *ServerTypeClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 	// Setting is the client for interacting with the Setting builders.
@@ -57,9 +75,15 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIToken = NewAPITokenClient(c.config)
+	c.Image = NewImageClient(c.config)
+	c.ImageTemplate = NewImageTemplateClient(c.config)
 	c.Invite = NewInviteClient(c.config)
+	c.Location = NewLocationClient(c.config)
+	c.Node = NewNodeClient(c.config)
 	c.Project = NewProjectClient(c.config)
 	c.ProjectMember = NewProjectMemberClient(c.config)
+	c.SSHKey = NewSSHKeyClient(c.config)
+	c.ServerType = NewServerTypeClient(c.config)
 	c.Session = NewSessionClient(c.config)
 	c.Setting = NewSettingClient(c.config)
 	c.User = NewUserClient(c.config)
@@ -156,9 +180,15 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:           ctx,
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
+		Image:         NewImageClient(cfg),
+		ImageTemplate: NewImageTemplateClient(cfg),
 		Invite:        NewInviteClient(cfg),
+		Location:      NewLocationClient(cfg),
+		Node:          NewNodeClient(cfg),
 		Project:       NewProjectClient(cfg),
 		ProjectMember: NewProjectMemberClient(cfg),
+		SSHKey:        NewSSHKeyClient(cfg),
+		ServerType:    NewServerTypeClient(cfg),
 		Session:       NewSessionClient(cfg),
 		Setting:       NewSettingClient(cfg),
 		User:          NewUserClient(cfg),
@@ -182,9 +212,15 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:           ctx,
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
+		Image:         NewImageClient(cfg),
+		ImageTemplate: NewImageTemplateClient(cfg),
 		Invite:        NewInviteClient(cfg),
+		Location:      NewLocationClient(cfg),
+		Node:          NewNodeClient(cfg),
 		Project:       NewProjectClient(cfg),
 		ProjectMember: NewProjectMemberClient(cfg),
+		SSHKey:        NewSSHKeyClient(cfg),
+		ServerType:    NewServerTypeClient(cfg),
 		Session:       NewSessionClient(cfg),
 		Setting:       NewSettingClient(cfg),
 		User:          NewUserClient(cfg),
@@ -217,7 +253,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIToken, c.Invite, c.Project, c.ProjectMember, c.Session, c.Setting, c.User,
+		c.APIToken, c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
+		c.ProjectMember, c.SSHKey, c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -227,7 +264,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIToken, c.Invite, c.Project, c.ProjectMember, c.Session, c.Setting, c.User,
+		c.APIToken, c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
+		c.ProjectMember, c.SSHKey, c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -238,12 +276,24 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *APITokenMutation:
 		return c.APIToken.mutate(ctx, m)
+	case *ImageMutation:
+		return c.Image.mutate(ctx, m)
+	case *ImageTemplateMutation:
+		return c.ImageTemplate.mutate(ctx, m)
 	case *InviteMutation:
 		return c.Invite.mutate(ctx, m)
+	case *LocationMutation:
+		return c.Location.mutate(ctx, m)
+	case *NodeMutation:
+		return c.Node.mutate(ctx, m)
 	case *ProjectMutation:
 		return c.Project.mutate(ctx, m)
 	case *ProjectMemberMutation:
 		return c.ProjectMember.mutate(ctx, m)
+	case *SSHKeyMutation:
+		return c.SSHKey.mutate(ctx, m)
+	case *ServerTypeMutation:
+		return c.ServerType.mutate(ctx, m)
 	case *SessionMutation:
 		return c.Session.mutate(ctx, m)
 	case *SettingMutation:
@@ -401,6 +451,320 @@ func (c *APITokenClient) mutate(ctx context.Context, m *APITokenMutation) (Value
 		return (&APITokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown APIToken mutation op: %q", m.Op())
+	}
+}
+
+// ImageClient is a client for the Image schema.
+type ImageClient struct {
+	config
+}
+
+// NewImageClient returns a client for the Image from the given config.
+func NewImageClient(c config) *ImageClient {
+	return &ImageClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `image.Hooks(f(g(h())))`.
+func (c *ImageClient) Use(hooks ...Hook) {
+	c.hooks.Image = append(c.hooks.Image, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `image.Intercept(f(g(h())))`.
+func (c *ImageClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Image = append(c.inters.Image, interceptors...)
+}
+
+// Create returns a builder for creating a Image entity.
+func (c *ImageClient) Create() *ImageCreate {
+	mutation := newImageMutation(c.config, OpCreate)
+	return &ImageCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Image entities.
+func (c *ImageClient) CreateBulk(builders ...*ImageCreate) *ImageCreateBulk {
+	return &ImageCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ImageClient) MapCreateBulk(slice any, setFunc func(*ImageCreate, int)) *ImageCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ImageCreateBulk{err: fmt.Errorf("calling to ImageClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ImageCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ImageCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Image.
+func (c *ImageClient) Update() *ImageUpdate {
+	mutation := newImageMutation(c.config, OpUpdate)
+	return &ImageUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ImageClient) UpdateOne(_m *Image) *ImageUpdateOne {
+	mutation := newImageMutation(c.config, OpUpdateOne, withImage(_m))
+	return &ImageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ImageClient) UpdateOneID(id int64) *ImageUpdateOne {
+	mutation := newImageMutation(c.config, OpUpdateOne, withImageID(id))
+	return &ImageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Image.
+func (c *ImageClient) Delete() *ImageDelete {
+	mutation := newImageMutation(c.config, OpDelete)
+	return &ImageDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ImageClient) DeleteOne(_m *Image) *ImageDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ImageClient) DeleteOneID(id int64) *ImageDeleteOne {
+	builder := c.Delete().Where(image.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ImageDeleteOne{builder}
+}
+
+// Query returns a query builder for Image.
+func (c *ImageClient) Query() *ImageQuery {
+	return &ImageQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeImage},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Image entity by its id.
+func (c *ImageClient) Get(ctx context.Context, id int64) (*Image, error) {
+	return c.Query().Where(image.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ImageClient) GetX(ctx context.Context, id int64) *Image {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryTemplates queries the templates edge of a Image.
+func (c *ImageClient) QueryTemplates(_m *Image) *ImageTemplateQuery {
+	query := (&ImageTemplateClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(image.Table, image.FieldID, id),
+			sqlgraph.To(imagetemplate.Table, imagetemplate.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, image.TemplatesTable, image.TemplatesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ImageClient) Hooks() []Hook {
+	return c.hooks.Image
+}
+
+// Interceptors returns the client interceptors.
+func (c *ImageClient) Interceptors() []Interceptor {
+	return c.inters.Image
+}
+
+func (c *ImageClient) mutate(ctx context.Context, m *ImageMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ImageCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ImageUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ImageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ImageDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Image mutation op: %q", m.Op())
+	}
+}
+
+// ImageTemplateClient is a client for the ImageTemplate schema.
+type ImageTemplateClient struct {
+	config
+}
+
+// NewImageTemplateClient returns a client for the ImageTemplate from the given config.
+func NewImageTemplateClient(c config) *ImageTemplateClient {
+	return &ImageTemplateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `imagetemplate.Hooks(f(g(h())))`.
+func (c *ImageTemplateClient) Use(hooks ...Hook) {
+	c.hooks.ImageTemplate = append(c.hooks.ImageTemplate, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `imagetemplate.Intercept(f(g(h())))`.
+func (c *ImageTemplateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ImageTemplate = append(c.inters.ImageTemplate, interceptors...)
+}
+
+// Create returns a builder for creating a ImageTemplate entity.
+func (c *ImageTemplateClient) Create() *ImageTemplateCreate {
+	mutation := newImageTemplateMutation(c.config, OpCreate)
+	return &ImageTemplateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ImageTemplate entities.
+func (c *ImageTemplateClient) CreateBulk(builders ...*ImageTemplateCreate) *ImageTemplateCreateBulk {
+	return &ImageTemplateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ImageTemplateClient) MapCreateBulk(slice any, setFunc func(*ImageTemplateCreate, int)) *ImageTemplateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ImageTemplateCreateBulk{err: fmt.Errorf("calling to ImageTemplateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ImageTemplateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ImageTemplateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ImageTemplate.
+func (c *ImageTemplateClient) Update() *ImageTemplateUpdate {
+	mutation := newImageTemplateMutation(c.config, OpUpdate)
+	return &ImageTemplateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ImageTemplateClient) UpdateOne(_m *ImageTemplate) *ImageTemplateUpdateOne {
+	mutation := newImageTemplateMutation(c.config, OpUpdateOne, withImageTemplate(_m))
+	return &ImageTemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ImageTemplateClient) UpdateOneID(id int64) *ImageTemplateUpdateOne {
+	mutation := newImageTemplateMutation(c.config, OpUpdateOne, withImageTemplateID(id))
+	return &ImageTemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ImageTemplate.
+func (c *ImageTemplateClient) Delete() *ImageTemplateDelete {
+	mutation := newImageTemplateMutation(c.config, OpDelete)
+	return &ImageTemplateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ImageTemplateClient) DeleteOne(_m *ImageTemplate) *ImageTemplateDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ImageTemplateClient) DeleteOneID(id int64) *ImageTemplateDeleteOne {
+	builder := c.Delete().Where(imagetemplate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ImageTemplateDeleteOne{builder}
+}
+
+// Query returns a query builder for ImageTemplate.
+func (c *ImageTemplateClient) Query() *ImageTemplateQuery {
+	return &ImageTemplateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeImageTemplate},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ImageTemplate entity by its id.
+func (c *ImageTemplateClient) Get(ctx context.Context, id int64) (*ImageTemplate, error) {
+	return c.Query().Where(imagetemplate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ImageTemplateClient) GetX(ctx context.Context, id int64) *ImageTemplate {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryImage queries the image edge of a ImageTemplate.
+func (c *ImageTemplateClient) QueryImage(_m *ImageTemplate) *ImageQuery {
+	query := (&ImageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imagetemplate.Table, imagetemplate.FieldID, id),
+			sqlgraph.To(image.Table, image.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, imagetemplate.ImageTable, imagetemplate.ImageColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryLocation queries the location edge of a ImageTemplate.
+func (c *ImageTemplateClient) QueryLocation(_m *ImageTemplate) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(imagetemplate.Table, imagetemplate.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, imagetemplate.LocationTable, imagetemplate.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ImageTemplateClient) Hooks() []Hook {
+	return c.hooks.ImageTemplate
+}
+
+// Interceptors returns the client interceptors.
+func (c *ImageTemplateClient) Interceptors() []Interceptor {
+	return c.inters.ImageTemplate
+}
+
+func (c *ImageTemplateClient) mutate(ctx context.Context, m *ImageTemplateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ImageTemplateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ImageTemplateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ImageTemplateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ImageTemplateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ImageTemplate mutation op: %q", m.Op())
 	}
 }
 
@@ -566,6 +930,336 @@ func (c *InviteClient) mutate(ctx context.Context, m *InviteMutation) (Value, er
 		return (&InviteDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Invite mutation op: %q", m.Op())
+	}
+}
+
+// LocationClient is a client for the Location schema.
+type LocationClient struct {
+	config
+}
+
+// NewLocationClient returns a client for the Location from the given config.
+func NewLocationClient(c config) *LocationClient {
+	return &LocationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `location.Hooks(f(g(h())))`.
+func (c *LocationClient) Use(hooks ...Hook) {
+	c.hooks.Location = append(c.hooks.Location, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `location.Intercept(f(g(h())))`.
+func (c *LocationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Location = append(c.inters.Location, interceptors...)
+}
+
+// Create returns a builder for creating a Location entity.
+func (c *LocationClient) Create() *LocationCreate {
+	mutation := newLocationMutation(c.config, OpCreate)
+	return &LocationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Location entities.
+func (c *LocationClient) CreateBulk(builders ...*LocationCreate) *LocationCreateBulk {
+	return &LocationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *LocationClient) MapCreateBulk(slice any, setFunc func(*LocationCreate, int)) *LocationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &LocationCreateBulk{err: fmt.Errorf("calling to LocationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*LocationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &LocationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Location.
+func (c *LocationClient) Update() *LocationUpdate {
+	mutation := newLocationMutation(c.config, OpUpdate)
+	return &LocationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *LocationClient) UpdateOne(_m *Location) *LocationUpdateOne {
+	mutation := newLocationMutation(c.config, OpUpdateOne, withLocation(_m))
+	return &LocationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *LocationClient) UpdateOneID(id int64) *LocationUpdateOne {
+	mutation := newLocationMutation(c.config, OpUpdateOne, withLocationID(id))
+	return &LocationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Location.
+func (c *LocationClient) Delete() *LocationDelete {
+	mutation := newLocationMutation(c.config, OpDelete)
+	return &LocationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *LocationClient) DeleteOne(_m *Location) *LocationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *LocationClient) DeleteOneID(id int64) *LocationDeleteOne {
+	builder := c.Delete().Where(location.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &LocationDeleteOne{builder}
+}
+
+// Query returns a query builder for Location.
+func (c *LocationClient) Query() *LocationQuery {
+	return &LocationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeLocation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Location entity by its id.
+func (c *LocationClient) Get(ctx context.Context, id int64) (*Location, error) {
+	return c.Query().Where(location.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *LocationClient) GetX(ctx context.Context, id int64) *Location {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryNodes queries the nodes edge of a Location.
+func (c *LocationClient) QueryNodes(_m *Location) *NodeQuery {
+	query := (&NodeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(location.Table, location.FieldID, id),
+			sqlgraph.To(node.Table, node.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, location.NodesTable, location.NodesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryServerTypes queries the server_types edge of a Location.
+func (c *LocationClient) QueryServerTypes(_m *Location) *ServerTypeQuery {
+	query := (&ServerTypeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(location.Table, location.FieldID, id),
+			sqlgraph.To(servertype.Table, servertype.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, location.ServerTypesTable, location.ServerTypesPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryImageTemplates queries the image_templates edge of a Location.
+func (c *LocationClient) QueryImageTemplates(_m *Location) *ImageTemplateQuery {
+	query := (&ImageTemplateClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(location.Table, location.FieldID, id),
+			sqlgraph.To(imagetemplate.Table, imagetemplate.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, location.ImageTemplatesTable, location.ImageTemplatesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *LocationClient) Hooks() []Hook {
+	return c.hooks.Location
+}
+
+// Interceptors returns the client interceptors.
+func (c *LocationClient) Interceptors() []Interceptor {
+	return c.inters.Location
+}
+
+func (c *LocationClient) mutate(ctx context.Context, m *LocationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&LocationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&LocationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&LocationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&LocationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Location mutation op: %q", m.Op())
+	}
+}
+
+// NodeClient is a client for the Node schema.
+type NodeClient struct {
+	config
+}
+
+// NewNodeClient returns a client for the Node from the given config.
+func NewNodeClient(c config) *NodeClient {
+	return &NodeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `node.Hooks(f(g(h())))`.
+func (c *NodeClient) Use(hooks ...Hook) {
+	c.hooks.Node = append(c.hooks.Node, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `node.Intercept(f(g(h())))`.
+func (c *NodeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Node = append(c.inters.Node, interceptors...)
+}
+
+// Create returns a builder for creating a Node entity.
+func (c *NodeClient) Create() *NodeCreate {
+	mutation := newNodeMutation(c.config, OpCreate)
+	return &NodeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Node entities.
+func (c *NodeClient) CreateBulk(builders ...*NodeCreate) *NodeCreateBulk {
+	return &NodeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *NodeClient) MapCreateBulk(slice any, setFunc func(*NodeCreate, int)) *NodeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &NodeCreateBulk{err: fmt.Errorf("calling to NodeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*NodeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &NodeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Node.
+func (c *NodeClient) Update() *NodeUpdate {
+	mutation := newNodeMutation(c.config, OpUpdate)
+	return &NodeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NodeClient) UpdateOne(_m *Node) *NodeUpdateOne {
+	mutation := newNodeMutation(c.config, OpUpdateOne, withNode(_m))
+	return &NodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NodeClient) UpdateOneID(id int64) *NodeUpdateOne {
+	mutation := newNodeMutation(c.config, OpUpdateOne, withNodeID(id))
+	return &NodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Node.
+func (c *NodeClient) Delete() *NodeDelete {
+	mutation := newNodeMutation(c.config, OpDelete)
+	return &NodeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NodeClient) DeleteOne(_m *Node) *NodeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *NodeClient) DeleteOneID(id int64) *NodeDeleteOne {
+	builder := c.Delete().Where(node.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NodeDeleteOne{builder}
+}
+
+// Query returns a query builder for Node.
+func (c *NodeClient) Query() *NodeQuery {
+	return &NodeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeNode},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Node entity by its id.
+func (c *NodeClient) Get(ctx context.Context, id int64) (*Node, error) {
+	return c.Query().Where(node.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NodeClient) GetX(ctx context.Context, id int64) *Node {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryLocation queries the location edge of a Node.
+func (c *NodeClient) QueryLocation(_m *Node) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(node.Table, node.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, node.LocationTable, node.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *NodeClient) Hooks() []Hook {
+	return c.hooks.Node
+}
+
+// Interceptors returns the client interceptors.
+func (c *NodeClient) Interceptors() []Interceptor {
+	return c.inters.Node
+}
+
+func (c *NodeClient) mutate(ctx context.Context, m *NodeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&NodeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&NodeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&NodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&NodeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Node mutation op: %q", m.Op())
 	}
 }
 
@@ -864,6 +1558,304 @@ func (c *ProjectMemberClient) mutate(ctx context.Context, m *ProjectMemberMutati
 		return (&ProjectMemberDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ProjectMember mutation op: %q", m.Op())
+	}
+}
+
+// SSHKeyClient is a client for the SSHKey schema.
+type SSHKeyClient struct {
+	config
+}
+
+// NewSSHKeyClient returns a client for the SSHKey from the given config.
+func NewSSHKeyClient(c config) *SSHKeyClient {
+	return &SSHKeyClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `sshkey.Hooks(f(g(h())))`.
+func (c *SSHKeyClient) Use(hooks ...Hook) {
+	c.hooks.SSHKey = append(c.hooks.SSHKey, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `sshkey.Intercept(f(g(h())))`.
+func (c *SSHKeyClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SSHKey = append(c.inters.SSHKey, interceptors...)
+}
+
+// Create returns a builder for creating a SSHKey entity.
+func (c *SSHKeyClient) Create() *SSHKeyCreate {
+	mutation := newSSHKeyMutation(c.config, OpCreate)
+	return &SSHKeyCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SSHKey entities.
+func (c *SSHKeyClient) CreateBulk(builders ...*SSHKeyCreate) *SSHKeyCreateBulk {
+	return &SSHKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SSHKeyClient) MapCreateBulk(slice any, setFunc func(*SSHKeyCreate, int)) *SSHKeyCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SSHKeyCreateBulk{err: fmt.Errorf("calling to SSHKeyClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SSHKeyCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SSHKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SSHKey.
+func (c *SSHKeyClient) Update() *SSHKeyUpdate {
+	mutation := newSSHKeyMutation(c.config, OpUpdate)
+	return &SSHKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SSHKeyClient) UpdateOne(_m *SSHKey) *SSHKeyUpdateOne {
+	mutation := newSSHKeyMutation(c.config, OpUpdateOne, withSSHKey(_m))
+	return &SSHKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SSHKeyClient) UpdateOneID(id int64) *SSHKeyUpdateOne {
+	mutation := newSSHKeyMutation(c.config, OpUpdateOne, withSSHKeyID(id))
+	return &SSHKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SSHKey.
+func (c *SSHKeyClient) Delete() *SSHKeyDelete {
+	mutation := newSSHKeyMutation(c.config, OpDelete)
+	return &SSHKeyDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SSHKeyClient) DeleteOne(_m *SSHKey) *SSHKeyDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SSHKeyClient) DeleteOneID(id int64) *SSHKeyDeleteOne {
+	builder := c.Delete().Where(sshkey.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SSHKeyDeleteOne{builder}
+}
+
+// Query returns a query builder for SSHKey.
+func (c *SSHKeyClient) Query() *SSHKeyQuery {
+	return &SSHKeyQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSSHKey},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SSHKey entity by its id.
+func (c *SSHKeyClient) Get(ctx context.Context, id int64) (*SSHKey, error) {
+	return c.Query().Where(sshkey.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SSHKeyClient) GetX(ctx context.Context, id int64) *SSHKey {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a SSHKey.
+func (c *SSHKeyClient) QueryProject(_m *SSHKey) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(sshkey.Table, sshkey.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, sshkey.ProjectTable, sshkey.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SSHKeyClient) Hooks() []Hook {
+	return c.hooks.SSHKey
+}
+
+// Interceptors returns the client interceptors.
+func (c *SSHKeyClient) Interceptors() []Interceptor {
+	return c.inters.SSHKey
+}
+
+func (c *SSHKeyClient) mutate(ctx context.Context, m *SSHKeyMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SSHKeyCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SSHKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SSHKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SSHKeyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SSHKey mutation op: %q", m.Op())
+	}
+}
+
+// ServerTypeClient is a client for the ServerType schema.
+type ServerTypeClient struct {
+	config
+}
+
+// NewServerTypeClient returns a client for the ServerType from the given config.
+func NewServerTypeClient(c config) *ServerTypeClient {
+	return &ServerTypeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `servertype.Hooks(f(g(h())))`.
+func (c *ServerTypeClient) Use(hooks ...Hook) {
+	c.hooks.ServerType = append(c.hooks.ServerType, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `servertype.Intercept(f(g(h())))`.
+func (c *ServerTypeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ServerType = append(c.inters.ServerType, interceptors...)
+}
+
+// Create returns a builder for creating a ServerType entity.
+func (c *ServerTypeClient) Create() *ServerTypeCreate {
+	mutation := newServerTypeMutation(c.config, OpCreate)
+	return &ServerTypeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ServerType entities.
+func (c *ServerTypeClient) CreateBulk(builders ...*ServerTypeCreate) *ServerTypeCreateBulk {
+	return &ServerTypeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ServerTypeClient) MapCreateBulk(slice any, setFunc func(*ServerTypeCreate, int)) *ServerTypeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ServerTypeCreateBulk{err: fmt.Errorf("calling to ServerTypeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ServerTypeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ServerTypeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ServerType.
+func (c *ServerTypeClient) Update() *ServerTypeUpdate {
+	mutation := newServerTypeMutation(c.config, OpUpdate)
+	return &ServerTypeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ServerTypeClient) UpdateOne(_m *ServerType) *ServerTypeUpdateOne {
+	mutation := newServerTypeMutation(c.config, OpUpdateOne, withServerType(_m))
+	return &ServerTypeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ServerTypeClient) UpdateOneID(id int64) *ServerTypeUpdateOne {
+	mutation := newServerTypeMutation(c.config, OpUpdateOne, withServerTypeID(id))
+	return &ServerTypeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ServerType.
+func (c *ServerTypeClient) Delete() *ServerTypeDelete {
+	mutation := newServerTypeMutation(c.config, OpDelete)
+	return &ServerTypeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ServerTypeClient) DeleteOne(_m *ServerType) *ServerTypeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ServerTypeClient) DeleteOneID(id int64) *ServerTypeDeleteOne {
+	builder := c.Delete().Where(servertype.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ServerTypeDeleteOne{builder}
+}
+
+// Query returns a query builder for ServerType.
+func (c *ServerTypeClient) Query() *ServerTypeQuery {
+	return &ServerTypeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeServerType},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ServerType entity by its id.
+func (c *ServerTypeClient) Get(ctx context.Context, id int64) (*ServerType, error) {
+	return c.Query().Where(servertype.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ServerTypeClient) GetX(ctx context.Context, id int64) *ServerType {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryLocations queries the locations edge of a ServerType.
+func (c *ServerTypeClient) QueryLocations(_m *ServerType) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(servertype.Table, servertype.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, servertype.LocationsTable, servertype.LocationsPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ServerTypeClient) Hooks() []Hook {
+	return c.hooks.ServerType
+}
+
+// Interceptors returns the client interceptors.
+func (c *ServerTypeClient) Interceptors() []Interceptor {
+	return c.inters.ServerType
+}
+
+func (c *ServerTypeClient) mutate(ctx context.Context, m *ServerTypeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ServerTypeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ServerTypeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ServerTypeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ServerTypeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ServerType mutation op: %q", m.Op())
 	}
 }
 
@@ -1285,11 +2277,12 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIToken, Invite, Project, ProjectMember, Session, Setting, User []ent.Hook
+		APIToken, Image, ImageTemplate, Invite, Location, Node, Project, ProjectMember,
+		SSHKey, ServerType, Session, Setting, User []ent.Hook
 	}
 	inters struct {
-		APIToken, Invite, Project, ProjectMember, Session, Setting,
-		User []ent.Interceptor
+		APIToken, Image, ImageTemplate, Invite, Location, Node, Project, ProjectMember,
+		SSHKey, ServerType, Session, Setting, User []ent.Interceptor
 	}
 )
 

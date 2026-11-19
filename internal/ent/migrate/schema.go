@@ -45,6 +45,68 @@ var (
 			},
 		},
 	}
+	// ImagesColumns holds the columns for the "images" table.
+	ImagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "os_flavor", Type: field.TypeString, Size: 2147483647},
+		{Name: "os_version", Type: field.TypeString, Size: 2147483647},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+	}
+	// ImagesTable holds the schema information for the "images" table.
+	ImagesTable = &schema.Table{
+		Name:       "images",
+		Columns:    ImagesColumns,
+		PrimaryKey: []*schema.Column{ImagesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "images_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{ImagesColumns[1]},
+			},
+		},
+	}
+	// ImageTemplatesColumns holds the columns for the "image_templates" table.
+	ImageTemplatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "node", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "vmid", Type: field.TypeInt},
+		{Name: "image_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+	}
+	// ImageTemplatesTable holds the schema information for the "image_templates" table.
+	ImageTemplatesTable = &schema.Table{
+		Name:       "image_templates",
+		Columns:    ImageTemplatesColumns,
+		PrimaryKey: []*schema.Column{ImageTemplatesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "image_templates_images_image",
+				Columns:    []*schema.Column{ImageTemplatesColumns[3]},
+				RefColumns: []*schema.Column{ImagesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "image_templates_locations_location",
+				Columns:    []*schema.Column{ImageTemplatesColumns[4]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "image_templates_image_location_node_key",
+				Unique:  true,
+				Columns: []*schema.Column{ImageTemplatesColumns[3], ImageTemplatesColumns[4], ImageTemplatesColumns[1]},
+			},
+			{
+				Name:    "image_templates_location_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ImageTemplatesColumns[4]},
+			},
+		},
+	}
 	// InvitesColumns holds the columns for the "invites" table.
 	InvitesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -86,6 +148,70 @@ var (
 				Name:    "invites_project_id_created_by_idx",
 				Unique:  false,
 				Columns: []*schema.Column{InvitesColumns[7], InvitesColumns[8]},
+			},
+		},
+	}
+	// LocationsColumns holds the columns for the "locations" table.
+	LocationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "pve_url", Type: field.TypeString, Size: 2147483647},
+		{Name: "token_id", Type: field.TypeString, Size: 2147483647},
+		{Name: "token_secret", Type: field.TypeBytes},
+		{Name: "ca_fingerprint", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "insecure_tls", Type: field.TypeBool, Default: false},
+		{Name: "disk_storage", Type: field.TypeString, Size: 2147483647},
+		{Name: "iso_storage", Type: field.TypeString, Size: 2147483647},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+	}
+	// LocationsTable holds the schema information for the "locations" table.
+	LocationsTable = &schema.Table{
+		Name:       "locations",
+		Columns:    LocationsColumns,
+		PrimaryKey: []*schema.Column{LocationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "locations_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{LocationsColumns[1]},
+			},
+		},
+	}
+	// NodesColumns holds the columns for the "nodes" table.
+	NodesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "disk_storage_override", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "status", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "maxcpu", Type: field.TypeInt, Default: 0},
+		{Name: "maxmem", Type: field.TypeInt64, Default: 0},
+		{Name: "cpu", Type: field.TypeFloat64, Default: 0},
+		{Name: "mem", Type: field.TypeInt64, Default: 0},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "location_id", Type: field.TypeInt64},
+	}
+	// NodesTable holds the schema information for the "nodes" table.
+	NodesTable = &schema.Table{
+		Name:       "nodes",
+		Columns:    NodesColumns,
+		PrimaryKey: []*schema.Column{NodesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "nodes_locations_location",
+				Columns:    []*schema.Column{NodesColumns[11]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "nodes_location_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{NodesColumns[11], NodesColumns[1]},
 			},
 		},
 	}
@@ -146,6 +272,65 @@ var (
 			},
 		},
 	}
+	// SSHKeysColumns holds the columns for the "ssh_keys" table.
+	SSHKeysColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "public_key", Type: field.TypeString, Size: 2147483647},
+		{Name: "fingerprint", Type: field.TypeString, Size: 2147483647},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+	}
+	// SSHKeysTable holds the schema information for the "ssh_keys" table.
+	SSHKeysTable = &schema.Table{
+		Name:       "ssh_keys",
+		Columns:    SSHKeysColumns,
+		PrimaryKey: []*schema.Column{SSHKeysColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "ssh_keys_projects_project",
+				Columns:    []*schema.Column{SSHKeysColumns[5]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ssh_keys_project_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{SSHKeysColumns[5], SSHKeysColumns[1]},
+			},
+			{
+				Name:    "ssh_keys_project_fingerprint_key",
+				Unique:  true,
+				Columns: []*schema.Column{SSHKeysColumns[5], SSHKeysColumns[3]},
+			},
+		},
+	}
+	// ServerTypesColumns holds the columns for the "server_types" table.
+	ServerTypesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "cores", Type: field.TypeInt},
+		{Name: "memory_mb", Type: field.TypeInt},
+		{Name: "disk_gb", Type: field.TypeInt},
+		{Name: "deprecated", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+	}
+	// ServerTypesTable holds the schema information for the "server_types" table.
+	ServerTypesTable = &schema.Table{
+		Name:       "server_types",
+		Columns:    ServerTypesColumns,
+		PrimaryKey: []*schema.Column{ServerTypesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "server_types_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{ServerTypesColumns[1]},
+			},
+		},
+	}
 	// SessionsColumns holds the columns for the "sessions" table.
 	SessionsColumns = []*schema.Column{
 		{Name: "token_hash", Type: field.TypeBytes},
@@ -203,15 +388,47 @@ var (
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
 	}
+	// ServerTypeLocationsColumns holds the columns for the "server_type_locations" table.
+	ServerTypeLocationsColumns = []*schema.Column{
+		{Name: "server_type_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+	}
+	// ServerTypeLocationsTable holds the schema information for the "server_type_locations" table.
+	ServerTypeLocationsTable = &schema.Table{
+		Name:       "server_type_locations",
+		Columns:    ServerTypeLocationsColumns,
+		PrimaryKey: []*schema.Column{ServerTypeLocationsColumns[0], ServerTypeLocationsColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "server_type_locations_server_type_id",
+				Columns:    []*schema.Column{ServerTypeLocationsColumns[0]},
+				RefColumns: []*schema.Column{ServerTypesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "server_type_locations_location_id",
+				Columns:    []*schema.Column{ServerTypeLocationsColumns[1]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APITokensTable,
+		ImagesTable,
+		ImageTemplatesTable,
 		InvitesTable,
+		LocationsTable,
+		NodesTable,
 		ProjectsTable,
 		ProjectMembersTable,
+		SSHKeysTable,
+		ServerTypesTable,
 		SessionsTable,
 		SettingsTable,
 		UsersTable,
+		ServerTypeLocationsTable,
 	}
 )
 
@@ -220,9 +437,18 @@ func init() {
 	APITokensTable.Annotation = &entsql.Annotation{
 		Table: "api_tokens",
 	}
+	ImageTemplatesTable.ForeignKeys[0].RefTable = ImagesTable
+	ImageTemplatesTable.ForeignKeys[1].RefTable = LocationsTable
 	InvitesTable.ForeignKeys[0].RefTable = ProjectsTable
 	InvitesTable.ForeignKeys[1].RefTable = UsersTable
+	NodesTable.ForeignKeys[0].RefTable = LocationsTable
 	ProjectMembersTable.ForeignKeys[0].RefTable = ProjectsTable
 	ProjectMembersTable.ForeignKeys[1].RefTable = UsersTable
+	SSHKeysTable.ForeignKeys[0].RefTable = ProjectsTable
+	SSHKeysTable.Annotation = &entsql.Annotation{
+		Table: "ssh_keys",
+	}
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable
+	ServerTypeLocationsTable.ForeignKeys[0].RefTable = ServerTypesTable
+	ServerTypeLocationsTable.ForeignKeys[1].RefTable = LocationsTable
 }

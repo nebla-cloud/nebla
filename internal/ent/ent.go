@@ -13,11 +13,17 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/image"
+	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
+	"github.com/Hexeption/nebla/internal/ent/sshkey"
 	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
@@ -80,9 +86,15 @@ func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			apitoken.Table:      apitoken.ValidColumn,
+			image.Table:         image.ValidColumn,
+			imagetemplate.Table: imagetemplate.ValidColumn,
 			invite.Table:        invite.ValidColumn,
+			location.Table:      location.ValidColumn,
+			node.Table:          node.ValidColumn,
 			project.Table:       project.ValidColumn,
 			projectmember.Table: projectmember.ValidColumn,
+			sshkey.Table:        sshkey.ValidColumn,
+			servertype.Table:    servertype.ValidColumn,
 			session.Table:       session.ValidColumn,
 			setting.Table:       setting.ValidColumn,
 			user.Table:          user.ValidColumn,

@@ -39,6 +39,24 @@ var adminOps = map[string]bool{
 	"GetAdminUsers":        true,
 	"PostAdminUsers":       true,
 	"PutAdminProjectQuota": true,
+
+	"GetAdminLocations":          true,
+	"PostAdminLocations":         true,
+	"GetAdminLocation":           true,
+	"PutAdminLocation":           true,
+	"DeleteAdminLocation":        true,
+	"PostAdminLocationSyncNodes": true,
+	"PutAdminLocationNode":       true,
+	"GetAdminServerTypes":        true,
+	"PostAdminServerTypes":       true,
+	"GetAdminServerType":         true,
+	"PutAdminServerType":         true,
+	"DeleteAdminServerType":      true,
+	"GetAdminImages":             true,
+	"PostAdminImages":            true,
+	"GetAdminImage":              true,
+	"PutAdminImage":              true,
+	"DeleteAdminImage":           true,
 }
 
 // UserFrom returns the authenticated user set by RequireUser or a session scope.

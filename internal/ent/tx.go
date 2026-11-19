@@ -16,12 +16,24 @@ type Tx struct {
 	config
 	// APIToken is the client for interacting with the APIToken builders.
 	APIToken *APITokenClient
+	// Image is the client for interacting with the Image builders.
+	Image *ImageClient
+	// ImageTemplate is the client for interacting with the ImageTemplate builders.
+	ImageTemplate *ImageTemplateClient
 	// Invite is the client for interacting with the Invite builders.
 	Invite *InviteClient
+	// Location is the client for interacting with the Location builders.
+	Location *LocationClient
+	// Node is the client for interacting with the Node builders.
+	Node *NodeClient
 	// Project is the client for interacting with the Project builders.
 	Project *ProjectClient
 	// ProjectMember is the client for interacting with the ProjectMember builders.
 	ProjectMember *ProjectMemberClient
+	// SSHKey is the client for interacting with the SSHKey builders.
+	SSHKey *SSHKeyClient
+	// ServerType is the client for interacting with the ServerType builders.
+	ServerType *ServerTypeClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 	// Setting is the client for interacting with the Setting builders.
@@ -160,9 +172,15 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.APIToken = NewAPITokenClient(tx.config)
+	tx.Image = NewImageClient(tx.config)
+	tx.ImageTemplate = NewImageTemplateClient(tx.config)
 	tx.Invite = NewInviteClient(tx.config)
+	tx.Location = NewLocationClient(tx.config)
+	tx.Node = NewNodeClient(tx.config)
 	tx.Project = NewProjectClient(tx.config)
 	tx.ProjectMember = NewProjectMemberClient(tx.config)
+	tx.SSHKey = NewSSHKeyClient(tx.config)
+	tx.ServerType = NewServerTypeClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
 	tx.User = NewUserClient(tx.config)
