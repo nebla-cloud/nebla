@@ -216,6 +216,26 @@ func (_u *ServerUpdate) ClearCloneUpid() *ServerUpdate {
 	return _u
 }
 
+// SetCloneNonce sets the "clone_nonce" field.
+func (_u *ServerUpdate) SetCloneNonce(v string) *ServerUpdate {
+	_u.mutation.SetCloneNonce(v)
+	return _u
+}
+
+// SetNillableCloneNonce sets the "clone_nonce" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableCloneNonce(v *string) *ServerUpdate {
+	if v != nil {
+		_u.SetCloneNonce(*v)
+	}
+	return _u
+}
+
+// ClearCloneNonce clears the value of the "clone_nonce" field.
+func (_u *ServerUpdate) ClearCloneNonce() *ServerUpdate {
+	_u.mutation.ClearCloneNonce()
+	return _u
+}
+
 // SetCreateStep sets the "create_step" field.
 func (_u *ServerUpdate) SetCreateStep(v int) *ServerUpdate {
 	_u.mutation.ResetCreateStep()
@@ -464,6 +484,12 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.CloneUpidCleared() {
 		_spec.ClearField(server.FieldCloneUpid, field.TypeString)
+	}
+	if value, ok := _u.mutation.CloneNonce(); ok {
+		_spec.SetField(server.FieldCloneNonce, field.TypeString, value)
+	}
+	if _u.mutation.CloneNonceCleared() {
+		_spec.ClearField(server.FieldCloneNonce, field.TypeString)
 	}
 	if value, ok := _u.mutation.CreateStep(); ok {
 		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
@@ -765,6 +791,26 @@ func (_u *ServerUpdateOne) ClearCloneUpid() *ServerUpdateOne {
 	return _u
 }
 
+// SetCloneNonce sets the "clone_nonce" field.
+func (_u *ServerUpdateOne) SetCloneNonce(v string) *ServerUpdateOne {
+	_u.mutation.SetCloneNonce(v)
+	return _u
+}
+
+// SetNillableCloneNonce sets the "clone_nonce" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableCloneNonce(v *string) *ServerUpdateOne {
+	if v != nil {
+		_u.SetCloneNonce(*v)
+	}
+	return _u
+}
+
+// ClearCloneNonce clears the value of the "clone_nonce" field.
+func (_u *ServerUpdateOne) ClearCloneNonce() *ServerUpdateOne {
+	_u.mutation.ClearCloneNonce()
+	return _u
+}
+
 // SetCreateStep sets the "create_step" field.
 func (_u *ServerUpdateOne) SetCreateStep(v int) *ServerUpdateOne {
 	_u.mutation.ResetCreateStep()
@@ -1043,6 +1089,12 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if _u.mutation.CloneUpidCleared() {
 		_spec.ClearField(server.FieldCloneUpid, field.TypeString)
+	}
+	if value, ok := _u.mutation.CloneNonce(); ok {
+		_spec.SetField(server.FieldCloneNonce, field.TypeString, value)
+	}
+	if _u.mutation.CloneNonceCleared() {
+		_spec.ClearField(server.FieldCloneNonce, field.TypeString)
 	}
 	if value, ok := _u.mutation.CreateStep(); ok {
 		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)

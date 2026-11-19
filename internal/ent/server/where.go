@@ -115,6 +115,11 @@ func CloneUpid(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCloneUpid, v))
 }
 
+// CloneNonce applies equality check predicate on the "clone_nonce" field. It's identical to CloneNonceEQ.
+func CloneNonce(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCloneNonce, v))
+}
+
 // CreateStep applies equality check predicate on the "create_step" field. It's identical to CreateStepEQ.
 func CreateStep(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreateStep, v))
@@ -718,6 +723,81 @@ func CloneUpidEqualFold(v string) predicate.Server {
 // CloneUpidContainsFold applies the ContainsFold predicate on the "clone_upid" field.
 func CloneUpidContainsFold(v string) predicate.Server {
 	return predicate.Server(sql.FieldContainsFold(FieldCloneUpid, v))
+}
+
+// CloneNonceEQ applies the EQ predicate on the "clone_nonce" field.
+func CloneNonceEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCloneNonce, v))
+}
+
+// CloneNonceNEQ applies the NEQ predicate on the "clone_nonce" field.
+func CloneNonceNEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldCloneNonce, v))
+}
+
+// CloneNonceIn applies the In predicate on the "clone_nonce" field.
+func CloneNonceIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldCloneNonce, vs...))
+}
+
+// CloneNonceNotIn applies the NotIn predicate on the "clone_nonce" field.
+func CloneNonceNotIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldCloneNonce, vs...))
+}
+
+// CloneNonceGT applies the GT predicate on the "clone_nonce" field.
+func CloneNonceGT(v string) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldCloneNonce, v))
+}
+
+// CloneNonceGTE applies the GTE predicate on the "clone_nonce" field.
+func CloneNonceGTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldCloneNonce, v))
+}
+
+// CloneNonceLT applies the LT predicate on the "clone_nonce" field.
+func CloneNonceLT(v string) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldCloneNonce, v))
+}
+
+// CloneNonceLTE applies the LTE predicate on the "clone_nonce" field.
+func CloneNonceLTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldCloneNonce, v))
+}
+
+// CloneNonceContains applies the Contains predicate on the "clone_nonce" field.
+func CloneNonceContains(v string) predicate.Server {
+	return predicate.Server(sql.FieldContains(FieldCloneNonce, v))
+}
+
+// CloneNonceHasPrefix applies the HasPrefix predicate on the "clone_nonce" field.
+func CloneNonceHasPrefix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasPrefix(FieldCloneNonce, v))
+}
+
+// CloneNonceHasSuffix applies the HasSuffix predicate on the "clone_nonce" field.
+func CloneNonceHasSuffix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasSuffix(FieldCloneNonce, v))
+}
+
+// CloneNonceIsNil applies the IsNil predicate on the "clone_nonce" field.
+func CloneNonceIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldCloneNonce))
+}
+
+// CloneNonceNotNil applies the NotNil predicate on the "clone_nonce" field.
+func CloneNonceNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldCloneNonce))
+}
+
+// CloneNonceEqualFold applies the EqualFold predicate on the "clone_nonce" field.
+func CloneNonceEqualFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldEqualFold(FieldCloneNonce, v))
+}
+
+// CloneNonceContainsFold applies the ContainsFold predicate on the "clone_nonce" field.
+func CloneNonceContainsFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldContainsFold(FieldCloneNonce, v))
 }
 
 // CreateStepEQ applies the EQ predicate on the "create_step" field.

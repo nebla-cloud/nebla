@@ -546,3 +546,137 @@ func TestCreateServerTemplateGone(t *testing.T) {
 	require.Contains(t, a.Error.Message, "template 9000")
 	require.Empty(t, taggedVMs(t, e, s.ServerID))
 }
+
+func TestCreateServerCleanupTxFailureIsResumed(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	failed := false
+	servers.SetCleanupTxHook(w, func() error {
+		if !failed {
+			failed = true
+			return errors.New("db down")
+		}
+		return nil
+	})
+	e.App.PVE.FailNext("/resize", http.StatusInternalServerError)
+	err := w.Work(ctx, job(s, 1))
+	require.Error(t, err)
+	var cancel *river.JobCancelError
+	require.False(t, errors.As(err, &cancel), "a failed cleanup tx is retried: %v", err)
+	require.True(t, strings.HasPrefix(err.Error(), servers.CleanupPending), err.Error())
+	a, err2 := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err2)
+	require.Equal(t, actions.StatusRunning, a.Status, "the action is not failed before the cleanup tx commits")
+
+	j := job(s, 2)
+	j.Errors = []rivertype.AttemptError{{Attempt: 1, Error: err.Error()}}
+	require.True(t, errors.As(w.Work(ctx, j), &cancel))
+	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n, "ip released")
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, servers.StatusError, string(row.Status))
+	a, err = actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Contains(t, a.Error.Message, "resize disk: injected failure (status 500)")
+	require.Zero(t, vmCount(t, e))
+}
+
+func TestCreateServerCleanupPendingRunsEvenIfActionFinished(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	require.NoError(t, actions.Fail(ctx, e.App.Ent, s.ActionID, "pve_error", "earlier"))
+	j := job(s, 2)
+	j.Errors = []rivertype.AttemptError{{Attempt: 1, Error: servers.CleanupPending + "earlier"}}
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(w.Work(ctx, j), &cancel))
+	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, servers.StatusError, string(row.Status))
+}
+
+func TestCreateServerResumesAfterCrashBeforeUPIDSave(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	crashCtx, crash := context.WithCancel(ctx)
+	defer crash()
+	servers.SetAfterClonePost(w, crash)
+	err := w.Work(crashCtx, job(s, 1))
+	require.Error(t, err)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Nil(t, row.CloneUpid, "crashed before the upid was saved")
+	require.NotNil(t, row.CloneNonce)
+
+	servers.SetAfterClonePost(w, nil)
+	require.NoError(t, w.Work(ctx, job(s, 2)))
+	require.Equal(t, 1, vmCount(t, e), "exactly one VM")
+	require.Equal(t, 1, countCalls(e, "GET /cluster/nextid"))
+	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"))
+	require.Len(t, taggedVMs(t, e, s.ServerID), 1)
+	vm, ok := e.App.PVE.VM(*row.Vmid)
+	require.True(t, ok)
+	require.Contains(t, vm.Config["description"], *row.CloneNonce)
+}
+
+func TestCreateServerNonceWithoutVMClonesAgain(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	// The clone POST never landed: a nonce is saved but nothing sits at the vmid.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetVmid(150).SetCloneNonce("lost").SetCreateStep(1).Exec(ctx))
+	require.NoError(t, w.Work(ctx, job(s, 1)))
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, 150, *row.Vmid, "same vmid")
+	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"))
+	require.Zero(t, countCalls(e, "GET /cluster/nextid"))
+}
+
+func TestCreateServerNonceMismatchIsCollision(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	e.App.PVE.AddVM("pve1", 100, "foreign")
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetVmid(100).SetCloneNonce("ours").SetCreateStep(1).Exec(ctx))
+	require.NoError(t, w.Work(ctx, job(s, 1)))
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.NotEqual(t, 100, *row.Vmid)
+	foreign, ok := e.App.PVE.VM(100)
+	require.True(t, ok)
+	require.Equal(t, "foreign", foreign.Name)
+	require.Empty(t, foreign.Tags, "foreign VM untouched")
+}
+
+func TestCreateServerCleanupFailedCloneTaskReleasesIPs(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	e.App.PVE.FailNext("/clone", http.StatusInternalServerError)
+	// Someone else's VM lands on our vmid after our clone task failed.
+	servers.SetAfterClonePost(w, func() {
+		row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+		require.NoError(t, err)
+		e.App.PVE.AddVM("pve1", *row.Vmid, "foreign")
+	})
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(w.Work(ctx, job(s, 1)), &cancel))
+	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n, "our clone failed, so nothing of ours is left and the ip is released")
+	foreign, ok := e.App.PVE.VM(100)
+	require.True(t, ok)
+	require.Equal(t, "foreign", foreign.Name)
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.NotContains(t, a.Error.Message, "cleanup incomplete")
+}

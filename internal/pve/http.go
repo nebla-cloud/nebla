@@ -243,6 +243,9 @@ func (c *httpClient) Clone(ctx context.Context, node string, tmpl int, p ClonePa
 	if p.Full {
 		f.Set("full", "1")
 	}
+	if p.Description != "" {
+		f.Set("description", p.Description)
+	}
 	return c.task(ctx, http.MethodPost, vmPath(node, tmpl)+"/clone", f)
 }
 

@@ -43,6 +43,8 @@ const (
 	FieldIsoGeneration = "iso_generation"
 	// FieldCloneUpid holds the string denoting the clone_upid field in the database.
 	FieldCloneUpid = "clone_upid"
+	// FieldCloneNonce holds the string denoting the clone_nonce field in the database.
+	FieldCloneNonce = "clone_nonce"
 	// FieldCreateStep holds the string denoting the create_step field in the database.
 	FieldCreateStep = "create_step"
 	// FieldCores holds the string denoting the cores field in the database.
@@ -114,6 +116,7 @@ var Columns = []string{
 	FieldIsoVolid,
 	FieldIsoGeneration,
 	FieldCloneUpid,
+	FieldCloneNonce,
 	FieldCreateStep,
 	FieldCores,
 	FieldMemoryMB,
@@ -250,6 +253,11 @@ func ByIsoGeneration(opts ...sql.OrderTermOption) OrderOption {
 // ByCloneUpid orders the results by the clone_upid field.
 func ByCloneUpid(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCloneUpid, opts...).ToFunc()
+}
+
+// ByCloneNonce orders the results by the clone_nonce field.
+func ByCloneNonce(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCloneNonce, opts...).ToFunc()
 }
 
 // ByCreateStep orders the results by the create_step field.
