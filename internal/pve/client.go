@@ -115,7 +115,7 @@ func (e *Error) notFound() bool {
 // ErrFingerprint means the server certificate did not match the pinned fingerprint.
 var ErrFingerprint = errors.New("pve: certificate fingerprint mismatch")
 
-var transientMessages = []string{"timeout", "can't lock file", "connection refused", "unable to connect"}
+var transientMessages = []string{"timeout", "can't lock file", "is locked", "connection refused", "unable to connect"}
 
 // IsTransient reports errors worth retrying: network failures, 502/503/504 and known-transient 500s.
 func IsTransient(err error) bool {

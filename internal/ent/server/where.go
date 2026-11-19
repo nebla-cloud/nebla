@@ -110,6 +110,11 @@ func IsoGeneration(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldIsoGeneration, v))
 }
 
+// CloneUpid applies equality check predicate on the "clone_upid" field. It's identical to CloneUpidEQ.
+func CloneUpid(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCloneUpid, v))
+}
+
 // CreateStep applies equality check predicate on the "create_step" field. It's identical to CreateStepEQ.
 func CreateStep(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreateStep, v))
@@ -638,6 +643,81 @@ func IsoGenerationLT(v int) predicate.Server {
 // IsoGenerationLTE applies the LTE predicate on the "iso_generation" field.
 func IsoGenerationLTE(v int) predicate.Server {
 	return predicate.Server(sql.FieldLTE(FieldIsoGeneration, v))
+}
+
+// CloneUpidEQ applies the EQ predicate on the "clone_upid" field.
+func CloneUpidEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCloneUpid, v))
+}
+
+// CloneUpidNEQ applies the NEQ predicate on the "clone_upid" field.
+func CloneUpidNEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldCloneUpid, v))
+}
+
+// CloneUpidIn applies the In predicate on the "clone_upid" field.
+func CloneUpidIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldCloneUpid, vs...))
+}
+
+// CloneUpidNotIn applies the NotIn predicate on the "clone_upid" field.
+func CloneUpidNotIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldCloneUpid, vs...))
+}
+
+// CloneUpidGT applies the GT predicate on the "clone_upid" field.
+func CloneUpidGT(v string) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldCloneUpid, v))
+}
+
+// CloneUpidGTE applies the GTE predicate on the "clone_upid" field.
+func CloneUpidGTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldCloneUpid, v))
+}
+
+// CloneUpidLT applies the LT predicate on the "clone_upid" field.
+func CloneUpidLT(v string) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldCloneUpid, v))
+}
+
+// CloneUpidLTE applies the LTE predicate on the "clone_upid" field.
+func CloneUpidLTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldCloneUpid, v))
+}
+
+// CloneUpidContains applies the Contains predicate on the "clone_upid" field.
+func CloneUpidContains(v string) predicate.Server {
+	return predicate.Server(sql.FieldContains(FieldCloneUpid, v))
+}
+
+// CloneUpidHasPrefix applies the HasPrefix predicate on the "clone_upid" field.
+func CloneUpidHasPrefix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasPrefix(FieldCloneUpid, v))
+}
+
+// CloneUpidHasSuffix applies the HasSuffix predicate on the "clone_upid" field.
+func CloneUpidHasSuffix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasSuffix(FieldCloneUpid, v))
+}
+
+// CloneUpidIsNil applies the IsNil predicate on the "clone_upid" field.
+func CloneUpidIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldCloneUpid))
+}
+
+// CloneUpidNotNil applies the NotNil predicate on the "clone_upid" field.
+func CloneUpidNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldCloneUpid))
+}
+
+// CloneUpidEqualFold applies the EqualFold predicate on the "clone_upid" field.
+func CloneUpidEqualFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldEqualFold(FieldCloneUpid, v))
+}
+
+// CloneUpidContainsFold applies the ContainsFold predicate on the "clone_upid" field.
+func CloneUpidContainsFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldContainsFold(FieldCloneUpid, v))
 }
 
 // CreateStepEQ applies the EQ predicate on the "create_step" field.

@@ -26,11 +26,14 @@ import (
 )
 
 const (
-	// MaxCreateAttempts bounds River retries of the create job.
+	// MaxCreateAttempts is the logical retry cap; River gets spare attempts that only clean up.
 	MaxCreateAttempts = 3
-	createTimeout     = 10 * time.Minute
-	startWait         = 2 * time.Minute
-	maxVMIDTries      = 3
+	spareAttempts     = 2
+	// cleanupPending prefixes a job error whose cleanup must run again.
+	cleanupPending = "nebla: cleanup pending: "
+	createTimeout  = 10 * time.Minute
+	startWait      = 2 * time.Minute
+	maxVMIDTries   = 3
 )
 
 // Create job steps, persisted in servers.create_step.
@@ -69,7 +72,7 @@ func RegisterWorkers(w *river.Workers, o WorkerOptions) {
 }
 
 func (CreateServerArgs) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{MaxAttempts: MaxCreateAttempts}
+	return river.InsertOpts{MaxAttempts: MaxCreateAttempts + spareAttempts}
 }
 
 // CreateServerWorker builds a server's VM from its row snapshot, resuming at servers.create_step.
@@ -116,13 +119,24 @@ func (w *CreateServerWorker) Work(ctx context.Context, job *river.Job[CreateServ
 	}
 	row, err := w.o.Ent.Server.Get(ctx, job.Args.ServerID)
 	if ent.IsNotFound(err) {
-		w.failAction(ctx, job.Args.ActionID, "server no longer exists")
+		if ferr := w.failAction(ctx, job.Args.ActionID, "server no longer exists"); ferr != nil {
+			return ferr
+		}
 		return river.JobCancel(err)
 	}
 	if err != nil {
 		return err
 	}
 	c := &createRun{w: w, args: job.Args, row: row}
+	if msg, ok := pendingCleanup(job); ok || job.Attempt > MaxCreateAttempts {
+		if !ok {
+			msg = "create did not finish after " + strconv.Itoa(MaxCreateAttempts) + " attempts" + lastError(job)
+		}
+		if err := c.load(ctx); err != nil && retryable(err) {
+			return errors.New(cleanupPending + msg)
+		}
+		return w.finishCleanup(ctx, c, msg, errors.New(msg))
+	}
 	err = c.run(ctx)
 	if err == nil {
 		return nil
@@ -130,15 +144,44 @@ func (w *CreateServerWorker) Work(ctx context.Context, job *river.Job[CreateServ
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return err
 	}
-	retry := pve.IsTransient(err) || errors.Is(ctx.Err(), context.DeadlineExceeded)
-	if retry && job.Attempt < job.MaxAttempts {
+	retry := retryable(err) || errors.Is(ctx.Err(), context.DeadlineExceeded)
+	if retry && job.Attempt < MaxCreateAttempts {
 		return err
 	}
-	w.cleanup(ctx, c, err)
-	return river.JobCancel(err)
+	return w.finishCleanup(ctx, c, errorMessage(err), err)
 }
 
-func (c *createRun) run(ctx context.Context) error {
+// retryable reports errors a later attempt may get past.
+func retryable(err error) bool {
+	var te *transientError
+	return pve.IsTransient(err) || db.IsTransient(err) || errors.As(err, &te)
+}
+
+// pendingCleanup returns the action message when the previous attempt's cleanup did not finish.
+func pendingCleanup(job *river.Job[CreateServerArgs]) (string, bool) {
+	if n := len(job.Errors); n > 0 {
+		return strings.CutPrefix(job.Errors[n-1].Error, cleanupPending)
+	}
+	return "", false
+}
+
+func lastError(job *river.Job[CreateServerArgs]) string {
+	if n := len(job.Errors); n > 0 {
+		return ": " + job.Errors[n-1].Error
+	}
+	return ""
+}
+
+// finishCleanup cancels the job once cleanup is recorded, else retries it.
+func (w *CreateServerWorker) finishCleanup(ctx context.Context, c *createRun, msg string, cause error) error {
+	if err := w.cleanup(ctx, c, cause, msg); err != nil {
+		w.o.Logger.Error("cleanup will be retried", "server_id", c.row.ID, "err", err)
+		return errors.New(cleanupPending + msg)
+	}
+	return river.JobCancel(cause)
+}
+
+func (c *createRun) load(ctx context.Context) error {
 	var err error
 	if c.loc, err = c.w.o.Catalog.GetLocation(ctx, c.row.LocationID); err != nil {
 		return &stepError{"load location", err}
@@ -148,6 +191,13 @@ func (c *createRun) run(ctx context.Context) error {
 	}
 	if c.assign, err = ipam.Assignments(ctx, c.w.o.Ent, c.row.ID); err != nil {
 		return &stepError{"load ips", err}
+	}
+	return nil
+}
+
+func (c *createRun) run(ctx context.Context) error {
+	if err := c.load(ctx); err != nil {
+		return err
 	}
 	steps := []struct {
 		n    int
@@ -172,7 +222,7 @@ func (c *createRun) run(ctx context.Context) error {
 		}
 		if p, ok := stepProgress[s.n]; ok {
 			if err := actions.Progress(ctx, c.w.o.Ent, c.args.ActionID, p); err != nil {
-				return err
+				return &stepError{"record progress", err}
 			}
 		}
 		if c.w.afterStep != nil {
@@ -257,6 +307,9 @@ func alreadyExists(err error) bool {
 }
 
 func (c *createRun) clone(ctx context.Context) error {
+	if c.row.CloneUpid != nil {
+		return c.awaitClone(ctx, *c.row.CloneUpid)
+	}
 	tnode, err := c.templateNode(ctx)
 	if err != nil {
 		return err
@@ -267,23 +320,27 @@ func (c *createRun) clone(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if found && ourClone(v, c.row.ID) {
+		if found && ownedBy(v, c.row.ID) {
 			return c.tag(ctx)
 		}
 		if found {
+			cfg, err := c.pc.Config(ctx, v.Node, vmid)
+			if err != nil && !errors.Is(err, pve.ErrNotFound) {
+				return err
+			}
+			if cfg["lock"] != "" {
+				return transient("vm %d is locked (%s); retrying", vmid, cfg["lock"])
+			}
 			if err := c.newVMID(ctx); err != nil {
 				return err
 			}
 			continue
 		}
-		p := pve.CloneParams{NewID: vmid, Name: ServerTag(c.row.ID), Storage: c.diskStorage(), Full: true}
+		p := pve.CloneParams{NewID: vmid, Name: c.row.Name, Storage: c.diskStorage(), Full: true}
 		if tnode != c.row.Node {
 			p.Target = c.row.Node
 		}
 		up, err := c.pc.Clone(ctx, tnode, c.row.TemplateVmid, p)
-		if err == nil {
-			err = c.pc.WaitTask(ctx, tnode, up)
-		}
 		switch {
 		case errors.Is(err, pve.ErrNotFound):
 			return templateGone(c.row.TemplateVmid)
@@ -292,9 +349,24 @@ func (c *createRun) clone(ctx context.Context) error {
 		case err != nil:
 			return err
 		}
-		return c.tag(ctx)
+		upid := string(up)
+		if err := c.saveRow(ctx, func(u *ent.ServerUpdateOne) { u.SetCloneUpid(upid) }); err != nil {
+			return err
+		}
+		return c.awaitClone(ctx, upid)
 	}
 	return permanent("no free VMID after %d tries", maxVMIDTries)
+}
+
+// awaitClone waits on our saved clone task; success proves the VM at vmid is ours.
+func (c *createRun) awaitClone(ctx context.Context, upid string) error {
+	if err := c.pc.WaitTask(ctx, upidNode(upid), pve.UPID(upid)); err != nil {
+		if ctx.Err() != nil || retryable(err) {
+			return err
+		}
+		return permanent("clone task failed: %s", err)
+	}
+	return c.tag(ctx)
 }
 
 // newVMID replaces a VMID that another VM took.
@@ -303,7 +375,13 @@ func (c *createRun) newVMID(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	row, err := c.w.o.Ent.Server.UpdateOneID(c.row.ID).SetVmid(id).Save(ctx)
+	return c.saveRow(ctx, func(u *ent.ServerUpdateOne) { u.SetVmid(id) })
+}
+
+func (c *createRun) saveRow(ctx context.Context, set func(*ent.ServerUpdateOne)) error {
+	u := c.w.o.Ent.Server.UpdateOneID(c.row.ID)
+	set(u)
+	row, err := u.Save(ctx)
 	if err != nil {
 		return err
 	}
@@ -485,34 +563,32 @@ func (c *createRun) publish(ctx context.Context) {
 	c.w.o.Bus.Publish(ctx, ext.Event{Kind: ext.ServerCreated, ProjectID: c.row.ProjectID, ServerID: c.row.ID, At: time.Now(), Data: data})
 }
 
-// cleanup undoes a failed create: VM, ISO, IPs, status error and a failed action.
-func (w *CreateServerWorker) cleanup(ctx context.Context, c *createRun, cause error) {
+// cleanup undoes a failed create; IPs are released only once the VM is confirmed gone.
+func (w *CreateServerWorker) cleanup(ctx context.Context, c *createRun, cause error, msg string) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 	log := w.o.Logger.With("server_id", c.row.ID, "action_id", c.args.ActionID)
 	log.Warn("create server failed", "err", cause)
 	gone := c.row.Vmid == nil
 	if c.pc != nil {
-		gone = CleanupVM(ctx, log, c.pc, c.row.ID, c.row.Node, c.row.Vmid, c.loc.ISOStorage, c.volid())
+		gone = CleanupVM(ctx, log, c.pc, c.row.ID, c.row.Node, c.row.Vmid, c.row.CloneUpid, c.loc.ISOStorage, c.volid())
+	}
+	if !gone {
+		msg += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *c.row.Vmid)
 	}
 	err := db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
-		if err := ipam.Release(ctx, etx, c.row.ID); err != nil {
-			return err
-		}
-		u := etx.Server.UpdateOneID(c.row.ID).SetStatus(server.Status(StatusError)).ClearIsoVolid().SetCreateStep(0)
+		u := etx.Server.UpdateOneID(c.row.ID).SetStatus(server.Status(StatusError))
 		if gone {
-			u.ClearVmid()
+			if err := ipam.Release(ctx, etx, c.row.ID); err != nil {
+				return err
+			}
+			u.ClearVmid().ClearCloneUpid().ClearIsoVolid().SetCreateStep(0)
 		}
 		return u.Exec(ctx)
 	})
-	if err != nil {
-		log.Error("cleanup: release ips and mark error", "err", err)
-	}
-	w.failAction(ctx, c.args.ActionID, errorMessage(cause))
+	return errors.Join(err, w.failAction(ctx, c.args.ActionID, msg))
 }
 
-func (w *CreateServerWorker) failAction(ctx context.Context, id int64, msg string) {
-	if err := actions.Fail(context.WithoutCancel(ctx), w.o.Ent, id, "pve_error", msg); err != nil {
-		w.o.Logger.Error("fail action", "action_id", id, "err", err)
-	}
+func (w *CreateServerWorker) failAction(ctx context.Context, id int64, msg string) error {
+	return actions.Fail(context.WithoutCancel(ctx), w.o.Ent, id, "pve_error", msg)
 }

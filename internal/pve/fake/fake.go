@@ -253,6 +253,14 @@ func notExist(vmid int, nodeName string) *apiErr {
 	return &apiErr{500, fmt.Sprintf("Configuration file 'nodes/%s/qemu-server/%d.conf' does not exist", nodeName, vmid)}
 }
 
+// locked rejects changes to a VM holding a lock, like PVE.
+func locked(v *vm, vmid int) *apiErr {
+	if l := v.config["lock"]; l != "" {
+		return &apiErr{500, fmt.Sprintf("VM %d is locked (%s)", vmid, l)}
+	}
+	return nil
+}
+
 // handler returns data or an error; failTask is set when FailNext hit a task endpoint.
 type handler func(r *http.Request, failTask bool) (any, *apiErr)
 
@@ -453,19 +461,25 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if _, ok := s.nodes[target]; !ok {
 			return nil, &apiErr{500, fmt.Sprintf("Configuration file 'nodes/%s/storage.cfg' does not exist", target)}
 		}
-		nv := &vm{node: target, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{}, config: map[string]string{}}
+		full := map[string]string{}
 		for k, val := range src.config {
-			nv.config[k] = val
+			full[k] = val
 		}
-		delete(nv.config, "template")
+		delete(full, "template")
 		if f["name"] != "" {
-			nv.config["name"] = f["name"]
+			full["name"] = f["name"]
 		}
-		return s.newTask(src.node, "qmclone", id, failPtr(failed), func() string {
-			if _, dup := s.vms[newID]; dup {
+		if failed {
+			return s.newTask(src.node, "qmclone", id, failPtr(true), nil), nil
+		}
+		// Like PVE, the new VMID holds a lock-only config until the clone task finishes.
+		nv := &vm{node: target, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{}, config: map[string]string{"lock": "clone"}}
+		s.vms[newID] = nv
+		return s.newTask(src.node, "qmclone", id, nil, func() string {
+			if s.vms[newID] != nv {
 				return fmt.Sprintf("ERROR: unable to create VM %d: config file already exists", newID)
 			}
-			s.vms[newID] = nv
+			nv.config = full
 			return "OK"
 		}), nil
 	})
@@ -487,8 +501,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 		f := form(r)
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		v, _, e := vmFor(r)
+		v, id, e := vmFor(r)
 		if e != nil {
+			return nil, e
+		}
+		if e := locked(v, id); e != nil {
 			return nil, e
 		}
 		for k, val := range f {
@@ -524,8 +541,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 		f := form(r)
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		v, _, e := vmFor(r)
+		v, id, e := vmFor(r)
 		if e != nil {
+			return nil, e
+		}
+		if e := locked(v, id); e != nil {
 			return nil, e
 		}
 		cur, ok := v.config[f["disk"]]
@@ -645,6 +665,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 			if e != nil {
 				return nil, e
 			}
+			if e := locked(v, id); e != nil {
+				return nil, e
+			}
 			return s.newTask(v.node, "qm"+op, id, failPtr(failed), func() string {
 				switch {
 				case op == "start" && v.status == "running":
@@ -665,6 +688,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 		defer s.mu.Unlock()
 		v, id, e := vmFor(r)
 		if e != nil {
+			return nil, e
+		}
+		if e := locked(v, id); e != nil {
 			return nil, e
 		}
 		if v.status == "running" {

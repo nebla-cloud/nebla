@@ -39,6 +39,22 @@ func (e *permanentError) Error() string { return e.msg }
 
 func permanent(format string, a ...any) error { return &permanentError{fmt.Sprintf(format, a...)} }
 
+// transientError is retried like a transient Proxmox error.
+type transientError struct{ msg string }
+
+func (e *transientError) Error() string { return e.msg }
+
+func transient(format string, a ...any) error { return &transientError{fmt.Sprintf(format, a...)} }
+
+// upidNode is the node field of a UPID ("UPID:node:...").
+func upidNode(upid string) string {
+	parts := strings.SplitN(upid, ":", 3)
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[1]
+}
+
 // stepError names the step that failed.
 type stepError struct {
 	step string
@@ -141,26 +157,30 @@ func bridgeOf(net string) string {
 	return ""
 }
 
-// ownedBy reports whether v carries serverID's tag.
+// ownedBy reports whether v carries both the nebla tag and serverID's tag.
 func ownedBy(v pve.VM, serverID int64) bool {
-	return !v.Template && hasTag(v.Tags, ServerTag(serverID))
-}
-
-// ourClone also accepts the clone name, for a crash between clone and tagging.
-func ourClone(v pve.VM, serverID int64) bool {
-	return ownedBy(v, serverID) || (!v.Template && v.Tags == "" && v.Name == ServerTag(serverID))
+	return !v.Template && hasTag(v.Tags, TagNebla) && hasTag(v.Tags, ServerTag(serverID))
 }
 
 const cleanupTimeout = 2 * time.Minute
 
-// destroyVM stops and destroys vmid if it carries serverID's tag; a missing or foreign VM is left alone.
-func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int) error {
+// destroyVM removes vmid if we can prove it is serverID's VM: by its tags, or by our saved clone task having succeeded.
+// It returns nil only when no VM is left at vmid.
+func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, cloneUPID *string) error {
 	v, ok, err := findVM(ctx, pc, vmid)
 	if err != nil || !ok {
 		return err
 	}
 	if !ownedBy(v, serverID) {
-		return nil
+		if cloneUPID == nil {
+			return fmt.Errorf("vm %d lacks tags %s and %s", vmid, TagNebla, ServerTag(serverID))
+		}
+		if err := pc.WaitTask(ctx, upidNode(*cloneUPID), pve.UPID(*cloneUPID)); err != nil {
+			return fmt.Errorf("vm %d: clone task not proven: %w", vmid, err)
+		}
+		if err := pc.SetConfig(ctx, v.Node, vmid, map[string]string{"tags": vmTags(serverID)}); err != nil {
+			return fmt.Errorf("tag vm %d: %w", vmid, err)
+		}
 	}
 	if v.Status == "running" {
 		up, err := pc.Power(ctx, v.Node, vmid, pve.PowerStop)
@@ -191,12 +211,12 @@ func deleteISO(ctx context.Context, pc pve.Client, node, storage, volid string) 
 }
 
 // CleanupVM best-effort removes a server's VM and cloud-init ISO, logging failures; it reports whether the VM is gone.
-func CleanupVM(ctx context.Context, log *slog.Logger, pc pve.Client, serverID int64, node string, vmid *int, isoStorage, volid string) bool {
+func CleanupVM(ctx context.Context, log *slog.Logger, pc pve.Client, serverID int64, node string, vmid *int, cloneUPID *string, isoStorage, volid string) bool {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 	gone := true
 	if vmid != nil {
-		if err := destroyVM(ctx, pc, serverID, *vmid); err != nil {
+		if err := destroyVM(ctx, pc, serverID, *vmid, cloneUPID); err != nil {
 			gone = false
 			log.Error("cleanup: destroy vm", "server_id", serverID, "vmid", *vmid, "err", err)
 		}

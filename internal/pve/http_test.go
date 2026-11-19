@@ -285,6 +285,7 @@ func TestIsTransient(t *testing.T) {
 		{"500 lock", &pve.Error{Status: 500, Message: "can't lock file '/var/lock/qemu-server/lock-101.conf' - got timeout"}, true},
 		{"500 refused", &pve.Error{Status: 500, Message: "Connection refused"}, true},
 		{"500 unable", &pve.Error{Status: 500, Message: "unable to connect to VM 101 qmp socket"}, true},
+		{"500 locked", &pve.Error{Status: 500, Message: "VM 101 is locked (clone)"}, true},
 		{"500 exists", &pve.Error{Status: 500, Message: "unable to create VM 101: config file already exists"}, false},
 		{"500 running", &pve.Error{Status: 500, Message: "VM 101 is running - destroy failed"}, false},
 		{"500 missing", &pve.Error{Status: 500, Message: "Configuration file does not exist"}, false},
@@ -377,14 +378,26 @@ func TestTaskEffectsApplyOnCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := f.VM(101); ok {
-		t.Fatal("clone applied before task completed")
+	// Like real PVE, the new VMID holds a lock-only config while the clone runs.
+	v, ok := f.VM(101)
+	if !ok || len(v.Config) != 1 || v.Config["lock"] != "clone" || v.Name != "" {
+		t.Fatalf("in-flight clone: %v %+v", ok, v)
+	}
+	if cfg, err := c.Config(ctx(t), "pve1", 101); err != nil || cfg["lock"] != "clone" {
+		t.Fatalf("config of in-flight clone: %v %v", cfg, err)
+	}
+	if err := c.SetConfig(ctx(t), "pve1", 101, map[string]string{"tags": "x"}); !pve.IsTransient(err) || !strings.Contains(err.Error(), "is locked (clone)") {
+		t.Fatalf("set config on locked vm: %v", err)
+	}
+	if _, err := c.Destroy(ctx(t), "pve1", 101); !pve.IsTransient(err) {
+		t.Fatalf("destroy of locked vm: %v", err)
 	}
 	if err := c.WaitTask(ctx(t), "pve1", up); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := f.VM(101); !ok {
-		t.Fatal("clone missing after task")
+	v, ok = f.VM(101)
+	if !ok || v.Name != "x" || v.Config["lock"] != "" || v.Config["scsi0"] == "" {
+		t.Fatalf("clone after task: %v %+v", ok, v)
 	}
 	f.SetTaskDelay(0)
 	up, err = c.Destroy(ctx(t), "pve1", 101)
