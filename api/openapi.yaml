@@ -37,7 +37,168 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UiManifest"
+  /setup:
+    post:
+      operationId: postSetup
+      summary: Create the first admin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /signup:
+    post:
+      operationId: postSignup
+      summary: Self-service signup (when enabled)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "201":
+          description: Created
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /auth/login:
+    post:
+      operationId: postAuthLogin
+      summary: Log in and set the session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                totp_code: { type: string }
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /auth/logout:
+    post:
+      operationId: postAuthLogout
+      summary: End the current session
+      responses:
+        "204":
+          description: No content
+          headers:
+            Set-Cookie: { schema: { type: string } }
+        "401": { $ref: "#/components/responses/Error" }
+  /auth/totp/enroll:
+    post:
+      operationId: postAuthTotpEnroll
+      summary: Start TOTP enrollment
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [secret, otpauth_url]
+                properties:
+                  secret: { type: string }
+                  otpauth_url: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+  /auth/totp/verify:
+    post:
+      operationId: postAuthTotpVerify
+      summary: Confirm enrollment and enable TOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TotpCode" }
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /auth/totp/disable:
+    post:
+      operationId: postAuthTotpDisable
+      summary: Disable TOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TotpCode" }
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+  /me:
+    get:
+      operationId: getMe
+      summary: Current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Error" }
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      summary: Read admin settings
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putAdminSettings
+      summary: Update admin settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminSettings" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
 components:
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
   securitySchemes:
     bearer:
       type: http
@@ -45,7 +206,7 @@ components:
     cookie:
       type: apiKey
       in: cookie
-      name: nebla_session
+      name: nb_session
   parameters:
     Page:
       name: page
@@ -56,6 +217,32 @@ components:
       in: query
       schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
   schemas:
+    User:
+      type: object
+      required: [id, email, name, is_admin, totp_enabled]
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string }
+        name: { type: string }
+        is_admin: { type: boolean }
+        totp_enabled: { type: boolean }
+    Credentials:
+      type: object
+      required: [email, password, name]
+      properties:
+        email: { type: string }
+        password: { type: string }
+        name: { type: string }
+    TotpCode:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+    AdminSettings:
+      type: object
+      required: [self_signup]
+      properties:
+        self_signup: { type: boolean }
     UiManifest:
       type: object
       required: [branding, admin_sections]
