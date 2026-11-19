@@ -10,14 +10,14 @@ import (
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/Hexeption/nebla/internal/pve"
+	"github.com/Hexeption/nebla/internal/servers"
 )
 
 var (
 	metricTypes = []string{"cpu", "disk", "network"}
 	timeframes  = []string{"hour", "day", "week", "month"}
 
-	errVMMissing = apierr.New(http.StatusConflict, "server_missing", "the server's VM is missing in Proxmox")
-	errPVE       = apierr.New(http.StatusBadGateway, "pve_unreachable", "could not read metrics from Proxmox")
+	errPVE = apierr.New(http.StatusBadGateway, "pve_unreachable", "could not read metrics from Proxmox")
 )
 
 // series maps RRD points to [unix_ts, value] pairs; a gap stays null.
@@ -52,17 +52,17 @@ func (s *server) GetServerMetrics(ctx context.Context, req apigen.GetServerMetri
 	if !slices.Contains(timeframes, tf) {
 		return nil, invalidInput("timeframe must be hour, day, week or month")
 	}
-	vm, err := s.servers.VM(ctx, sc.ProjectID, req.Id)
+	vm, pc, err := s.servers.VM(ctx, sc.ProjectID, req.Id)
 	if err != nil {
-		return nil, err
-	}
-	pc, err := s.catalog.ProxmoxFor(ctx, vm.LocationID)
-	if err != nil {
-		return nil, err
+		if _, ok := errors.AsType[apierr.E](err); ok {
+			return nil, err
+		}
+		s.log.Warn("metrics: list vms", "server_id", req.Id, "err", err)
+		return nil, errPVE
 	}
 	pts, err := pc.RRD(ctx, vm.Node, vm.VMID, tf)
 	if errors.Is(err, pve.ErrNotFound) {
-		return nil, errVMMissing
+		return nil, servers.ErrMissing
 	}
 	if err != nil {
 		s.log.Warn("metrics: rrd", "server_id", req.Id, "err", err)

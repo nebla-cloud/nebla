@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -185,15 +184,11 @@ func tooManyMissing(rows []*ent.Server, w view) error {
 func tagged(all []pve.VM) map[int]pve.VM {
 	out := map[int]pve.VM{}
 	for _, v := range all {
-		if !v.Template && slices.Contains(tagList(v.Tags), servers.TagNebla) {
+		if !v.Template && slices.Contains(servers.SplitTags(v.Tags), servers.TagNebla) {
 			out[v.VMID] = v
 		}
 	}
 	return out
-}
-
-func tagList(tags string) []string {
-	return strings.FieldsFunc(tags, func(r rune) bool { return r == ';' || r == ',' || r == ' ' })
 }
 
 // vmOf is the server's VM: listed at its vmid and tagged for it.
@@ -202,7 +197,7 @@ func vmOf(row *ent.Server, vms map[int]pve.VM) (pve.VM, bool) {
 		return pve.VM{}, false
 	}
 	v, ok := vms[*row.Vmid]
-	return v, ok && slices.Contains(tagList(v.Tags), servers.ServerTag(row.ID))
+	return v, ok && slices.Contains(servers.SplitTags(v.Tags), servers.ServerTag(row.ID))
 }
 
 // logOrphans logs, once per vmid, tagged VMs that are neither a server's vmid nor its rebuild_vmid.
@@ -219,7 +214,7 @@ func (r *Reconciler) logOrphans(log *slog.Logger, locationID int64, vms map[int]
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for vmid, v := range vms {
-		if id, ok := known[vmid]; ok && slices.Contains(tagList(v.Tags), servers.ServerTag(id)) {
+		if id, ok := known[vmid]; ok && slices.Contains(servers.SplitTags(v.Tags), servers.ServerTag(id)) {
 			continue
 		}
 		key := [2]int64{locationID, int64(vmid)}

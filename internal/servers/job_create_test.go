@@ -75,9 +75,7 @@ const (
 
 func tag(id int64) string { return fmt.Sprintf("nb-srv-%d", id) }
 
-func hasTag(tags, want string) bool {
-	return slices.Contains(strings.FieldsFunc(tags, func(r rune) bool { return r == ';' || r == ',' || r == ' ' }), want)
-}
+func hasTag(tags, want string) bool { return slices.Contains(servers.SplitTags(tags), want) }
 
 func taggedVMs(t *testing.T, e *testutil.ServerEnv, id int64) []pve.VM {
 	t.Helper()

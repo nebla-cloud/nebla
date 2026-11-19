@@ -50,7 +50,7 @@ func (s *Service) Power(ctx context.Context, projectID, id int64, op pve.PowerOp
 	return s.queue(ctx, projectID, id, cmd, func(_ *ent.Client, row *ent.Server) (func(int64) river.JobArgs, error) {
 		switch {
 		case row.Status == StatusMissing:
-			return nil, errMissing
+			return nil, ErrMissing
 		case row.Vmid == nil:
 			return nil, errNotReady
 		}

@@ -117,3 +117,18 @@ func TestMetricsGapsAreNull(t *testing.T) {
 	}
 	require.Contains(t, body, `[1700000060,null]`)
 }
+
+// TestMetricsRequiresOwnedVM checks a reused vmid holding a foreign or untagged VM is never read.
+func TestMetricsRequiresOwnedVM(t *testing.T) {
+	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
+	s := e.RunningServer("web")
+	row, err := e.App.Ent.Server.Get(context.Background(), s.ServerID)
+	require.NoError(t, err)
+	for _, tags := range []string{"nebla;nb-srv-99999", ""} {
+		e.App.PVE.SetVMConfig(*row.Vmid, "tags", tags)
+		res := e.C.Get(metricsPath(s.ServerID, "type=cpu&timeframe=hour"))
+		body := e.App.Body(res)
+		require.Equal(t, http.StatusConflict, res.StatusCode, "tags %q: %s", tags, body)
+		require.Contains(t, body, `"server_missing"`)
+	}
+}
