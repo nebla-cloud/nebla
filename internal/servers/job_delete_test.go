@@ -5,8 +5,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Hexeption/nebla/internal/actions"
+	"github.com/Hexeption/nebla/internal/ent/server"
+	"github.com/Hexeption/nebla/internal/ipam"
 	"github.com/Hexeption/nebla/internal/reconcile"
 	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,4 +37,35 @@ func TestDeleteAlreadyGoneVM(t *testing.T) {
 	n, err = e.App.Ent.IPAllocation.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Zero(t, n, "ips released")
+}
+
+// R28: a lost create leaves the row in error with no VM and no IPs; DELETE just removes it.
+func TestDeleteHalfCreatedServer(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s := e.CreateServer("web", nil)
+	require.NoError(t, actions.Fail(ctx, e.App.Ent, s.ActionID, "orphaned", "lost"))
+	require.NoError(t, ipam.Release(ctx, e.App.Ent, s.ServerID))
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetStatus(server.StatusError).Exec(ctx))
+	require.Nil(t, vmidOrNil(t, e, s.ServerID))
+	before := len(e.App.PVE.Calls())
+
+	del, _ := expect[actionBody](t, e.C.Send(http.MethodDelete, spath(s.ServerID), nil), http.StatusOK)
+	w := servers.NewDeleteServerWorker(opts(e))
+	require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.DeleteServerArgs](t, e, del.Action.ID), 1)))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, del.Action.ID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+	_, err = e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.Error(t, err, "row deleted")
+	for _, c := range e.App.PVE.Calls()[before:] {
+		require.NotContains(t, c, "/qemu/", "no VM calls: %s", c)
+	}
+}
+
+func vmidOrNil(t *testing.T, e *testutil.ServerEnv, id int64) *int {
+	t.Helper()
+	row, err := e.App.Ent.Server.Get(context.Background(), id)
+	require.NoError(t, err)
+	return row.Vmid
 }

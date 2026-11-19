@@ -42,6 +42,8 @@ type Reconciler struct {
 	orphans map[[2]int64]bool
 	// afterList runs once the VM list is read; tests use it to race a job.
 	afterList func()
+	// rescueHook runs inside each rescue transaction; an error fails it.
+	rescueHook func(actionID int64) error
 }
 
 func New(o Options) *Reconciler {
@@ -60,7 +62,13 @@ func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 		log.Warn("reconcile: sync nodes", "err", err)
 		return fmt.Errorf("sync nodes: %w", err)
 	}
-	if !slices.ContainsFunc(loc.Nodes, func(n catalog.Node) bool { return n.Status == "online" }) {
+	online := map[string]bool{}
+	for _, n := range loc.Nodes {
+		if n.Status == nodeOnline {
+			online[n.Name] = true
+		}
+	}
+	if len(online) == 0 {
 		log.Warn("reconcile: no node online, skipping")
 		return fmt.Errorf("%w: no node online", ErrProxmoxState)
 	}
@@ -88,12 +96,13 @@ func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 		log.Warn("reconcile: proxmox lists no VMs while servers have VMs, skipping")
 		return fmt.Errorf("%w: no VMs listed", ErrProxmoxState)
 	}
-	vms := tagged(all)
-	r.logOrphans(log, locationID, vms, rows)
-	if err := r.rescue(ctx, log, pc, locationID, vms); err != nil {
+	vms := view{vms: tagged(all), online: online}
+	if err := tooManyMissing(rows, vms); err != nil {
+		log.Error("reconcile: refusing to mark servers missing", "err", err)
 		return err
 	}
-	var errs []error
+	r.logOrphans(log, locationID, vms.vms, rows)
+	errs := r.rescue(ctx, log, pc, locationID, vms)
 	for _, row := range rows {
 		if _, _, ok := desired(row, vms); !ok {
 			continue
@@ -103,6 +112,46 @@ func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+const nodeOnline = "online"
+
+// view is one run's Proxmox state: tagged VMs by vmid and the online nodes.
+type view struct {
+	vms    map[int]pve.VM
+	online map[string]bool
+}
+
+// observe is the status and node Proxmox shows for row; known is false when Proxmox cannot tell.
+func (w view) observe(row *ent.Server) (st server.Status, node string, known bool) {
+	v, found := vmOf(row, w.vms)
+	if !found {
+		// A VM on a node that is not online may just be hidden.
+		return server.StatusMissing, row.Node, w.online[row.Node]
+	}
+	st, known = mapStatus(v.Status)
+	return st, v.Node, known
+}
+
+// Breaker limits: more than half of the servers with VMs, and at least minBreaker, turning missing at once.
+const minBreaker = 3
+
+// tooManyMissing refuses a run that would mark most servers missing; that looks like Proxmox, not deletions.
+func tooManyMissing(rows []*ent.Server, w view) error {
+	withVM, missing := 0, 0
+	for _, row := range rows {
+		if row.Vmid == nil {
+			continue
+		}
+		withVM++
+		if st, _, ok := desired(row, w); ok && st == server.StatusMissing && row.Status != server.StatusMissing {
+			missing++
+		}
+	}
+	if missing >= minBreaker && missing*2 > withVM {
+		return fmt.Errorf("%w: %d of %d servers would turn missing", ErrProxmoxState, missing, withVM)
+	}
+	return nil
 }
 
 // tagged keeps the non-template VMs carrying the nebla tag, by vmid.
@@ -159,24 +208,18 @@ func (r *Reconciler) logOrphans(log *slog.Logger, locationID int64, vms map[int]
 var steady = []server.Status{server.StatusRunning, server.StatusOff, server.StatusMissing, server.StatusError}
 
 // desired is the status and node Proxmox implies for row; ok is false when nothing should change.
-func desired(row *ent.Server, vms map[int]pve.VM) (server.Status, string, bool) {
+func desired(row *ent.Server, w view) (server.Status, string, bool) {
 	if row.Vmid == nil || !slices.Contains(steady, row.Status) {
 		return "", "", false
 	}
-	st, node := row.Status, row.Node
-	v, found := vmOf(row, vms)
-	switch {
-	case !found && (row.Status == server.StatusRunning || row.Status == server.StatusOff):
-		st = server.StatusMissing
-	case !found:
-	case row.Status == server.StatusError:
+	seen, node, known := w.observe(row)
+	if !known {
+		return "", "", false
+	}
+	st := seen
+	if row.Status == server.StatusError {
 		// error stays: a failed create may already have released the IPs.
-		node = v.Node
-	default:
-		node = v.Node
-		if m, ok := mapStatus(v.Status); ok {
-			st = m
-		}
+		st = server.StatusError
 	}
 	return st, node, st != row.Status || node != row.Node
 }
@@ -193,7 +236,7 @@ func mapStatus(s string) (server.Status, bool) {
 }
 
 // apply re-reads the row under its lock and writes the change unless an action ran since the list was read.
-func (r *Reconciler) apply(ctx context.Context, log *slog.Logger, id int64, vms map[int]pve.VM, listedAt time.Time) error {
+func (r *Reconciler) apply(ctx context.Context, log *slog.Logger, id int64, vms view, listedAt time.Time) error {
 	return db.WithTx(ctx, r.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
 		row, err := etx.Server.Query().Where(server.ID(id)).ForUpdate().Only(ctx)
 		if ent.IsNotFound(err) {
@@ -218,13 +261,13 @@ func (r *Reconciler) apply(ctx context.Context, log *slog.Logger, id int64, vms 
 }
 
 // rescue fails running actions on this location's servers whose job can no longer finish them.
-func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, pc pve.Client, locationID int64, vms map[int]pve.VM) error {
+func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, pc pve.Client, locationID int64, vms view) []error {
 	q, err := r.o.SQL.QueryContext(ctx, `
 		select a.id, s.id from actions a join servers s
 		on s.location_id = $1 and a.resources @> jsonb_build_array(jsonb_build_object('id', s.id, 'type', $2::text))
 		where `+jobs.Orphaned, locationID, servers.ResourceType)
 	if err != nil {
-		return fmt.Errorf("find orphaned actions: %w", err)
+		return []error{fmt.Errorf("find orphaned actions: %w", err)}
 	}
 	type stuck struct{ action, server int64 }
 	var found []stuck
@@ -232,25 +275,24 @@ func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, pc pve.Client
 		var s stuck
 		if err := q.Scan(&s.action, &s.server); err != nil {
 			q.Close()
-			return err
+			return []error{err}
 		}
 		found = append(found, s)
 	}
-	if err := q.Close(); err != nil {
-		return err
+	if err := errors.Join(q.Err(), q.Close()); err != nil {
+		return []error{err}
 	}
-	if err := q.Err(); err != nil {
-		return err
-	}
+	var errs []error
 	for _, s := range found {
 		if err := r.rescueOne(ctx, log, pc, s.action, s.server, vms); err != nil {
-			return fmt.Errorf("rescue action %d: %w", s.action, err)
+			log.Error("reconcile: rescue action", "action_id", s.action, "err", err)
+			errs = append(errs, fmt.Errorf("rescue action %d: %w", s.action, err))
 		}
 	}
-	return nil
+	return errs
 }
 
-func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Client, actionID, serverID int64, vms map[int]pve.VM) error {
+func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Client, actionID, serverID int64, vms view) error {
 	var revert *servers.ChangeTypeArgs
 	var row *ent.Server
 	err := db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
@@ -274,6 +316,11 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Cli
 		}
 		log.Warn("reconcile: failed orphaned action", "action_id", actionID, "command", command, "server_id", serverID)
 		u, dirty := etx.Server.UpdateOneID(serverID), false
+		if r.rescueHook != nil {
+			if err := r.rescueHook(actionID); err != nil {
+				return err
+			}
+		}
 		if command == servers.KindChangeType {
 			if args == nil {
 				log.Error("reconcile: change type job is gone; snapshot not restored", "server_id", serverID)
@@ -286,19 +333,23 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Cli
 				u.SetServerTypeID(a.From.TypeID).SetCores(a.From.Cores).SetMemoryMB(a.From.MemoryMB).SetDiskGB(a.From.DiskGB)
 			}
 		}
-		// A lost power job leaves a transient status; take it from Proxmox.
-		if row.Status == server.StatusStarting || row.Status == server.StatusStopping {
-			st := server.StatusMissing
-			if v, ok := vmOf(row, vms); ok {
-				st = row.Status
-				if m, ok := mapStatus(v.Status); ok {
-					st = m
-				}
+		switch row.Status {
+		case server.StatusStarting, server.StatusStopping:
+			// A lost power job: take the status from Proxmox, else the status before the action.
+			st, _, known := vms.observe(row)
+			if !known {
+				st = powerFrom(args)
 			}
-			u.SetStatus(st)
+			if st != "" {
+				u.SetStatus(st)
+				dirty = true
+			} else {
+				log.Warn("reconcile: status of a lost power job unknown", "server_id", serverID, "status", row.Status)
+			}
+		case server.StatusInitializing, server.StatusRebuilding, server.StatusDeleting:
+			// The job's own cleanup never ran; DELETE is the way out.
+			u.SetStatus(server.StatusError)
 			dirty = true
-		} else if !slices.Contains(steady, row.Status) {
-			log.Warn("reconcile: server left in a transient status by a lost job", "server_id", serverID, "status", row.Status)
 		}
 		if !dirty {
 			return nil
@@ -309,7 +360,7 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Cli
 		return err
 	}
 	// Best effort, as the job's own failure path: put cores and memory back on the VM.
-	if v, ok := vmOf(row, vms); ok {
+	if v, ok := vmOf(row, vms.vms); ok {
 		kv := map[string]string{"cores": strconv.Itoa(revert.From.Cores), "memory": strconv.Itoa(revert.From.MemoryMB)}
 		tctx, cancel := context.WithTimeout(ctx, pveTimeout)
 		defer cancel()
@@ -318,4 +369,16 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Cli
 		}
 	}
 	return nil
+}
+
+// powerFrom is the status a power job's args recorded before it ran, or "".
+func powerFrom(args []byte) server.Status {
+	if args == nil {
+		return ""
+	}
+	var a servers.PowerServerArgs
+	if json.Unmarshal(args, &a) != nil || a.From == "" || !slices.Contains(steady, server.Status(a.From)) {
+		return ""
+	}
+	return server.Status(a.From)
 }

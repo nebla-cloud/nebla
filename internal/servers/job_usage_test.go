@@ -4,10 +4,12 @@ import (
 	"context"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/servers"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +26,8 @@ func TestUsageEvents(t *testing.T) {
 	o.Bus = ext.NewBus(rec)
 	t.Cleanup(o.Bus.(*ext.Bus).Close)
 	w := servers.NewUsageWorker(o)
-	require.NoError(t, w.Work(ctx, &river.Job[servers.UsageArgs]{}))
+	created := time.Date(2026, 11, 19, 14, 59, 59, 0, time.UTC)
+	require.NoError(t, w.Work(ctx, &river.Job[servers.UsageArgs]{JobRow: &rivertype.JobRow{CreatedAt: created}}))
 	o.Bus.(*ext.Bus).Close()
 
 	usage := slices.DeleteFunc(rec.all(), func(ev ext.Event) bool { return ev.Kind != ext.ServerUsage })
@@ -35,7 +38,9 @@ func TestUsageEvents(t *testing.T) {
 		require.False(t, ev.At.IsZero())
 		byID[ev.ServerID] = ev
 	}
-	require.Equal(t, map[string]any{"server_type": "small", "status": "running", "cores": 2, "memory_mb": 2048, "disk_gb": 20},
-		byID[a.ServerID].Data)
+	period := "2026-11-19T14:00:00Z"
+	require.Equal(t, map[string]any{"server_type": "small", "status": "running", "cores": 2, "memory_mb": 2048, "disk_gb": 20,
+		"period": period, "location_id": e.Location}, byID[a.ServerID].Data)
+	require.Equal(t, period, byID[b.ServerID].Data["period"])
 	require.Equal(t, "off", byID[b.ServerID].Data["status"])
 }

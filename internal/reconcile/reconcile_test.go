@@ -408,6 +408,12 @@ func TestMaintenanceJobsAreUnique(t *testing.T) {
 	next, err := j.Client.Insert(ctx, reconcile.LocationArgs{LocationID: 1}, nil)
 	require.NoError(t, err)
 	require.False(t, next.UniqueSkippedAsDuplicate, "a finished run does not block the next")
+	usage, err := j.Client.Insert(ctx, servers.UsageArgs{}, nil)
+	require.NoError(t, err)
+	require.True(t, usage.UniqueSkippedAsDuplicate, "usage runs once per hour, even after a restart")
+	n := 0
+	require.NoError(t, pool.QueryRow(ctx, `select count(*) from river_job where kind = $1`, servers.KindUsage).Scan(&n))
+	require.Equal(t, 1, n)
 }
 
 func TestReconcileYieldsToActionAfterList(t *testing.T) {
@@ -431,4 +437,153 @@ func TestReconcileYieldsToActionAfterList(t *testing.T) {
 	e.App.PVE.SetVMStatus(vmid, "stopped")
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Equal(t, server.StatusOff, get(t, e, row.ID).Status)
+}
+
+// queuedEnv never works jobs; built servers are made by running the create worker by hand.
+func queuedEnv(t *testing.T) *testutil.ServerEnv {
+	t.Helper()
+	return testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
+}
+
+func build(t *testing.T, e *testutil.ServerEnv, name string) int64 {
+	t.Helper()
+	s := e.CreateServer(name, nil)
+	w := servers.NewCreateServerWorker(servers.WorkerOptions{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: quiet(),
+		PollInterval: 10 * time.Millisecond})
+	require.NoError(t, w.Work(context.Background(), &river.Job[servers.CreateServerArgs]{
+		JobRow: &rivertype.JobRow{ID: 1, Attempt: 1, MaxAttempts: servers.MaxAttempts + 2},
+		Args:   servers.CreateServerArgs{ServerID: s.ServerID, ActionID: s.ActionID, StartAfter: true}}))
+	return s.ServerID
+}
+
+// orphan queues a power op on id and discards its job, leaving the server in st.
+func orphan(t *testing.T, e *testutil.ServerEnv, id int64, op string, st server.Status) int64 {
+	t.Helper()
+	res := e.C.Send(http.MethodPost, "/v1/servers/"+strconv.FormatInt(id, 10)+"/actions/"+op, nil)
+	require.Equal(t, http.StatusCreated, res.StatusCode)
+	var out struct {
+		Action struct {
+			ID int64 `json:"id"`
+		} `json:"action"`
+	}
+	decode(t, res, &out)
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetStatus(st).Exec(context.Background()))
+	discard(t, e, out.Action.ID)
+	return out.Action.ID
+}
+
+func TestReconcileOfflineNode(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	a, avm := running(t, e, "a")
+	b, bvm := running(t, e, "b")
+	e.App.PVE.MoveVM(bvm, "pve2")
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, "pve2", get(t, e, b.ID).Node)
+
+	// pve2 goes down and hides its VMs; a's VM on pve1 really is deleted.
+	e.App.PVE.SetNodeOffline("pve2", true)
+	e.App.PVE.DeleteVM(avm)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, server.StatusMissing, get(t, e, a.ID).Status)
+	got := get(t, e, b.ID)
+	require.Equal(t, server.StatusRunning, got.Status, "a hidden VM on an offline node is unknown")
+	require.Equal(t, "pve2", got.Node)
+
+	// pve2 returns with the VM stopped.
+	e.App.PVE.SetVMStatus(bvm, "stopped")
+	e.App.PVE.SetNodeOffline("pve2", false)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, server.StatusOff, get(t, e, b.ID).Status)
+}
+
+func TestReconcileCircuitBreaker(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	logs := &lockedBuffer{}
+	r := newReconciler(e, slog.New(slog.NewTextHandler(logs, nil)))
+	var ids []int64
+	var vmids []int
+	for _, name := range []string{"a", "b", "c", "d"} {
+		row, vmid := running(t, e, name)
+		ids, vmids = append(ids, row.ID), append(vmids, vmid)
+	}
+
+	// Two of four vanish: not over half, so both turn missing.
+	e.App.PVE.DeleteVM(vmids[0])
+	e.App.PVE.DeleteVM(vmids[1])
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, server.StatusMissing, get(t, e, ids[0]).Status)
+	require.Equal(t, server.StatusMissing, get(t, e, ids[1]).Status)
+
+	for _, name := range []string{"e", "f"} {
+		row, vmid := running(t, e, name)
+		ids, vmids = append(ids, row.ID), append(vmids, vmid)
+	}
+	// Six servers with VMs, two already missing; the other four vanish at once: 4 of 6 is over half.
+	for _, v := range vmids[2:] {
+		e.App.PVE.DeleteVM(v)
+	}
+	err := r.Run(ctx, e.Location)
+	require.ErrorIs(t, err, reconcile.ErrProxmoxState)
+	for _, id := range ids[2:] {
+		require.Equal(t, server.StatusRunning, get(t, e, id).Status, "breaker tripped: nothing marked")
+	}
+	require.Contains(t, logs.String(), "refusing to mark servers missing")
+}
+
+func TestReconcileRescueFailsTransientAndContinues(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	id := build(t, e, "web")
+	other := build(t, e, "other")
+
+	// A lost job in initializing, rebuilding or deleting leaves the server in error.
+	for _, st := range []server.Status{server.StatusInitializing, server.StatusRebuilding, server.StatusDeleting} {
+		act := orphan(t, e, id, "reboot", st)
+		require.NoError(t, r.Run(ctx, e.Location))
+		expectOrphaned(t, e, act)
+		require.Equal(t, server.StatusError, get(t, e, id).Status, "%s", st)
+		require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetStatus(server.StatusRunning).Exec(ctx))
+	}
+
+	// One failing rescue does not block the next.
+	first := orphan(t, e, id, "reboot", server.StatusRunning)
+	second := orphan(t, e, other, "reboot", server.StatusRunning)
+	reconcile.SetRescueHook(r, func(a int64) error {
+		if a == first {
+			return io.ErrUnexpectedEOF
+		}
+		return nil
+	})
+	err := r.Run(ctx, e.Location)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	expectOrphaned(t, e, second)
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, first)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusRunning, a.Status, "the failed rescue rolled back")
+	reconcile.SetRescueHook(r, nil)
+	require.NoError(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, first)
+}
+
+func TestReconcileRescueOnOfflineNode(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	id := build(t, e, "web")
+	other := build(t, e, "other")
+	e.App.PVE.MoveVM(*get(t, e, id).Vmid, "pve2")
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, "pve2", get(t, e, id).Node)
+
+	// The power job is lost while pve2 hides the VM: fall back to the status before the action.
+	e.App.PVE.SetNodeOffline("pve2", true)
+	act := orphan(t, e, id, "poweroff", server.StatusStopping)
+	require.NoError(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, act)
+	require.Equal(t, server.StatusRunning, get(t, e, id).Status)
+	require.Equal(t, server.StatusRunning, get(t, e, other).Status)
 }

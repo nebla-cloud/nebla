@@ -41,6 +41,7 @@ type node struct {
 	memMB    int64
 	cpu      float64
 	memUsed  int64
+	offline  bool
 	storages map[string]*storage
 }
 
@@ -190,6 +191,16 @@ func (s *Server) SetNodeLoad(name string, cpu float64, memUsedMB int64) {
 	s.sweep()
 	if n, ok := s.nodes[name]; ok {
 		n.cpu, n.memUsed = cpu, memUsedMB
+	}
+}
+
+// SetNodeOffline reports the node offline and hides its VMs from /cluster/resources.
+func (s *Server) SetNodeOffline(name string, offline bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep()
+	if n, ok := s.nodes[name]; ok {
+		n.offline = offline
 	}
 }
 
@@ -390,7 +401,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 		defer s.mu.Unlock()
 		out := []map[string]any{}
 		for _, n := range s.nodes {
-			out = append(out, map[string]any{"node": n.name, "status": "online", "type": "node", "maxcpu": n.cpus,
+			status := "online"
+			if n.offline {
+				status = "offline"
+			}
+			out = append(out, map[string]any{"node": n.name, "status": status, "type": "node", "maxcpu": n.cpus,
 				"maxmem": strconv.FormatInt(n.memMB<<20, 10), "cpu": n.cpu, "mem": n.memUsed << 20})
 		}
 		sort.Slice(out, func(i, j int) bool { return out[i]["node"].(string) < out[j]["node"].(string) })
@@ -420,6 +435,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 		defer s.mu.Unlock()
 		out := []map[string]any{}
 		for id, v := range s.vms {
+			if n, ok := s.nodes[v.node]; ok && n.offline {
+				continue
+			}
 			tmpl := 0
 			if v.config["template"] == "1" {
 				tmpl = 1
