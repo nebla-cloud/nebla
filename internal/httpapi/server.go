@@ -36,6 +36,8 @@ type server struct {
 	loginLimit *ratelimit.Limiter
 }
 
+const maxBodyBytes = 1 << 20
+
 var _ apigen.StrictServerInterface = (*server)(nil)
 
 func (*server) GetHealthz(context.Context, apigen.GetHealthzRequestObject) (apigen.GetHealthzResponseObject, error) {
@@ -64,6 +66,12 @@ func New(deps Deps) http.Handler {
 
 	r := chi.NewRouter()
 	api := chi.NewRouter()
+	api.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+			next.ServeHTTP(w, r)
+		})
+	})
 	api.NotFound(notFound)
 	api.MethodNotAllowed(methodNotAllowed)
 	apigen.HandlerWithOptions(strict, apigen.ChiServerOptions{

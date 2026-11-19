@@ -38,7 +38,7 @@ type Service struct {
 }
 
 func New(pool *pgxpool.Pool, reg ext.Registration) *Service {
-	h, _ := HashPassword("nebla-dummy-password")
+	h, _ := HashPassword(context.Background(), "nebla-dummy-password")
 	return &Service{pool: pool, q: gen.New(pool), reg: reg, dummyHash: h}
 }
 
@@ -48,10 +48,11 @@ var (
 	errInvalidCode  = apierr.New(http.StatusUnauthorized, "invalid_code", "invalid verification code")
 )
 
-func normalizeEmail(e string) string { return strings.ToLower(strings.TrimSpace(e)) }
+// NormalizeEmail trims and lowercases an email for lookups and rate-limit keys.
+func NormalizeEmail(e string) string { return strings.ToLower(strings.TrimSpace(e)) }
 
 func validate(email, pw, name string) (string, error) {
-	email = normalizeEmail(email)
+	email = NormalizeEmail(email)
 	if !strings.Contains(email, "@") || len(email) < 3 {
 		return "", apierr.New(http.StatusUnprocessableEntity, "invalid_input", "a valid email is required")
 	}
@@ -70,7 +71,7 @@ func (s *Service) Setup(ctx context.Context, email, pw, name string) (User, erro
 	if err != nil {
 		return User{}, err
 	}
-	hash, err := HashPassword(pw)
+	hash, err := HashPassword(ctx, pw)
 	if err != nil {
 		return User{}, err
 	}
@@ -109,7 +110,7 @@ func (s *Service) CreateUser(ctx context.Context, email, pw, name string, admin 
 	if err != nil {
 		return User{}, err
 	}
-	hash, err := HashPassword(pw)
+	hash, err := HashPassword(ctx, pw)
 	if err != nil {
 		return User{}, err
 	}
@@ -133,15 +134,15 @@ func mapCreateErr(err error) error {
 
 // Login verifies credentials (and the TOTP code when enabled) and returns a session token.
 func (s *Service) Login(ctx context.Context, email, pw, code string) (string, error) {
-	u, err := s.q.GetUserByEmail(ctx, normalizeEmail(email))
+	u, err := s.q.GetUserByEmail(ctx, NormalizeEmail(email))
 	if errors.Is(err, pgx.ErrNoRows) {
-		VerifyPassword(s.dummyHash, pw)
+		VerifyPassword(ctx, s.dummyHash, pw)
 		return "", errInvalidCreds
 	}
 	if err != nil {
 		return "", err
 	}
-	if !VerifyPassword(u.PasswordHash, pw) {
+	if !VerifyPassword(ctx, u.PasswordHash, pw) {
 		return "", errInvalidCreds
 	}
 	if u.TotpEnabled {
