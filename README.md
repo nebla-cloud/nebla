@@ -29,6 +29,8 @@ images and IP pools. Nebla drives Proxmox only through its API and runs as one c
 | `PANEL_LISTEN` | no | `:8080` | HTTP listen address. |
 | `PANEL_SMTP_URL` | no | | `smtp://user:pass@host:587?from=panel@example.com` or `smtps://...`. Without it, invite mails are not sent. |
 | `PANEL_TRUSTED_PROXIES` | no | | Comma-separated CIDRs of reverse proxies. When a request comes from one, the client IP for rate limits is the rightmost `X-Forwarded-For` address that isn't a trusted proxy. Leave it empty when nothing sits in front of the panel. |
+| `PANEL_DEFAULT_QUOTA` | no | `servers=5,vcpu=8,memory_mb=16384,disk_gb=200,ips=5` | Quota given to projects created by non-admin users, as comma-separated `key=value` pairs. Keys left out keep their default. `0` in a field means unlimited. Projects created by panel admins are always unlimited, and admins can change any project's quota. |
+| `PANEL_MAX_PROJECTS_PER_USER` | no | `3` | How many projects a non-admin user may own. `0` means unlimited. Panel admins are never capped. |
 
 `nebla-server healthcheck` exits 0 when `/v1/healthz` on the local listen port answers 200. The image and compose use it
 as their healthcheck.

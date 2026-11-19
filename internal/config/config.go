@@ -6,8 +6,10 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/realip"
 )
 
@@ -19,7 +21,13 @@ type Config struct {
 	SMTPURL     string
 	// TrustedProxies are the reverse proxies whose X-Forwarded-For is believed.
 	TrustedProxies []netip.Prefix
+	// DefaultQuota is applied to projects created by non-admins; 0 in a field means unlimited.
+	DefaultQuota projects.Quota
+	// MaxProjectsPerUser caps projects a non-admin owns; 0 means unlimited.
+	MaxProjectsPerUser int
 }
+
+var defaultQuota = projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5}
 
 func Load() (Config, error) {
 	c := Config{
@@ -47,7 +55,44 @@ func Load() (Config, error) {
 		errs = append(errs, fmt.Errorf("PANEL_TRUSTED_PROXIES: %w", err))
 	}
 	c.TrustedProxies = tp
+	if c.DefaultQuota, err = parseQuota(os.Getenv("PANEL_DEFAULT_QUOTA")); err != nil {
+		errs = append(errs, fmt.Errorf("PANEL_DEFAULT_QUOTA: %w", err))
+	}
+	c.MaxProjectsPerUser = 3
+	if v := os.Getenv("PANEL_MAX_PROJECTS_PER_USER"); v != "" {
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil || n < 0 {
+			errs = append(errs, fmt.Errorf("PANEL_MAX_PROJECTS_PER_USER must be a non-negative integer, got %q", v))
+		}
+		c.MaxProjectsPerUser = n
+	}
 	return c, errors.Join(errs...)
+}
+
+// parseQuota overlays the keys set in spec on the default quota.
+func parseQuota(spec string) (projects.Quota, error) {
+	q := defaultQuota
+	if strings.TrimSpace(spec) == "" {
+		return q, nil
+	}
+	fields := map[string]*int{"servers": &q.MaxServers, "vcpu": &q.MaxVCPU, "memory_mb": &q.MaxMemoryMB, "disk_gb": &q.MaxDiskGB, "ips": &q.MaxIPs}
+	seen := map[string]bool{}
+	for _, part := range strings.Split(spec, ",") {
+		k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
+		dst := fields[k]
+		if !ok || dst == nil {
+			return q, fmt.Errorf("invalid entry %q, want key=value with keys servers, vcpu, memory_mb, disk_gb, ips", part)
+		}
+		if seen[k] {
+			return q, fmt.Errorf("duplicate key %q", k)
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return q, fmt.Errorf("%s must be a non-negative integer, got %q", k, v)
+		}
+		seen[k], *dst = true, n
+	}
+	return q, nil
 }
 
 func checkBaseURL(raw string) error {

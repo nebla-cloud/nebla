@@ -42,7 +42,8 @@ func (s *server) GetProjects(ctx context.Context, _ apigen.GetProjectsRequestObj
 }
 
 func (s *server) PostProjects(ctx context.Context, req apigen.PostProjectsRequestObject) (apigen.PostProjectsResponseObject, error) {
-	p, err := s.projects.Create(ctx, userID(ctx), req.Body.Name)
+	u, _ := UserFrom(ctx)
+	p, err := s.projects.Create(ctx, u.ID, u.IsAdmin, req.Body.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +219,20 @@ func (s *server) PostAdminUsers(ctx context.Context, req apigen.PostAdminUsersRe
 		return nil, err
 	}
 	return apigen.PostAdminUsers201JSONResponse(apiUser(u)), nil
+}
+
+func (s *server) GetAdminProjects(ctx context.Context, req apigen.GetAdminProjectsRequestObject) (apigen.GetAdminProjectsResponseObject, error) {
+	page, perPage := pageParams(req.Params.Page, req.Params.PerPage)
+	ps, total, err := s.projects.ListAll(ctx, page, perPage)
+	if err != nil {
+		return nil, err
+	}
+	out := apigen.GetAdminProjects200JSONResponse{Projects: make([]apigen.AdminProject, len(ps))}
+	for i, p := range ps {
+		out.Projects[i] = apigen.AdminProject{Id: p.ID, Name: p.Name, Quota: apiQuota(p.Quota), OwnerEmail: p.OwnerEmail}
+	}
+	out.Meta = meta(page, perPage, total)
+	return out, nil
 }
 
 func (s *server) PutAdminProjectQuota(ctx context.Context, req apigen.PutAdminProjectQuotaRequestObject) (apigen.PutAdminProjectQuotaResponseObject, error) {

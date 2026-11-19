@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/config"
+	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,4 +79,41 @@ func TestLoadValidatesBaseURL(t *testing.T) {
 		require.NoError(t, err, tc.url)
 		require.Equal(t, tc.https, cfg.HTTPS(), tc.url)
 	}
+}
+
+func TestLoadDefaultQuota(t *testing.T) {
+	t.Setenv("PANEL_DATABASE_URL", "postgres://x")
+	t.Setenv("PANEL_BASE_URL", "https://panel.test")
+	t.Setenv("PANEL_SECRET_KEY", "0123456789abcdef0123456789abcdef")
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5}, cfg.DefaultQuota)
+	require.Equal(t, 3, cfg.MaxProjectsPerUser)
+
+	t.Setenv("PANEL_DEFAULT_QUOTA", "servers=2, vcpu=0,memory_mb=1024,disk_gb=10,ips=1")
+	t.Setenv("PANEL_MAX_PROJECTS_PER_USER", "0")
+	cfg, err = config.Load()
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxServers: 2, MaxMemoryMB: 1024, MaxDiskGB: 10, MaxIPs: 1}, cfg.DefaultQuota)
+	require.Zero(t, cfg.MaxProjectsPerUser)
+
+	t.Setenv("PANEL_DEFAULT_QUOTA", "servers=10")
+	cfg, err = config.Load()
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxServers: 10, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5}, cfg.DefaultQuota, "unset keys keep the defaults")
+
+	t.Setenv("PANEL_DEFAULT_QUOTA", "ips=0")
+	cfg, err = config.Load()
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200}, cfg.DefaultQuota, "0 is unlimited")
+
+	for _, bad := range []string{"servers", "servers=x", "servers=-1", "bogus=1", "servers=1,servers=2"} {
+		t.Setenv("PANEL_DEFAULT_QUOTA", bad)
+		_, err = config.Load()
+		require.ErrorContains(t, err, "PANEL_DEFAULT_QUOTA", bad)
+	}
+	t.Setenv("PANEL_DEFAULT_QUOTA", "")
+	t.Setenv("PANEL_MAX_PROJECTS_PER_USER", "-2")
+	_, err = config.Load()
+	require.ErrorContains(t, err, "PANEL_MAX_PROJECTS_PER_USER")
 }
