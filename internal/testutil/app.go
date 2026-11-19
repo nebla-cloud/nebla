@@ -6,12 +6,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/auth"
 	"github.com/Hexeption/nebla/internal/catalog"
@@ -19,8 +21,10 @@ import (
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/httpapi"
+	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 )
 
 // App is a running API server backed by a throwaway Postgres.
@@ -33,7 +37,9 @@ type App struct {
 	PVE  *fake.Server
 	// Catalog is the catalog service the API uses.
 	Catalog *catalog.Service
-	t       *testing.T
+	// Jobs is started with fast polling and stopped at cleanup.
+	Jobs *jobs.Jobs
+	t    *testing.T
 }
 
 // Password is the password used by fixture users.
@@ -42,8 +48,18 @@ const Password = "correct-horse-battery"
 // NewApp starts the API; opts may adjust Deps (hooks, extra scoped routes) before it is built.
 func NewApp(t *testing.T, opts ...func(*httpapi.Deps)) *App {
 	t.Helper()
+	return NewAppWithWorkers(t, nil, opts...)
+}
+
+// WorkerSetup registers River workers; deps already has Pool, SQL and Ent, and pve is the app's fake Proxmox.
+type WorkerSetup func(w *river.Workers, deps *httpapi.Deps, pve *fake.Server)
+
+// NewAppWithWorkers is NewApp with workers registered before the job runtime starts.
+func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.Deps)) *App {
+	t.Helper()
 	pool := NewDB(t)
 	client, sqlDB := entFor(t, pool)
+	pve := fake.New(t)
 	deps := httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: config.Config{SecretKey: []byte(SecretKey)}}
 	for _, o := range opts {
 		o(&deps)
@@ -51,10 +67,38 @@ func NewApp(t *testing.T, opts ...func(*httpapi.Deps)) *App {
 	if deps.Catalog == nil {
 		deps.Catalog = catalog.New(sqlDB, client, CatalogOptions(deps.CatalogHooks))
 	}
+	if deps.Jobs == nil {
+		workers := river.NewWorkers()
+		if setup != nil {
+			setup(workers, &deps, pve)
+		}
+		deps.Jobs = StartJobs(t, pool, sqlDB, workers)
+	}
 	srv := httptest.NewServer(httpapi.New(deps))
 	t.Cleanup(srv.Close)
 	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration),
-		PVE: fake.New(t), Catalog: deps.Catalog, t: t}
+		PVE: pve, Catalog: deps.Catalog, Jobs: deps.Jobs, t: t}
+}
+
+// StartJobs builds and starts a job runtime with fast polling; it is stopped at cleanup.
+func StartJobs(t testing.TB, pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.Workers) *jobs.Jobs {
+	t.Helper()
+	j, err := jobs.New(pool, sqlDB, workers, jobs.WithPollInterval(20*time.Millisecond),
+		jobs.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := j.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := j.Stop(ctx); err != nil {
+			t.Errorf("stop jobs: %v", err)
+		}
+	})
+	return j
 }
 
 func (a *App) Do(req *http.Request) *http.Response {

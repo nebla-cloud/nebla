@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -88,6 +89,7 @@ func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			apitoken.Table:      apitoken.ValidColumn,
+			action.Table:        action.ValidColumn,
 			ipallocation.Table:  ipallocation.ValidColumn,
 			ippool.Table:        ippool.ValidColumn,
 			image.Table:         image.ValidColumn,

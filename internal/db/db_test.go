@@ -158,3 +158,10 @@ func TestWithTxRollsBackOnGoexitAndPanic(t *testing.T) {
 	defer cancel2()
 	require.NoError(t, db.WithTx(tctx2, sqlDB, func(tx *sql.Tx, _ *ent.Client) error { return lock(tctx2, tx) }))
 }
+
+func TestMigrateCreatesRiverSchema(t *testing.T) {
+	pool := testutil.NewDB(t)
+	var n int
+	require.NoError(t, pool.QueryRow(context.Background(), "select count(*) from river_job").Scan(&n))
+	require.Zero(t, n)
+}

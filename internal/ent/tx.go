@@ -16,6 +16,8 @@ type Tx struct {
 	config
 	// APIToken is the client for interacting with the APIToken builders.
 	APIToken *APITokenClient
+	// Action is the client for interacting with the Action builders.
+	Action *ActionClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
 	IPAllocation *IPAllocationClient
 	// IPPool is the client for interacting with the IPPool builders.
@@ -176,6 +178,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.APIToken = NewAPITokenClient(tx.config)
+	tx.Action = NewActionClient(tx.config)
 	tx.IPAllocation = NewIPAllocationClient(tx.config)
 	tx.IPPool = NewIPPoolClient(tx.config)
 	tx.Image = NewImageClient(tx.config)

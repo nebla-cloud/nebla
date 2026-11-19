@@ -25,6 +25,8 @@ var projectScopedOps = map[string]bool{
 	"GetSshKey":      true,
 	"PutSshKey":      true,
 	"DeleteSshKey":   true,
+	"GetActions":     true,
+	"GetAction":      true,
 }
 
 // RoleAPIToken is Scope.Role for requests authenticated by an API token.

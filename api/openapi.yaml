@@ -1138,6 +1138,57 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /actions:
+    get:
+      operationId: getActions
+      x-nebla-scope: project
+      summary: List the project's actions
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          description: Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: sort
+          in: query
+          description: "id, id:asc or id:desc (default)"
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, meta]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /actions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getAction
+      x-nebla-scope: project
+      summary: Get an action
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Action" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
 components:
   responses:
     Error:

@@ -15,6 +15,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -41,6 +42,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// APIToken is the client for interacting with the APIToken builders.
 	APIToken *APITokenClient
+	// Action is the client for interacting with the Action builders.
+	Action *ActionClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
 	IPAllocation *IPAllocationClient
 	// IPPool is the client for interacting with the IPPool builders.
@@ -81,6 +84,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIToken = NewAPITokenClient(c.config)
+	c.Action = NewActionClient(c.config)
 	c.IPAllocation = NewIPAllocationClient(c.config)
 	c.IPPool = NewIPPoolClient(c.config)
 	c.Image = NewImageClient(c.config)
@@ -188,6 +192,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:           ctx,
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
+		Action:        NewActionClient(cfg),
 		IPAllocation:  NewIPAllocationClient(cfg),
 		IPPool:        NewIPPoolClient(cfg),
 		Image:         NewImageClient(cfg),
@@ -222,6 +227,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:           ctx,
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
+		Action:        NewActionClient(cfg),
 		IPAllocation:  NewIPAllocationClient(cfg),
 		IPPool:        NewIPPoolClient(cfg),
 		Image:         NewImageClient(cfg),
@@ -265,9 +271,9 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIToken, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite,
-		c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.ServerType,
-		c.Session, c.Setting, c.User,
+		c.APIToken, c.Action, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate,
+		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey,
+		c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -277,9 +283,9 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIToken, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite,
-		c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.ServerType,
-		c.Session, c.Setting, c.User,
+		c.APIToken, c.Action, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate,
+		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey,
+		c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -290,6 +296,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *APITokenMutation:
 		return c.APIToken.mutate(ctx, m)
+	case *ActionMutation:
+		return c.Action.mutate(ctx, m)
 	case *IPAllocationMutation:
 		return c.IPAllocation.mutate(ctx, m)
 	case *IPPoolMutation:
@@ -469,6 +477,155 @@ func (c *APITokenClient) mutate(ctx context.Context, m *APITokenMutation) (Value
 		return (&APITokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown APIToken mutation op: %q", m.Op())
+	}
+}
+
+// ActionClient is a client for the Action schema.
+type ActionClient struct {
+	config
+}
+
+// NewActionClient returns a client for the Action from the given config.
+func NewActionClient(c config) *ActionClient {
+	return &ActionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `action.Hooks(f(g(h())))`.
+func (c *ActionClient) Use(hooks ...Hook) {
+	c.hooks.Action = append(c.hooks.Action, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `action.Intercept(f(g(h())))`.
+func (c *ActionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Action = append(c.inters.Action, interceptors...)
+}
+
+// Create returns a builder for creating a Action entity.
+func (c *ActionClient) Create() *ActionCreate {
+	mutation := newActionMutation(c.config, OpCreate)
+	return &ActionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Action entities.
+func (c *ActionClient) CreateBulk(builders ...*ActionCreate) *ActionCreateBulk {
+	return &ActionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ActionClient) MapCreateBulk(slice any, setFunc func(*ActionCreate, int)) *ActionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ActionCreateBulk{err: fmt.Errorf("calling to ActionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ActionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ActionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Action.
+func (c *ActionClient) Update() *ActionUpdate {
+	mutation := newActionMutation(c.config, OpUpdate)
+	return &ActionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ActionClient) UpdateOne(_m *Action) *ActionUpdateOne {
+	mutation := newActionMutation(c.config, OpUpdateOne, withAction(_m))
+	return &ActionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ActionClient) UpdateOneID(id int64) *ActionUpdateOne {
+	mutation := newActionMutation(c.config, OpUpdateOne, withActionID(id))
+	return &ActionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Action.
+func (c *ActionClient) Delete() *ActionDelete {
+	mutation := newActionMutation(c.config, OpDelete)
+	return &ActionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ActionClient) DeleteOne(_m *Action) *ActionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ActionClient) DeleteOneID(id int64) *ActionDeleteOne {
+	builder := c.Delete().Where(action.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ActionDeleteOne{builder}
+}
+
+// Query returns a query builder for Action.
+func (c *ActionClient) Query() *ActionQuery {
+	return &ActionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAction},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Action entity by its id.
+func (c *ActionClient) Get(ctx context.Context, id int64) (*Action, error) {
+	return c.Query().Where(action.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ActionClient) GetX(ctx context.Context, id int64) *Action {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a Action.
+func (c *ActionClient) QueryProject(_m *Action) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(action.Table, action.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, action.ProjectTable, action.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ActionClient) Hooks() []Hook {
+	return c.hooks.Action
+}
+
+// Interceptors returns the client interceptors.
+func (c *ActionClient) Interceptors() []Interceptor {
+	return c.inters.Action
+}
+
+func (c *ActionClient) mutate(ctx context.Context, m *ActionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ActionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ActionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ActionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ActionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Action mutation op: %q", m.Op())
 	}
 }
 
@@ -2609,12 +2766,13 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIToken, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location, Node,
-		Project, ProjectMember, SSHKey, ServerType, Session, Setting, User []ent.Hook
+		APIToken, Action, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
+		Node, Project, ProjectMember, SSHKey, ServerType, Session, Setting,
+		User []ent.Hook
 	}
 	inters struct {
-		APIToken, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location, Node,
-		Project, ProjectMember, SSHKey, ServerType, Session, Setting,
+		APIToken, Action, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
+		Node, Project, ProjectMember, SSHKey, ServerType, Session, Setting,
 		User []ent.Interceptor
 	}
 )

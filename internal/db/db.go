@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivermigrate"
 )
 
 //go:embed migrations/*.sql
@@ -86,6 +88,14 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("migrate: %w", err)
+	}
+	// River owns its tables; they stay out of the Atlas migrations.
+	rm, err := rivermigrate.New(riverpgxv5.New(pool), nil)
+	if err != nil {
+		return fmt.Errorf("migrate river: %w", err)
+	}
+	if _, err := rm.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+		return fmt.Errorf("migrate river: %w", err)
 	}
 	return nil
 }

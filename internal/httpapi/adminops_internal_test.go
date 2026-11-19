@@ -62,4 +62,8 @@ func TestScopedHandlersFailClosed(t *testing.T) {
 	require.ErrorIs(t, err, errScopeNotFound)
 	_, err = s.DeleteSshKey(ctx, apigen.DeleteSshKeyRequestObject{Id: 1})
 	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.GetActions(ctx, apigen.GetActionsRequestObject{})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.GetAction(ctx, apigen.GetActionRequestObject{Id: 1})
+	require.ErrorIs(t, err, errScopeNotFound)
 }

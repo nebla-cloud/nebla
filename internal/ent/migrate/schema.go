@@ -45,6 +45,46 @@ var (
 			},
 		},
 	}
+	// ActionsColumns holds the columns for the "actions" table.
+	ActionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "command", Type: field.TypeString, Size: 2147483647},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"running", "success", "error"}, Default: "running"},
+		{Name: "progress", Type: field.TypeInt, Default: 0},
+		{Name: "resources", Type: field.TypeJSON},
+		{Name: "error_code", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "error_message", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "started", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "finished", Type: field.TypeTime, Nullable: true},
+		{Name: "river_job_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "project_id", Type: field.TypeInt64},
+	}
+	// ActionsTable holds the schema information for the "actions" table.
+	ActionsTable = &schema.Table{
+		Name:       "actions",
+		Columns:    ActionsColumns,
+		PrimaryKey: []*schema.Column{ActionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "actions_projects_project",
+				Columns:    []*schema.Column{ActionsColumns[10]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "actions_project_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ActionsColumns[10], ActionsColumns[0]},
+			},
+			{
+				Name:    "actions_status_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ActionsColumns[2]},
+			},
+		},
+	}
 	// IPAllocationsColumns holds the columns for the "ip_allocations" table.
 	IPAllocationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -485,6 +525,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APITokensTable,
+		ActionsTable,
 		IPAllocationsTable,
 		IPPoolsTable,
 		ImagesTable,
@@ -508,6 +549,7 @@ func init() {
 	APITokensTable.Annotation = &entsql.Annotation{
 		Table: "api_tokens",
 	}
+	ActionsTable.ForeignKeys[0].RefTable = ProjectsTable
 	IPAllocationsTable.ForeignKeys[0].RefTable = IPPoolsTable
 	IPPoolsTable.ForeignKeys[0].RefTable = LocationsTable
 	ImageTemplatesTable.ForeignKeys[0].RefTable = ImagesTable
