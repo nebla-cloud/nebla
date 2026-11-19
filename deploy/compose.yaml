@@ -7,6 +7,8 @@ services:
     build:
       context: ..
     restart: unless-stopped
+    # Shutdown drains HTTP (30s), then jobs (up to 35s); give it room before SIGKILL.
+    stop_grace_period: 75s
     depends_on:
       postgres:
         condition: service_healthy

@@ -203,3 +203,53 @@ func TestStartsWithNoWorkersAndRunsPing(t *testing.T) {
 	row := testutil.WaitJob(t, j, id)
 	require.Equal(t, "completed", string(row.State))
 }
+
+type blockArgs struct{}
+
+func (blockArgs) Kind() string { return "test_block" }
+
+type blockWorker struct {
+	river.WorkerDefaults[blockArgs]
+	started, cancelled chan struct{}
+}
+
+func (w *blockWorker) Work(ctx context.Context, _ *river.Job[blockArgs]) error {
+	close(w.started)
+	<-ctx.Done()
+	close(w.cancelled)
+	return ctx.Err()
+}
+
+// TestStopCancelsRunningJobs checks a soft stop cancels job contexts instead of waiting out the stop deadline.
+func TestStopCancelsRunningJobs(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.NewDB(t)
+	_, sqlDB := db.NewEnt(pool)
+	w := &blockWorker{started: make(chan struct{}), cancelled: make(chan struct{})}
+	workers := river.NewWorkers()
+	river.AddWorker(workers, w)
+	j, err := jobs.New(pool, sqlDB, workers, jobs.WithPollInterval(50*time.Millisecond), jobs.WithSoftStopTimeout(100*time.Millisecond))
+	require.NoError(t, err)
+	require.NoError(t, j.Start(ctx))
+	_, err = j.Client.Insert(ctx, blockArgs{}, nil)
+	require.NoError(t, err)
+	select {
+	case <-w.started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("job never started")
+	}
+	sctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	require.NoError(t, j.Stop(sctx))
+	require.Less(t, time.Since(start), 3*time.Second)
+	select {
+	case <-w.cancelled:
+	default:
+		t.Fatal("job context not cancelled")
+	}
+}
+
+func TestDefaultSoftStopTimeout(t *testing.T) {
+	require.Equal(t, 20*time.Second, jobs.SoftStopTimeout)
+}

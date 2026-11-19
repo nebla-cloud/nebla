@@ -4,6 +4,7 @@ package jobs
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -26,6 +27,8 @@ const (
 	MaxMaintenanceWorkers = 4
 	// RescueStuckJobsAfter must exceed every worker's Timeout.
 	RescueStuckJobsAfter = 15 * time.Minute
+	// SoftStopTimeout is how long Stop lets jobs finish before cancelling their contexts.
+	SoftStopTimeout = 20 * time.Second
 )
 
 // Jobs holds the worker client and an insert-only client over the shared *sql.DB.
@@ -51,6 +54,7 @@ func (pingWorker) Work(context.Context, *river.Job[PingArgs]) error { return nil
 type options struct {
 	periodic     []*river.PeriodicJob
 	pollInterval time.Duration
+	softStop     time.Duration
 	logger       *slog.Logger
 }
 
@@ -63,6 +67,9 @@ func WithPeriodicJobs(jobs ...*river.PeriodicJob) Option {
 // WithPollInterval sets how often idle workers poll for jobs; tests use a short one.
 func WithPollInterval(d time.Duration) Option { return func(o *options) { o.pollInterval = d } }
 
+// WithSoftStopTimeout overrides SoftStopTimeout; tests use a short one.
+func WithSoftStopTimeout(d time.Duration) Option { return func(o *options) { o.softStop = d } }
+
 func WithLogger(l *slog.Logger) Option { return func(o *options) { o.logger = l } }
 
 // New builds both clients; sqlDB must be the *sql.DB that db.WithTx and ent use.
@@ -74,6 +81,9 @@ func New(pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.Workers, opts ...Opti
 	if workers == nil {
 		workers = river.NewWorkers()
 	}
+	if o.softStop <= 0 {
+		o.softStop = SoftStopTimeout
+	}
 	if err := river.AddWorkerSafely(workers, pingWorker{}); err != nil {
 		return nil, fmt.Errorf("river workers: %w", err)
 	}
@@ -83,6 +93,7 @@ func New(pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.Workers, opts ...Opti
 		PeriodicJobs:         o.periodic,
 		Logger:               o.logger,
 		RescueStuckJobsAfter: RescueStuckJobsAfter,
+		SoftStopTimeout:      o.softStop,
 	}
 	if o.pollInterval > 0 {
 		cfg.FetchPollInterval = o.pollInterval
@@ -125,8 +136,19 @@ func (j *Jobs) StartAction(ctx context.Context, tx *sql.Tx, etx *ent.Client, pro
 
 func (j *Jobs) Start(ctx context.Context) error { return j.Client.Start(ctx) }
 
-// Stop waits for running jobs to finish until ctx is done.
-func (j *Jobs) Stop(ctx context.Context) error { return j.Client.Stop(ctx) }
+// stopCancelWait bounds the hard stop that follows a Stop that ran out of time.
+const stopCancelWait = 5 * time.Second
+
+// Stop lets jobs finish, cancels them after SoftStopTimeout, and hard-cancels if ctx runs out first.
+func (j *Jobs) Stop(ctx context.Context) error {
+	err := j.Client.Stop(ctx)
+	if err == nil || ctx.Err() == nil {
+		return err
+	}
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stopCancelWait)
+	defer cancel()
+	return errors.Join(err, j.Client.StopAndCancel(cctx))
+}
 
 const (
 	OrphanedCode    = "orphaned"
