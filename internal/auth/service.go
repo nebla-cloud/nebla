@@ -104,6 +104,18 @@ func (s *Service) Setup(ctx context.Context, email, pw, name string) (User, erro
 
 // CreateUser creates an account and fires the registration hook.
 func (s *Service) CreateUser(ctx context.Context, email, pw, name string, admin bool) (User, error) {
+	u, err := s.CreateUserTx(ctx, s.db, email, pw, name, admin)
+	if err != nil {
+		return User{}, err
+	}
+	if err := s.Registered(ctx, u.ID); err != nil {
+		return User{}, err
+	}
+	return u, nil
+}
+
+// CreateUserTx inserts a user through db (usually a tx); call Registered after commit.
+func (s *Service) CreateUserTx(ctx context.Context, db *ent.Client, email, pw, name string, admin bool) (User, error) {
 	email, err := validate(email, pw, name)
 	if err != nil {
 		return User{}, err
@@ -112,14 +124,33 @@ func (s *Service) CreateUser(ctx context.Context, email, pw, name string, admin 
 	if err != nil {
 		return User{}, err
 	}
-	row, err := s.db.User.Create().SetEmail(email).SetName(name).SetPasswordHash(hash).SetIsAdmin(admin).Save(ctx)
+	row, err := db.User.Create().SetEmail(email).SetName(name).SetPasswordHash(hash).SetIsAdmin(admin).Save(ctx)
 	if err != nil {
 		return User{}, mapCreateErr(err)
 	}
-	if err := s.reg.OnUserCreated(ctx, row.ID); err != nil {
-		return User{}, err
-	}
 	return toUser(row), nil
+}
+
+// Registered fires the registration hook for a newly committed user.
+func (s *Service) Registered(ctx context.Context, userID int64) error {
+	return s.reg.OnUserCreated(ctx, userID)
+}
+
+// ListUsers returns one page of users ordered by id, plus the total count.
+func (s *Service) ListUsers(ctx context.Context, page, perPage int) ([]User, int, error) {
+	total, err := s.db.User.Query().Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := s.db.User.Query().Order(user.ByID()).Offset((page - 1) * perPage).Limit(perPage).All(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]User, len(rows))
+	for i, r := range rows {
+		out[i] = toUser(r)
+	}
+	return out, total, nil
 }
 
 func mapCreateErr(err error) error {

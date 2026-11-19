@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/db"
@@ -45,11 +46,12 @@ func NewDB(t *testing.T) *pgxpool.Pool {
 // NewEnt starts a migrated Postgres like NewDB and returns an ent client over it.
 func NewEnt(t *testing.T) *ent.Client {
 	t.Helper()
-	return entFor(t, NewDB(t))
+	c, _ := entFor(t, NewDB(t))
+	return c
 }
 
-func entFor(t *testing.T, pool *pgxpool.Pool) *ent.Client {
-	c := db.NewEnt(pool)
+func entFor(t *testing.T, pool *pgxpool.Pool) (*ent.Client, *sql.DB) {
+	c, sqlDB := db.NewEnt(pool)
 	t.Cleanup(func() { c.Close() })
-	return c
+	return c, sqlDB
 }

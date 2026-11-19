@@ -5,6 +5,10 @@ package ent
 import (
 	"time"
 
+	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/projectmember"
 	"github.com/Hexeption/nebla/internal/ent/schema"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/user"
@@ -14,6 +18,50 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	apitokenFields := schema.APIToken{}.Fields()
+	_ = apitokenFields
+	// apitokenDescCreatedAt is the schema descriptor for created_at field.
+	apitokenDescCreatedAt := apitokenFields[6].Descriptor()
+	// apitoken.DefaultCreatedAt holds the default value on creation for the created_at field.
+	apitoken.DefaultCreatedAt = apitokenDescCreatedAt.Default.(func() time.Time)
+	inviteFields := schema.Invite{}.Fields()
+	_ = inviteFields
+	// inviteDescCreatedAt is the schema descriptor for created_at field.
+	inviteDescCreatedAt := inviteFields[7].Descriptor()
+	// invite.DefaultCreatedAt holds the default value on creation for the created_at field.
+	invite.DefaultCreatedAt = inviteDescCreatedAt.Default.(func() time.Time)
+	projectFields := schema.Project{}.Fields()
+	_ = projectFields
+	// projectDescMaxServers is the schema descriptor for max_servers field.
+	projectDescMaxServers := projectFields[2].Descriptor()
+	// project.DefaultMaxServers holds the default value on creation for the max_servers field.
+	project.DefaultMaxServers = projectDescMaxServers.Default.(int)
+	// projectDescMaxVcpu is the schema descriptor for max_vcpu field.
+	projectDescMaxVcpu := projectFields[3].Descriptor()
+	// project.DefaultMaxVcpu holds the default value on creation for the max_vcpu field.
+	project.DefaultMaxVcpu = projectDescMaxVcpu.Default.(int)
+	// projectDescMaxMemoryMB is the schema descriptor for max_memory_mb field.
+	projectDescMaxMemoryMB := projectFields[4].Descriptor()
+	// project.DefaultMaxMemoryMB holds the default value on creation for the max_memory_mb field.
+	project.DefaultMaxMemoryMB = projectDescMaxMemoryMB.Default.(int)
+	// projectDescMaxDiskGB is the schema descriptor for max_disk_gb field.
+	projectDescMaxDiskGB := projectFields[5].Descriptor()
+	// project.DefaultMaxDiskGB holds the default value on creation for the max_disk_gb field.
+	project.DefaultMaxDiskGB = projectDescMaxDiskGB.Default.(int)
+	// projectDescMaxIps is the schema descriptor for max_ips field.
+	projectDescMaxIps := projectFields[6].Descriptor()
+	// project.DefaultMaxIps holds the default value on creation for the max_ips field.
+	project.DefaultMaxIps = projectDescMaxIps.Default.(int)
+	// projectDescCreatedAt is the schema descriptor for created_at field.
+	projectDescCreatedAt := projectFields[7].Descriptor()
+	// project.DefaultCreatedAt holds the default value on creation for the created_at field.
+	project.DefaultCreatedAt = projectDescCreatedAt.Default.(func() time.Time)
+	projectmemberFields := schema.ProjectMember{}.Fields()
+	_ = projectmemberFields
+	// projectmemberDescCreatedAt is the schema descriptor for created_at field.
+	projectmemberDescCreatedAt := projectmemberFields[4].Descriptor()
+	// projectmember.DefaultCreatedAt holds the default value on creation for the created_at field.
+	projectmember.DefaultCreatedAt = projectmemberDescCreatedAt.Default.(func() time.Time)
 	sessionFields := schema.Session{}.Fields()
 	_ = sessionFields
 	// sessionDescCreatedAt is the schema descriptor for created_at field.

@@ -8,7 +8,11 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/invite"
 	"github.com/Hexeption/nebla/internal/ent/predicate"
+	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/projectmember"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
 	"github.com/Hexeption/nebla/internal/ent/user"
@@ -68,6 +72,114 @@ func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
 		return err
 	}
 	return f(ctx, query)
+}
+
+// The APITokenFunc type is an adapter to allow the use of ordinary function as a Querier.
+type APITokenFunc func(context.Context, *ent.APITokenQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f APITokenFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.APITokenQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.APITokenQuery", q)
+}
+
+// The TraverseAPIToken type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseAPIToken func(context.Context, *ent.APITokenQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseAPIToken) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseAPIToken) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.APITokenQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.APITokenQuery", q)
+}
+
+// The InviteFunc type is an adapter to allow the use of ordinary function as a Querier.
+type InviteFunc func(context.Context, *ent.InviteQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f InviteFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.InviteQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.InviteQuery", q)
+}
+
+// The TraverseInvite type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseInvite func(context.Context, *ent.InviteQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseInvite) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseInvite) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.InviteQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.InviteQuery", q)
+}
+
+// The ProjectFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ProjectFunc func(context.Context, *ent.ProjectQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ProjectFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ProjectQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ProjectQuery", q)
+}
+
+// The TraverseProject type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseProject func(context.Context, *ent.ProjectQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseProject) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseProject) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ProjectQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ProjectQuery", q)
+}
+
+// The ProjectMemberFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ProjectMemberFunc func(context.Context, *ent.ProjectMemberQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ProjectMemberFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ProjectMemberQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ProjectMemberQuery", q)
+}
+
+// The TraverseProjectMember type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseProjectMember func(context.Context, *ent.ProjectMemberQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseProjectMember) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseProjectMember) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ProjectMemberQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ProjectMemberQuery", q)
 }
 
 // The SessionFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -154,6 +266,14 @@ func (f TraverseUser) Traverse(ctx context.Context, q ent.Query) error {
 // NewQuery returns the generic Query interface for the given typed query.
 func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
+	case *ent.APITokenQuery:
+		return &query[*ent.APITokenQuery, predicate.APIToken, apitoken.OrderOption]{typ: ent.TypeAPIToken, tq: q}, nil
+	case *ent.InviteQuery:
+		return &query[*ent.InviteQuery, predicate.Invite, invite.OrderOption]{typ: ent.TypeInvite, tq: q}, nil
+	case *ent.ProjectQuery:
+		return &query[*ent.ProjectQuery, predicate.Project, project.OrderOption]{typ: ent.TypeProject, tq: q}, nil
+	case *ent.ProjectMemberQuery:
+		return &query[*ent.ProjectMemberQuery, predicate.ProjectMember, projectmember.OrderOption]{typ: ent.TypeProjectMember, tq: q}, nil
 	case *ent.SessionQuery:
 		return &query[*ent.SessionQuery, predicate.Session, session.OrderOption]{typ: ent.TypeSession, tq: q}, nil
 	case *ent.SettingQuery:

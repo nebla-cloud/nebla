@@ -7,12 +7,57 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
 )
+
+// Defines values for Role.
+const (
+	RoleAdmin    Role = "admin"
+	RoleMember   Role = "member"
+	RoleOwner    Role = "owner"
+	RoleReadOnly Role = "read_only"
+)
+
+// Valid indicates whether the value is a known member of the Role enum.
+func (e Role) Valid() bool {
+	switch e {
+	case RoleAdmin:
+		return true
+	case RoleMember:
+		return true
+	case RoleOwner:
+		return true
+	case RoleReadOnly:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TokenPermission.
+const (
+	Read      TokenPermission = "read"
+	ReadWrite TokenPermission = "read_write"
+)
+
+// Valid indicates whether the value is a known member of the TokenPermission enum.
+func (e TokenPermission) Valid() bool {
+	switch e {
+	case Read:
+		return true
+	case ReadWrite:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for GetHealthz200JSONResponseBodyStatus.
 const (
@@ -34,6 +79,15 @@ type AdminSettings struct {
 	SelfSignup bool `json:"self_signup"`
 }
 
+// ApiToken defines model for ApiToken.
+type ApiToken struct {
+	Created    time.Time       `json:"created"`
+	Id         int64           `json:"id"`
+	LastUsed   *time.Time      `json:"last_used"`
+	Name       string          `json:"name"`
+	Permission TokenPermission `json:"permission"`
+}
+
 // Credentials defines model for Credentials.
 type Credentials struct {
 	Email    string `json:"email"`
@@ -48,6 +102,52 @@ type Error struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
+
+// Member defines model for Member.
+type Member struct {
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	Role   Role   `json:"role"`
+	UserId int64  `json:"user_id"`
+}
+
+// Meta defines model for Meta.
+type Meta struct {
+	Pagination struct {
+		Page         int `json:"page"`
+		PerPage      int `json:"per_page"`
+		TotalEntries int `json:"total_entries"`
+	} `json:"pagination"`
+}
+
+// Project defines model for Project.
+type Project struct {
+	Created time.Time `json:"created"`
+	Id      int64     `json:"id"`
+	Name    string    `json:"name"`
+	Quota   Quota     `json:"quota"`
+	Role    Role      `json:"role"`
+}
+
+// ProjectInput defines model for ProjectInput.
+type ProjectInput struct {
+	Name string `json:"name"`
+}
+
+// Quota defines model for Quota.
+type Quota struct {
+	MaxDiskGb   int `json:"max_disk_gb"`
+	MaxIps      int `json:"max_ips"`
+	MaxMemoryMb int `json:"max_memory_mb"`
+	MaxServers  int `json:"max_servers"`
+	MaxVcpu     int `json:"max_vcpu"`
+}
+
+// Role defines model for Role.
+type Role string
+
+// TokenPermission defines model for TokenPermission.
+type TokenPermission string
 
 // TotpCode defines model for TotpCode.
 type TotpCode struct {
@@ -77,6 +177,29 @@ type User struct {
 	TotpEnabled bool   `json:"totp_enabled"`
 }
 
+// Page defines model for Page.
+type Page = int
+
+// PerPage defines model for PerPage.
+type PerPage = int
+
+// ProjectID defines model for ProjectID.
+type ProjectID = int64
+
+// GetAdminUsersParams defines parameters for GetAdminUsers.
+type GetAdminUsersParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
+// PostAdminUsersJSONBody defines parameters for PostAdminUsers.
+type PostAdminUsersJSONBody struct {
+	Email    string `json:"email"`
+	IsAdmin  *bool  `json:"is_admin,omitempty"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
 // PostAuthLoginJSONBody defines parameters for PostAuthLogin.
 type PostAuthLoginJSONBody struct {
 	Email    string  `json:"email"`
@@ -87,8 +210,37 @@ type PostAuthLoginJSONBody struct {
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
 
+// PostInviteAcceptJSONBody defines parameters for PostInviteAccept.
+type PostInviteAcceptJSONBody struct {
+	Name     *string `json:"name,omitempty"`
+	Password *string `json:"password,omitempty"`
+}
+
+// PostProjectInvitesJSONBody defines parameters for PostProjectInvites.
+type PostProjectInvitesJSONBody struct {
+	Email string `json:"email"`
+	Role  Role   `json:"role"`
+}
+
+// PutProjectMemberJSONBody defines parameters for PutProjectMember.
+type PutProjectMemberJSONBody struct {
+	Role Role `json:"role"`
+}
+
+// PostProjectTokensJSONBody defines parameters for PostProjectTokens.
+type PostProjectTokensJSONBody struct {
+	Name       string          `json:"name"`
+	Permission TokenPermission `json:"permission"`
+}
+
+// PutAdminProjectQuotaJSONRequestBody defines body for PutAdminProjectQuota for application/json ContentType.
+type PutAdminProjectQuotaJSONRequestBody = Quota
+
 // PutAdminSettingsJSONRequestBody defines body for PutAdminSettings for application/json ContentType.
 type PutAdminSettingsJSONRequestBody = AdminSettings
+
+// PostAdminUsersJSONRequestBody defines body for PostAdminUsers for application/json ContentType.
+type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
@@ -99,6 +251,24 @@ type PostAuthTotpDisableJSONRequestBody = TotpCode
 // PostAuthTotpVerifyJSONRequestBody defines body for PostAuthTotpVerify for application/json ContentType.
 type PostAuthTotpVerifyJSONRequestBody = TotpCode
 
+// PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
+type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
+
+// PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
+type PostProjectsJSONRequestBody = ProjectInput
+
+// PutProjectJSONRequestBody defines body for PutProject for application/json ContentType.
+type PutProjectJSONRequestBody = ProjectInput
+
+// PostProjectInvitesJSONRequestBody defines body for PostProjectInvites for application/json ContentType.
+type PostProjectInvitesJSONRequestBody PostProjectInvitesJSONBody
+
+// PutProjectMemberJSONRequestBody defines body for PutProjectMember for application/json ContentType.
+type PutProjectMemberJSONRequestBody PutProjectMemberJSONBody
+
+// PostProjectTokensJSONRequestBody defines body for PostProjectTokens for application/json ContentType.
+type PostProjectTokensJSONRequestBody PostProjectTokensJSONBody
+
 // PostSetupJSONRequestBody defines body for PostSetup for application/json ContentType.
 type PostSetupJSONRequestBody = Credentials
 
@@ -107,12 +277,21 @@ type PostSignupJSONRequestBody = Credentials
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
+	// (PUT /admin/projects/{id}/quota)
+	PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID)
 	// GetAdminSettings Read admin settings
 	// (GET /admin/settings)
 	GetAdminSettings(w http.ResponseWriter, r *http.Request)
 	// PutAdminSettings Update admin settings
 	// (PUT /admin/settings)
 	PutAdminSettings(w http.ResponseWriter, r *http.Request)
+	// GetAdminUsers List all users
+	// (GET /admin/users)
+	GetAdminUsers(w http.ResponseWriter, r *http.Request, params GetAdminUsersParams)
+	// PostAdminUsers Create a user
+	// (POST /admin/users)
+	PostAdminUsers(w http.ResponseWriter, r *http.Request)
 	// PostAuthLogin Log in and set the session cookie
 	// (POST /auth/login)
 	PostAuthLogin(w http.ResponseWriter, r *http.Request)
@@ -131,9 +310,51 @@ type ServerInterface interface {
 	// GetHealthz Liveness check
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+	// PostInviteAccept Accept an invite, creating an account when not logged in
+	// (POST /invites/{token}/accept)
+	PostInviteAccept(w http.ResponseWriter, r *http.Request, token string)
 	// GetMe Current user
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// GetProjects List the caller's projects
+	// (GET /projects)
+	GetProjects(w http.ResponseWriter, r *http.Request)
+	// PostProjects Create a project owned by the caller
+	// (POST /projects)
+	PostProjects(w http.ResponseWriter, r *http.Request)
+	// DeleteProject Delete an empty project
+	// (DELETE /projects/{id})
+	DeleteProject(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// GetProject Get a project
+	// (GET /projects/{id})
+	GetProject(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// PutProject Rename a project
+	// (PUT /projects/{id})
+	PutProject(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// PostProjectInvites Invite someone by email
+	// (POST /projects/{id}/invites)
+	PostProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// GetProjectMembers List project members
+	// (GET /projects/{id}/members)
+	GetProjectMembers(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// DeleteProjectMember Remove a member
+	// (DELETE /projects/{id}/members/{user_id})
+	DeleteProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64)
+	// GetProjectMember Get a project member
+	// (GET /projects/{id}/members/{user_id})
+	GetProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64)
+	// PutProjectMember Change a member's role
+	// (PUT /projects/{id}/members/{user_id})
+	PutProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64)
+	// GetProjectTokens List API tokens
+	// (GET /projects/{id}/tokens)
+	GetProjectTokens(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// PostProjectTokens Create an API token; the plaintext is returned once
+	// (POST /projects/{id}/tokens)
+	PostProjectTokens(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// DeleteProjectToken Revoke an API token
+	// (DELETE /projects/{id}/tokens/{token_id})
+	DeleteProjectToken(w http.ResponseWriter, r *http.Request, id ProjectID, tokenId int64)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(w http.ResponseWriter, r *http.Request)
@@ -149,6 +370,12 @@ type ServerInterface interface {
 
 type Unimplemented struct{}
 
+// PutAdminProjectQuota Set a project's quota (0 = unlimited)
+// (PUT /admin/projects/{id}/quota)
+func (_ Unimplemented) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetAdminSettings Read admin settings
 // (GET /admin/settings)
 func (_ Unimplemented) GetAdminSettings(w http.ResponseWriter, r *http.Request) {
@@ -158,6 +385,18 @@ func (_ Unimplemented) GetAdminSettings(w http.ResponseWriter, r *http.Request) 
 // PutAdminSettings Update admin settings
 // (PUT /admin/settings)
 func (_ Unimplemented) PutAdminSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminUsers List all users
+// (GET /admin/users)
+func (_ Unimplemented) GetAdminUsers(w http.ResponseWriter, r *http.Request, params GetAdminUsersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminUsers Create a user
+// (POST /admin/users)
+func (_ Unimplemented) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -197,9 +436,93 @@ func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// PostInviteAccept Accept an invite, creating an account when not logged in
+// (POST /invites/{token}/accept)
+func (_ Unimplemented) PostInviteAccept(w http.ResponseWriter, r *http.Request, token string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetMe Current user
 // (GET /me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProjects List the caller's projects
+// (GET /projects)
+func (_ Unimplemented) GetProjects(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostProjects Create a project owned by the caller
+// (POST /projects)
+func (_ Unimplemented) PostProjects(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteProject Delete an empty project
+// (DELETE /projects/{id})
+func (_ Unimplemented) DeleteProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProject Get a project
+// (GET /projects/{id})
+func (_ Unimplemented) GetProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutProject Rename a project
+// (PUT /projects/{id})
+func (_ Unimplemented) PutProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostProjectInvites Invite someone by email
+// (POST /projects/{id}/invites)
+func (_ Unimplemented) PostProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProjectMembers List project members
+// (GET /projects/{id}/members)
+func (_ Unimplemented) GetProjectMembers(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteProjectMember Remove a member
+// (DELETE /projects/{id}/members/{user_id})
+func (_ Unimplemented) DeleteProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProjectMember Get a project member
+// (GET /projects/{id}/members/{user_id})
+func (_ Unimplemented) GetProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutProjectMember Change a member's role
+// (PUT /projects/{id}/members/{user_id})
+func (_ Unimplemented) PutProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProjectTokens List API tokens
+// (GET /projects/{id}/tokens)
+func (_ Unimplemented) GetProjectTokens(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostProjectTokens Create an API token; the plaintext is returned once
+// (POST /projects/{id}/tokens)
+func (_ Unimplemented) PostProjectTokens(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteProjectToken Revoke an API token
+// (DELETE /projects/{id}/tokens/{token_id})
+func (_ Unimplemented) DeleteProjectToken(w http.ResponseWriter, r *http.Request, id ProjectID, tokenId int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -230,6 +553,32 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// PutAdminProjectQuota operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminProjectQuota(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAdminSettings operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminSettings(w http.ResponseWriter, r *http.Request) {
 
@@ -249,6 +598,66 @@ func (siw *ServerInterfaceWrapper) PutAdminSettings(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutAdminSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminUsersParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUsers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminUsers(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -342,11 +751,387 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// PostInviteAccept operation middleware
+func (siw *ServerInterfaceWrapper) PostInviteAccept(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", chi.URLParam(r, "token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostInviteAccept(w, r, token)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMe operation middleware
 func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProjects operation middleware
+func (siw *ServerInterfaceWrapper) GetProjects(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProjects(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostProjects operation middleware
+func (siw *ServerInterfaceWrapper) PostProjects(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProjects(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProject operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProject(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProject operation middleware
+func (siw *ServerInterfaceWrapper) GetProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProject(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutProject operation middleware
+func (siw *ServerInterfaceWrapper) PutProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutProject(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostProjectInvites operation middleware
+func (siw *ServerInterfaceWrapper) PostProjectInvites(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProjectInvites(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProjectMembers operation middleware
+func (siw *ServerInterfaceWrapper) GetProjectMembers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProjectMembers(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProjectMember operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProjectMember(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "user_id" -------------
+	var userId int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProjectMember(w, r, id, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProjectMember operation middleware
+func (siw *ServerInterfaceWrapper) GetProjectMember(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "user_id" -------------
+	var userId int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProjectMember(w, r, id, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutProjectMember operation middleware
+func (siw *ServerInterfaceWrapper) PutProjectMember(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "user_id" -------------
+	var userId int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_id", chi.URLParam(r, "user_id"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutProjectMember(w, r, id, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProjectTokens operation middleware
+func (siw *ServerInterfaceWrapper) GetProjectTokens(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProjectTokens(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostProjectTokens operation middleware
+func (siw *ServerInterfaceWrapper) PostProjectTokens(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProjectTokens(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProjectToken operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProjectToken(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "token_id" -------------
+	var tokenId int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token_id", chi.URLParam(r, "token_id"), &tokenId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProjectToken(w, r, id, tokenId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -547,11 +1332,141 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/admin/settings", wrapper.PutAdminSettings)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/users", wrapper.GetAdminUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/users", wrapper.PostAdminUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/admin/projects/{id}/quota", wrapper.PutAdminProjectQuota)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/projects", wrapper.GetProjects)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/projects", wrapper.PostProjects)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/projects/{id}", wrapper.DeleteProject)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/projects/{id}", wrapper.GetProject)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/projects/{id}", wrapper.PutProject)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/projects/{id}/members", wrapper.GetProjectMembers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/projects/{id}/members/{user_id}", wrapper.DeleteProjectMember)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/projects/{id}/members/{user_id}", wrapper.GetProjectMember)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/projects/{id}/members/{user_id}", wrapper.PutProjectMember)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/projects/{id}/invites", wrapper.PostProjectInvites)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/invites/{token}/accept", wrapper.PostInviteAccept)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/projects/{id}/tokens", wrapper.GetProjectTokens)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/projects/{id}/tokens", wrapper.PostProjectTokens)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/projects/{id}/tokens/{token_id}", wrapper.DeleteProjectToken)
+	})
 
 	return r
 }
 
 type ErrorJSONResponse Error
+
+type PutAdminProjectQuotaRequestObject struct {
+	Id   ProjectID `json:"id"`
+	Body *PutAdminProjectQuotaJSONRequestBody
+}
+
+type PutAdminProjectQuotaResponseObject interface {
+	VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error
+}
+
+type PutAdminProjectQuota200JSONResponse Quota
+
+func (response PutAdminProjectQuota200JSONResponse) VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProjectQuota401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutAdminProjectQuota401JSONResponse) VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProjectQuota403JSONResponse Error
+
+func (response PutAdminProjectQuota403JSONResponse) VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProjectQuota404JSONResponse Error
+
+func (response PutAdminProjectQuota404JSONResponse) VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminProjectQuota422JSONResponse Error
+
+func (response PutAdminProjectQuota422JSONResponse) VisitPutAdminProjectQuotaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type GetAdminSettingsRequestObject struct {
 }
@@ -648,6 +1563,137 @@ func (response PutAdminSettings403JSONResponse) VisitPutAdminSettingsResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsersRequestObject struct {
+	Params GetAdminUsersParams
+}
+
+type GetAdminUsersResponseObject interface {
+	VisitGetAdminUsersResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUsers200JSONResponse struct {
+	Meta  Meta   `json:"meta"`
+	Users []User `json:"users"`
+}
+
+func (response GetAdminUsers200JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsers401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminUsers401JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUsers403JSONResponse Error
+
+func (response GetAdminUsers403JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUsersRequestObject struct {
+	Body *PostAdminUsersJSONRequestBody
+}
+
+type PostAdminUsersResponseObject interface {
+	VisitPostAdminUsersResponse(w http.ResponseWriter) error
+}
+
+type PostAdminUsers201JSONResponse User
+
+func (response PostAdminUsers201JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUsers401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminUsers401JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUsers403JSONResponse Error
+
+func (response PostAdminUsers403JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUsers409JSONResponse Error
+
+func (response PostAdminUsers409JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUsers422JSONResponse Error
+
+func (response PostAdminUsers422JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -884,6 +1930,81 @@ func (response GetHealthz200JSONResponse) VisitGetHealthzResponse(w http.Respons
 	return err
 }
 
+type PostInviteAcceptRequestObject struct {
+	Token string `json:"token"`
+	Body  *PostInviteAcceptJSONRequestBody
+}
+
+type PostInviteAcceptResponseObject interface {
+	VisitPostInviteAcceptResponse(w http.ResponseWriter) error
+}
+
+type PostInviteAccept200ResponseHeaders struct {
+	SetCookie *string
+}
+
+type PostInviteAccept200JSONResponse struct {
+	Body    Project
+	Headers PostInviteAccept200ResponseHeaders
+}
+
+func (response PostInviteAccept200JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostInviteAccept404JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostInviteAccept404JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostInviteAccept409JSONResponse Error
+
+func (response PostInviteAccept409JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostInviteAccept422JSONResponse Error
+
+func (response PostInviteAccept422JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -915,6 +2036,842 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectsRequestObject struct {
+}
+
+type GetProjectsResponseObject interface {
+	VisitGetProjectsResponse(w http.ResponseWriter) error
+}
+
+type GetProjects200JSONResponse struct {
+	Projects []Project `json:"projects"`
+}
+
+func (response GetProjects200JSONResponse) VisitGetProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjects401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetProjects401JSONResponse) VisitGetProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectsRequestObject struct {
+	Body *PostProjectsJSONRequestBody
+}
+
+type PostProjectsResponseObject interface {
+	VisitPostProjectsResponse(w http.ResponseWriter) error
+}
+
+type PostProjects201JSONResponse Project
+
+func (response PostProjects201JSONResponse) VisitPostProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjects401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostProjects401JSONResponse) VisitPostProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjects422JSONResponse Error
+
+func (response PostProjects422JSONResponse) VisitPostProjectsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectRequestObject struct {
+	Id ProjectID `json:"id"`
+}
+
+type DeleteProjectResponseObject interface {
+	VisitDeleteProjectResponse(w http.ResponseWriter) error
+}
+
+type DeleteProject204Response struct {
+}
+
+func (response DeleteProject204Response) VisitDeleteProjectResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProject401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteProject401JSONResponse) VisitDeleteProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProject403JSONResponse Error
+
+func (response DeleteProject403JSONResponse) VisitDeleteProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProject404JSONResponse Error
+
+func (response DeleteProject404JSONResponse) VisitDeleteProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProject409JSONResponse Error
+
+func (response DeleteProject409JSONResponse) VisitDeleteProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectRequestObject struct {
+	Id ProjectID `json:"id"`
+}
+
+type GetProjectResponseObject interface {
+	VisitGetProjectResponse(w http.ResponseWriter) error
+}
+
+type GetProject200JSONResponse Project
+
+func (response GetProject200JSONResponse) VisitGetProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProject401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetProject401JSONResponse) VisitGetProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProject404JSONResponse Error
+
+func (response GetProject404JSONResponse) VisitGetProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProjectRequestObject struct {
+	Id   ProjectID `json:"id"`
+	Body *PutProjectJSONRequestBody
+}
+
+type PutProjectResponseObject interface {
+	VisitPutProjectResponse(w http.ResponseWriter) error
+}
+
+type PutProject200JSONResponse Project
+
+func (response PutProject200JSONResponse) VisitPutProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProject401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutProject401JSONResponse) VisitPutProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProject403JSONResponse Error
+
+func (response PutProject403JSONResponse) VisitPutProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProject404JSONResponse Error
+
+func (response PutProject404JSONResponse) VisitPutProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProject422JSONResponse Error
+
+func (response PutProject422JSONResponse) VisitPutProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectInvitesRequestObject struct {
+	Id   ProjectID `json:"id"`
+	Body *PostProjectInvitesJSONRequestBody
+}
+
+type PostProjectInvitesResponseObject interface {
+	VisitPostProjectInvitesResponse(w http.ResponseWriter) error
+}
+
+type PostProjectInvites201JSONResponse struct {
+	InviteUrl string `json:"invite_url"`
+}
+
+func (response PostProjectInvites201JSONResponse) VisitPostProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectInvites401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostProjectInvites401JSONResponse) VisitPostProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectInvites403JSONResponse Error
+
+func (response PostProjectInvites403JSONResponse) VisitPostProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectInvites404JSONResponse Error
+
+func (response PostProjectInvites404JSONResponse) VisitPostProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectInvites422JSONResponse Error
+
+func (response PostProjectInvites422JSONResponse) VisitPostProjectInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMembersRequestObject struct {
+	Id ProjectID `json:"id"`
+}
+
+type GetProjectMembersResponseObject interface {
+	VisitGetProjectMembersResponse(w http.ResponseWriter) error
+}
+
+type GetProjectMembers200JSONResponse struct {
+	Members []Member `json:"members"`
+}
+
+func (response GetProjectMembers200JSONResponse) VisitGetProjectMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMembers401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetProjectMembers401JSONResponse) VisitGetProjectMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMembers404JSONResponse Error
+
+func (response GetProjectMembers404JSONResponse) VisitGetProjectMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectMemberRequestObject struct {
+	Id     ProjectID `json:"id"`
+	UserId int64     `json:"user_id"`
+}
+
+type DeleteProjectMemberResponseObject interface {
+	VisitDeleteProjectMemberResponse(w http.ResponseWriter) error
+}
+
+type DeleteProjectMember204Response struct {
+}
+
+func (response DeleteProjectMember204Response) VisitDeleteProjectMemberResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProjectMember401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteProjectMember401JSONResponse) VisitDeleteProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectMember403JSONResponse Error
+
+func (response DeleteProjectMember403JSONResponse) VisitDeleteProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectMember404JSONResponse Error
+
+func (response DeleteProjectMember404JSONResponse) VisitDeleteProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectMember409JSONResponse Error
+
+func (response DeleteProjectMember409JSONResponse) VisitDeleteProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMemberRequestObject struct {
+	Id     ProjectID `json:"id"`
+	UserId int64     `json:"user_id"`
+}
+
+type GetProjectMemberResponseObject interface {
+	VisitGetProjectMemberResponse(w http.ResponseWriter) error
+}
+
+type GetProjectMember200JSONResponse Member
+
+func (response GetProjectMember200JSONResponse) VisitGetProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMember401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetProjectMember401JSONResponse) VisitGetProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectMember404JSONResponse Error
+
+func (response GetProjectMember404JSONResponse) VisitGetProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProjectMemberRequestObject struct {
+	Id     ProjectID `json:"id"`
+	UserId int64     `json:"user_id"`
+	Body   *PutProjectMemberJSONRequestBody
+}
+
+type PutProjectMemberResponseObject interface {
+	VisitPutProjectMemberResponse(w http.ResponseWriter) error
+}
+
+type PutProjectMember200JSONResponse Member
+
+func (response PutProjectMember200JSONResponse) VisitPutProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProjectMember401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutProjectMember401JSONResponse) VisitPutProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProjectMember403JSONResponse Error
+
+func (response PutProjectMember403JSONResponse) VisitPutProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProjectMember404JSONResponse Error
+
+func (response PutProjectMember404JSONResponse) VisitPutProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProjectMember409JSONResponse Error
+
+func (response PutProjectMember409JSONResponse) VisitPutProjectMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectTokensRequestObject struct {
+	Id ProjectID `json:"id"`
+}
+
+type GetProjectTokensResponseObject interface {
+	VisitGetProjectTokensResponse(w http.ResponseWriter) error
+}
+
+type GetProjectTokens200JSONResponse struct {
+	Tokens []ApiToken `json:"tokens"`
+}
+
+func (response GetProjectTokens200JSONResponse) VisitGetProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectTokens401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetProjectTokens401JSONResponse) VisitGetProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectTokens403JSONResponse Error
+
+func (response GetProjectTokens403JSONResponse) VisitGetProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProjectTokens404JSONResponse Error
+
+func (response GetProjectTokens404JSONResponse) VisitGetProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectTokensRequestObject struct {
+	Id   ProjectID `json:"id"`
+	Body *PostProjectTokensJSONRequestBody
+}
+
+type PostProjectTokensResponseObject interface {
+	VisitPostProjectTokensResponse(w http.ResponseWriter) error
+}
+
+type PostProjectTokens201JSONResponse struct {
+	Created    time.Time       `json:"created"`
+	Id         int64           `json:"id"`
+	LastUsed   *time.Time      `json:"last_used"`
+	Name       string          `json:"name"`
+	Permission TokenPermission `json:"permission"`
+	Token      string          `json:"token"`
+}
+
+func (response PostProjectTokens201JSONResponse) VisitPostProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectTokens401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostProjectTokens401JSONResponse) VisitPostProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectTokens403JSONResponse Error
+
+func (response PostProjectTokens403JSONResponse) VisitPostProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectTokens404JSONResponse Error
+
+func (response PostProjectTokens404JSONResponse) VisitPostProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProjectTokens422JSONResponse Error
+
+func (response PostProjectTokens422JSONResponse) VisitPostProjectTokensResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectTokenRequestObject struct {
+	Id      ProjectID `json:"id"`
+	TokenId int64     `json:"token_id"`
+}
+
+type DeleteProjectTokenResponseObject interface {
+	VisitDeleteProjectTokenResponse(w http.ResponseWriter) error
+}
+
+type DeleteProjectToken204Response struct {
+}
+
+func (response DeleteProjectToken204Response) VisitDeleteProjectTokenResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProjectToken401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteProjectToken401JSONResponse) VisitDeleteProjectTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectToken403JSONResponse Error
+
+func (response DeleteProjectToken403JSONResponse) VisitDeleteProjectTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProjectToken404JSONResponse Error
+
+func (response DeleteProjectToken404JSONResponse) VisitDeleteProjectTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1066,12 +3023,21 @@ func (response GetUiManifest200JSONResponse) VisitGetUiManifestResponse(w http.R
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
+	// (PUT /admin/projects/{id}/quota)
+	PutAdminProjectQuota(ctx context.Context, request PutAdminProjectQuotaRequestObject) (PutAdminProjectQuotaResponseObject, error)
 	// GetAdminSettings Read admin settings
 	// (GET /admin/settings)
 	GetAdminSettings(ctx context.Context, request GetAdminSettingsRequestObject) (GetAdminSettingsResponseObject, error)
 	// PutAdminSettings Update admin settings
 	// (PUT /admin/settings)
 	PutAdminSettings(ctx context.Context, request PutAdminSettingsRequestObject) (PutAdminSettingsResponseObject, error)
+	// GetAdminUsers List all users
+	// (GET /admin/users)
+	GetAdminUsers(ctx context.Context, request GetAdminUsersRequestObject) (GetAdminUsersResponseObject, error)
+	// PostAdminUsers Create a user
+	// (POST /admin/users)
+	PostAdminUsers(ctx context.Context, request PostAdminUsersRequestObject) (PostAdminUsersResponseObject, error)
 	// PostAuthLogin Log in and set the session cookie
 	// (POST /auth/login)
 	PostAuthLogin(ctx context.Context, request PostAuthLoginRequestObject) (PostAuthLoginResponseObject, error)
@@ -1090,9 +3056,51 @@ type StrictServerInterface interface {
 	// GetHealthz Liveness check
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
+	// PostInviteAccept Accept an invite, creating an account when not logged in
+	// (POST /invites/{token}/accept)
+	PostInviteAccept(ctx context.Context, request PostInviteAcceptRequestObject) (PostInviteAcceptResponseObject, error)
 	// GetMe Current user
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// GetProjects List the caller's projects
+	// (GET /projects)
+	GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error)
+	// PostProjects Create a project owned by the caller
+	// (POST /projects)
+	PostProjects(ctx context.Context, request PostProjectsRequestObject) (PostProjectsResponseObject, error)
+	// DeleteProject Delete an empty project
+	// (DELETE /projects/{id})
+	DeleteProject(ctx context.Context, request DeleteProjectRequestObject) (DeleteProjectResponseObject, error)
+	// GetProject Get a project
+	// (GET /projects/{id})
+	GetProject(ctx context.Context, request GetProjectRequestObject) (GetProjectResponseObject, error)
+	// PutProject Rename a project
+	// (PUT /projects/{id})
+	PutProject(ctx context.Context, request PutProjectRequestObject) (PutProjectResponseObject, error)
+	// PostProjectInvites Invite someone by email
+	// (POST /projects/{id}/invites)
+	PostProjectInvites(ctx context.Context, request PostProjectInvitesRequestObject) (PostProjectInvitesResponseObject, error)
+	// GetProjectMembers List project members
+	// (GET /projects/{id}/members)
+	GetProjectMembers(ctx context.Context, request GetProjectMembersRequestObject) (GetProjectMembersResponseObject, error)
+	// DeleteProjectMember Remove a member
+	// (DELETE /projects/{id}/members/{user_id})
+	DeleteProjectMember(ctx context.Context, request DeleteProjectMemberRequestObject) (DeleteProjectMemberResponseObject, error)
+	// GetProjectMember Get a project member
+	// (GET /projects/{id}/members/{user_id})
+	GetProjectMember(ctx context.Context, request GetProjectMemberRequestObject) (GetProjectMemberResponseObject, error)
+	// PutProjectMember Change a member's role
+	// (PUT /projects/{id}/members/{user_id})
+	PutProjectMember(ctx context.Context, request PutProjectMemberRequestObject) (PutProjectMemberResponseObject, error)
+	// GetProjectTokens List API tokens
+	// (GET /projects/{id}/tokens)
+	GetProjectTokens(ctx context.Context, request GetProjectTokensRequestObject) (GetProjectTokensResponseObject, error)
+	// PostProjectTokens Create an API token; the plaintext is returned once
+	// (POST /projects/{id}/tokens)
+	PostProjectTokens(ctx context.Context, request PostProjectTokensRequestObject) (PostProjectTokensResponseObject, error)
+	// DeleteProjectToken Revoke an API token
+	// (DELETE /projects/{id}/tokens/{token_id})
+	DeleteProjectToken(ctx context.Context, request DeleteProjectTokenRequestObject) (DeleteProjectTokenResponseObject, error)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(ctx context.Context, request PostSetupRequestObject) (PostSetupResponseObject, error)
@@ -1143,6 +3151,39 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// PutAdminProjectQuota operation middleware
+func (sh *strictHandler) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request PutAdminProjectQuotaRequestObject
+
+	request.Id = id
+
+	var body PutAdminProjectQuotaJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminProjectQuota(ctx, request.(PutAdminProjectQuotaRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminProjectQuota")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminProjectQuotaResponseObject); ok {
+		if err := validResponse.VisitPutAdminProjectQuotaResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetAdminSettings operation middleware
 func (sh *strictHandler) GetAdminSettings(w http.ResponseWriter, r *http.Request) {
 	var request GetAdminSettingsRequestObject
@@ -1191,6 +3232,63 @@ func (sh *strictHandler) PutAdminSettings(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutAdminSettingsResponseObject); ok {
 		if err := validResponse.VisitPutAdminSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminUsers operation middleware
+func (sh *strictHandler) GetAdminUsers(w http.ResponseWriter, r *http.Request, params GetAdminUsersParams) {
+	var request GetAdminUsersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUsers(ctx, request.(GetAdminUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUsersResponseObject); ok {
+		if err := validResponse.VisitGetAdminUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminUsers operation middleware
+func (sh *strictHandler) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminUsersRequestObject
+
+	var body PostAdminUsersJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminUsers(ctx, request.(PostAdminUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminUsersResponseObject); ok {
+		if err := validResponse.VisitPostAdminUsersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1363,6 +3461,42 @@ func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// PostInviteAccept operation middleware
+func (sh *strictHandler) PostInviteAccept(w http.ResponseWriter, r *http.Request, token string) {
+	var request PostInviteAcceptRequestObject
+
+	request.Token = token
+
+	var body PostInviteAcceptJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostInviteAccept(ctx, request.(PostInviteAcceptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostInviteAccept")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostInviteAcceptResponseObject); ok {
+		if err := validResponse.VisitPostInviteAcceptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMe operation middleware
 func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	var request GetMeRequestObject
@@ -1380,6 +3514,379 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProjects operation middleware
+func (sh *strictHandler) GetProjects(w http.ResponseWriter, r *http.Request) {
+	var request GetProjectsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProjects(ctx, request.(GetProjectsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProjects")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectsResponseObject); ok {
+		if err := validResponse.VisitGetProjectsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProjects operation middleware
+func (sh *strictHandler) PostProjects(w http.ResponseWriter, r *http.Request) {
+	var request PostProjectsRequestObject
+
+	var body PostProjectsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProjects(ctx, request.(PostProjectsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProjects")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProjectsResponseObject); ok {
+		if err := validResponse.VisitPostProjectsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProject operation middleware
+func (sh *strictHandler) DeleteProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request DeleteProjectRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProject(ctx, request.(DeleteProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProjectResponseObject); ok {
+		if err := validResponse.VisitDeleteProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProject operation middleware
+func (sh *strictHandler) GetProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request GetProjectRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProject(ctx, request.(GetProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectResponseObject); ok {
+		if err := validResponse.VisitGetProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutProject operation middleware
+func (sh *strictHandler) PutProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request PutProjectRequestObject
+
+	request.Id = id
+
+	var body PutProjectJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutProject(ctx, request.(PutProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutProjectResponseObject); ok {
+		if err := validResponse.VisitPutProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProjectInvites operation middleware
+func (sh *strictHandler) PostProjectInvites(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request PostProjectInvitesRequestObject
+
+	request.Id = id
+
+	var body PostProjectInvitesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProjectInvites(ctx, request.(PostProjectInvitesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProjectInvites")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProjectInvitesResponseObject); ok {
+		if err := validResponse.VisitPostProjectInvitesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProjectMembers operation middleware
+func (sh *strictHandler) GetProjectMembers(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request GetProjectMembersRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProjectMembers(ctx, request.(GetProjectMembersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProjectMembers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectMembersResponseObject); ok {
+		if err := validResponse.VisitGetProjectMembersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProjectMember operation middleware
+func (sh *strictHandler) DeleteProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64) {
+	var request DeleteProjectMemberRequestObject
+
+	request.Id = id
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProjectMember(ctx, request.(DeleteProjectMemberRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProjectMember")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProjectMemberResponseObject); ok {
+		if err := validResponse.VisitDeleteProjectMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProjectMember operation middleware
+func (sh *strictHandler) GetProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64) {
+	var request GetProjectMemberRequestObject
+
+	request.Id = id
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProjectMember(ctx, request.(GetProjectMemberRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProjectMember")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectMemberResponseObject); ok {
+		if err := validResponse.VisitGetProjectMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutProjectMember operation middleware
+func (sh *strictHandler) PutProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64) {
+	var request PutProjectMemberRequestObject
+
+	request.Id = id
+	request.UserId = userId
+
+	var body PutProjectMemberJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutProjectMember(ctx, request.(PutProjectMemberRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutProjectMember")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutProjectMemberResponseObject); ok {
+		if err := validResponse.VisitPutProjectMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProjectTokens operation middleware
+func (sh *strictHandler) GetProjectTokens(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request GetProjectTokensRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProjectTokens(ctx, request.(GetProjectTokensRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProjectTokens")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProjectTokensResponseObject); ok {
+		if err := validResponse.VisitGetProjectTokensResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProjectTokens operation middleware
+func (sh *strictHandler) PostProjectTokens(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request PostProjectTokensRequestObject
+
+	request.Id = id
+
+	var body PostProjectTokensJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProjectTokens(ctx, request.(PostProjectTokensRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProjectTokens")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProjectTokensResponseObject); ok {
+		if err := validResponse.VisitPostProjectTokensResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProjectToken operation middleware
+func (sh *strictHandler) DeleteProjectToken(w http.ResponseWriter, r *http.Request, id ProjectID, tokenId int64) {
+	var request DeleteProjectTokenRequestObject
+
+	request.Id = id
+	request.TokenId = tokenId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProjectToken(ctx, request.(DeleteProjectTokenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProjectToken")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProjectTokenResponseObject); ok {
+		if err := validResponse.VisitDeleteProjectTokenResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

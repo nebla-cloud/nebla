@@ -3,6 +3,7 @@ package httpapi
 
 import (
 	"context"
+	"database/sql"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"github.com/Hexeption/nebla/internal/config"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
+	"github.com/Hexeption/nebla/internal/mail"
+	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/ratelimit"
 	"github.com/Hexeption/nebla/internal/settings"
 	"github.com/Hexeption/nebla/web"
@@ -23,17 +26,25 @@ import (
 )
 
 type Deps struct {
-	Pool   *pgxpool.Pool
+	Pool *pgxpool.Pool
+	// SQL is the *sql.DB shared by Ent and db.WithTx.
+	SQL    *sql.DB
 	Ent    *ent.Client
 	Config config.Config
 	Logger *slog.Logger
 	Ext    ext.Extensions
+	// Mail defaults to a no-op sender.
+	Mail         mail.Sender
+	ProjectHooks projects.Hooks
+	// ScopedRoutes mounts extra non-strict routes under /v1 behind the project scope.
+	ScopedRoutes func(r chi.Router)
 }
 
 type server struct {
 	deps       Deps
 	log        *slog.Logger
 	auth       *auth.Service
+	projects   *projects.Service
 	settings   *settings.Store
 	loginLimit *ratelimit.Limiter
 }
@@ -54,10 +65,17 @@ func New(deps Deps) http.Handler {
 	}
 	st := settings.New(deps.Ent)
 	deps.Ext = deps.Ext.WithDefaults(st)
+	if deps.Mail == nil {
+		deps.Mail = mail.Noop{}
+	}
+	au := auth.New(deps.Ent, deps.Ext.Registration)
 	s := &server{
-		deps:       deps,
-		log:        log,
-		auth:       auth.New(deps.Ent, deps.Ext.Registration),
+		deps: deps,
+		log:  log,
+		auth: au,
+		projects: projects.New(deps.Ent, projects.Options{
+			Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
+		}),
 		settings:   st,
 		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
 	}
@@ -80,6 +98,12 @@ func New(deps Deps) http.Handler {
 		BaseRouter:       api,
 		ErrorHandlerFunc: requestError,
 	})
+	if deps.ScopedRoutes != nil {
+		api.Group(func(g chi.Router) {
+			g.Use(s.ScopeHandler)
+			deps.ScopedRoutes(g)
+		})
+	}
 	r.Mount("/v1", api)
 	r.NotFound(spaHandler(web.Dist).ServeHTTP)
 	return r

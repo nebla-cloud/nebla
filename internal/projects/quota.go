@@ -1,0 +1,70 @@
+package projects
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"github.com/Hexeption/nebla/internal/apierr"
+	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/project"
+)
+
+// Quota limits a project's resources; 0 means unlimited.
+type Quota struct {
+	MaxServers, MaxVCPU, MaxMemoryMB, MaxDiskGB, MaxIPs int
+}
+
+// Usage is an amount of project resources, current or requested.
+type Usage struct {
+	Servers, VCPU, MemoryMB, DiskGB, IPs int
+}
+
+func quotaOf(p *ent.Project) Quota {
+	return Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps}
+}
+
+func (s *Service) SetQuota(ctx context.Context, projectID int64, q Quota) (Quota, error) {
+	for _, v := range []int{q.MaxServers, q.MaxVCPU, q.MaxMemoryMB, q.MaxDiskGB, q.MaxIPs} {
+		if v < 0 {
+			return Quota{}, apierr.New(http.StatusUnprocessableEntity, "invalid_input", "quota values must be 0 or more")
+		}
+	}
+	p, err := s.db.Project.UpdateOneID(projectID).
+		SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).SetMaxMemoryMB(q.MaxMemoryMB).
+		SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).Save(ctx)
+	if err != nil {
+		return Quota{}, notFound(err)
+	}
+	return quotaOf(p), nil
+}
+
+// ReserveQuota locks the project row in tx and fails with quota_exceeded if usage plus delta passes a limit.
+func (s *Service) ReserveQuota(ctx context.Context, tx *ent.Client, projectID int64, delta Usage) error {
+	p, err := tx.Project.Query().Where(project.ID(projectID)).ForUpdate().Only(ctx)
+	if err != nil {
+		return notFound(err)
+	}
+	cur, err := s.opts.Usage(ctx, tx, projectID)
+	if err != nil {
+		return err
+	}
+	q := quotaOf(p)
+	checks := []struct {
+		name       string
+		limit, sum int
+	}{
+		{"max_servers", q.MaxServers, cur.Servers + delta.Servers},
+		{"max_vcpu", q.MaxVCPU, cur.VCPU + delta.VCPU},
+		{"max_memory_mb", q.MaxMemoryMB, cur.MemoryMB + delta.MemoryMB},
+		{"max_disk_gb", q.MaxDiskGB, cur.DiskGB + delta.DiskGB},
+		{"max_ips", q.MaxIPs, cur.IPs + delta.IPs},
+	}
+	for _, c := range checks {
+		if c.limit > 0 && c.sum > c.limit {
+			return apierr.New(http.StatusUnprocessableEntity, "quota_exceeded",
+				fmt.Sprintf("quota exceeded: %s is %d, this would use %d", c.name, c.limit, c.sum))
+		}
+	}
+	return nil
+}

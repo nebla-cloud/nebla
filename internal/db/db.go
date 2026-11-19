@@ -33,8 +33,11 @@ func Open(ctx context.Context, url string) (*pgxpool.Pool, error) {
 // SQL wraps the pool as a *sql.DB; closing it leaves the pool open.
 func SQL(pool *pgxpool.Pool) *sql.DB { return stdlib.OpenDBFromPool(pool) }
 
-// NewEnt returns an ent client over the pool.
-func NewEnt(pool *pgxpool.Pool) *ent.Client { return EntFromSQL(SQL(pool)) }
+// NewEnt returns an ent client and the one *sql.DB it shares with WithTx.
+func NewEnt(pool *pgxpool.Pool) (*ent.Client, *sql.DB) {
+	sqlDB := SQL(pool)
+	return EntFromSQL(sqlDB), sqlDB
+}
 
 func EntFromSQL(sqlDB *sql.DB) *ent.Client {
 	return ent.NewClient(ent.Driver(entsql.OpenDB(dialect.Postgres, sqlDB)))
@@ -61,7 +64,9 @@ func WithTx(ctx context.Context, sqlDB *sql.DB, fn func(tx *sql.Tx, etx *ent.Cli
 }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
-	provider, err := goose.NewProvider(goose.DialectPostgres, stdlib.OpenDBFromPool(pool), mustSub())
+	sqlDB := SQL(pool)
+	defer sqlDB.Close()
+	provider, err := goose.NewProvider(goose.DialectPostgres, sqlDB, mustSub())
 	if err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}

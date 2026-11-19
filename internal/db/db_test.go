@@ -23,9 +23,7 @@ func TestMigrateIsIdempotent(t *testing.T) {
 func TestWithTxSharesOneTransaction(t *testing.T) {
 	ctx := context.Background()
 	pool := testutil.NewDB(t)
-	sqlDB := db.SQL(pool)
-	t.Cleanup(func() { sqlDB.Close() })
-	client := db.NewEnt(pool)
+	client, sqlDB := db.NewEnt(pool)
 	t.Cleanup(func() { client.Close() })
 
 	write := func(suffix string) func(*sql.Tx, *ent.Client) error {
