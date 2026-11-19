@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +108,20 @@ func (s *Service) UpdateServerType(ctx context.Context, id int64, in ServerTypeI
 
 func (s *Service) GetServerType(ctx context.Context, id int64) (ServerType, error) {
 	t, err := s.db.ServerType.Query().Where(servertype.ID(id)).WithLocations(withLocationIDs).Only(ctx)
+	if err != nil {
+		return ServerType{}, notFound(err)
+	}
+	return toServerType(t), nil
+}
+
+// ServerTypeByRef finds a server type by numeric id or by name.
+func (s *Service) ServerTypeByRef(ctx context.Context, ref string) (ServerType, error) {
+	if id, err := strconv.ParseInt(ref, 10, 64); err == nil {
+		if t, err := s.GetServerType(ctx, id); err == nil {
+			return t, nil
+		}
+	}
+	t, err := s.db.ServerType.Query().Where(servertype.Name(ref)).WithLocations(withLocationIDs).Only(ctx)
 	if err != nil {
 		return ServerType{}, notFound(err)
 	}

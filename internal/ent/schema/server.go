@@ -1,0 +1,60 @@
+package schema
+
+import (
+	"entgo.io/ent"
+	"entgo.io/ent/dialect/entsql"
+	"entgo.io/ent/schema/edge"
+	"entgo.io/ent/schema/field"
+	"entgo.io/ent/schema/index"
+)
+
+type Server struct{ ent.Schema }
+
+func (Server) Fields() []ent.Field {
+	return []ent.Field{
+		field.Int64("id"),
+		field.Int64("project_id").Immutable(),
+		field.Text("name"),
+		field.Int64("location_id").Immutable(),
+		// node is "" until placed.
+		field.Text("node").Default(""),
+		field.Int("vmid").Optional().Nillable(),
+		field.Int("template_vmid"),
+		field.Int64("server_type_id"),
+		field.Int64("image_id"),
+		field.Enum("status").
+			Values("initializing", "starting", "running", "stopping", "off", "rebuilding", "deleting", "missing", "error").
+			Default("initializing"),
+		field.Text("mac").Immutable(),
+		field.JSON("labels", map[string]string{}),
+		field.Text("iso_volid").Optional().Nillable(),
+		field.Int("disk_gb"),
+		// user_data and ssh_keys feed cloud-init and are never returned by the API.
+		field.Text("user_data").Default("").Sensitive(),
+		field.JSON("ssh_keys", []string{}).Sensitive(),
+		createdAt(),
+	}
+}
+
+func (Server) Edges() []ent.Edge {
+	return []ent.Edge{
+		edge.To("project", Project.Type).Field("project_id").Unique().Required().Immutable().
+			Annotations(entsql.OnDelete(entsql.NoAction)),
+		edge.To("location", Location.Type).Field("location_id").Unique().Required().Immutable().
+			Annotations(entsql.OnDelete(entsql.NoAction)),
+		edge.To("server_type", ServerType.Type).Field("server_type_id").Unique().Required().
+			Annotations(entsql.OnDelete(entsql.NoAction)),
+		edge.To("image", Image.Type).Field("image_id").Unique().Required().
+			Annotations(entsql.OnDelete(entsql.NoAction)),
+	}
+}
+
+func (Server) Indexes() []ent.Index {
+	return []ent.Index{
+		index.Fields("project_id", "name").Unique().StorageKey("servers_project_name_key"),
+		index.Fields("mac").Unique().StorageKey("servers_mac_key"),
+		index.Fields("location_id", "node").StorageKey("servers_location_node_idx"),
+		index.Fields("server_type_id").StorageKey("servers_server_type_id_idx"),
+		index.Fields("image_id").StorageKey("servers_image_id_idx"),
+	}
+}

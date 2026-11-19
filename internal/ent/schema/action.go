@@ -46,5 +46,6 @@ func (Action) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("project_id", "id").StorageKey("actions_project_id_idx"),
 		index.Fields("status").StorageKey("actions_status_idx"),
+		index.Fields("resources").StorageKey("actions_resources_idx").Annotations(entsql.IndexType("GIN")),
 	}
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/project"
 	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/ent/servertype"
 	"github.com/Hexeption/nebla/internal/ent/session"
 	"github.com/Hexeption/nebla/internal/ent/setting"
@@ -64,6 +65,8 @@ type Client struct {
 	ProjectMember *ProjectMemberClient
 	// SSHKey is the client for interacting with the SSHKey builders.
 	SSHKey *SSHKeyClient
+	// Server is the client for interacting with the Server builders.
+	Server *ServerClient
 	// ServerType is the client for interacting with the ServerType builders.
 	ServerType *ServerTypeClient
 	// Session is the client for interacting with the Session builders.
@@ -95,6 +98,7 @@ func (c *Client) init() {
 	c.Project = NewProjectClient(c.config)
 	c.ProjectMember = NewProjectMemberClient(c.config)
 	c.SSHKey = NewSSHKeyClient(c.config)
+	c.Server = NewServerClient(c.config)
 	c.ServerType = NewServerTypeClient(c.config)
 	c.Session = NewSessionClient(c.config)
 	c.Setting = NewSettingClient(c.config)
@@ -203,6 +207,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Project:       NewProjectClient(cfg),
 		ProjectMember: NewProjectMemberClient(cfg),
 		SSHKey:        NewSSHKeyClient(cfg),
+		Server:        NewServerClient(cfg),
 		ServerType:    NewServerTypeClient(cfg),
 		Session:       NewSessionClient(cfg),
 		Setting:       NewSettingClient(cfg),
@@ -238,6 +243,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Project:       NewProjectClient(cfg),
 		ProjectMember: NewProjectMemberClient(cfg),
 		SSHKey:        NewSSHKeyClient(cfg),
+		Server:        NewServerClient(cfg),
 		ServerType:    NewServerTypeClient(cfg),
 		Session:       NewSessionClient(cfg),
 		Setting:       NewSettingClient(cfg),
@@ -272,7 +278,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.APIToken, c.Action, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate,
-		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey,
+		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
 		c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Use(hooks...)
@@ -284,7 +290,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.APIToken, c.Action, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate,
-		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey,
+		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
 		c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Intercept(interceptors...)
@@ -318,6 +324,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ProjectMember.mutate(ctx, m)
 	case *SSHKeyMutation:
 		return c.SSHKey.mutate(ctx, m)
+	case *ServerMutation:
+		return c.Server.mutate(ctx, m)
 	case *ServerTypeMutation:
 		return c.ServerType.mutate(ctx, m)
 	case *SessionMutation:
@@ -2199,6 +2207,203 @@ func (c *SSHKeyClient) mutate(ctx context.Context, m *SSHKeyMutation) (Value, er
 	}
 }
 
+// ServerClient is a client for the Server schema.
+type ServerClient struct {
+	config
+}
+
+// NewServerClient returns a client for the Server from the given config.
+func NewServerClient(c config) *ServerClient {
+	return &ServerClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `server.Hooks(f(g(h())))`.
+func (c *ServerClient) Use(hooks ...Hook) {
+	c.hooks.Server = append(c.hooks.Server, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `server.Intercept(f(g(h())))`.
+func (c *ServerClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Server = append(c.inters.Server, interceptors...)
+}
+
+// Create returns a builder for creating a Server entity.
+func (c *ServerClient) Create() *ServerCreate {
+	mutation := newServerMutation(c.config, OpCreate)
+	return &ServerCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Server entities.
+func (c *ServerClient) CreateBulk(builders ...*ServerCreate) *ServerCreateBulk {
+	return &ServerCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ServerClient) MapCreateBulk(slice any, setFunc func(*ServerCreate, int)) *ServerCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ServerCreateBulk{err: fmt.Errorf("calling to ServerClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ServerCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ServerCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Server.
+func (c *ServerClient) Update() *ServerUpdate {
+	mutation := newServerMutation(c.config, OpUpdate)
+	return &ServerUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ServerClient) UpdateOne(_m *Server) *ServerUpdateOne {
+	mutation := newServerMutation(c.config, OpUpdateOne, withServer(_m))
+	return &ServerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ServerClient) UpdateOneID(id int64) *ServerUpdateOne {
+	mutation := newServerMutation(c.config, OpUpdateOne, withServerID(id))
+	return &ServerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Server.
+func (c *ServerClient) Delete() *ServerDelete {
+	mutation := newServerMutation(c.config, OpDelete)
+	return &ServerDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ServerClient) DeleteOne(_m *Server) *ServerDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ServerClient) DeleteOneID(id int64) *ServerDeleteOne {
+	builder := c.Delete().Where(server.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ServerDeleteOne{builder}
+}
+
+// Query returns a query builder for Server.
+func (c *ServerClient) Query() *ServerQuery {
+	return &ServerQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeServer},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Server entity by its id.
+func (c *ServerClient) Get(ctx context.Context, id int64) (*Server, error) {
+	return c.Query().Where(server.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ServerClient) GetX(ctx context.Context, id int64) *Server {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a Server.
+func (c *ServerClient) QueryProject(_m *Server) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(server.Table, server.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, server.ProjectTable, server.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryLocation queries the location edge of a Server.
+func (c *ServerClient) QueryLocation(_m *Server) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(server.Table, server.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, server.LocationTable, server.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryServerType queries the server_type edge of a Server.
+func (c *ServerClient) QueryServerType(_m *Server) *ServerTypeQuery {
+	query := (&ServerTypeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(server.Table, server.FieldID, id),
+			sqlgraph.To(servertype.Table, servertype.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, server.ServerTypeTable, server.ServerTypeColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryImage queries the image edge of a Server.
+func (c *ServerClient) QueryImage(_m *Server) *ImageQuery {
+	query := (&ImageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(server.Table, server.FieldID, id),
+			sqlgraph.To(image.Table, image.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, server.ImageTable, server.ImageColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ServerClient) Hooks() []Hook {
+	return c.hooks.Server
+}
+
+// Interceptors returns the client interceptors.
+func (c *ServerClient) Interceptors() []Interceptor {
+	return c.inters.Server
+}
+
+func (c *ServerClient) mutate(ctx context.Context, m *ServerMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ServerCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ServerUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ServerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ServerDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Server mutation op: %q", m.Op())
+	}
+}
+
 // ServerTypeClient is a client for the ServerType schema.
 type ServerTypeClient struct {
 	config
@@ -2767,12 +2972,12 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		APIToken, Action, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
-		Node, Project, ProjectMember, SSHKey, ServerType, Session, Setting,
+		Node, Project, ProjectMember, SSHKey, Server, ServerType, Session, Setting,
 		User []ent.Hook
 	}
 	inters struct {
 		APIToken, Action, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
-		Node, Project, ProjectMember, SSHKey, ServerType, Session, Setting,
+		Node, Project, ProjectMember, SSHKey, Server, ServerType, Session, Setting,
 		User []ent.Interceptor
 	}
 )

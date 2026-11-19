@@ -98,6 +98,45 @@ func (e Role) Valid() bool {
 	}
 }
 
+// Defines values for ServerStatus.
+const (
+	ServerStatusDeleting     ServerStatus = "deleting"
+	ServerStatusError        ServerStatus = "error"
+	ServerStatusInitializing ServerStatus = "initializing"
+	ServerStatusMissing      ServerStatus = "missing"
+	ServerStatusOff          ServerStatus = "off"
+	ServerStatusRebuilding   ServerStatus = "rebuilding"
+	ServerStatusRunning      ServerStatus = "running"
+	ServerStatusStarting     ServerStatus = "starting"
+	ServerStatusStopping     ServerStatus = "stopping"
+)
+
+// Valid indicates whether the value is a known member of the ServerStatus enum.
+func (e ServerStatus) Valid() bool {
+	switch e {
+	case ServerStatusDeleting:
+		return true
+	case ServerStatusError:
+		return true
+	case ServerStatusInitializing:
+		return true
+	case ServerStatusMissing:
+		return true
+	case ServerStatusOff:
+		return true
+	case ServerStatusRebuilding:
+		return true
+	case ServerStatusRunning:
+		return true
+	case ServerStatusStarting:
+		return true
+	case ServerStatusStopping:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TokenPermission.
 const (
 	Read      TokenPermission = "read"
@@ -277,6 +316,9 @@ type IpPoolInput struct {
 // IpPoolInputFamily defines model for IpPoolInput.Family.
 type IpPoolInputFamily string
 
+// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+type Labels map[string]string
+
 // Location defines model for Location.
 type Location struct {
 	Description string `json:"description"`
@@ -387,6 +429,60 @@ type Quota struct {
 // Role defines model for Role.
 type Role string
 
+// Server defines model for Server.
+type Server struct {
+	Created time.Time `json:"created"`
+	DiskGb  int       `json:"disk_gb"`
+	Id      int64     `json:"id"`
+	Image   Image     `json:"image"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels    Labels   `json:"labels"`
+	Location  Location `json:"location"`
+	Name      string   `json:"name"`
+	PublicNet struct {
+		Ipv4 *ServerIp `json:"ipv4"`
+		Ipv6 *ServerIp `json:"ipv6"`
+	} `json:"public_net"`
+	ServerType ServerType   `json:"server_type"`
+	Status     ServerStatus `json:"status"`
+}
+
+// ServerStatus defines model for Server.Status.
+type ServerStatus string
+
+// ServerInput defines model for ServerInput.
+type ServerInput struct {
+	// Image Image id or name
+	Image string `json:"image"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name
+	Location  string `json:"location"`
+	Name      string `json:"name"`
+	PublicNet *struct {
+		Ipv4 *bool `json:"ipv4,omitempty"`
+		Ipv6 *bool `json:"ipv6,omitempty"`
+	} `json:"public_net,omitempty"`
+
+	// ServerType Server type id or name
+	ServerType string `json:"server_type"`
+
+	// SshKeys The project's SSH key ids or names
+	SshKeys          *[]string `json:"ssh_keys,omitempty"`
+	StartAfterCreate *bool     `json:"start_after_create,omitempty"`
+
+	// UserData Cloud-init user data, at most 32 KiB
+	UserData *string `json:"user_data,omitempty"`
+}
+
+// ServerIp defines model for ServerIp.
+type ServerIp struct {
+	Ip string `json:"ip"`
+}
+
 // ServerType defines model for ServerType.
 type ServerType struct {
 	Cores       int     `json:"cores"`
@@ -416,6 +512,13 @@ type ServerTypeInput struct {
 type ServerTypeList struct {
 	Meta        Meta         `json:"meta"`
 	ServerTypes []ServerType `json:"server_types"`
+}
+
+// ServerUpdate defines model for ServerUpdate.
+type ServerUpdate struct {
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
 }
 
 // SshKey defines model for SshKey.
@@ -577,6 +680,33 @@ type GetServerTypesParams struct {
 	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
 }
 
+// GetServersParams defines parameters for GetServers.
+type GetServersParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact server name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Status Only servers in these statuses; repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// GetServerActionsParams defines parameters for GetServerActions.
+type GetServerActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetSshKeysParams defines parameters for GetSshKeys.
 type GetSshKeysParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -656,6 +786,12 @@ type PutProjectMemberJSONRequestBody PutProjectMemberJSONBody
 
 // PostProjectTokensJSONRequestBody defines body for PostProjectTokens for application/json ContentType.
 type PostProjectTokensJSONRequestBody PostProjectTokensJSONBody
+
+// PostServersJSONRequestBody defines body for PostServers for application/json ContentType.
+type PostServersJSONRequestBody = ServerInput
+
+// PutServerJSONRequestBody defines body for PutServer for application/json ContentType.
+type PutServerJSONRequestBody = ServerUpdate
 
 // PostSetupJSONRequestBody defines body for PostSetup for application/json ContentType.
 type PostSetupJSONRequestBody = Credentials
@@ -845,6 +981,24 @@ type ServerInterface interface {
 	// GetServerType Get a server type
 	// (GET /server_types/{id})
 	GetServerType(w http.ResponseWriter, r *http.Request, id ID)
+	// GetServers List the project's servers
+	// (GET /servers)
+	GetServers(w http.ResponseWriter, r *http.Request, params GetServersParams)
+	// PostServers Create a server
+	// (POST /servers)
+	PostServers(w http.ResponseWriter, r *http.Request)
+	// DeleteServer Delete a server
+	// (DELETE /servers/{id})
+	DeleteServer(w http.ResponseWriter, r *http.Request, id ID)
+	// GetServer Get a server
+	// (GET /servers/{id})
+	GetServer(w http.ResponseWriter, r *http.Request, id ID)
+	// PutServer Rename a server or replace its labels
+	// (PUT /servers/{id})
+	PutServer(w http.ResponseWriter, r *http.Request, id ID)
+	// GetServerActions List a server's actions
+	// (GET /servers/{id}/actions)
+	GetServerActions(w http.ResponseWriter, r *http.Request, id ID, params GetServerActionsParams)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(w http.ResponseWriter, r *http.Request)
@@ -1220,6 +1374,42 @@ func (_ Unimplemented) GetServerTypes(w http.ResponseWriter, r *http.Request, pa
 // GetServerType Get a server type
 // (GET /server_types/{id})
 func (_ Unimplemented) GetServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetServers List the project's servers
+// (GET /servers)
+func (_ Unimplemented) GetServers(w http.ResponseWriter, r *http.Request, params GetServersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostServers Create a server
+// (POST /servers)
+func (_ Unimplemented) PostServers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteServer Delete a server
+// (DELETE /servers/{id})
+func (_ Unimplemented) DeleteServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetServer Get a server
+// (GET /servers/{id})
+func (_ Unimplemented) GetServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutServer Rename a server or replace its labels
+// (PUT /servers/{id})
+func (_ Unimplemented) PutServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetServerActions List a server's actions
+// (GET /servers/{id}/actions)
+func (_ Unimplemented) GetServerActions(w http.ResponseWriter, r *http.Request, id ID, params GetServerActionsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2882,6 +3072,264 @@ func (siw *ServerInterfaceWrapper) GetServerType(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetServers operation middleware
+func (siw *ServerInterfaceWrapper) GetServers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServersParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "label_selector" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label_selector", r.URL.Query(), &params.LabelSelector, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label_selector"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label_selector", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostServers operation middleware
+func (siw *ServerInterfaceWrapper) PostServers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostServers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteServer operation middleware
+func (siw *ServerInterfaceWrapper) DeleteServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetServer operation middleware
+func (siw *ServerInterfaceWrapper) GetServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutServer operation middleware
+func (siw *ServerInterfaceWrapper) PutServer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetServerActions operation middleware
+func (siw *ServerInterfaceWrapper) GetServerActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServerActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServerActions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostSetup operation middleware
 func (siw *ServerInterfaceWrapper) PostSetup(w http.ResponseWriter, r *http.Request) {
 
@@ -3372,6 +3820,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/actions/{id}", wrapper.GetAction)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/servers", wrapper.GetServers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers", wrapper.PostServers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/servers/{id}", wrapper.DeleteServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/servers/{id}", wrapper.GetServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/servers/{id}", wrapper.PutServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/servers/{id}/actions", wrapper.GetServerActions)
 	})
 
 	return r
@@ -7023,6 +7489,488 @@ func (response GetServerType404JSONResponse) VisitGetServerTypeResponse(w http.R
 	return err
 }
 
+type GetServersRequestObject struct {
+	Params GetServersParams
+}
+
+type GetServersResponseObject interface {
+	VisitGetServersResponse(w http.ResponseWriter) error
+}
+
+type GetServers200JSONResponse struct {
+	Meta    Meta     `json:"meta"`
+	Servers []Server `json:"servers"`
+}
+
+func (response GetServers200JSONResponse) VisitGetServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServers401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServers401JSONResponse) VisitGetServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServers404JSONResponse Error
+
+func (response GetServers404JSONResponse) VisitGetServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServers422JSONResponse Error
+
+func (response GetServers422JSONResponse) VisitGetServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServersRequestObject struct {
+	Body *PostServersJSONRequestBody
+}
+
+type PostServersResponseObject interface {
+	VisitPostServersResponse(w http.ResponseWriter) error
+}
+
+type PostServers201JSONResponse struct {
+	Action      Action   `json:"action"`
+	NextActions []Action `json:"next_actions"`
+	Server      Server   `json:"server"`
+}
+
+func (response PostServers201JSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServers401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostServers401JSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServers403JSONResponse Error
+
+func (response PostServers403JSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServers404JSONResponse Error
+
+func (response PostServers404JSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServers409JSONResponse Error
+
+func (response PostServers409JSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServers422JSONResponse Error
+
+func (response PostServers422JSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServers503JSONResponse Error
+
+func (response PostServers503JSONResponse) VisitPostServersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteServerResponseObject interface {
+	VisitDeleteServerResponse(w http.ResponseWriter) error
+}
+
+type DeleteServer200JSONResponse struct {
+	Action Action `json:"action"`
+}
+
+func (response DeleteServer200JSONResponse) VisitDeleteServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteServer401JSONResponse) VisitDeleteServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServer403JSONResponse Error
+
+func (response DeleteServer403JSONResponse) VisitDeleteServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServer404JSONResponse Error
+
+func (response DeleteServer404JSONResponse) VisitDeleteServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServer409JSONResponse Error
+
+func (response DeleteServer409JSONResponse) VisitDeleteServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServer503JSONResponse Error
+
+func (response DeleteServer503JSONResponse) VisitDeleteServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetServerResponseObject interface {
+	VisitGetServerResponse(w http.ResponseWriter) error
+}
+
+type GetServer200JSONResponse Server
+
+func (response GetServer200JSONResponse) VisitGetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServer401JSONResponse) VisitGetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServer404JSONResponse Error
+
+func (response GetServer404JSONResponse) VisitGetServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutServerRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutServerJSONRequestBody
+}
+
+type PutServerResponseObject interface {
+	VisitPutServerResponse(w http.ResponseWriter) error
+}
+
+type PutServer200JSONResponse Server
+
+func (response PutServer200JSONResponse) VisitPutServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutServer401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutServer401JSONResponse) VisitPutServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutServer403JSONResponse Error
+
+func (response PutServer403JSONResponse) VisitPutServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutServer404JSONResponse Error
+
+func (response PutServer404JSONResponse) VisitPutServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutServer409JSONResponse Error
+
+func (response PutServer409JSONResponse) VisitPutServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutServer422JSONResponse Error
+
+func (response PutServer422JSONResponse) VisitPutServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerActionsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetServerActionsParams
+}
+
+type GetServerActionsResponseObject interface {
+	VisitGetServerActionsResponse(w http.ResponseWriter) error
+}
+
+type GetServerActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetServerActions200JSONResponse) VisitGetServerActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServerActions401JSONResponse) VisitGetServerActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerActions404JSONResponse Error
+
+func (response GetServerActions404JSONResponse) VisitGetServerActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerActions422JSONResponse Error
+
+func (response GetServerActions422JSONResponse) VisitGetServerActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostSetupRequestObject struct {
 	Body *PostSetupJSONRequestBody
 }
@@ -7690,6 +8638,24 @@ type StrictServerInterface interface {
 	// GetServerType Get a server type
 	// (GET /server_types/{id})
 	GetServerType(ctx context.Context, request GetServerTypeRequestObject) (GetServerTypeResponseObject, error)
+	// GetServers List the project's servers
+	// (GET /servers)
+	GetServers(ctx context.Context, request GetServersRequestObject) (GetServersResponseObject, error)
+	// PostServers Create a server
+	// (POST /servers)
+	PostServers(ctx context.Context, request PostServersRequestObject) (PostServersResponseObject, error)
+	// DeleteServer Delete a server
+	// (DELETE /servers/{id})
+	DeleteServer(ctx context.Context, request DeleteServerRequestObject) (DeleteServerResponseObject, error)
+	// GetServer Get a server
+	// (GET /servers/{id})
+	GetServer(ctx context.Context, request GetServerRequestObject) (GetServerResponseObject, error)
+	// PutServer Rename a server or replace its labels
+	// (PUT /servers/{id})
+	PutServer(ctx context.Context, request PutServerRequestObject) (PutServerResponseObject, error)
+	// GetServerActions List a server's actions
+	// (GET /servers/{id}/actions)
+	GetServerActions(ctx context.Context, request GetServerActionsRequestObject) (GetServerActionsResponseObject, error)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(ctx context.Context, request PostSetupRequestObject) (PostSetupResponseObject, error)
@@ -9380,6 +10346,175 @@ func (sh *strictHandler) GetServerType(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetServerTypeResponseObject); ok {
 		if err := validResponse.VisitGetServerTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetServers operation middleware
+func (sh *strictHandler) GetServers(w http.ResponseWriter, r *http.Request, params GetServersParams) {
+	var request GetServersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServers(ctx, request.(GetServersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServersResponseObject); ok {
+		if err := validResponse.VisitGetServersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostServers operation middleware
+func (sh *strictHandler) PostServers(w http.ResponseWriter, r *http.Request) {
+	var request PostServersRequestObject
+
+	var body PostServersJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostServers(ctx, request.(PostServersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostServers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostServersResponseObject); ok {
+		if err := validResponse.VisitPostServersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteServer operation middleware
+func (sh *strictHandler) DeleteServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteServerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteServer(ctx, request.(DeleteServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteServerResponseObject); ok {
+		if err := validResponse.VisitDeleteServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetServer operation middleware
+func (sh *strictHandler) GetServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetServerRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServer(ctx, request.(GetServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServerResponseObject); ok {
+		if err := validResponse.VisitGetServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutServer operation middleware
+func (sh *strictHandler) PutServer(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutServerRequestObject
+
+	request.Id = id
+
+	var body PutServerJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutServer(ctx, request.(PutServerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutServer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutServerResponseObject); ok {
+		if err := validResponse.VisitPutServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetServerActions operation middleware
+func (sh *strictHandler) GetServerActions(w http.ResponseWriter, r *http.Request, id ID, params GetServerActionsParams) {
+	var request GetServerActionsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServerActions(ctx, request.(GetServerActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServerActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServerActionsResponseObject); ok {
+		if err := validResponse.VisitGetServerActionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

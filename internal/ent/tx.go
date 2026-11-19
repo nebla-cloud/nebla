@@ -38,6 +38,8 @@ type Tx struct {
 	ProjectMember *ProjectMemberClient
 	// SSHKey is the client for interacting with the SSHKey builders.
 	SSHKey *SSHKeyClient
+	// Server is the client for interacting with the Server builders.
+	Server *ServerClient
 	// ServerType is the client for interacting with the ServerType builders.
 	ServerType *ServerTypeClient
 	// Session is the client for interacting with the Session builders.
@@ -189,6 +191,7 @@ func (tx *Tx) init() {
 	tx.Project = NewProjectClient(tx.config)
 	tx.ProjectMember = NewProjectMemberClient(tx.config)
 	tx.SSHKey = NewSSHKeyClient(tx.config)
+	tx.Server = NewServerClient(tx.config)
 	tx.ServerType = NewServerTypeClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
