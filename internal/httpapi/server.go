@@ -10,6 +10,7 @@ import (
 
 	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/Hexeption/nebla/internal/config"
+	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/web"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,6 +20,7 @@ type Deps struct {
 	Pool   *pgxpool.Pool
 	Config config.Config
 	Logger *slog.Logger
+	Ext    ext.Extensions
 }
 
 type server struct {
@@ -38,6 +40,7 @@ func New(deps Deps) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
+	deps.Ext = deps.Ext.WithDefaults(nil)
 	s := &server{deps: deps, log: log}
 	strict := apigen.NewStrictHandlerWithOptions(s, nil, apigen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  requestError,
@@ -60,6 +63,10 @@ func New(deps Deps) http.Handler {
 func spaHandler(dist fs.FS) http.Handler {
 	files := http.FileServerFS(dist)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			notFound(w, r)
+			return
+		}
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		if name != "" {
 			if f, err := dist.Open(name); err == nil {

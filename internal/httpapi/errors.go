@@ -18,6 +18,11 @@ func WriteError(w http.ResponseWriter, status int, code, msg string) {
 }
 
 func (s *server) responseError(w http.ResponseWriter, _ *http.Request, err error) {
+	var pe *apierr.E
+	if errors.As(err, &pe) && pe != nil {
+		WriteError(w, pe.Status, pe.Code, pe.Msg)
+		return
+	}
 	var e apierr.E
 	if errors.As(err, &e) {
 		WriteError(w, e.Status, e.Code, e.Msg)

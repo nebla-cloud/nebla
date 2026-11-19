@@ -28,6 +28,20 @@ func (e GetHealthz200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// UiManifest defines model for UiManifest.
+type UiManifest struct {
+	AdminSections []struct {
+		Id    string `json:"id"`
+		Path  string `json:"path"`
+		Title string `json:"title"`
+	} `json:"admin_sections"`
+	Branding struct {
+		LogoUrl      string `json:"logo_url"`
+		PrimaryColor string `json:"primary_color"`
+		ProductName  string `json:"product_name"`
+	} `json:"branding"`
+}
+
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
 
@@ -36,6 +50,9 @@ type ServerInterface interface {
 	// GetHealthz Liveness check
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+	// GetUiManifest UI branding and admin sections
+	// (GET /ui/manifest)
+	GetUiManifest(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -45,6 +62,12 @@ type Unimplemented struct{}
 // GetHealthz Liveness check
 // (GET /healthz)
 func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetUiManifest UI branding and admin sections
+// (GET /ui/manifest)
+func (_ Unimplemented) GetUiManifest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -62,6 +85,20 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUiManifest operation middleware
+func (siw *ServerInterfaceWrapper) GetUiManifest(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUiManifest(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -187,6 +224,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/ui/manifest", wrapper.GetUiManifest)
+	})
 
 	return r
 }
@@ -214,11 +254,35 @@ func (response GetHealthz200JSONResponse) VisitGetHealthzResponse(w http.Respons
 	return err
 }
 
+type GetUiManifestRequestObject struct {
+}
+
+type GetUiManifestResponseObject interface {
+	VisitGetUiManifestResponse(w http.ResponseWriter) error
+}
+
+type GetUiManifest200JSONResponse UiManifest
+
+func (response GetUiManifest200JSONResponse) VisitGetUiManifestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetHealthz Liveness check
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
+	// GetUiManifest UI branding and admin sections
+	// (GET /ui/manifest)
+	GetUiManifest(ctx context.Context, request GetUiManifestRequestObject) (GetUiManifestResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -277,6 +341,30 @@ func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthzResponseObject); ok {
 		if err := validResponse.VisitGetHealthzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUiManifest operation middleware
+func (sh *strictHandler) GetUiManifest(w http.ResponseWriter, r *http.Request) {
+	var request GetUiManifestRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUiManifest(ctx, request.(GetUiManifestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUiManifest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUiManifestResponseObject); ok {
+		if err := validResponse.VisitGetUiManifestResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

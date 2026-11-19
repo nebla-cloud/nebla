@@ -25,6 +25,18 @@ paths:
                   status:
                     type: string
                     enum: [ok]
+  /ui/manifest:
+    get:
+      operationId: getUiManifest
+      summary: UI branding and admin sections
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UiManifest"
 components:
   securitySchemes:
     bearer:
@@ -44,6 +56,26 @@ components:
       in: query
       schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
   schemas:
+    UiManifest:
+      type: object
+      required: [branding, admin_sections]
+      properties:
+        branding:
+          type: object
+          required: [product_name, logo_url, primary_color]
+          properties:
+            product_name: { type: string }
+            logo_url: { type: string }
+            primary_color: { type: string }
+        admin_sections:
+          type: array
+          items:
+            type: object
+            required: [id, title, path]
+            properties:
+              id: { type: string }
+              title: { type: string }
+              path: { type: string }
     Error:
       type: object
       required: [error]
