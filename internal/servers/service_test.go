@@ -439,6 +439,10 @@ func TestUpdateAndDeleteServer(t *testing.T) {
 	s := e.CreateServer("web", map[string]any{"labels": map[string]string{"a": "1"}})
 	e.CreateServer("taken", nil)
 	path := "/v1/servers/" + sid(s.ServerID)
+	// The create action is still running.
+	expectErr(t, e.C.Send(http.MethodPut, path, map[string]any{"name": "web-2"}), http.StatusConflict, "locked")
+	expectErr(t, e.C.Send(http.MethodDelete, path, nil), http.StatusConflict, "locked")
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, s.ActionID))
 
 	got, _ := expect[serverJSON](t, e.C.Send(http.MethodPut, path, map[string]any{"labels": map[string]string{"b": "2"}}), http.StatusOK)
 	require.Equal(t, "web", got.Name)
@@ -449,10 +453,6 @@ func TestUpdateAndDeleteServer(t *testing.T) {
 	expectErr(t, e.C.Send(http.MethodPut, path, map[string]any{"name": "taken"}), http.StatusConflict, "uniqueness_error")
 	expectErr(t, e.C.Send(http.MethodPut, path, map[string]any{"name": "Bad"}), http.StatusUnprocessableEntity, "invalid_input")
 	expectErr(t, e.C.Send(http.MethodPut, path, map[string]any{"labels": map[string]string{"": "x"}}), http.StatusUnprocessableEntity, "invalid_input")
-
-	// The create action is still running.
-	expectErr(t, e.C.Send(http.MethodDelete, path, nil), http.StatusConflict, "locked")
-	require.NoError(t, actions.Succeed(ctx, e.App.Ent, s.ActionID))
 
 	del, _ := expect[struct {
 		Action actionJSON `json:"action"`

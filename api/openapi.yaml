@@ -1350,8 +1350,127 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/poweron:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: poweronServer
+      x-nebla-scope: project
+      summary: Start a server
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/poweroff:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: poweroffServer
+      x-nebla-scope: project
+      summary: Stop a server immediately
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/shutdown:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: shutdownServer
+      x-nebla-scope: project
+      summary: Shut a server down gracefully
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/reboot:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: rebootServer
+      x-nebla-scope: project
+      summary: Reboot a server gracefully
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/reset:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: resetServer
+      x-nebla-scope: project
+      summary: Reset a server
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/rebuild:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: rebuildServer
+      x-nebla-scope: project
+      summary: Reinstall a server from an image, keeping its IPs and MAC
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RebuildInput" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/change_type:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: changeServerType
+      x-nebla-scope: project
+      summary: Change a stopped server's type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangeTypeInput" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
 components:
   responses:
+    ActionCreated:
+      description: The action
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [action]
+            properties:
+              action: { $ref: "#/components/schemas/Action" }
     Error:
       description: Error
       content:
@@ -1750,6 +1869,17 @@ components:
       properties:
         name: { type: string }
         labels: { $ref: "#/components/schemas/Labels" }
+    RebuildInput:
+      type: object
+      required: [image]
+      properties:
+        image: { type: string, description: Image id or name }
+    ChangeTypeInput:
+      type: object
+      required: [server_type, upgrade_disk]
+      properties:
+        server_type: { type: string, description: Server type id or name }
+        upgrade_disk: { type: boolean, description: Grow the disk to the type's size; disks never shrink }
     ServerIp:
       type: object
       nullable: true

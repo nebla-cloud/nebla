@@ -1,0 +1,425 @@
+package servers
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"fmt"
+	"net/netip"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/Hexeption/nebla/internal/catalog"
+	"github.com/Hexeption/nebla/internal/cloudinit"
+	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ipam"
+	"github.com/Hexeption/nebla/internal/pve"
+)
+
+// VM build steps shared by create and rebuild, persisted in that job's step column.
+const (
+	stepVMID = iota + 1
+	stepClone
+	stepConfig
+	stepResize
+	stepISO
+	stepFirewall
+)
+
+// buildState is a VM build's resume state; saving it writes every field, nil clears.
+type buildState struct {
+	Vmid        *int
+	Upid, Nonce *string
+	Step        int
+}
+
+func (s buildState) proof() CloneProof { return CloneProof{UPID: s.Upid, Nonce: s.Nonce} }
+
+// builder clones and configures a VM for row from template tmpl, saving progress through save.
+type builder struct {
+	pc     pve.Client
+	loc    catalog.Location
+	assign []ipam.Assignment
+	row    *ent.Server
+	tmpl   int
+	isoGen int
+	// adopt lets pickVMID take a VM already tagged for the server; only create may.
+	adopt          bool
+	st             buildState
+	save           func(context.Context, buildState) error
+	afterClonePost func()
+	poll           time.Duration
+	tnode          string
+	tcfg           map[string]string
+}
+
+type step struct {
+	n    int
+	name string
+	fn   func(context.Context) error
+}
+
+// runSteps runs the steps after the one cur reports, recording progress and calling after once each is saved.
+func runSteps(ctx context.Context, cur func() int, steps []step, progress func(context.Context, int) error, after func(int)) error {
+	for _, s := range steps {
+		if cur() >= s.n {
+			continue
+		}
+		if err := s.fn(ctx); err != nil {
+			return &stepError{s.name, err}
+		}
+		if err := progress(ctx, s.n); err != nil {
+			return &stepError{"record progress", err}
+		}
+		if after != nil {
+			after(s.n)
+		}
+	}
+	return nil
+}
+
+func (b *builder) steps() []step {
+	return []step{
+		{stepVMID, "pick vmid", b.pickVMID},
+		{stepClone, "clone template", b.clone},
+		{stepConfig, "configure vm", b.configure},
+		{stepResize, "resize disk", b.resize},
+		{stepISO, "upload cloud-init iso", b.uploadISO},
+		{stepFirewall, "set firewall", b.firewall},
+	}
+}
+
+func (b *builder) update(ctx context.Context, f func(*buildState)) error {
+	st := b.st
+	f(&st)
+	if err := b.save(ctx, st); err != nil {
+		return err
+	}
+	b.st = st
+	return nil
+}
+
+func (b *builder) done(ctx context.Context, n int) error {
+	return b.update(ctx, func(s *buildState) { s.Step = n })
+}
+
+func (b *builder) vmid() int { return *b.st.Vmid }
+
+func (b *builder) pickVMID(ctx context.Context) error {
+	if b.st.Vmid != nil {
+		return b.done(ctx, stepVMID)
+	}
+	vmid := 0
+	if b.adopt {
+		vms, err := b.pc.VMs(ctx)
+		if err != nil {
+			return err
+		}
+		if i := slices.IndexFunc(vms, func(v pve.VM) bool { return ownedBy(v, b.row.ID) }); i >= 0 {
+			vmid = vms[i].VMID
+		}
+	}
+	if vmid == 0 {
+		var err error
+		if vmid, err = b.pc.NextID(ctx); err != nil {
+			return err
+		}
+	}
+	return b.update(ctx, func(s *buildState) { s.Vmid, s.Step = &vmid, stepVMID })
+}
+
+func (b *builder) templateNode(ctx context.Context) (string, error) {
+	if b.tnode == "" {
+		n, err := templateNode(ctx, b.pc, b.tmpl, b.row.Node)
+		if err != nil {
+			return "", err
+		}
+		b.tnode = n
+	}
+	return b.tnode, nil
+}
+
+func (b *builder) templateConfig(ctx context.Context) (map[string]string, error) {
+	if b.tcfg != nil {
+		return b.tcfg, nil
+	}
+	node, err := b.templateNode(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := b.pc.Config(ctx, node, b.tmpl)
+	if errors.Is(err, pve.ErrNotFound) {
+		return nil, templateGone(b.tmpl)
+	}
+	if err != nil {
+		return nil, err
+	}
+	b.tcfg = cfg
+	return cfg, nil
+}
+
+func (b *builder) diskStorage() string {
+	for _, n := range b.loc.Nodes {
+		if n.Name == b.row.Node {
+			return n.DiskStorage(b.loc)
+		}
+	}
+	return b.loc.DiskStorage
+}
+
+func alreadyExists(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "already exists")
+}
+
+func (b *builder) clone(ctx context.Context) error {
+	if b.st.Upid != nil {
+		return b.awaitClone(ctx, *b.st.Upid)
+	}
+	tnode, err := b.templateNode(ctx)
+	if err != nil {
+		return err
+	}
+	for range maxVMIDTries {
+		vmid := b.vmid()
+		v, found, err := findVM(ctx, b.pc, vmid)
+		if err != nil {
+			return err
+		}
+		if found && ownedBy(v, b.row.ID) {
+			return b.tag(ctx)
+		}
+		if found {
+			cfg, err := b.pc.Config(ctx, v.Node, vmid)
+			if errors.Is(err, pve.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if cfg["lock"] != "" {
+				return transient("vm %d is locked (%s); retrying", vmid, cfg["lock"])
+			}
+			if b.st.Nonce != nil && hasNonce(cfg, b.row.ID, *b.st.Nonce) {
+				return b.tag(ctx)
+			}
+			if err := b.newVMID(ctx); err != nil {
+				return err
+			}
+			continue
+		}
+		// No VM there: a saved nonce means an earlier request never landed, so send it again.
+		nonce := newNonce()
+		if b.st.Nonce != nil {
+			nonce = *b.st.Nonce
+		}
+		if err := b.update(ctx, func(s *buildState) { s.Nonce = &nonce }); err != nil {
+			return err
+		}
+		p := pve.CloneParams{NewID: vmid, Name: b.row.Name, Storage: b.diskStorage(), Full: true,
+			Description: cloneDescription(b.row.ID, nonce)}
+		if tnode != b.row.Node {
+			p.Target = b.row.Node
+		}
+		up, err := b.pc.Clone(ctx, tnode, b.tmpl, p)
+		switch {
+		case errors.Is(err, pve.ErrNotFound):
+			return templateGone(b.tmpl)
+		case alreadyExists(err):
+			continue
+		case err != nil:
+			return err
+		}
+		if b.afterClonePost != nil {
+			b.afterClonePost()
+		}
+		upid := string(up)
+		if err := b.update(ctx, func(s *buildState) { s.Upid = &upid }); err != nil {
+			return err
+		}
+		return b.awaitClone(ctx, upid)
+	}
+	return permanent("no free VMID after %d tries", maxVMIDTries)
+}
+
+// awaitClone waits on our saved clone task; success proves the VM at vmid is ours.
+func (b *builder) awaitClone(ctx context.Context, upid string) error {
+	if err := b.pc.WaitTask(ctx, upidNode(upid), pve.UPID(upid)); err != nil {
+		if ctx.Err() != nil || retryable(err) {
+			return err
+		}
+		return permanent("clone task failed: %s", err)
+	}
+	return b.tag(ctx)
+}
+
+// newVMID replaces a VMID that another VM took.
+func (b *builder) newVMID(ctx context.Context) error {
+	id, err := b.pc.NextID(ctx)
+	if err != nil {
+		return err
+	}
+	return b.update(ctx, func(s *buildState) { s.Vmid, s.Nonce, s.Upid = &id, nil, nil })
+}
+
+func (b *builder) tag(ctx context.Context) error {
+	if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), map[string]string{"tags": vmTags(b.row.ID)}); err != nil {
+		return err
+	}
+	return b.done(ctx, stepClone)
+}
+
+func (b *builder) net0(ctx context.Context) (string, error) {
+	bridge, vlan := "", (*int)(nil)
+	if len(b.assign) > 0 {
+		bridge, vlan = b.assign[0].Bridge, b.assign[0].VLAN
+	} else {
+		cfg, err := b.templateConfig(ctx)
+		if err != nil {
+			return "", err
+		}
+		bridge = cmp.Or(bridgeOf(cfg["net0"]), "vmbr0")
+	}
+	s := "virtio=" + b.row.MAC + ",bridge=" + bridge
+	if vlan != nil {
+		s += ",tag=" + strconv.Itoa(*vlan)
+	}
+	return s + ",firewall=1", nil
+}
+
+func (b *builder) configure(ctx context.Context) error {
+	net0, err := b.net0(ctx)
+	if err != nil {
+		return err
+	}
+	kv := map[string]string{
+		"cores":  strconv.Itoa(b.row.Cores),
+		"memory": strconv.Itoa(b.row.MemoryMB),
+		"name":   b.row.Name,
+		"tags":   vmTags(b.row.ID),
+		"net0":   net0,
+		"agent":  "1",
+	}
+	if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), kv); err != nil {
+		return err
+	}
+	return b.done(ctx, stepConfig)
+}
+
+func (b *builder) resize(ctx context.Context) error {
+	cfg, err := b.templateConfig(ctx)
+	if err != nil {
+		return err
+	}
+	disk := catalog.BootDisk(cfg)
+	if disk == "" {
+		return permanent("template %d has no boot disk", b.tmpl)
+	}
+	if cur, ok := diskBytes(cfg[disk]); !ok || int64(b.row.DiskGB)<<30 > cur {
+		if err := b.pc.ResizeDisk(ctx, b.row.Node, b.vmid(), disk, b.row.DiskGB); err != nil {
+			return err
+		}
+	}
+	return b.done(ctx, stepResize)
+}
+
+func (b *builder) volid() string { return isoVolid(b.loc.ISOStorage, b.row.ID, b.isoGen) }
+
+func (b *builder) uploadISO(ctx context.Context) error {
+	sts, err := b.pc.Storages(ctx, b.row.Node)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(sts, func(s pve.Storage) bool { return s.ID == b.loc.ISOStorage && slices.Contains(s.Content, "iso") }) {
+		return permanent("ISO storage %q is not available on node %s", b.loc.ISOStorage, b.row.Node)
+	}
+	iso, err := cloudinit.Build(cloudinit.Input{
+		InstanceID: fmt.Sprintf("nb-srv-%d-%d", b.row.ID, b.isoGen),
+		Hostname:   b.row.Name, SSHKeys: b.row.SSHKeys, UserData: b.row.UserData, MAC: b.row.MAC, IPs: b.assign,
+	})
+	if err != nil {
+		return permanent("%s", err)
+	}
+	volid := b.volid()
+	// A retry may find its own earlier upload; errors here surface on the upload.
+	_ = b.pc.DeleteVolume(ctx, b.row.Node, b.loc.ISOStorage, volid)
+	if err := b.pc.UploadISO(ctx, b.row.Node, b.loc.ISOStorage, isoName(b.row.ID, b.isoGen), iso); err != nil {
+		return err
+	}
+	if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), map[string]string{"ide2": volid + ",media=cdrom"}); err != nil {
+		return err
+	}
+	return b.done(ctx, stepISO)
+}
+
+func (b *builder) firewall(ctx context.Context) error {
+	ips := make([]netip.Addr, len(b.assign))
+	for i, a := range b.assign {
+		ips[i] = a.IP
+	}
+	if err := b.pc.SetFirewall(ctx, b.row.Node, b.vmid(), ips); err != nil {
+		return err
+	}
+	return b.done(ctx, stepFirewall)
+}
+
+// startVM starts vmid unless it is running, then waits for it to run.
+func startVM(ctx context.Context, pc pve.Client, vmid int, poll time.Duration) error {
+	v, found, err := findVM(ctx, pc, vmid)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return permanent("vm %d disappeared before start", vmid)
+	}
+	if v.Status != "running" {
+		up, err := pc.Power(ctx, v.Node, vmid, pve.PowerStart)
+		if err == nil {
+			err = pc.WaitTask(ctx, v.Node, up)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return waitStatus(ctx, pc, vmid, "running", startWait, poll)
+}
+
+// waitStatus polls until vmid reports want, failing permanently after limit.
+func waitStatus(ctx context.Context, pc pve.Client, vmid int, want string, limit, poll time.Duration) error {
+	deadline := time.Now().Add(limit)
+	for {
+		v, found, err := findVM(ctx, pc, vmid)
+		if err != nil {
+			return err
+		}
+		if found && v.Status == want {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return permanent("vm %d did not reach %s within %s", vmid, want, limit)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(poll):
+		}
+	}
+}
+
+// loadTarget reads what every server job needs: the location, its Proxmox client and the server's IPs.
+func (o *WorkerOptions) loadTarget(ctx context.Context, row *ent.Server) (catalog.Location, pve.Client, []ipam.Assignment, error) {
+	loc, err := o.Catalog.GetLocation(ctx, row.LocationID)
+	if err != nil {
+		return loc, nil, nil, &stepError{"load location", err}
+	}
+	pc, err := o.Catalog.ProxmoxFor(ctx, row.LocationID)
+	if err != nil {
+		return loc, nil, nil, &stepError{"connect to proxmox", err}
+	}
+	assign, err := ipam.Assignments(ctx, o.Ent, row.ID)
+	if err != nil {
+		return loc, pc, nil, &stepError{"load ips", err}
+	}
+	return loc, pc, assign, nil
+}

@@ -276,7 +276,7 @@ func (c *httpClient) WaitTask(ctx context.Context, node string, upid UPID) error
 			if st.ExitStatus == "OK" || strings.HasPrefix(st.ExitStatus, "WARNINGS") {
 				return nil
 			}
-			return fmt.Errorf("pve: task %s failed: %s", upid, st.ExitStatus)
+			return &TaskError{UPID: upid, ExitStatus: st.ExitStatus}
 		}
 		select {
 		case <-ctx.Done():

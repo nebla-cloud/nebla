@@ -210,12 +210,16 @@ func init() {
 	serverDescCreateStep := serverFields[16].Descriptor()
 	// server.DefaultCreateStep holds the default value on creation for the create_step field.
 	server.DefaultCreateStep = serverDescCreateStep.Default.(int)
+	// serverDescRebuildStep is the schema descriptor for rebuild_step field.
+	serverDescRebuildStep := serverFields[20].Descriptor()
+	// server.DefaultRebuildStep holds the default value on creation for the rebuild_step field.
+	server.DefaultRebuildStep = serverDescRebuildStep.Default.(int)
 	// serverDescUserData is the schema descriptor for user_data field.
-	serverDescUserData := serverFields[20].Descriptor()
+	serverDescUserData := serverFields[24].Descriptor()
 	// server.DefaultUserData holds the default value on creation for the user_data field.
 	server.DefaultUserData = serverDescUserData.Default.(string)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[22].Descriptor()
+	serverDescCreatedAt := serverFields[26].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()

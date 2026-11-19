@@ -33,6 +33,13 @@ var projectScopedOps = map[string]bool{
 	"PutServer":        true,
 	"DeleteServer":     true,
 	"GetServerActions": true,
+	"PoweronServer":    true,
+	"PoweroffServer":   true,
+	"ShutdownServer":   true,
+	"RebootServer":     true,
+	"ResetServer":      true,
+	"RebuildServer":    true,
+	"ChangeServerType": true,
 }
 
 // RoleAPIToken is Scope.Role for requests authenticated by an API token.

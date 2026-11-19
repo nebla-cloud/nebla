@@ -51,19 +51,20 @@ func (s *Service) ReserveQuota(ctx context.Context, tx *ent.Client, projectID in
 	}
 	q := quotaOf(p)
 	checks := []struct {
-		name       string
-		limit, sum int
+		name              string
+		limit, add, total int
 	}{
-		{"max_servers", q.MaxServers, cur.Servers + delta.Servers},
-		{"max_vcpu", q.MaxVCPU, cur.VCPU + delta.VCPU},
-		{"max_memory_mb", q.MaxMemoryMB, cur.MemoryMB + delta.MemoryMB},
-		{"max_disk_gb", q.MaxDiskGB, cur.DiskGB + delta.DiskGB},
-		{"max_ips", q.MaxIPs, cur.IPs + delta.IPs},
+		{"max_servers", q.MaxServers, delta.Servers, cur.Servers + delta.Servers},
+		{"max_vcpu", q.MaxVCPU, delta.VCPU, cur.VCPU + delta.VCPU},
+		{"max_memory_mb", q.MaxMemoryMB, delta.MemoryMB, cur.MemoryMB + delta.MemoryMB},
+		{"max_disk_gb", q.MaxDiskGB, delta.DiskGB, cur.DiskGB + delta.DiskGB},
+		{"max_ips", q.MaxIPs, delta.IPs, cur.IPs + delta.IPs},
 	}
+	// Only growing dimensions are checked, so shrinking an over-quota project still works.
 	for _, c := range checks {
-		if c.limit > 0 && c.sum > c.limit {
+		if c.limit > 0 && c.add > 0 && c.total > c.limit {
 			return apierr.New(http.StatusUnprocessableEntity, "quota_exceeded",
-				fmt.Sprintf("quota exceeded: %s is %d, this would use %d", c.name, c.limit, c.sum))
+				fmt.Sprintf("quota exceeded: %s is %d, this would use %d", c.name, c.limit, c.total))
 		}
 	}
 	return nil

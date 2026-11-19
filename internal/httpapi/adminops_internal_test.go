@@ -66,4 +66,10 @@ func TestScopedHandlersFailClosed(t *testing.T) {
 	require.ErrorIs(t, err, errScopeNotFound)
 	_, err = s.GetAction(ctx, apigen.GetActionRequestObject{Id: 1})
 	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.PoweroffServer(ctx, apigen.PoweroffServerRequestObject{Id: 1})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.RebuildServer(ctx, apigen.RebuildServerRequestObject{Id: 1, Body: &apigen.RebuildInput{Image: "x"}})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.ChangeServerType(ctx, apigen.ChangeServerTypeRequestObject{Id: 1, Body: &apigen.ChangeTypeInput{ServerType: "x"}})
+	require.ErrorIs(t, err, errScopeNotFound)
 }

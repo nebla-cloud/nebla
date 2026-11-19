@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Hexeption/nebla/internal/apigen"
+	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/Hexeption/nebla/internal/servers"
 )
 
@@ -137,4 +138,81 @@ func (s *server) GetServerActions(ctx context.Context, req apigen.GetServerActio
 		out.Actions[i] = apiAction(a)
 	}
 	return out, nil
+}
+
+// power runs a power op for the scoped project.
+func (s *server) power(ctx context.Context, id int64, op pve.PowerOp) (apigen.ActionCreatedJSONResponse, error) {
+	sc, err := mustScope(ctx)
+	if err != nil {
+		return apigen.ActionCreatedJSONResponse{}, err
+	}
+	a, err := s.servers.Power(ctx, sc.ProjectID, id, op)
+	if err != nil {
+		return apigen.ActionCreatedJSONResponse{}, err
+	}
+	return apigen.ActionCreatedJSONResponse{Action: apiAction(a)}, nil
+}
+
+func (s *server) PoweronServer(ctx context.Context, req apigen.PoweronServerRequestObject) (apigen.PoweronServerResponseObject, error) {
+	out, err := s.power(ctx, req.Id, pve.PowerStart)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PoweronServer201JSONResponse{ActionCreatedJSONResponse: out}, nil
+}
+
+func (s *server) PoweroffServer(ctx context.Context, req apigen.PoweroffServerRequestObject) (apigen.PoweroffServerResponseObject, error) {
+	out, err := s.power(ctx, req.Id, pve.PowerStop)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PoweroffServer201JSONResponse{ActionCreatedJSONResponse: out}, nil
+}
+
+func (s *server) ShutdownServer(ctx context.Context, req apigen.ShutdownServerRequestObject) (apigen.ShutdownServerResponseObject, error) {
+	out, err := s.power(ctx, req.Id, pve.PowerShutdown)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.ShutdownServer201JSONResponse{ActionCreatedJSONResponse: out}, nil
+}
+
+func (s *server) RebootServer(ctx context.Context, req apigen.RebootServerRequestObject) (apigen.RebootServerResponseObject, error) {
+	out, err := s.power(ctx, req.Id, pve.PowerReboot)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.RebootServer201JSONResponse{ActionCreatedJSONResponse: out}, nil
+}
+
+func (s *server) ResetServer(ctx context.Context, req apigen.ResetServerRequestObject) (apigen.ResetServerResponseObject, error) {
+	out, err := s.power(ctx, req.Id, pve.PowerReset)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.ResetServer201JSONResponse{ActionCreatedJSONResponse: out}, nil
+}
+
+func (s *server) RebuildServer(ctx context.Context, req apigen.RebuildServerRequestObject) (apigen.RebuildServerResponseObject, error) {
+	sc, err := mustScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	a, err := s.servers.Rebuild(ctx, sc.ProjectID, req.Id, req.Body.Image)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.RebuildServer201JSONResponse{ActionCreatedJSONResponse: apigen.ActionCreatedJSONResponse{Action: apiAction(a)}}, nil
+}
+
+func (s *server) ChangeServerType(ctx context.Context, req apigen.ChangeServerTypeRequestObject) (apigen.ChangeServerTypeResponseObject, error) {
+	sc, err := mustScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	a, err := s.servers.ChangeType(ctx, sc.ProjectID, req.Id, req.Body.ServerType, req.Body.UpgradeDisk)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.ChangeServerType201JSONResponse{ActionCreatedJSONResponse: apigen.ActionCreatedJSONResponse{Action: apiAction(a)}}, nil
 }

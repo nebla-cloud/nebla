@@ -125,6 +125,26 @@ func CreateStep(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreateStep, v))
 }
 
+// RebuildVmid applies equality check predicate on the "rebuild_vmid" field. It's identical to RebuildVmidEQ.
+func RebuildVmid(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildVmid, v))
+}
+
+// RebuildCloneUpid applies equality check predicate on the "rebuild_clone_upid" field. It's identical to RebuildCloneUpidEQ.
+func RebuildCloneUpid(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneNonce applies equality check predicate on the "rebuild_clone_nonce" field. It's identical to RebuildCloneNonceEQ.
+func RebuildCloneNonce(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildCloneNonce, v))
+}
+
+// RebuildStep applies equality check predicate on the "rebuild_step" field. It's identical to RebuildStepEQ.
+func RebuildStep(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildStep, v))
+}
+
 // Cores applies equality check predicate on the "cores" field. It's identical to CoresEQ.
 func Cores(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCores, v))
@@ -838,6 +858,246 @@ func CreateStepLT(v int) predicate.Server {
 // CreateStepLTE applies the LTE predicate on the "create_step" field.
 func CreateStepLTE(v int) predicate.Server {
 	return predicate.Server(sql.FieldLTE(FieldCreateStep, v))
+}
+
+// RebuildVmidEQ applies the EQ predicate on the "rebuild_vmid" field.
+func RebuildVmidEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildVmid, v))
+}
+
+// RebuildVmidNEQ applies the NEQ predicate on the "rebuild_vmid" field.
+func RebuildVmidNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldRebuildVmid, v))
+}
+
+// RebuildVmidIn applies the In predicate on the "rebuild_vmid" field.
+func RebuildVmidIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldRebuildVmid, vs...))
+}
+
+// RebuildVmidNotIn applies the NotIn predicate on the "rebuild_vmid" field.
+func RebuildVmidNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldRebuildVmid, vs...))
+}
+
+// RebuildVmidGT applies the GT predicate on the "rebuild_vmid" field.
+func RebuildVmidGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldRebuildVmid, v))
+}
+
+// RebuildVmidGTE applies the GTE predicate on the "rebuild_vmid" field.
+func RebuildVmidGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldRebuildVmid, v))
+}
+
+// RebuildVmidLT applies the LT predicate on the "rebuild_vmid" field.
+func RebuildVmidLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldRebuildVmid, v))
+}
+
+// RebuildVmidLTE applies the LTE predicate on the "rebuild_vmid" field.
+func RebuildVmidLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldRebuildVmid, v))
+}
+
+// RebuildVmidIsNil applies the IsNil predicate on the "rebuild_vmid" field.
+func RebuildVmidIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldRebuildVmid))
+}
+
+// RebuildVmidNotNil applies the NotNil predicate on the "rebuild_vmid" field.
+func RebuildVmidNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldRebuildVmid))
+}
+
+// RebuildCloneUpidEQ applies the EQ predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidNEQ applies the NEQ predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidNEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidIn applies the In predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldRebuildCloneUpid, vs...))
+}
+
+// RebuildCloneUpidNotIn applies the NotIn predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidNotIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldRebuildCloneUpid, vs...))
+}
+
+// RebuildCloneUpidGT applies the GT predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidGT(v string) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidGTE applies the GTE predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidGTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidLT applies the LT predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidLT(v string) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidLTE applies the LTE predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidLTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidContains applies the Contains predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidContains(v string) predicate.Server {
+	return predicate.Server(sql.FieldContains(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidHasPrefix applies the HasPrefix predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidHasPrefix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasPrefix(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidHasSuffix applies the HasSuffix predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidHasSuffix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasSuffix(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidIsNil applies the IsNil predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldRebuildCloneUpid))
+}
+
+// RebuildCloneUpidNotNil applies the NotNil predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldRebuildCloneUpid))
+}
+
+// RebuildCloneUpidEqualFold applies the EqualFold predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidEqualFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldEqualFold(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneUpidContainsFold applies the ContainsFold predicate on the "rebuild_clone_upid" field.
+func RebuildCloneUpidContainsFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldContainsFold(FieldRebuildCloneUpid, v))
+}
+
+// RebuildCloneNonceEQ applies the EQ predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceNEQ applies the NEQ predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceNEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceIn applies the In predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldRebuildCloneNonce, vs...))
+}
+
+// RebuildCloneNonceNotIn applies the NotIn predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceNotIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldRebuildCloneNonce, vs...))
+}
+
+// RebuildCloneNonceGT applies the GT predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceGT(v string) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceGTE applies the GTE predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceGTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceLT applies the LT predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceLT(v string) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceLTE applies the LTE predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceLTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceContains applies the Contains predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceContains(v string) predicate.Server {
+	return predicate.Server(sql.FieldContains(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceHasPrefix applies the HasPrefix predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceHasPrefix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasPrefix(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceHasSuffix applies the HasSuffix predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceHasSuffix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasSuffix(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceIsNil applies the IsNil predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldRebuildCloneNonce))
+}
+
+// RebuildCloneNonceNotNil applies the NotNil predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldRebuildCloneNonce))
+}
+
+// RebuildCloneNonceEqualFold applies the EqualFold predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceEqualFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldEqualFold(FieldRebuildCloneNonce, v))
+}
+
+// RebuildCloneNonceContainsFold applies the ContainsFold predicate on the "rebuild_clone_nonce" field.
+func RebuildCloneNonceContainsFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldContainsFold(FieldRebuildCloneNonce, v))
+}
+
+// RebuildStepEQ applies the EQ predicate on the "rebuild_step" field.
+func RebuildStepEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildStep, v))
+}
+
+// RebuildStepNEQ applies the NEQ predicate on the "rebuild_step" field.
+func RebuildStepNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldRebuildStep, v))
+}
+
+// RebuildStepIn applies the In predicate on the "rebuild_step" field.
+func RebuildStepIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldRebuildStep, vs...))
+}
+
+// RebuildStepNotIn applies the NotIn predicate on the "rebuild_step" field.
+func RebuildStepNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldRebuildStep, vs...))
+}
+
+// RebuildStepGT applies the GT predicate on the "rebuild_step" field.
+func RebuildStepGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldRebuildStep, v))
+}
+
+// RebuildStepGTE applies the GTE predicate on the "rebuild_step" field.
+func RebuildStepGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldRebuildStep, v))
+}
+
+// RebuildStepLT applies the LT predicate on the "rebuild_step" field.
+func RebuildStepLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldRebuildStep, v))
+}
+
+// RebuildStepLTE applies the LTE predicate on the "rebuild_step" field.
+func RebuildStepLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldRebuildStep, v))
 }
 
 // CoresEQ applies the EQ predicate on the "cores" field.

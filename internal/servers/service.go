@@ -120,6 +120,10 @@ var (
 	errNotFound  = apierr.New(http.StatusNotFound, "not_found", "not found")
 	errNoJobs    = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
 	errLocked    = apierr.New(http.StatusConflict, "locked", "the server has a running action")
+	errMissing   = apierr.New(http.StatusConflict, "server_missing", "the server's VM is missing in Proxmox")
+	errNotReady  = apierr.New(http.StatusConflict, "server_not_ready", "the server has no usable VM")
+	errNotOff    = apierr.New(http.StatusConflict, "server_not_stopped", "the server must be stopped")
+	errShrink    = apierr.New(http.StatusUnprocessableEntity, "disk_shrink_not_allowed", "disks cannot shrink")
 	errNameTaken = apierr.New(http.StatusConflict, "uniqueness_error", "server name is already taken")
 	errMACTaken  = errors.New("mac collision")
 )
@@ -472,59 +476,101 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 }
 
 func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInput) (Server, error) {
-	u := s.o.Ent.Server.Update().Where(server.ID(id), server.ProjectID(projectID))
 	if in.Name != nil {
 		if err := validName(*in.Name); err != nil {
 			return Server{}, err
 		}
-		u.SetName(*in.Name)
 	}
+	var labels map[string]string
 	if in.Labels != nil {
-		l := *in.Labels
-		if l == nil {
-			l = map[string]string{}
+		if labels = *in.Labels; labels == nil {
+			labels = map[string]string{}
 		}
-		if err := validLabels(l); err != nil {
+		if err := validLabels(labels); err != nil {
 			return Server{}, err
 		}
-		u.SetLabels(l)
 	}
-	n, err := u.Save(ctx)
+	err := db.WithTx(ctx, s.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		if _, err := LockServer(ctx, etx, projectID, id); err != nil {
+			return err
+		}
+		u := etx.Server.UpdateOneID(id)
+		if in.Name != nil {
+			u.SetName(*in.Name)
+		}
+		if labels != nil {
+			u.SetLabels(labels)
+		}
+		return writeErr(u.Exec(ctx))
+	})
 	if err != nil {
-		return Server{}, writeErr(err)
-	}
-	if n == 0 {
-		return Server{}, errNotFound
+		return Server{}, err
 	}
 	return s.Get(ctx, projectID, id)
 }
 
-// Delete marks the server deleting and queues delete_server; a running action on it gives 409 locked.
-func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Action, error) {
+// HasRunningAction reports whether any running action in the project lists the server.
+func HasRunningAction(ctx context.Context, c *ent.Client, projectID, serverID int64) (bool, error) {
+	return c.Action.Query().Where(ActionsOf(projectID, serverID), actionRunning).Exist(ctx)
+}
+
+// LockServer locks the project's server row in tx; another running action on it gives 409 locked.
+func LockServer(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.Server, error) {
+	row, err := tx.Server.Query().Where(server.ID(id), server.ProjectID(projectID)).ForUpdate().Only(ctx)
+	if err != nil {
+		return nil, notFound(err)
+	}
+	busy, err := HasRunningAction(ctx, tx, projectID, id)
+	if err != nil {
+		return nil, err
+	}
+	if busy {
+		return nil, errLocked
+	}
+	return row, nil
+}
+
+// queue runs prepare under the server lock and starts its job; nil args records an already-succeeded action.
+func (s *Service) queue(ctx context.Context, projectID, id int64, command string,
+	prepare func(etx *ent.Client, row *ent.Server) (func(actionID int64) river.JobArgs, error)) (actions.Action, error) {
 	if s.o.Jobs == nil {
 		return actions.Action{}, errNoJobs
 	}
 	var act actions.Action
 	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
-		if _, err := etx.Server.Query().Where(server.ID(id), server.ProjectID(projectID)).ForUpdate().Only(ctx); err != nil {
-			return notFound(err)
-		}
-		busy, err := etx.Action.Query().Where(ActionsOf(projectID, id), actionRunning).Exist(ctx)
+		row, err := LockServer(ctx, etx, projectID, id)
 		if err != nil {
 			return err
 		}
-		if busy {
-			return errLocked
-		}
-		if err := etx.Server.UpdateOneID(id).SetStatus(StatusDeleting).Exec(ctx); err != nil {
+		args, err := prepare(etx, row)
+		if err != nil {
 			return err
 		}
-		act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindDeleteServer,
-			[]actions.Resource{{ID: id, Type: ResourceType}},
-			func(actionID int64) river.JobArgs { return DeleteServerArgs{ServerID: id, ActionID: actionID} }, nil)
+		res := []actions.Resource{{ID: id, Type: ResourceType}}
+		if args != nil {
+			act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, command, res, args, nil)
+			return err
+		}
+		if act, err = actions.Create(ctx, etx, projectID, command, res); err != nil {
+			return err
+		}
+		if err := actions.Succeed(ctx, etx, act.ID); err != nil {
+			return err
+		}
+		act, err = actions.Get(ctx, etx, projectID, act.ID)
 		return err
 	})
 	return act, err
+}
+
+// Delete marks the server deleting and queues delete_server; a running action on it gives 409 locked.
+func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Action, error) {
+	return s.queue(ctx, projectID, id, KindDeleteServer, func(etx *ent.Client, _ *ent.Server) (func(int64) river.JobArgs, error) {
+		if err := etx.Server.UpdateOneID(id).SetStatus(StatusDeleting).Exec(ctx); err != nil {
+			return nil, err
+		}
+		return func(actionID int64) river.JobArgs { return DeleteServerArgs{ServerID: id, ActionID: actionID} }, nil
+	})
 }
 
 // Actions lists the server's actions; the server must exist in the project.

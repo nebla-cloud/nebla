@@ -9734,47 +9734,53 @@ func (m *SSHKeyMutation) ResetEdge(name string) error {
 // ServerMutation represents an operation that mutates the Server nodes in the graph.
 type ServerMutation struct {
 	config
-	op                 Op
-	typ                string
-	id                 *int64
-	name               *string
-	node               *string
-	vmid               *int
-	addvmid            *int
-	template_vmid      *int
-	addtemplate_vmid   *int
-	status             *server.Status
-	mac                *string
-	labels             *map[string]string
-	iso_volid          *string
-	iso_generation     *int
-	addiso_generation  *int
-	clone_upid         *string
-	clone_nonce        *string
-	create_step        *int
-	addcreate_step     *int
-	cores              *int
-	addcores           *int
-	memory_mb          *int
-	addmemory_mb       *int
-	disk_gb            *int
-	adddisk_gb         *int
-	user_data          *string
-	ssh_keys           *[]string
-	appendssh_keys     []string
-	created_at         *time.Time
-	clearedFields      map[string]struct{}
-	project            *int64
-	clearedproject     bool
-	location           *int64
-	clearedlocation    bool
-	server_type        *int64
-	clearedserver_type bool
-	image              *int64
-	clearedimage       bool
-	done               bool
-	oldValue           func(context.Context) (*Server, error)
-	predicates         []predicate.Server
+	op                  Op
+	typ                 string
+	id                  *int64
+	name                *string
+	node                *string
+	vmid                *int
+	addvmid             *int
+	template_vmid       *int
+	addtemplate_vmid    *int
+	status              *server.Status
+	mac                 *string
+	labels              *map[string]string
+	iso_volid           *string
+	iso_generation      *int
+	addiso_generation   *int
+	clone_upid          *string
+	clone_nonce         *string
+	create_step         *int
+	addcreate_step      *int
+	rebuild_vmid        *int
+	addrebuild_vmid     *int
+	rebuild_clone_upid  *string
+	rebuild_clone_nonce *string
+	rebuild_step        *int
+	addrebuild_step     *int
+	cores               *int
+	addcores            *int
+	memory_mb           *int
+	addmemory_mb        *int
+	disk_gb             *int
+	adddisk_gb          *int
+	user_data           *string
+	ssh_keys            *[]string
+	appendssh_keys      []string
+	created_at          *time.Time
+	clearedFields       map[string]struct{}
+	project             *int64
+	clearedproject      bool
+	location            *int64
+	clearedlocation     bool
+	server_type         *int64
+	clearedserver_type  bool
+	image               *int64
+	clearedimage        bool
+	done                bool
+	oldValue            func(context.Context) (*Server, error)
+	predicates          []predicate.Server
 }
 
 var _ ent.Mutation = (*ServerMutation)(nil)
@@ -10590,6 +10596,230 @@ func (m *ServerMutation) ResetCreateStep() {
 	m.addcreate_step = nil
 }
 
+// SetRebuildVmid sets the "rebuild_vmid" field.
+func (m *ServerMutation) SetRebuildVmid(i int) {
+	m.rebuild_vmid = &i
+	m.addrebuild_vmid = nil
+}
+
+// RebuildVmid returns the value of the "rebuild_vmid" field in the mutation.
+func (m *ServerMutation) RebuildVmid() (r int, exists bool) {
+	v := m.rebuild_vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRebuildVmid returns the old "rebuild_vmid" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldRebuildVmid(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRebuildVmid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRebuildVmid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRebuildVmid: %w", err)
+	}
+	return oldValue.RebuildVmid, nil
+}
+
+// AddRebuildVmid adds i to the "rebuild_vmid" field.
+func (m *ServerMutation) AddRebuildVmid(i int) {
+	if m.addrebuild_vmid != nil {
+		*m.addrebuild_vmid += i
+	} else {
+		m.addrebuild_vmid = &i
+	}
+}
+
+// AddedRebuildVmid returns the value that was added to the "rebuild_vmid" field in this mutation.
+func (m *ServerMutation) AddedRebuildVmid() (r int, exists bool) {
+	v := m.addrebuild_vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearRebuildVmid clears the value of the "rebuild_vmid" field.
+func (m *ServerMutation) ClearRebuildVmid() {
+	m.rebuild_vmid = nil
+	m.addrebuild_vmid = nil
+	m.clearedFields[server.FieldRebuildVmid] = struct{}{}
+}
+
+// RebuildVmidCleared returns if the "rebuild_vmid" field was cleared in this mutation.
+func (m *ServerMutation) RebuildVmidCleared() bool {
+	_, ok := m.clearedFields[server.FieldRebuildVmid]
+	return ok
+}
+
+// ResetRebuildVmid resets all changes to the "rebuild_vmid" field.
+func (m *ServerMutation) ResetRebuildVmid() {
+	m.rebuild_vmid = nil
+	m.addrebuild_vmid = nil
+	delete(m.clearedFields, server.FieldRebuildVmid)
+}
+
+// SetRebuildCloneUpid sets the "rebuild_clone_upid" field.
+func (m *ServerMutation) SetRebuildCloneUpid(s string) {
+	m.rebuild_clone_upid = &s
+}
+
+// RebuildCloneUpid returns the value of the "rebuild_clone_upid" field in the mutation.
+func (m *ServerMutation) RebuildCloneUpid() (r string, exists bool) {
+	v := m.rebuild_clone_upid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRebuildCloneUpid returns the old "rebuild_clone_upid" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldRebuildCloneUpid(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRebuildCloneUpid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRebuildCloneUpid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRebuildCloneUpid: %w", err)
+	}
+	return oldValue.RebuildCloneUpid, nil
+}
+
+// ClearRebuildCloneUpid clears the value of the "rebuild_clone_upid" field.
+func (m *ServerMutation) ClearRebuildCloneUpid() {
+	m.rebuild_clone_upid = nil
+	m.clearedFields[server.FieldRebuildCloneUpid] = struct{}{}
+}
+
+// RebuildCloneUpidCleared returns if the "rebuild_clone_upid" field was cleared in this mutation.
+func (m *ServerMutation) RebuildCloneUpidCleared() bool {
+	_, ok := m.clearedFields[server.FieldRebuildCloneUpid]
+	return ok
+}
+
+// ResetRebuildCloneUpid resets all changes to the "rebuild_clone_upid" field.
+func (m *ServerMutation) ResetRebuildCloneUpid() {
+	m.rebuild_clone_upid = nil
+	delete(m.clearedFields, server.FieldRebuildCloneUpid)
+}
+
+// SetRebuildCloneNonce sets the "rebuild_clone_nonce" field.
+func (m *ServerMutation) SetRebuildCloneNonce(s string) {
+	m.rebuild_clone_nonce = &s
+}
+
+// RebuildCloneNonce returns the value of the "rebuild_clone_nonce" field in the mutation.
+func (m *ServerMutation) RebuildCloneNonce() (r string, exists bool) {
+	v := m.rebuild_clone_nonce
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRebuildCloneNonce returns the old "rebuild_clone_nonce" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldRebuildCloneNonce(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRebuildCloneNonce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRebuildCloneNonce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRebuildCloneNonce: %w", err)
+	}
+	return oldValue.RebuildCloneNonce, nil
+}
+
+// ClearRebuildCloneNonce clears the value of the "rebuild_clone_nonce" field.
+func (m *ServerMutation) ClearRebuildCloneNonce() {
+	m.rebuild_clone_nonce = nil
+	m.clearedFields[server.FieldRebuildCloneNonce] = struct{}{}
+}
+
+// RebuildCloneNonceCleared returns if the "rebuild_clone_nonce" field was cleared in this mutation.
+func (m *ServerMutation) RebuildCloneNonceCleared() bool {
+	_, ok := m.clearedFields[server.FieldRebuildCloneNonce]
+	return ok
+}
+
+// ResetRebuildCloneNonce resets all changes to the "rebuild_clone_nonce" field.
+func (m *ServerMutation) ResetRebuildCloneNonce() {
+	m.rebuild_clone_nonce = nil
+	delete(m.clearedFields, server.FieldRebuildCloneNonce)
+}
+
+// SetRebuildStep sets the "rebuild_step" field.
+func (m *ServerMutation) SetRebuildStep(i int) {
+	m.rebuild_step = &i
+	m.addrebuild_step = nil
+}
+
+// RebuildStep returns the value of the "rebuild_step" field in the mutation.
+func (m *ServerMutation) RebuildStep() (r int, exists bool) {
+	v := m.rebuild_step
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRebuildStep returns the old "rebuild_step" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldRebuildStep(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRebuildStep is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRebuildStep requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRebuildStep: %w", err)
+	}
+	return oldValue.RebuildStep, nil
+}
+
+// AddRebuildStep adds i to the "rebuild_step" field.
+func (m *ServerMutation) AddRebuildStep(i int) {
+	if m.addrebuild_step != nil {
+		*m.addrebuild_step += i
+	} else {
+		m.addrebuild_step = &i
+	}
+}
+
+// AddedRebuildStep returns the value that was added to the "rebuild_step" field in this mutation.
+func (m *ServerMutation) AddedRebuildStep() (r int, exists bool) {
+	v := m.addrebuild_step
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRebuildStep resets all changes to the "rebuild_step" field.
+func (m *ServerMutation) ResetRebuildStep() {
+	m.rebuild_step = nil
+	m.addrebuild_step = nil
+}
+
 // SetCores sets the "cores" field.
 func (m *ServerMutation) SetCores(i int) {
 	m.cores = &i
@@ -11023,7 +11253,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 22)
+	fields := make([]string, 0, 26)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -11071,6 +11301,18 @@ func (m *ServerMutation) Fields() []string {
 	}
 	if m.create_step != nil {
 		fields = append(fields, server.FieldCreateStep)
+	}
+	if m.rebuild_vmid != nil {
+		fields = append(fields, server.FieldRebuildVmid)
+	}
+	if m.rebuild_clone_upid != nil {
+		fields = append(fields, server.FieldRebuildCloneUpid)
+	}
+	if m.rebuild_clone_nonce != nil {
+		fields = append(fields, server.FieldRebuildCloneNonce)
+	}
+	if m.rebuild_step != nil {
+		fields = append(fields, server.FieldRebuildStep)
 	}
 	if m.cores != nil {
 		fields = append(fields, server.FieldCores)
@@ -11130,6 +11372,14 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.CloneNonce()
 	case server.FieldCreateStep:
 		return m.CreateStep()
+	case server.FieldRebuildVmid:
+		return m.RebuildVmid()
+	case server.FieldRebuildCloneUpid:
+		return m.RebuildCloneUpid()
+	case server.FieldRebuildCloneNonce:
+		return m.RebuildCloneNonce()
+	case server.FieldRebuildStep:
+		return m.RebuildStep()
 	case server.FieldCores:
 		return m.Cores()
 	case server.FieldMemoryMB:
@@ -11183,6 +11433,14 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldCloneNonce(ctx)
 	case server.FieldCreateStep:
 		return m.OldCreateStep(ctx)
+	case server.FieldRebuildVmid:
+		return m.OldRebuildVmid(ctx)
+	case server.FieldRebuildCloneUpid:
+		return m.OldRebuildCloneUpid(ctx)
+	case server.FieldRebuildCloneNonce:
+		return m.OldRebuildCloneNonce(ctx)
+	case server.FieldRebuildStep:
+		return m.OldRebuildStep(ctx)
 	case server.FieldCores:
 		return m.OldCores(ctx)
 	case server.FieldMemoryMB:
@@ -11316,6 +11574,34 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetCreateStep(v)
 		return nil
+	case server.FieldRebuildVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRebuildVmid(v)
+		return nil
+	case server.FieldRebuildCloneUpid:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRebuildCloneUpid(v)
+		return nil
+	case server.FieldRebuildCloneNonce:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRebuildCloneNonce(v)
+		return nil
+	case server.FieldRebuildStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRebuildStep(v)
+		return nil
 	case server.FieldCores:
 		v, ok := value.(int)
 		if !ok {
@@ -11378,6 +11664,12 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.addcreate_step != nil {
 		fields = append(fields, server.FieldCreateStep)
 	}
+	if m.addrebuild_vmid != nil {
+		fields = append(fields, server.FieldRebuildVmid)
+	}
+	if m.addrebuild_step != nil {
+		fields = append(fields, server.FieldRebuildStep)
+	}
 	if m.addcores != nil {
 		fields = append(fields, server.FieldCores)
 	}
@@ -11403,6 +11695,10 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedIsoGeneration()
 	case server.FieldCreateStep:
 		return m.AddedCreateStep()
+	case server.FieldRebuildVmid:
+		return m.AddedRebuildVmid()
+	case server.FieldRebuildStep:
+		return m.AddedRebuildStep()
 	case server.FieldCores:
 		return m.AddedCores()
 	case server.FieldMemoryMB:
@@ -11446,6 +11742,20 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddCreateStep(v)
 		return nil
+	case server.FieldRebuildVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRebuildVmid(v)
+		return nil
+	case server.FieldRebuildStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRebuildStep(v)
+		return nil
 	case server.FieldCores:
 		v, ok := value.(int)
 		if !ok {
@@ -11487,6 +11797,15 @@ func (m *ServerMutation) ClearedFields() []string {
 	if m.FieldCleared(server.FieldCloneNonce) {
 		fields = append(fields, server.FieldCloneNonce)
 	}
+	if m.FieldCleared(server.FieldRebuildVmid) {
+		fields = append(fields, server.FieldRebuildVmid)
+	}
+	if m.FieldCleared(server.FieldRebuildCloneUpid) {
+		fields = append(fields, server.FieldRebuildCloneUpid)
+	}
+	if m.FieldCleared(server.FieldRebuildCloneNonce) {
+		fields = append(fields, server.FieldRebuildCloneNonce)
+	}
 	return fields
 }
 
@@ -11512,6 +11831,15 @@ func (m *ServerMutation) ClearField(name string) error {
 		return nil
 	case server.FieldCloneNonce:
 		m.ClearCloneNonce()
+		return nil
+	case server.FieldRebuildVmid:
+		m.ClearRebuildVmid()
+		return nil
+	case server.FieldRebuildCloneUpid:
+		m.ClearRebuildCloneUpid()
+		return nil
+	case server.FieldRebuildCloneNonce:
+		m.ClearRebuildCloneNonce()
 		return nil
 	}
 	return fmt.Errorf("unknown Server nullable field %s", name)
@@ -11568,6 +11896,18 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldCreateStep:
 		m.ResetCreateStep()
+		return nil
+	case server.FieldRebuildVmid:
+		m.ResetRebuildVmid()
+		return nil
+	case server.FieldRebuildCloneUpid:
+		m.ResetRebuildCloneUpid()
+		return nil
+	case server.FieldRebuildCloneNonce:
+		m.ResetRebuildCloneNonce()
+		return nil
+	case server.FieldRebuildStep:
+		m.ResetRebuildStep()
 		return nil
 	case server.FieldCores:
 		m.ResetCores()
