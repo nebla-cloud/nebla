@@ -261,14 +261,13 @@ func provenOurs(ctx context.Context, pc pve.Client, serverID int64, v pve.VM, pr
 	if proof.UPID != nil {
 		err := pc.WaitTask(ctx, upidNode(*proof.UPID), pve.UPID(*proof.UPID))
 		switch {
-		case err == nil:
-			return true, nil
 		case errors.Is(err, pve.ErrTaskFailed):
 			// Our clone task failed, so the VM there is not ours.
 			return false, nil
-		case ctx.Err() != nil || proof.Nonce == nil:
+		case err != nil && (ctx.Err() != nil || proof.Nonce == nil):
 			return false, fmt.Errorf("vm %d: clone task unresolved: %w", v.VMID, err)
 		}
+		// A successful task never proves the VM here now; the nonce below must.
 	}
 	if proof.Nonce == nil {
 		return false, fmt.Errorf("vm %d lacks tags %s and %s: %w", v.VMID, TagNebla, ServerTag(serverID), errUnproven)
