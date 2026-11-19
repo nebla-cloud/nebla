@@ -122,6 +122,7 @@ func (s *Server) AddNode(name string, cpus int, memMB int64) {
 func (s *Server) AddStorage(nodeName, id string, content []string, shared bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	s.nodes[nodeName].storages[id] = &storage{content: content, shared: shared, availMB: 500_000}
 }
 
@@ -129,6 +130,7 @@ func (s *Server) AddStorage(nodeName, id string, content []string, shared bool) 
 func (s *Server) AddTemplate(nodeName string, vmid int, storageID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	n := s.nodes[nodeName]
 	if _, ok := n.storages[storageID]; !ok {
 		n.storages[storageID] = &storage{content: []string{"images", "iso"}, availMB: 500_000}
@@ -237,6 +239,7 @@ func (s *Server) VM(vmid int) (FakeVM, bool) {
 func (s *Server) Volume(id string) ([]byte, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	b, ok := s.volumes[id]
 	return slices.Clone(b), ok
 }

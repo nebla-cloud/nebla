@@ -8,6 +8,7 @@ import (
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/catalog"
 	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -132,10 +133,20 @@ func TestUpdateLocationKeepsSecret(t *testing.T) {
 	requireCode(t, err, 422, "pve_unreachable")
 }
 
-func TestSyncNodesDisablesMissing(t *testing.T) {
+func TestSyncNodesTracksPresence(t *testing.T) {
 	ctx := context.Background()
 	svc, pv, _ := setup(t)
 	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	byName := func(l catalog.Location) map[string]catalog.Node {
+		m := map[string]catalog.Node{}
+		for _, n := range l.Nodes {
+			m[n.Name] = n
+		}
+		return m
+	}
+	nodes := byName(loc)
+	_, err = svc.UpdateNode(ctx, loc.ID, nodes["pve1"].ID, catalog.NodeUpdate{Enabled: new(false)})
 	require.NoError(t, err)
 
 	pv.AddNode("pve3", 4, 8192)
@@ -144,20 +155,27 @@ func TestSyncNodesDisablesMissing(t *testing.T) {
 	loc, err = svc.SyncNodes(ctx, loc.ID)
 	require.NoError(t, err)
 	require.Len(t, loc.Nodes, 3)
-	byName := map[string]catalog.Node{}
-	for _, n := range loc.Nodes {
-		byName[n.Name] = n
-	}
-	require.True(t, byName["pve1"].Enabled)
-	require.InDelta(t, 0.25, byName["pve1"].CPU, 0.001)
-	require.Equal(t, int64(1024)<<20, byName["pve1"].Mem)
-	require.False(t, byName["pve2"].Enabled)
-	require.True(t, byName["pve3"].Enabled)
+	nodes = byName(loc)
+	require.InDelta(t, 0.25, nodes["pve1"].CPU, 0.001)
+	require.Equal(t, int64(1024)<<20, nodes["pve1"].Mem)
+	require.False(t, nodes["pve1"].Enabled, "sync keeps admin intent")
+	require.Equal(t, catalog.NodeMissing, nodes["pve2"].Status)
+	require.True(t, nodes["pve2"].Enabled, "presence lives in status only")
+	require.True(t, nodes["pve3"].Enabled)
+	require.Equal(t, "online", nodes["pve3"].Status)
 
-	n, err := svc.UpdateNode(ctx, loc.ID, byName["pve1"].ID, catalog.NodeUpdate{DiskStorageOverride: new("local-lvm")})
+	pv.AddNode("pve2", 16, 65536)
+	loc, err = svc.SyncNodes(ctx, loc.ID)
+	require.NoError(t, err)
+	nodes = byName(loc)
+	require.Equal(t, "online", nodes["pve2"].Status, "reappearing node gets its real status")
+	require.True(t, nodes["pve2"].Enabled)
+	require.False(t, nodes["pve1"].Enabled)
+
+	n, err := svc.UpdateNode(ctx, loc.ID, nodes["pve1"].ID, catalog.NodeUpdate{DiskStorageOverride: new("local-lvm")})
 	require.NoError(t, err)
 	require.Equal(t, "local-lvm", n.DiskStorageOverride)
-	_, err = svc.UpdateNode(ctx, loc.ID, byName["pve1"].ID, catalog.NodeUpdate{DiskStorageOverride: new("local")})
+	_, err = svc.UpdateNode(ctx, loc.ID, nodes["pve1"].ID, catalog.NodeUpdate{DiskStorageOverride: new("local")})
 	requireCode(t, err, 422, "invalid_input")
 }
 
@@ -286,4 +304,60 @@ func TestImagesAndTypes(t *testing.T) {
 	require.NoError(t, svc.DeleteServerType(ctx, st.ID))
 	_, err = svc.GetServerType(ctx, st.ID)
 	requireCode(t, err, 404, "not_found")
+}
+
+func TestImageTemplateAllVolumesShared(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	c := pve.New(pv.Conn())
+	img := func(name string, vmid int, node string) error {
+		_, err := svc.CreateImage(ctx, catalog.ImageInput{Name: name, OSFlavor: "ubuntu", OSVersion: "24.04",
+			Templates: []catalog.TemplateInput{{LocationID: loc.ID, VMID: vmid, Node: node}}})
+		return err
+	}
+
+	pv.AddTemplate("pve1", 9100, "ceph")
+	require.NoError(t, c.SetConfig(ctx, "pve1", 9100, map[string]string{
+		"efidisk0": "ceph:base-9100-disk-1,efitype=4m,size=4M",
+		"ide2":     "ceph:vm-9100-cloudinit,media=cdrom",
+		"ide0":     "local:iso/ubuntu.iso,media=cdrom",
+		"sata1":    "none,media=cdrom",
+		"unused0":  "ceph:base-9100-disk-2",
+	}))
+	require.NoError(t, img("all-shared", 9100, ""), "ISOs and empty drives are ignored")
+
+	pv.AddTemplate("pve1", 9101, "ceph")
+	require.NoError(t, c.SetConfig(ctx, "pve1", 9101, map[string]string{"efidisk0": "local-lvm:base-9101-disk-1,efitype=4m,size=4M"}))
+	err = img("uefi-local", 9101, "")
+	requireCode(t, err, 422, "template_not_shared")
+	require.Contains(t, err.Error(), "efidisk0")
+	require.NoError(t, img("uefi-local", 9101, "pve1"), "node-pinned templates may use local storage")
+
+	pv.AddTemplate("pve1", 9102, "ceph")
+	require.NoError(t, c.SetConfig(ctx, "pve1", 9102, map[string]string{"ide2": "local-lvm:vm-9102-cloudinit,media=cdrom"}))
+	err = img("ci-local", 9102, "")
+	requireCode(t, err, 422, "template_not_shared")
+	require.Contains(t, err.Error(), "ide2")
+
+	pv.AddTemplate("pve1", 9103, "ceph")
+	require.NoError(t, c.SetConfig(ctx, "pve1", 9103, map[string]string{"delete": "scsi0", "ide2": "local:iso/x.iso,media=cdrom"}))
+	requireCode(t, img("diskless", 9103, ""), 422, "template_not_found")
+	requireCode(t, img("diskless", 9103, "pve1"), 422, "template_not_found")
+}
+
+func TestBootDisk(t *testing.T) {
+	for _, tc := range []struct {
+		cfg  map[string]string
+		want string
+	}{
+		{map[string]string{"scsi0": "ceph:d0", "virtio0": "ceph:d1", "boot": "order=virtio0;scsi0;net0"}, "virtio0"},
+		{map[string]string{"scsi0": "ceph:d0", "ide2": "local:iso/x.iso,media=cdrom", "boot": "order=ide2;scsi0"}, "scsi0"},
+		{map[string]string{"virtio0": "ceph:d1", "scsi0": "ceph:d0"}, "scsi0"},
+		{map[string]string{"sata0": "ceph:d0", "boot": "order=net0"}, "sata0"},
+		{map[string]string{"ide2": "ceph:cloudinit,media=cdrom"}, ""},
+	} {
+		require.Equal(t, tc.want, catalog.BootDisk(tc.cfg), "%v", tc.cfg)
+	}
 }

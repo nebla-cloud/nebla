@@ -55,18 +55,28 @@ func WithTx(ctx context.Context, sqlDB *sql.DB, fn func(tx *sql.Tx, etx *ent.Cli
 			panic(p)
 		}
 	}()
-	etx := ent.NewClient(ent.Driver(txDriver{entsql.NewDriver(dialect.Postgres, entsql.Conn{ExecQuerier: tx})}))
-	if err := fn(tx, etx); err != nil {
+	// ent's own Tx over the joined driver: builders join it and a nested Tx() fails with ent.ErrTxStarted.
+	entTx, err := ent.NewClient(ent.Driver(joinDriver{entsql.NewDriver(dialect.Postgres, entsql.Conn{ExecQuerier: tx})})).Tx(ctx)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := fn(tx, entTx.Client()); err != nil {
+		_ = entTx.Rollback()
+		_ = tx.Rollback()
+		return err
+	}
+	if err := entTx.Commit(); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
 	return tx.Commit()
 }
 
-// txDriver binds ent to an open *sql.Tx; ent's own Tx calls (UpdateOne, edges) join it.
-type txDriver struct{ *entsql.Driver }
+// joinDriver runs ent on an open *sql.Tx; its Tx joins it with a no-op commit and rollback.
+type joinDriver struct{ *entsql.Driver }
 
-func (d txDriver) Tx(context.Context) (dialect.Tx, error) { return dialect.NopTx(d), nil }
+func (d joinDriver) Tx(context.Context) (dialect.Tx, error) { return dialect.NopTx(d), nil }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	sqlDB := SQL(pool)

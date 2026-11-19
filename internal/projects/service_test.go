@@ -152,3 +152,17 @@ func TestRemovingCreatorKillsInvites(t *testing.T) {
 	require.Equal(t, "keep@example.com", invs[0].Email)
 	_ = kept
 }
+
+func TestServiceReusesCallerTx(t *testing.T) {
+	ctx := context.Background()
+	_, client, sqlDB, u := setup(t, projects.Options{})
+	boom := errors.New("boom")
+	err := db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+		if _, err := projects.New(etx, projects.Options{}).Create(ctx, u.ID, "Web"); err != nil {
+			return err
+		}
+		return boom
+	})
+	require.ErrorIs(t, err, boom, "withTx must join the caller's tx, not nest")
+	require.Zero(t, client.Project.Query().CountX(ctx), "rolled back with the caller")
+}
