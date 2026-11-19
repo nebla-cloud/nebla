@@ -298,10 +298,10 @@ func (r *Reconciler) apply(ctx context.Context, log *slog.Logger, id int64, vms 
 	})
 }
 
-// revert is a change_type rescued in the DB whose VM config still needs the old cores and memory.
+// revert is a change_type rescued in the DB whose VM config and disk size still need Proxmox.
 type revert struct {
 	row  *ent.Server
-	from servers.Spec
+	args servers.ChangeTypeArgs
 }
 
 // rescue fails orphaned actions on this location's servers from the DB alone; err is set only if they cannot be listed.
@@ -375,8 +375,9 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, actionID, 
 				if err := json.Unmarshal(args, &a); err != nil {
 					return err
 				}
-				rv, dirty = &revert{row: row, from: a.From}, true
-				u.SetServerTypeID(a.From.TypeID).SetCores(a.From.Cores).SetMemoryMB(a.From.MemoryMB).SetDiskGB(a.From.DiskGB)
+				rv, dirty = &revert{row: row, args: a}, true
+				back := a.Restored(nil)
+				u.SetServerTypeID(back.TypeID).SetCores(back.Cores).SetMemoryMB(back.MemoryMB).SetDiskGB(back.DiskGB)
 			}
 		}
 		switch row.Status {
@@ -400,7 +401,7 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, actionID, 
 	return rv, nil
 }
 
-// restore puts the old cores and memory back on rescued change_type VMs, best effort.
+// restore puts the old cores and memory back on rescued change_type VMs and the row's disk at its real size, best effort.
 func (r *Reconciler) restore(ctx context.Context, log *slog.Logger, pc pve.Client, reverts []revert, vms view) {
 	for _, rv := range reverts {
 		v, ok := vmOf(rv.row, vms.vms)
@@ -408,13 +409,47 @@ func (r *Reconciler) restore(ctx context.Context, log *slog.Logger, pc pve.Clien
 			log.Warn("reconcile: vm config not restored, vm not listed", "server_id", rv.row.ID)
 			continue
 		}
-		kv := map[string]string{"cores": strconv.Itoa(rv.from.Cores), "memory": strconv.Itoa(rv.from.MemoryMB)}
+		from := rv.args.From
+		kv := map[string]string{"cores": strconv.Itoa(from.Cores), "memory": strconv.Itoa(from.MemoryMB)}
 		tctx, cancel := context.WithTimeout(ctx, pveTimeout)
 		if err := pc.SetConfig(tctx, v.Node, v.VMID, kv); err != nil {
 			log.Error("reconcile: restore vm config", "server_id", rv.row.ID, "err", err)
 		}
+		actualGB := servers.BootDiskGB(tctx, pc, v)
 		cancel()
+		if actualGB == nil {
+			log.Warn("reconcile: disk size not read, requested size kept", "server_id", rv.row.ID)
+			continue
+		}
+		if err := r.restoreDisk(ctx, rv, rv.args.Restored(actualGB).DiskGB); err != nil {
+			log.Error("reconcile: restore disk size", "server_id", rv.row.ID, "err", err)
+		}
 	}
+}
+
+// restoreDisk sets the rescued row's disk to gb unless an action or a new change has touched it since.
+func (r *Reconciler) restoreDisk(ctx context.Context, rv revert, gb int) error {
+	fallback := rv.args.Restored(nil)
+	if gb == fallback.DiskGB {
+		return nil
+	}
+	return db.WithTx(ctx, r.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		row, err := etx.Server.Query().Where(server.ID(rv.row.ID)).ForUpdate().Only(ctx)
+		if ent.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if row.DiskGB != fallback.DiskGB || row.ServerTypeID != fallback.TypeID {
+			return nil
+		}
+		busy, err := etx.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID), action.StatusEQ(action.StatusRunning)).Exist(ctx)
+		if err != nil || busy {
+			return err
+		}
+		return etx.Server.UpdateOneID(row.ID).SetDiskGB(gb).Exec(ctx)
+	})
 }
 
 // powerFrom is the status a power job's args recorded before it ran, else the status the transient one implies.

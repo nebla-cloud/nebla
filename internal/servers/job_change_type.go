@@ -49,6 +49,36 @@ func (s Spec) apply(u *ent.ServerUpdateOne) *ent.ServerUpdateOne {
 	return u.SetServerTypeID(s.TypeID).SetCores(s.Cores).SetMemoryMB(s.MemoryMB).SetDiskGB(s.DiskGB)
 }
 
+// Restored is From with the disk at its actual size, or at any requested growth when actualGB is unknown.
+func (a ChangeTypeArgs) Restored(actualGB *int) Spec {
+	s := a.From
+	switch {
+	case actualGB != nil:
+		s.DiskGB = max(a.From.DiskGB, *actualGB)
+	case a.UpgradeDisk:
+		s.DiskGB = max(a.From.DiskGB, a.To.DiskGB)
+	}
+	return s
+}
+
+// BootDiskGB is v's boot disk size in GB, rounded up; nil when it cannot be read.
+func BootDiskGB(ctx context.Context, pc pve.Client, v pve.VM) *int {
+	cfg, err := pc.Config(ctx, v.Node, v.VMID)
+	if err != nil {
+		return nil
+	}
+	disk := catalog.BootDisk(cfg)
+	if disk == "" {
+		return nil
+	}
+	b, ok := diskBytes(cfg[disk])
+	if !ok {
+		return nil
+	}
+	gb := int((b + 1<<30 - 1) >> 30)
+	return &gb
+}
+
 // ChangeType reserves max(from, to) per dimension on the row and queues the job; only success frees a downsize.
 func (s *Service) ChangeType(ctx context.Context, projectID, id int64, typeRef string, upgradeDisk bool) (actions.Action, error) {
 	typ, err := s.o.Catalog.ServerTypeByRef(ctx, typeRef)
@@ -127,6 +157,7 @@ func (w *ChangeTypeWorker) Work(ctx context.Context, job *river.Job[ChangeTypeAr
 		if pc == nil {
 			pc, _ = w.o.Catalog.ProxmoxFor(ctx, row.LocationID)
 		}
+		var actualGB *int
 		if pc != nil && row.Vmid != nil {
 			// Best effort: put cores and memory back; a grown disk cannot shrink and was the last step.
 			if v, found, err := findVM(ctx, pc, *row.Vmid); err == nil && found && ownedBy(v, row.ID) {
@@ -134,9 +165,10 @@ func (w *ChangeTypeWorker) Work(ctx context.Context, job *river.Job[ChangeTypeAr
 				if err := pc.SetConfig(ctx, v.Node, v.VMID, kv); err != nil {
 					w.o.Logger.Error("change type: restore config", "server_id", row.ID, "err", err)
 				}
+				actualGB = BootDiskGB(ctx, pc, v)
 			}
 		}
-		if err := a.From.apply(w.o.Ent.Server.UpdateOneID(row.ID)).Exec(ctx); err != nil {
+		if err := a.Restored(actualGB).apply(w.o.Ent.Server.UpdateOneID(row.ID)).Exec(ctx); err != nil {
 			return err
 		}
 		return failAction(ctx, w.o.Ent, a.ActionID, msg)

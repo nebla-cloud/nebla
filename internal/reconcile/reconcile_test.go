@@ -352,7 +352,7 @@ func TestReconcileRescuesStuckAction(t *testing.T) {
 	require.Equal(t, e.Type, got.ServerTypeID)
 	require.Equal(t, 2, got.Cores)
 	require.Equal(t, 2048, got.MemoryMB)
-	require.Equal(t, 20, got.DiskGB)
+	require.Equal(t, 20, got.DiskGB, "Proxmox up: the disk never grew")
 	require.Equal(t, server.StatusOff, got.Status)
 
 	// A job that is gone counts as orphaned too.
@@ -631,7 +631,7 @@ func TestReconcileRescuesWithProxmoxDown(t *testing.T) {
 	require.Equal(t, e.Type, got.ServerTypeID)
 	require.Equal(t, 2, got.Cores)
 	require.Equal(t, 2048, got.MemoryMB)
-	require.Equal(t, 20, got.DiskGB)
+	require.Equal(t, 40, got.DiskGB, "Proxmox down: the requested disk size is kept")
 	var vcpu int
 	require.NoError(t, e.App.SQL.QueryRowContext(ctx,
 		`select coalesce(sum(cores), 0) from servers where project_id = $1 and id = $2`, e.Project, id).Scan(&vcpu))
@@ -729,4 +729,45 @@ func TestRunLogsUnrestoredVMConfig(t *testing.T) {
 	require.Error(t, r.Run(ctx, e.Location))
 	expectOrphaned(t, e, out.Action.ID)
 	require.Contains(t, logs.String(), "vm config not restored")
+}
+
+// A rescued change_type takes the disk size Proxmox reports.
+func TestRescueRestoresActualDiskSize(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	e.Admin.CreateServerType("big", 4, 4096, 40)
+	id := build(t, e, "web")
+	vmid := *get(t, e, id).Vmid
+	e.App.PVE.SetVMStatus(vmid, "stopped")
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetStatus(server.StatusOff).Exec(ctx))
+	orphanChange := func() int64 {
+		res := e.C.Send(http.MethodPost, "/v1/servers/"+strconv.FormatInt(id, 10)+"/actions/change_type",
+			map[string]any{"server_type": "big", "upgrade_disk": true})
+		require.Equal(t, http.StatusCreated, res.StatusCode)
+		var out struct {
+			Action struct {
+				ID int64 `json:"id"`
+			} `json:"action"`
+		}
+		decode(t, res, &out)
+		require.Equal(t, 40, get(t, e, id).DiskGB)
+		discard(t, e, out.Action.ID)
+		return out.Action.ID
+	}
+
+	act := orphanChange()
+	require.NoError(t, newReconciler(e, quiet()).Run(ctx, e.Location))
+	expectOrphaned(t, e, act)
+	got := get(t, e, id)
+	require.Equal(t, e.Type, got.ServerTypeID)
+	require.Equal(t, 2, got.Cores)
+	require.Equal(t, 20, got.DiskGB, "the disk never grew")
+
+	act = orphanChange()
+	vm, ok := e.App.PVE.VM(vmid)
+	require.True(t, ok)
+	e.App.PVE.SetVMConfig(vmid, "scsi0", strings.Replace(vm.Config["scsi0"], "size=20G", "size=40G", 1))
+	require.NoError(t, newReconciler(e, quiet()).Run(ctx, e.Location))
+	expectOrphaned(t, e, act)
+	require.Equal(t, 40, get(t, e, id).DiskGB, "the grown disk is kept")
 }

@@ -312,7 +312,7 @@ func TestChangeTypeFailureReverts(t *testing.T) {
 	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
 	require.NoError(t, err)
 	require.Equal(t, e.Type, row.ServerTypeID)
-	require.Equal(t, []int{2, 2048, 20}, []int{row.Cores, row.MemoryMB, row.DiskGB}, "snapshot reverted")
+	require.Equal(t, []int{2, 2048, 20}, []int{row.Cores, row.MemoryMB, row.DiskGB}, "snapshot reverted, the disk never grew")
 	vm, _ := e.App.PVE.VM(vmid)
 	require.Equal(t, "2", vm.Config["cores"], "proxmox config reverted")
 	require.Equal(t, "2048", vm.Config["memory"])
