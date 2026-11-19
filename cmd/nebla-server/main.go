@@ -62,10 +62,15 @@ func run() error {
 	cat := catalog.New(sqlDB, client, catalog.Options{SecretKey: cfg.SecretKey, Hooks: catalogHooks})
 	workers := river.NewWorkers()
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
-	reconcile.Register(workers, reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log}))
+	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log})
+	reconcile.Register(workers, rec)
 	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
 		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob()))
 	if err != nil {
+		return err
+	}
+	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
+	if err := rec.RescueAll(ctx); err != nil {
 		return err
 	}
 	n, err := runner.FailOrphanedActions(ctx)

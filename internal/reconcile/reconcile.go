@@ -53,9 +53,35 @@ func New(o Options) *Reconciler {
 	return &Reconciler{o: o, orphans: map[[2]int64]bool{}}
 }
 
-// Run reconciles one location: node load, stuck actions, then server status and node.
+// Run reconciles one location: stuck actions from the DB alone, then node load, server status and node.
 func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 	log := r.o.Logger.With("location_id", locationID)
+	reverts, errs := r.rescue(ctx, log, locationID)
+	if err := r.sync(ctx, log, locationID, reverts); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+// RescueAll fails orphaned server actions in every location without calling Proxmox; startup runs it.
+func (r *Reconciler) RescueAll(ctx context.Context) error {
+	ids, err := r.o.Ent.Location.Query().IDs(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, id := range ids {
+		reverts, e := r.rescue(ctx, r.o.Logger.With("location_id", id), id)
+		for _, rv := range reverts {
+			r.o.Logger.Warn("reconcile: vm config not restored at startup", "server_id", rv.row.ID)
+		}
+		errs = append(errs, e...)
+	}
+	return errors.Join(errs...)
+}
+
+// sync reads Proxmox and moves server rows to match it.
+func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int64, reverts []revert) error {
 	// SyncNodes refreshes node load and fails when Proxmox is unreachable or lists no nodes.
 	loc, err := r.o.Catalog.SyncNodes(ctx, locationID)
 	if err != nil {
@@ -97,12 +123,13 @@ func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 		return fmt.Errorf("%w: no VMs listed", ErrProxmoxState)
 	}
 	vms := view{vms: tagged(all), online: online}
+	r.restore(ctx, log, pc, reverts, vms)
 	if err := tooManyMissing(rows, vms); err != nil {
 		log.Error("reconcile: refusing to mark servers missing", "err", err)
 		return err
 	}
 	r.logOrphans(log, locationID, vms.vms, rows)
-	errs := r.rescue(ctx, log, pc, locationID, vms)
+	var errs []error
 	for _, row := range rows {
 		if _, _, ok := desired(row, vms); !ok {
 			continue
@@ -260,14 +287,20 @@ func (r *Reconciler) apply(ctx context.Context, log *slog.Logger, id int64, vms 
 	})
 }
 
-// rescue fails running actions on this location's servers whose job can no longer finish them.
-func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, pc pve.Client, locationID int64, vms view) []error {
+// revert is a change_type rescued in the DB whose VM config still needs the old cores and memory.
+type revert struct {
+	row  *ent.Server
+	from servers.Spec
+}
+
+// rescue fails running actions on this location's servers whose job can no longer finish them, using only the DB.
+func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, locationID int64) ([]revert, []error) {
 	q, err := r.o.SQL.QueryContext(ctx, `
 		select a.id, s.id from actions a join servers s
 		on s.location_id = $1 and a.resources @> jsonb_build_array(jsonb_build_object('id', s.id, 'type', $2::text))
 		where `+jobs.Orphaned+` order by a.id`, locationID, servers.ResourceType)
 	if err != nil {
-		return []error{fmt.Errorf("find orphaned actions: %w", err)}
+		return nil, []error{fmt.Errorf("find orphaned actions: %w", err)}
 	}
 	type stuck struct{ action, server int64 }
 	var found []stuck
@@ -275,29 +308,33 @@ func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, pc pve.Client
 		var s stuck
 		if err := q.Scan(&s.action, &s.server); err != nil {
 			q.Close()
-			return []error{err}
+			return nil, []error{err}
 		}
 		found = append(found, s)
 	}
 	if err := errors.Join(q.Err(), q.Close()); err != nil {
-		return []error{err}
+		return nil, []error{err}
 	}
 	var errs []error
+	var reverts []revert
 	for _, s := range found {
-		if err := r.rescueOne(ctx, log, pc, s.action, s.server, vms); err != nil {
+		rv, err := r.rescueOne(ctx, log, s.action, s.server)
+		if err != nil {
 			log.Error("reconcile: rescue action", "action_id", s.action, "err", err)
 			errs = append(errs, fmt.Errorf("rescue action %d: %w", s.action, err))
+			continue
+		}
+		if rv != nil {
+			reverts = append(reverts, *rv)
 		}
 	}
-	return errs
+	return reverts, errs
 }
 
-func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Client, actionID, serverID int64, vms view) error {
-	var revert *servers.ChangeTypeArgs
-	var row *ent.Server
+func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, actionID, serverID int64) (*revert, error) {
+	var rv *revert
 	err := db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
-		var err error
-		row, err = etx.Server.Query().Where(server.ID(serverID)).ForUpdate().Only(ctx)
+		row, err := etx.Server.Query().Where(server.ID(serverID)).ForUpdate().Only(ctx)
 		if err != nil {
 			return err
 		}
@@ -329,23 +366,15 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Cli
 				if err := json.Unmarshal(args, &a); err != nil {
 					return err
 				}
-				revert, dirty = &a, true
+				rv, dirty = &revert{row: row, from: a.From}, true
 				u.SetServerTypeID(a.From.TypeID).SetCores(a.From.Cores).SetMemoryMB(a.From.MemoryMB).SetDiskGB(a.From.DiskGB)
 			}
 		}
 		switch row.Status {
 		case server.StatusStarting, server.StatusStopping:
-			// A lost power job: take the status from Proxmox, else the status before the action.
-			st, _, known := vms.observe(row)
-			if !known {
-				st = powerFrom(args)
-			}
-			if st != "" {
-				u.SetStatus(st)
-				dirty = true
-			} else {
-				log.Warn("reconcile: status of a lost power job unknown", "server_id", serverID, "status", row.Status)
-			}
+			// A lost power job: the status before it ran; the sync that follows corrects it from Proxmox.
+			u.SetStatus(powerFrom(args, row.Status))
+			dirty = true
 		case server.StatusInitializing, server.StatusRebuilding, server.StatusDeleting:
 			// The job's own cleanup never ran; DELETE is the way out.
 			u.SetStatus(server.StatusError)
@@ -356,29 +385,37 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, pc pve.Cli
 		}
 		return u.Exec(ctx)
 	})
-	if err != nil || revert == nil {
-		return err
+	if err != nil {
+		return nil, err
 	}
-	// Best effort, as the job's own failure path: put cores and memory back on the VM.
-	if v, ok := vmOf(row, vms.vms); ok {
-		kv := map[string]string{"cores": strconv.Itoa(revert.From.Cores), "memory": strconv.Itoa(revert.From.MemoryMB)}
-		tctx, cancel := context.WithTimeout(ctx, pveTimeout)
-		defer cancel()
-		if err := pc.SetConfig(tctx, v.Node, v.VMID, kv); err != nil {
-			log.Error("reconcile: restore vm config", "server_id", serverID, "err", err)
-		}
-	}
-	return nil
+	return rv, nil
 }
 
-// powerFrom is the status a power job's args recorded before it ran, or "".
-func powerFrom(args []byte) server.Status {
-	if args == nil {
-		return ""
+// restore puts the old cores and memory back on rescued change_type VMs, best effort.
+func (r *Reconciler) restore(ctx context.Context, log *slog.Logger, pc pve.Client, reverts []revert, vms view) {
+	for _, rv := range reverts {
+		v, ok := vmOf(rv.row, vms.vms)
+		if !ok {
+			log.Warn("reconcile: vm config not restored, vm not listed", "server_id", rv.row.ID)
+			continue
+		}
+		kv := map[string]string{"cores": strconv.Itoa(rv.from.Cores), "memory": strconv.Itoa(rv.from.MemoryMB)}
+		tctx, cancel := context.WithTimeout(ctx, pveTimeout)
+		if err := pc.SetConfig(tctx, v.Node, v.VMID, kv); err != nil {
+			log.Error("reconcile: restore vm config", "server_id", rv.row.ID, "err", err)
+		}
+		cancel()
 	}
+}
+
+// powerFrom is the status a power job's args recorded before it ran, else the status the transient one implies.
+func powerFrom(args []byte, cur server.Status) server.Status {
 	var a servers.PowerServerArgs
-	if json.Unmarshal(args, &a) != nil || a.From == "" || !slices.Contains(steady, server.Status(a.From)) {
-		return ""
+	if args != nil && json.Unmarshal(args, &a) == nil && slices.Contains(steady, server.Status(a.From)) {
+		return server.Status(a.From)
 	}
-	return server.Status(a.From)
+	if cur == server.StatusStarting {
+		return server.StatusOff
+	}
+	return server.StatusRunning
 }

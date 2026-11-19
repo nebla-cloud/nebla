@@ -342,8 +342,12 @@ func TestReconcileRescuesStuckAction(t *testing.T) {
 	require.Equal(t, 4, held.Cores)
 	require.Equal(t, 40, held.DiskGB)
 	discard(t, e, out.Action.ID)
+	e.App.PVE.SetVMConfig(vmid, "cores", "4")
 	require.NoError(t, r.Run(ctx, e.Location))
 	expectOrphaned(t, e, out.Action.ID)
+	vm, ok := e.App.PVE.VM(vmid)
+	require.True(t, ok)
+	require.Equal(t, "2", vm.Config["cores"], "Proxmox up: the VM config is restored too")
 	got := get(t, e, s.ServerID)
 	require.Equal(t, e.Type, got.ServerTypeID)
 	require.Equal(t, 2, got.Cores)
@@ -586,4 +590,88 @@ func TestReconcileRescueOnOfflineNode(t *testing.T) {
 	expectOrphaned(t, e, act)
 	require.Equal(t, server.StatusRunning, get(t, e, id).Status)
 	require.Equal(t, server.StatusRunning, get(t, e, other).Status)
+}
+
+func TestReconcileRescuesWithProxmoxDown(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	e.Admin.CreateServerType("big", 4, 4096, 40)
+	id := build(t, e, "web")
+	vmid := *get(t, e, id).Vmid
+
+	// An orphaned create with Proxmox down: the server and the action end in error.
+	c := e.CreateServer("new", nil)
+	require.Equal(t, server.StatusInitializing, get(t, e, c.ServerID).Status)
+	discard(t, e, c.ActionID)
+	e.App.PVE.SetDown(true)
+	require.Error(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, c.ActionID)
+	require.Equal(t, server.StatusError, get(t, e, c.ServerID).Status)
+
+	// An orphaned change_type with Proxmox down: the row snapshot and quota usage come back.
+	e.App.PVE.SetDown(false)
+	e.App.PVE.SetVMStatus(vmid, "stopped")
+	require.NoError(t, r.Run(ctx, e.Location))
+	res := e.C.Send(http.MethodPost, "/v1/servers/"+strconv.FormatInt(id, 10)+"/actions/change_type",
+		map[string]any{"server_type": "big", "upgrade_disk": true})
+	require.Equal(t, http.StatusCreated, res.StatusCode)
+	var out struct {
+		Action struct {
+			ID int64 `json:"id"`
+		} `json:"action"`
+	}
+	decode(t, res, &out)
+	require.Equal(t, 4, get(t, e, id).Cores)
+	discard(t, e, out.Action.ID)
+	e.App.PVE.SetDown(true)
+	require.Error(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, out.Action.ID)
+	got := get(t, e, id)
+	require.Equal(t, e.Type, got.ServerTypeID)
+	require.Equal(t, 2, got.Cores)
+	require.Equal(t, 2048, got.MemoryMB)
+	require.Equal(t, 20, got.DiskGB)
+	var vcpu int
+	require.NoError(t, e.App.SQL.QueryRowContext(ctx,
+		`select coalesce(sum(cores), 0) from servers where project_id = $1 and id = $2`, e.Project, id).Scan(&vcpu))
+	require.Equal(t, 2, vcpu)
+}
+
+func TestReconcileRescueBeforeBreaker(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	var ids []int64
+	for _, name := range []string{"a", "b", "c", "d"} {
+		ids = append(ids, build(t, e, name))
+	}
+	act := orphan(t, e, ids[0], "poweroff", server.StatusStopping)
+	for _, id := range ids {
+		e.App.PVE.DeleteVM(*get(t, e, id).Vmid)
+	}
+	e.App.PVE.AddVM("pve1", 900, "keep-list-nonempty")
+	require.ErrorIs(t, r.Run(ctx, e.Location), reconcile.ErrProxmoxState)
+	expectOrphaned(t, e, act)
+	require.Equal(t, server.StatusRunning, get(t, e, ids[0]).Status)
+}
+
+func TestRescueAllWithoutProxmox(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	id := build(t, e, "web")
+	c := e.CreateServer("new", nil)
+	discard(t, e, c.ActionID)
+
+	// A power job gone with its args: starting falls back to off.
+	start := orphan(t, e, id, "poweron", server.StatusStarting)
+	_, err := e.App.SQL.ExecContext(ctx, `delete from river_job where kind = $1`, servers.KindPowerServer)
+	require.NoError(t, err)
+	e.App.PVE.SetDown(true)
+	require.NoError(t, r.RescueAll(ctx))
+	expectOrphaned(t, e, c.ActionID)
+	expectOrphaned(t, e, start)
+	require.Equal(t, server.StatusError, get(t, e, c.ServerID).Status)
+	require.Equal(t, server.StatusOff, get(t, e, id).Status)
 }
