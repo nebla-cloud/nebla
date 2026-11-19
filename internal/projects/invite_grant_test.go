@@ -24,7 +24,7 @@ func twoOwners(t *testing.T) (*projects.Service, *auth.Service, auth.User, auth.
 	require.NoError(t, err)
 	l, err := svc.Invite(ctx, a.ID, p.ID, "b@example.test", projects.RoleOwner)
 	require.NoError(t, err)
-	_, err = svc.AcceptInvite(ctx, inviteToken(t, l), &b, "", "")
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, l), &b, "", "", true)
 	require.NoError(t, err)
 	return svc, au, a, b, p
 }
@@ -46,7 +46,7 @@ func TestOwnerInviteRevokedWhenCreatorDemoted(t *testing.T) {
 	_, err = svc.SetRole(ctx, b.ID, p.ID, a.ID, projects.RoleAdmin)
 	require.NoError(t, err)
 
-	_, err = svc.AcceptInvite(ctx, inviteToken(t, lc), &c, "", "")
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, lc), &c, "", "", true)
 	requireNotFound(t, err)
 	_, err = svc.Role(ctx, c.ID, p.ID)
 	requireNotFound(t, err)
@@ -60,7 +60,7 @@ func TestAdminInviteSurvivesOwnerDemotedToAdmin(t *testing.T) {
 	_, err = svc.SetRole(ctx, b.ID, p.ID, a.ID, projects.RoleAdmin)
 	require.NoError(t, err)
 
-	acc, err := svc.AcceptInvite(ctx, inviteToken(t, lc), nil, "C", testutil.Password)
+	acc, err := svc.AcceptInvite(ctx, inviteToken(t, lc), nil, "C", testutil.Password, true)
 	require.NoError(t, err)
 	r, err := svc.Role(ctx, acc.NewUser.ID, p.ID)
 	require.NoError(t, err)

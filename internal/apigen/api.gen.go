@@ -1020,7 +1020,7 @@ type ServerInterface interface {
 	// GetImage Get an image
 	// (GET /images/{id})
 	GetImage(w http.ResponseWriter, r *http.Request, id ID)
-	// PostInviteAccept Accept an invite, creating an account when not logged in
+	// PostInviteAccept Accept an invite
 	// (POST /invites/{token}/accept)
 	PostInviteAccept(w http.ResponseWriter, r *http.Request, token string)
 	// GetLocations List locations
@@ -1386,7 +1386,7 @@ func (_ Unimplemented) GetImage(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// PostInviteAccept Accept an invite, creating an account when not logged in
+// PostInviteAccept Accept an invite
 // (POST /invites/{token}/accept)
 func (_ Unimplemented) PostInviteAccept(w http.ResponseWriter, r *http.Request, token string) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -7510,7 +7510,21 @@ func (response PostInviteAccept200JSONResponse) VisitPostInviteAcceptResponse(w 
 	return err
 }
 
-type PostInviteAccept403JSONResponse struct{ ErrorJSONResponse }
+type PostInviteAccept401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostInviteAccept401JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostInviteAccept403JSONResponse Error
 
 func (response PostInviteAccept403JSONResponse) VisitPostInviteAcceptResponse(w http.ResponseWriter) error {
 
@@ -11463,7 +11477,7 @@ type StrictServerInterface interface {
 	// GetImage Get an image
 	// (GET /images/{id})
 	GetImage(ctx context.Context, request GetImageRequestObject) (GetImageResponseObject, error)
-	// PostInviteAccept Accept an invite, creating an account when not logged in
+	// PostInviteAccept Accept an invite
 	// (POST /invites/{token}/accept)
 	PostInviteAccept(ctx context.Context, request PostInviteAcceptRequestObject) (PostInviteAcceptResponseObject, error)
 	// GetLocations List locations

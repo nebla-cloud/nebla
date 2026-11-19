@@ -96,7 +96,7 @@ func TestInviteEmailMismatch(t *testing.T) {
 	link, err := svc.Invite(ctx, owner.ID, p.ID, "invited@example.com", projects.RoleAdmin)
 	require.NoError(t, err)
 
-	_, err = svc.AcceptInvite(ctx, inviteToken(t, link), &other, "", "")
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, link), &other, "", "", true)
 	var e apierr.E
 	require.True(t, errors.As(err, &e), "got %v", err)
 	require.Equal(t, 403, e.Status)
@@ -118,7 +118,7 @@ func TestRevokedInviteNotFound(t *testing.T) {
 	require.Equal(t, owner.ID, invs[0].CreatedBy)
 	require.NoError(t, svc.RevokeInvite(ctx, owner.ID, p.ID, invs[0].ID))
 
-	_, err = svc.AcceptInvite(ctx, inviteToken(t, link), nil, "New", testutil.Password)
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, link), nil, "New", testutil.Password, true)
 	var e apierr.E
 	require.True(t, errors.As(err, &e), "got %v", err)
 	require.Equal(t, 404, e.Status)
@@ -134,7 +134,7 @@ func TestRemovingCreatorKillsInvites(t *testing.T) {
 	require.NoError(t, err)
 	link, err := svc.Invite(ctx, owner.ID, p.ID, "adm@example.com", projects.RoleAdmin)
 	require.NoError(t, err)
-	_, err = svc.AcceptInvite(ctx, inviteToken(t, link), &adm, "", "")
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, link), &adm, "", "", true)
 	require.NoError(t, err)
 
 	kept, err := svc.Invite(ctx, owner.ID, p.ID, "keep@example.com", projects.RoleMember)
@@ -143,7 +143,7 @@ func TestRemovingCreatorKillsInvites(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, svc.RemoveMember(ctx, owner.ID, p.ID, adm.ID))
 
-	_, err = svc.AcceptInvite(ctx, inviteToken(t, backdoor), &adm, "", "")
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, backdoor), &adm, "", "", true)
 	var e apierr.E
 	require.True(t, errors.As(err, &e), "got %v", err)
 	require.Equal(t, 404, e.Status)
