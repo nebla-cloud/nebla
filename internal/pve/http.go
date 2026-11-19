@@ -1,6 +1,7 @@
 package pve
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -19,6 +20,8 @@ import (
 	"strings"
 	"time"
 )
+
+const maxPollErrors = 3
 
 const apiPrefix = "/api2/json"
 
@@ -43,7 +46,7 @@ func TLSConfig(c Conn) *tls.Config {
 			}
 			sum := sha256.Sum256(raw[0])
 			if fmt.Sprintf("%X", sum[:]) != want {
-				return errors.New("pve: certificate fingerprint mismatch")
+				return ErrFingerprint
 			}
 			return nil
 		}
@@ -65,7 +68,7 @@ func New(c Conn) Client {
 		ResponseHeaderTimeout: 60 * time.Second,
 		MaxIdleConnsPerHost:   4,
 	}
-	return &httpClient{conn: c, hc: &http.Client{Transport: tr}, poll: 500 * time.Millisecond}
+	return &httpClient{conn: c, hc: &http.Client{Transport: tr}, poll: cmp.Or(c.PollInterval, 500*time.Millisecond)}
 }
 
 func (c *httpClient) AuthHeader() http.Header {
@@ -253,13 +256,18 @@ func (c *httpClient) task(ctx context.Context, method, path string, f url.Values
 
 func (c *httpClient) WaitTask(ctx context.Context, node string, upid UPID) error {
 	path := "/nodes/" + url.PathEscape(node) + "/tasks/" + url.PathEscape(string(upid)) + "/status"
+	fails := 0
 	for {
 		var st struct {
 			Status     string `json:"status"`
 			ExitStatus string `json:"exitstatus"`
 		}
 		if err := c.do(ctx, http.MethodGet, path, nil, &st); err != nil {
-			return err
+			if fails++; fails > maxPollErrors || !IsTransient(err) {
+				return err
+			}
+		} else {
+			fails = 0
 		}
 		if st.Status == "stopped" {
 			if st.ExitStatus == "OK" || strings.HasPrefix(st.ExitStatus, "WARNINGS") {
@@ -415,7 +423,7 @@ func (c *httpClient) DeleteVolume(ctx context.Context, node, storage, volid stri
 		volid = storage + ":" + volid
 	}
 	var up string
-	path := "/nodes/" + url.PathEscape(node) + "/storage/" + url.PathEscape(storage) + "/content/" + volid
+	path := "/nodes/" + url.PathEscape(node) + "/storage/" + url.PathEscape(storage) + "/content/" + url.PathEscape(volid)
 	if err := c.do(ctx, http.MethodDelete, path, nil, &up); err != nil {
 		return err
 	}

@@ -61,6 +61,8 @@ type vm struct {
 type task struct {
 	exit  string
 	ready time.Time
+	apply func() string // run once when due; returns the exitstatus
+	done  bool
 }
 
 type failure struct {
@@ -70,7 +72,6 @@ type failure struct {
 
 // Server is the fake Proxmox endpoint.
 type Server struct {
-	t       *testing.T
 	srv     *httptest.Server
 	tokenID string
 	secret  string
@@ -90,7 +91,7 @@ type Server struct {
 // New starts a fake PVE over TLS and stops it when the test ends.
 func New(t *testing.T) *Server {
 	t.Helper()
-	s := &Server{t: t, tokenID: "root@pam!nebla", secret: "fake-secret", nodes: map[string]*node{},
+	s := &Server{tokenID: "root@pam!nebla", secret: "fake-secret", nodes: map[string]*node{},
 		vms: map[int]*vm{}, tasks: map[string]*task{}, volumes: map[string][]byte{}, tickets: map[string]bool{}}
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -106,7 +107,7 @@ func (s *Server) Conn() pve.Conn {
 	for i, b := range sum {
 		parts[i] = fmt.Sprintf("%02X", b)
 	}
-	return pve.Conn{BaseURL: s.srv.URL, TokenID: s.tokenID, Secret: s.secret, CAFingerprint: strings.Join(parts, ":")}
+	return pve.Conn{BaseURL: s.srv.URL, TokenID: s.tokenID, Secret: s.secret, CAFingerprint: strings.Join(parts, ":"), PollInterval: 5 * time.Millisecond}
 }
 
 // HTTPClient trusts the fake's certificate.
@@ -184,7 +185,7 @@ func (s *Server) SetTaskDelay(d time.Duration) {
 	s.delay = d
 }
 
-// FailNext fails the next request whose "METHOD path" (path without /api2/json) ends with pattern; task-creating endpoints return a task ending with a non-OK exitstatus, all others answer HTTP status.
+// FailNext fails the next "METHOD path" ending in pattern: a failed task if it creates one, else an HTTP error.
 func (s *Server) FailNext(pattern string, status int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -201,6 +202,7 @@ func (s *Server) Calls() []string {
 func (s *Server) VM(vmid int) (FakeVM, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sweep()
 	v, ok := s.vms[vmid]
 	if !ok {
 		return FakeVM{}, false
@@ -235,7 +237,7 @@ func notExist(vmid int, nodeName string) *apiErr {
 	return &apiErr{500, fmt.Sprintf("Configuration file 'nodes/%s/qemu-server/%d.conf' does not exist", nodeName, vmid)}
 }
 
-// handler returns data or an error; failTask is set when FailNext targeted a task-creating endpoint.
+// handler returns data or an error; failTask is set when FailNext hit a task endpoint.
 type handler func(r *http.Request, failTask bool) (any, *apiErr)
 
 func (s *Server) wrap(next http.Handler) http.Handler {
@@ -243,6 +245,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		p := strings.TrimPrefix(r.URL.Path, prefix)
 		s.mu.Lock()
 		s.calls = append(s.calls, r.Method+" "+p)
+		s.sweep()
 		s.mu.Unlock()
 		if r.Header.Get("Authorization") != "PVEAPIToken="+s.tokenID+"="+s.secret {
 			writeJSON(w, 401, map[string]any{"data": nil, "message": "no ticket"})
@@ -288,15 +291,35 @@ func (s *Server) handle(mux *http.ServeMux, pattern string, taskEndpoint bool, h
 	})
 }
 
+// sweep runs the effects of due tasks in start order; caller holds s.mu.
+func (s *Server) sweep() {
+	var due []string
+	for id, tk := range s.tasks {
+		if !tk.done && !time.Now().Before(tk.ready) {
+			due = append(due, id)
+		}
+	}
+	sort.Slice(due, func(i, j int) bool {
+		return s.tasks[due[i]].ready.Before(s.tasks[due[j]].ready) || (s.tasks[due[i]].ready.Equal(s.tasks[due[j]].ready) && due[i] < due[j])
+	})
+	for _, id := range due {
+		tk := s.tasks[id]
+		tk.done = true
+		if tk.apply != nil {
+			tk.exit = tk.apply()
+		}
+	}
+}
+
 // newTask records a task for nodeName; caller holds s.mu.
-func (s *Server) newTask(nodeName, kind string, vmid int, fail *failure) string {
+func (s *Server) newTask(nodeName, kind string, vmid int, fail *failure, apply func() string) string {
 	s.seq++
 	upid := fmt.Sprintf("UPID:%s:%08X:%08X:%08X:%s:%d:%s:", nodeName, s.seq, s.seq, time.Now().Unix(), kind, vmid, s.tokenID)
 	exit := "OK"
 	if fail != nil {
-		exit = fmt.Sprintf("ERROR: injected failure (status %d)", fail.status)
+		exit, apply = fmt.Sprintf("ERROR: injected failure (status %d)", fail.status), nil
 	}
-	s.tasks[upid] = &task{exit: exit, ready: time.Now().Add(s.delay)}
+	s.tasks[upid] = &task{exit: exit, ready: time.Now().Add(s.delay), apply: apply}
 	return upid
 }
 
@@ -412,10 +435,6 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if _, ok := s.nodes[target]; !ok {
 			return nil, &apiErr{500, fmt.Sprintf("Configuration file 'nodes/%s/storage.cfg' does not exist", target)}
 		}
-		upid := s.newTask(src.node, "qmclone", id, failPtr(failed))
-		if failed {
-			return upid, nil
-		}
 		nv := &vm{node: target, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{}, config: map[string]string{}}
 		for k, val := range src.config {
 			nv.config[k] = val
@@ -424,12 +443,18 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if f["name"] != "" {
 			nv.config["name"] = f["name"]
 		}
-		s.vms[newID] = nv
-		return upid, nil
+		return s.newTask(src.node, "qmclone", id, failPtr(failed), func() string {
+			if _, dup := s.vms[newID]; dup {
+				return fmt.Sprintf("ERROR: unable to create VM %d: config file already exists", newID)
+			}
+			s.vms[newID] = nv
+			return "OK"
+		}), nil
 	})
 	s.handle(mux, "GET /nodes/{node}/tasks/{upid}/status", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		s.sweep()
 		tk, ok := s.tasks[r.PathValue("upid")]
 		if !ok {
 			return nil, &apiErr{500, "no such task"}
@@ -448,7 +473,12 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, e
 		}
 		for k, val := range f {
-			v.config[k] = val
+			if k != "delete" {
+				v.config[k] = val
+			}
+		}
+		for _, k := range strings.Split(f["delete"], ",") {
+			delete(v.config, strings.TrimSpace(k))
 		}
 		return nil, nil
 	}
@@ -484,10 +514,16 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, &apiErr{500, "disk '" + f["disk"] + "' does not exist"}
 		}
 		var keep []string
+		oldGB := 0
 		for _, p := range strings.Split(cur, ",") {
-			if !strings.HasPrefix(p, "size=") {
+			if sz, ok := strings.CutPrefix(p, "size="); ok {
+				oldGB, _ = strconv.Atoi(strings.TrimSuffix(sz, "G"))
+			} else {
 				keep = append(keep, p)
 			}
+		}
+		if newGB, _ := strconv.Atoi(strings.TrimSuffix(f["size"], "G")); newGB < oldGB {
+			return nil, &apiErr{500, "shrinking disks is not supported"}
 		}
 		v.config[f["disk"]] = strings.Join(keep, ",") + ",size=" + f["size"]
 		return nil, nil
@@ -590,17 +626,19 @@ func (s *Server) routes(mux *http.ServeMux) {
 			if e != nil {
 				return nil, e
 			}
-			upid := s.newTask(v.node, "qm"+op, id, failPtr(failed))
-			if failed {
-				return upid, nil
-			}
-			switch op {
-			case "start", "reboot", "reset":
-				v.status = "running"
-			default:
-				v.status = "stopped"
-			}
-			return upid, nil
+			return s.newTask(v.node, "qm"+op, id, failPtr(failed), func() string {
+				switch {
+				case op == "start" && v.status == "running":
+					return fmt.Sprintf("ERROR: VM %d already running", id)
+				case op != "start" && v.status != "running":
+					return fmt.Sprintf("ERROR: VM %d not running", id)
+				case op == "stop" || op == "shutdown":
+					v.status = "stopped"
+				default:
+					v.status = "running"
+				}
+				return "OK"
+			}), nil
 		})
 	}
 	s.handle(mux, "DELETE /nodes/{node}/qemu/{vmid}", true, func(r *http.Request, failed bool) (any, *apiErr) {
@@ -610,11 +648,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if e != nil {
 			return nil, e
 		}
-		upid := s.newTask(v.node, "qmdestroy", id, failPtr(failed))
-		if !failed {
-			delete(s.vms, id)
+		if v.status == "running" {
+			return nil, &apiErr{500, fmt.Sprintf("VM %d is running - destroy failed", id)}
 		}
-		return upid, nil
+		return s.newTask(v.node, "qmdestroy", id, failPtr(failed), func() string {
+			delete(s.vms, id)
+			return "OK"
+		}), nil
 	})
 	s.handle(mux, "POST /nodes/{node}/storage/{storage}/upload", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		mr, err := r.MultipartReader()
@@ -650,9 +690,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, &apiErr{500, "storage '" + st + "' does not exist"}
 		}
 		s.volumes[st+":iso/"+fname] = data
-		return s.newTask(n.name, "imgcopy", 0, nil), nil
+		return s.newTask(n.name, "imgcopy", 0, nil, nil), nil
 	})
-	s.handle(mux, "DELETE /nodes/{node}/storage/{storage}/content/{volid...}", false, func(r *http.Request, _ bool) (any, *apiErr) {
+	s.handle(mux, "DELETE /nodes/{node}/storage/{storage}/content/{volid}", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		n, e := nodeFor(r)
@@ -667,7 +707,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, &apiErr{500, "volume '" + id + "' does not exist"}
 		}
 		delete(s.volumes, id)
-		return s.newTask(n.name, "imgdel", 0, nil), nil
+		return s.newTask(n.name, "imgdel", 0, nil, nil), nil
 	})
 	s.handle(mux, "POST /nodes/{node}/qemu/{vmid}/vncproxy", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		s.mu.Lock()
