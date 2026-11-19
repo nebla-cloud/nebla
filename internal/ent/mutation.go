@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
@@ -43,6 +44,7 @@ const (
 	// Node types.
 	TypeAPIToken      = "APIToken"
 	TypeAction        = "Action"
+	TypeConsoleToken  = "ConsoleToken"
 	TypeIPAllocation  = "IPAllocation"
 	TypeIPPool        = "IPPool"
 	TypeImage         = "Image"
@@ -1776,6 +1778,818 @@ func (m *ActionMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Action edge %s", name)
+}
+
+// ConsoleTokenMutation represents an operation that mutates the ConsoleToken nodes in the graph.
+type ConsoleTokenMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *[]byte
+	project_id    *int64
+	addproject_id *int64
+	vmid          *int
+	addvmid       *int
+	ticket        *string
+	port          *int
+	addport       *int
+	expires_at    *time.Time
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	server        *int64
+	clearedserver bool
+	done          bool
+	oldValue      func(context.Context) (*ConsoleToken, error)
+	predicates    []predicate.ConsoleToken
+}
+
+var _ ent.Mutation = (*ConsoleTokenMutation)(nil)
+
+// consoletokenOption allows management of the mutation configuration using functional options.
+type consoletokenOption func(*ConsoleTokenMutation)
+
+// newConsoleTokenMutation creates new mutation for the ConsoleToken entity.
+func newConsoleTokenMutation(c config, op Op, opts ...consoletokenOption) *ConsoleTokenMutation {
+	m := &ConsoleTokenMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeConsoleToken,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withConsoleTokenID sets the ID field of the mutation.
+func withConsoleTokenID(id []byte) consoletokenOption {
+	return func(m *ConsoleTokenMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ConsoleToken
+		)
+		m.oldValue = func(ctx context.Context) (*ConsoleToken, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ConsoleToken.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withConsoleToken sets the old ConsoleToken of the mutation.
+func withConsoleToken(node *ConsoleToken) consoletokenOption {
+	return func(m *ConsoleTokenMutation) {
+		m.oldValue = func(context.Context) (*ConsoleToken, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ConsoleTokenMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ConsoleTokenMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of ConsoleToken entities.
+func (m *ConsoleTokenMutation) SetID(id []byte) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ConsoleTokenMutation) ID() (id []byte, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ConsoleTokenMutation) IDs(ctx context.Context) ([][]byte, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return [][]byte{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ConsoleToken.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetServerID sets the "server_id" field.
+func (m *ConsoleTokenMutation) SetServerID(i int64) {
+	m.server = &i
+}
+
+// ServerID returns the value of the "server_id" field in the mutation.
+func (m *ConsoleTokenMutation) ServerID() (r int64, exists bool) {
+	v := m.server
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerID returns the old "server_id" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldServerID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerID: %w", err)
+	}
+	return oldValue.ServerID, nil
+}
+
+// ResetServerID resets all changes to the "server_id" field.
+func (m *ConsoleTokenMutation) ResetServerID() {
+	m.server = nil
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *ConsoleTokenMutation) SetProjectID(i int64) {
+	m.project_id = &i
+	m.addproject_id = nil
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *ConsoleTokenMutation) ProjectID() (r int64, exists bool) {
+	v := m.project_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldProjectID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// AddProjectID adds i to the "project_id" field.
+func (m *ConsoleTokenMutation) AddProjectID(i int64) {
+	if m.addproject_id != nil {
+		*m.addproject_id += i
+	} else {
+		m.addproject_id = &i
+	}
+}
+
+// AddedProjectID returns the value that was added to the "project_id" field in this mutation.
+func (m *ConsoleTokenMutation) AddedProjectID() (r int64, exists bool) {
+	v := m.addproject_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *ConsoleTokenMutation) ResetProjectID() {
+	m.project_id = nil
+	m.addproject_id = nil
+}
+
+// SetVmid sets the "vmid" field.
+func (m *ConsoleTokenMutation) SetVmid(i int) {
+	m.vmid = &i
+	m.addvmid = nil
+}
+
+// Vmid returns the value of the "vmid" field in the mutation.
+func (m *ConsoleTokenMutation) Vmid() (r int, exists bool) {
+	v := m.vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVmid returns the old "vmid" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldVmid(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVmid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVmid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVmid: %w", err)
+	}
+	return oldValue.Vmid, nil
+}
+
+// AddVmid adds i to the "vmid" field.
+func (m *ConsoleTokenMutation) AddVmid(i int) {
+	if m.addvmid != nil {
+		*m.addvmid += i
+	} else {
+		m.addvmid = &i
+	}
+}
+
+// AddedVmid returns the value that was added to the "vmid" field in this mutation.
+func (m *ConsoleTokenMutation) AddedVmid() (r int, exists bool) {
+	v := m.addvmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetVmid resets all changes to the "vmid" field.
+func (m *ConsoleTokenMutation) ResetVmid() {
+	m.vmid = nil
+	m.addvmid = nil
+}
+
+// SetTicket sets the "ticket" field.
+func (m *ConsoleTokenMutation) SetTicket(s string) {
+	m.ticket = &s
+}
+
+// Ticket returns the value of the "ticket" field in the mutation.
+func (m *ConsoleTokenMutation) Ticket() (r string, exists bool) {
+	v := m.ticket
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTicket returns the old "ticket" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldTicket(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTicket is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTicket requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTicket: %w", err)
+	}
+	return oldValue.Ticket, nil
+}
+
+// ResetTicket resets all changes to the "ticket" field.
+func (m *ConsoleTokenMutation) ResetTicket() {
+	m.ticket = nil
+}
+
+// SetPort sets the "port" field.
+func (m *ConsoleTokenMutation) SetPort(i int) {
+	m.port = &i
+	m.addport = nil
+}
+
+// Port returns the value of the "port" field in the mutation.
+func (m *ConsoleTokenMutation) Port() (r int, exists bool) {
+	v := m.port
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPort returns the old "port" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldPort(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPort is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPort requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPort: %w", err)
+	}
+	return oldValue.Port, nil
+}
+
+// AddPort adds i to the "port" field.
+func (m *ConsoleTokenMutation) AddPort(i int) {
+	if m.addport != nil {
+		*m.addport += i
+	} else {
+		m.addport = &i
+	}
+}
+
+// AddedPort returns the value that was added to the "port" field in this mutation.
+func (m *ConsoleTokenMutation) AddedPort() (r int, exists bool) {
+	v := m.addport
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPort resets all changes to the "port" field.
+func (m *ConsoleTokenMutation) ResetPort() {
+	m.port = nil
+	m.addport = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *ConsoleTokenMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *ConsoleTokenMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *ConsoleTokenMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ConsoleTokenMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ConsoleTokenMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ConsoleTokenMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearServer clears the "server" edge to the Server entity.
+func (m *ConsoleTokenMutation) ClearServer() {
+	m.clearedserver = true
+	m.clearedFields[consoletoken.FieldServerID] = struct{}{}
+}
+
+// ServerCleared reports if the "server" edge to the Server entity was cleared.
+func (m *ConsoleTokenMutation) ServerCleared() bool {
+	return m.clearedserver
+}
+
+// ServerIDs returns the "server" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServerID instead. It exists only for internal usage by the builders.
+func (m *ConsoleTokenMutation) ServerIDs() (ids []int64) {
+	if id := m.server; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetServer resets all changes to the "server" edge.
+func (m *ConsoleTokenMutation) ResetServer() {
+	m.server = nil
+	m.clearedserver = false
+}
+
+// Where appends a list predicates to the ConsoleTokenMutation builder.
+func (m *ConsoleTokenMutation) Where(ps ...predicate.ConsoleToken) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ConsoleTokenMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ConsoleTokenMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ConsoleToken, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ConsoleTokenMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ConsoleTokenMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ConsoleToken).
+func (m *ConsoleTokenMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ConsoleTokenMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.server != nil {
+		fields = append(fields, consoletoken.FieldServerID)
+	}
+	if m.project_id != nil {
+		fields = append(fields, consoletoken.FieldProjectID)
+	}
+	if m.vmid != nil {
+		fields = append(fields, consoletoken.FieldVmid)
+	}
+	if m.ticket != nil {
+		fields = append(fields, consoletoken.FieldTicket)
+	}
+	if m.port != nil {
+		fields = append(fields, consoletoken.FieldPort)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, consoletoken.FieldExpiresAt)
+	}
+	if m.created_at != nil {
+		fields = append(fields, consoletoken.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ConsoleTokenMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case consoletoken.FieldServerID:
+		return m.ServerID()
+	case consoletoken.FieldProjectID:
+		return m.ProjectID()
+	case consoletoken.FieldVmid:
+		return m.Vmid()
+	case consoletoken.FieldTicket:
+		return m.Ticket()
+	case consoletoken.FieldPort:
+		return m.Port()
+	case consoletoken.FieldExpiresAt:
+		return m.ExpiresAt()
+	case consoletoken.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ConsoleTokenMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case consoletoken.FieldServerID:
+		return m.OldServerID(ctx)
+	case consoletoken.FieldProjectID:
+		return m.OldProjectID(ctx)
+	case consoletoken.FieldVmid:
+		return m.OldVmid(ctx)
+	case consoletoken.FieldTicket:
+		return m.OldTicket(ctx)
+	case consoletoken.FieldPort:
+		return m.OldPort(ctx)
+	case consoletoken.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case consoletoken.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ConsoleToken field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ConsoleTokenMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case consoletoken.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerID(v)
+		return nil
+	case consoletoken.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
+		return nil
+	case consoletoken.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVmid(v)
+		return nil
+	case consoletoken.FieldTicket:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTicket(v)
+		return nil
+	case consoletoken.FieldPort:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPort(v)
+		return nil
+	case consoletoken.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case consoletoken.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ConsoleToken field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ConsoleTokenMutation) AddedFields() []string {
+	var fields []string
+	if m.addproject_id != nil {
+		fields = append(fields, consoletoken.FieldProjectID)
+	}
+	if m.addvmid != nil {
+		fields = append(fields, consoletoken.FieldVmid)
+	}
+	if m.addport != nil {
+		fields = append(fields, consoletoken.FieldPort)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ConsoleTokenMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case consoletoken.FieldProjectID:
+		return m.AddedProjectID()
+	case consoletoken.FieldVmid:
+		return m.AddedVmid()
+	case consoletoken.FieldPort:
+		return m.AddedPort()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ConsoleTokenMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case consoletoken.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProjectID(v)
+		return nil
+	case consoletoken.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVmid(v)
+		return nil
+	case consoletoken.FieldPort:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPort(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ConsoleToken numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ConsoleTokenMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ConsoleTokenMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ConsoleTokenMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown ConsoleToken nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ConsoleTokenMutation) ResetField(name string) error {
+	switch name {
+	case consoletoken.FieldServerID:
+		m.ResetServerID()
+		return nil
+	case consoletoken.FieldProjectID:
+		m.ResetProjectID()
+		return nil
+	case consoletoken.FieldVmid:
+		m.ResetVmid()
+		return nil
+	case consoletoken.FieldTicket:
+		m.ResetTicket()
+		return nil
+	case consoletoken.FieldPort:
+		m.ResetPort()
+		return nil
+	case consoletoken.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case consoletoken.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ConsoleToken field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ConsoleTokenMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.server != nil {
+		edges = append(edges, consoletoken.EdgeServer)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ConsoleTokenMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case consoletoken.EdgeServer:
+		if id := m.server; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ConsoleTokenMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ConsoleTokenMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ConsoleTokenMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedserver {
+		edges = append(edges, consoletoken.EdgeServer)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ConsoleTokenMutation) EdgeCleared(name string) bool {
+	switch name {
+	case consoletoken.EdgeServer:
+		return m.clearedserver
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ConsoleTokenMutation) ClearEdge(name string) error {
+	switch name {
+	case consoletoken.EdgeServer:
+		m.ClearServer()
+		return nil
+	}
+	return fmt.Errorf("unknown ConsoleToken unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ConsoleTokenMutation) ResetEdge(name string) error {
+	switch name {
+	case consoletoken.EdgeServer:
+		m.ResetServer()
+		return nil
+	}
+	return fmt.Errorf("unknown ConsoleToken edge %s", name)
 }
 
 // IPAllocationMutation represents an operation that mutates the IPAllocation nodes in the graph.

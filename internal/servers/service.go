@@ -574,3 +574,22 @@ func (s *Service) Actions(ctx context.Context, projectID, id int64, f actions.Li
 	f.Where = append(f.Where, ActionsOf(projectID, id))
 	return actions.List(ctx, s.o.Ent, projectID, f, page, perPage)
 }
+
+// VMRef is where a server's VM lives.
+type VMRef struct {
+	LocationID int64
+	Node       string
+	VMID       int
+}
+
+// VM returns the project's server VM; a server without one gives 409 server_not_ready.
+func (s *Service) VM(ctx context.Context, projectID, id int64) (VMRef, error) {
+	row, err := s.o.Ent.Server.Query().Where(server.ID(id), server.ProjectID(projectID)).Only(ctx)
+	if err != nil {
+		return VMRef{}, notFound(err)
+	}
+	if row.Vmid == nil || row.Node == "" {
+		return VMRef{}, errNotReady
+	}
+	return VMRef{LocationID: row.LocationID, Node: row.Node, VMID: *row.Vmid}, nil
+}

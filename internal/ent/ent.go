@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
@@ -91,6 +92,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			apitoken.Table:      apitoken.ValidColumn,
 			action.Table:        action.ValidColumn,
+			consoletoken.Table:  consoletoken.ValidColumn,
 			ipallocation.Table:  ipallocation.ValidColumn,
 			ippool.Table:        ippool.ValidColumn,
 			image.Table:         image.ValidColumn,

@@ -93,6 +93,43 @@ var (
 			},
 		},
 	}
+	// ConsoleTokensColumns holds the columns for the "console_tokens" table.
+	ConsoleTokensColumns = []*schema.Column{
+		{Name: "token_hash", Type: field.TypeBytes},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "vmid", Type: field.TypeInt},
+		{Name: "ticket", Type: field.TypeString, Size: 2147483647},
+		{Name: "port", Type: field.TypeInt},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "server_id", Type: field.TypeInt64},
+	}
+	// ConsoleTokensTable holds the schema information for the "console_tokens" table.
+	ConsoleTokensTable = &schema.Table{
+		Name:       "console_tokens",
+		Columns:    ConsoleTokensColumns,
+		PrimaryKey: []*schema.Column{ConsoleTokensColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "console_tokens_servers_server",
+				Columns:    []*schema.Column{ConsoleTokensColumns[7]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "console_tokens_expires_at_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ConsoleTokensColumns[5]},
+			},
+			{
+				Name:    "console_tokens_server_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ConsoleTokensColumns[7]},
+			},
+		},
+	}
 	// IPAllocationsColumns holds the columns for the "ip_allocations" table.
 	IPAllocationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -623,6 +660,7 @@ var (
 	Tables = []*schema.Table{
 		APITokensTable,
 		ActionsTable,
+		ConsoleTokensTable,
 		IPAllocationsTable,
 		IPPoolsTable,
 		ImagesTable,
@@ -648,6 +686,7 @@ func init() {
 		Table: "api_tokens",
 	}
 	ActionsTable.ForeignKeys[0].RefTable = ProjectsTable
+	ConsoleTokensTable.ForeignKeys[0].RefTable = ServersTable
 	IPAllocationsTable.ForeignKeys[0].RefTable = IPPoolsTable
 	IPPoolsTable.ForeignKeys[0].RefTable = LocationsTable
 	ImageTemplatesTable.ForeignKeys[0].RefTable = ImagesTable
