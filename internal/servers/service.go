@@ -26,6 +26,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ipam"
 	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/projects"
+	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 )
@@ -120,7 +121,7 @@ var (
 	errNotFound  = apierr.New(http.StatusNotFound, "not_found", "not found")
 	errNoJobs    = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
 	errLocked    = apierr.New(http.StatusConflict, "locked", "the server has a running action")
-	errMissing   = apierr.New(http.StatusConflict, "server_missing", "the server's VM is missing in Proxmox")
+	ErrMissing   = apierr.New(http.StatusConflict, "server_missing", "the server's VM is missing in Proxmox")
 	errNotReady  = apierr.New(http.StatusConflict, "server_not_ready", "the server has no usable VM")
 	errNotOff    = apierr.New(http.StatusConflict, "server_not_stopped", "the server must be stopped")
 	errShrink    = apierr.New(http.StatusUnprocessableEntity, "disk_shrink_not_allowed", "disks cannot shrink")
@@ -582,14 +583,22 @@ type VMRef struct {
 	VMID       int
 }
 
-// VM returns the project's server VM; a server without one gives 409 server_not_ready.
-func (s *Service) VM(ctx context.Context, projectID, id int64) (VMRef, error) {
+// VM returns the project's server VM and its Proxmox client; 409 server_not_ready without one, server_missing unless tagged ours.
+func (s *Service) VM(ctx context.Context, projectID, id int64) (VMRef, pve.Client, error) {
 	row, err := s.o.Ent.Server.Query().Where(server.ID(id), server.ProjectID(projectID)).Only(ctx)
 	if err != nil {
-		return VMRef{}, notFound(err)
+		return VMRef{}, nil, notFound(err)
 	}
 	if row.Vmid == nil || row.Node == "" {
-		return VMRef{}, errNotReady
+		return VMRef{}, nil, errNotReady
 	}
-	return VMRef{LocationID: row.LocationID, Node: row.Node, VMID: *row.Vmid}, nil
+	pc, err := s.o.Catalog.ProxmoxFor(ctx, row.LocationID)
+	if err != nil {
+		return VMRef{}, nil, err
+	}
+	v, err := OwnedVM(ctx, pc, row.ID, *row.Vmid)
+	if err != nil {
+		return VMRef{}, nil, err
+	}
+	return VMRef{LocationID: row.LocationID, Node: v.Node, VMID: v.VMID}, pc, nil
 }

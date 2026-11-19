@@ -22,9 +22,12 @@ func ServerTag(serverID int64) string { return fmt.Sprintf("nb-srv-%d", serverID
 
 func vmTags(serverID int64) string { return TagNebla + ";" + ServerTag(serverID) }
 
-func hasTag(tags, want string) bool {
-	return slices.Contains(strings.FieldsFunc(tags, func(r rune) bool { return r == ';' || r == ',' || r == ' ' }), want)
+// SplitTags splits a Proxmox tag list.
+func SplitTags(tags string) []string {
+	return strings.FieldsFunc(tags, func(r rune) bool { return r == ';' || r == ',' || r == ' ' })
 }
+
+func hasTag(tags, want string) bool { return slices.Contains(SplitTags(tags), want) }
 
 // isoName is the cloud-init ISO file name for a server and generation.
 func isoName(serverID int64, gen int) string { return fmt.Sprintf("nb-srv-%d-%d.iso", serverID, gen) }
@@ -182,6 +185,18 @@ func bridgeOf(net string) string {
 // ownedBy reports whether v carries both the nebla tag and serverID's tag.
 func ownedBy(v pve.VM, serverID int64) bool {
 	return !v.Template && hasTag(v.Tags, TagNebla) && hasTag(v.Tags, ServerTag(serverID))
+}
+
+// OwnedVM returns the VM at vmid when it carries serverID's tags, else ErrMissing.
+func OwnedVM(ctx context.Context, pc pve.Client, serverID int64, vmid int) (pve.VM, error) {
+	v, found, err := findVM(ctx, pc, vmid)
+	if err != nil {
+		return pve.VM{}, err
+	}
+	if !found || !ownedBy(v, serverID) {
+		return pve.VM{}, ErrMissing
+	}
+	return v, nil
 }
 
 const cleanupTimeout = 2 * time.Minute

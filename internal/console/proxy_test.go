@@ -273,3 +273,17 @@ func TestConsoleTokenTTL(t *testing.T) {
 	require.WithinDuration(t, before.Add(console.TokenTTL), row.ExpiresAt, 2*time.Second)
 	require.Equal(t, 10*time.Second, console.TokenTTL)
 }
+
+// TestConsoleRequiresOwnedVM checks a reused vmid holding a foreign or untagged VM gets no console.
+func TestConsoleRequiresOwnedVM(t *testing.T) {
+	e, s := env(t)
+	row, err := e.App.Ent.Server.Get(context.Background(), s.ServerID)
+	require.NoError(t, err)
+	for _, tags := range []string{"nebla;nb-srv-99999", ""} {
+		e.App.PVE.SetVMConfig(*row.Vmid, "tags", tags)
+		res := e.C.Send(http.MethodPost, consolePath(s.ServerID), nil)
+		body := e.App.Body(res)
+		require.Equal(t, http.StatusConflict, res.StatusCode, "tags %q: %s", tags, body)
+		require.Contains(t, body, `"server_missing"`)
+	}
+}

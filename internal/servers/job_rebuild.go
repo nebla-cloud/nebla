@@ -52,7 +52,7 @@ func (s *Service) Rebuild(ctx context.Context, projectID, id int64, imageRef str
 	return s.queue(ctx, projectID, id, KindRebuildServer, func(etx *ent.Client, row *ent.Server) (func(int64) river.JobArgs, error) {
 		switch {
 		case row.Status == StatusMissing:
-			return nil, errMissing
+			return nil, ErrMissing
 		case row.Vmid == nil || (row.Status != StatusRunning && row.Status != StatusOff):
 			return nil, errNotReady
 		}

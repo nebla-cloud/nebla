@@ -119,6 +119,7 @@ func (e *ServerEnv) RunningServer(name string) CreatedServer {
 	}
 	vmid := 100 + int(s.ServerID)
 	e.App.PVE.AddVM("pve1", vmid, name)
+	e.App.PVE.SetVMConfig(vmid, "tags", servers.TagNebla+";"+servers.ServerTag(s.ServerID))
 	e.App.PVE.SetVMStatus(vmid, "running")
 	if err := e.App.Ent.Server.UpdateOneID(s.ServerID).SetVmid(vmid).SetNode("pve1").SetStatus(server.StatusRunning).Exec(ctx); err != nil {
 		e.App.t.Fatal(err)

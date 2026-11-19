@@ -21,6 +21,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/pve"
+	"github.com/Hexeption/nebla/internal/servers"
 	"github.com/coder/websocket"
 )
 
@@ -118,6 +119,12 @@ func (s *Service) Request(ctx context.Context, projectID, serverID int64) (Grant
 	pc, err := s.o.Catalog.ProxmoxFor(ctx, row.LocationID)
 	if err != nil {
 		return Grant{}, err
+	}
+	if _, err := servers.OwnedVM(ctx, pc, row.ID, *row.Vmid); errors.Is(err, servers.ErrMissing) {
+		return Grant{}, err
+	} else if err != nil {
+		s.o.Logger.Warn("console: list vms", "server_id", serverID, "err", err)
+		return Grant{}, errUpstream
 	}
 	t, err := pc.VNCProxy(ctx, row.Node, *row.Vmid)
 	if errors.Is(err, pve.ErrNotFound) {
