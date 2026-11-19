@@ -17,6 +17,7 @@ import (
 	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/mail"
 	"github.com/Hexeption/nebla/internal/projects"
+	"github.com/Hexeption/nebla/internal/reconcile"
 	"github.com/Hexeption/nebla/internal/servers"
 	"github.com/Hexeption/nebla/internal/settings"
 	"github.com/riverqueue/river"
@@ -57,7 +58,9 @@ func run() error {
 	cat := catalog.New(sqlDB, client, catalog.Options{SecretKey: cfg.SecretKey, Hooks: catalogHooks})
 	workers := river.NewWorkers()
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
-	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log))
+	reconcile.Register(workers, reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log}))
+	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
+		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob()))
 	if err != nil {
 		return err
 	}

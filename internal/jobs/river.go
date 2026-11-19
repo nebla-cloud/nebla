@@ -21,6 +21,9 @@ import (
 const (
 	QueueDefault = river.QueueDefault
 	MaxWorkers   = 10
+	// QueueMaintenance runs periodic upkeep apart from user actions.
+	QueueMaintenance      = "maintenance"
+	MaxMaintenanceWorkers = 4
 	// RescueStuckJobsAfter must exceed every worker's Timeout.
 	RescueStuckJobsAfter = 15 * time.Minute
 )
@@ -32,6 +35,9 @@ type Jobs struct {
 	inserter *river.Client[*sql.Tx]
 	sql      *sql.DB
 }
+
+// LiveStates are the job states unique maintenance jobs dedupe on, so a slow run is never doubled.
+var LiveStates = []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateScheduled}
 
 // PingArgs is a no-op job; River needs one worker to start, and it doubles as a liveness probe.
 type PingArgs struct{}
@@ -72,7 +78,7 @@ func New(pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.Workers, opts ...Opti
 		return nil, fmt.Errorf("river workers: %w", err)
 	}
 	cfg := &river.Config{
-		Queues:               map[string]river.QueueConfig{QueueDefault: {MaxWorkers: MaxWorkers}},
+		Queues:               map[string]river.QueueConfig{QueueDefault: {MaxWorkers: MaxWorkers}, QueueMaintenance: {MaxWorkers: MaxMaintenanceWorkers}},
 		Workers:              workers,
 		PeriodicJobs:         o.periodic,
 		Logger:               o.logger,
@@ -122,15 +128,20 @@ func (j *Jobs) Start(ctx context.Context) error { return j.Client.Start(ctx) }
 // Stop waits for running jobs to finish until ctx is done.
 func (j *Jobs) Stop(ctx context.Context) error { return j.Client.Stop(ctx) }
 
-const orphanedMessage = "the job running this action was lost; retry the request"
+const (
+	OrphanedCode    = "orphaned"
+	OrphanedMessage = "the job running this action was lost; retry the request"
+	// Orphaned is a SQL condition on actions alias a: running, with no job left that can finish it.
+	Orphaned = `a.status = 'running' and a.finished is null and not exists (
+		select 1 from river_job j where j.id = a.river_job_id
+		and j.state not in ('discarded', 'cancelled', 'completed'))`
+)
 
 // FailOrphanedActions marks running actions whose job is missing, discarded, cancelled or completed as error/orphaned.
 func (j *Jobs) FailOrphanedActions(ctx context.Context) (int, error) {
 	res, err := j.sql.ExecContext(ctx, `
-		update actions a set status = 'error', error_code = 'orphaned', error_message = $1, finished = now()
-		where a.status = 'running' and a.finished is null and not exists (
-			select 1 from river_job j where j.id = a.river_job_id
-			and j.state not in ('discarded', 'cancelled', 'completed'))`, orphanedMessage)
+		update actions a set status = 'error', error_code = $1, error_message = $2, finished = now()
+		where `+Orphaned, OrphanedCode, OrphanedMessage)
 	if err != nil {
 		return 0, fmt.Errorf("fail orphaned actions: %w", err)
 	}
