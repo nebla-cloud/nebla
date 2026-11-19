@@ -32,12 +32,16 @@ with Nebla's own seed ISO, because both use the `cidata` label.
 On both versions, also create the ISO cleanup role:
 
 ```sh
-pveum role add NeblaISO --privs "Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+pveum role add NeblaISO --privs "Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit"
 ```
 
 Proxmox only lets a user delete an ISO volume with `Datastore.Allocate` on its storage. Without it, deleting or
 rebuilding a server fails and seed ISOs pile up. `Datastore.Allocate` also lets the token delete any other volume on that
 storage, so grant it on the ISO storage only (step 2), never on `/`. A storage dedicated to Nebla's ISOs keeps this tight.
+
+A role on a more specific path such as `/storage/<iso_storage>` replaces the inherited `/` grant on that path, it doesn't
+add to it. So `NeblaISO` repeats every `Datastore.*` privilege of the main role: `Datastore.AllocateTemplate` for ISO
+uploads, plus the rest, which also covers an ISO storage that doubles as the disk storage.
 
 ## 2. User, permissions and API token
 
