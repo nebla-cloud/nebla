@@ -17,6 +17,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/httpapi"
+	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -27,6 +28,7 @@ type App struct {
 	SQL  *sql.DB
 	Ent  *ent.Client
 	Auth *auth.Service
+	PVE  *fake.Server
 	t    *testing.T
 }
 
@@ -44,7 +46,7 @@ func NewApp(t *testing.T, opts ...func(*httpapi.Deps)) *App {
 	}
 	srv := httptest.NewServer(httpapi.New(deps))
 	t.Cleanup(srv.Close)
-	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration), t: t}
+	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration), PVE: fake.New(t), t: t}
 }
 
 func (a *App) Do(req *http.Request) *http.Response {
