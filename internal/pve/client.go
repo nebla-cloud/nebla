@@ -57,11 +57,12 @@ type VM struct {
 }
 
 type CloneParams struct {
-	NewID   int
-	Name    string
-	Target  string
-	Storage string
-	Full    bool
+	NewID       int
+	Name        string
+	Target      string
+	Storage     string
+	Full        bool
+	Description string
 }
 
 type VNCTicket struct {

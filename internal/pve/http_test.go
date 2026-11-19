@@ -61,7 +61,7 @@ func TestCloneAndWait(t *testing.T) {
 func TestWaitTaskReportsFailure(t *testing.T) {
 	f, c := setup(t)
 	f.FailNext("/clone", 500)
-	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x"})
+	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x", Description: "nebla nb-srv-1 n0nce"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestIsTransient(t *testing.T) {
 
 func TestWaitTaskToleratesPollErrors(t *testing.T) {
 	f, c := setup(t)
-	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x"})
+	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x", Description: "nebla nb-srv-1 n0nce"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +374,7 @@ func TestFakeRejectsLikeRealPVE(t *testing.T) {
 func TestTaskEffectsApplyOnCompletion(t *testing.T) {
 	f, c := setup(t)
 	f.SetTaskDelay(200 * time.Millisecond)
-	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x"})
+	up, err := c.Clone(ctx(t), "pve1", 9000, pve.CloneParams{NewID: 101, Name: "x", Description: "nebla nb-srv-1 n0nce"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +396,7 @@ func TestTaskEffectsApplyOnCompletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, ok = f.VM(101)
-	if !ok || v.Name != "x" || v.Config["lock"] != "" || v.Config["scsi0"] == "" {
+	if !ok || v.Name != "x" || v.Config["lock"] != "" || v.Config["scsi0"] == "" || v.Config["description"] != "nebla nb-srv-1 n0nce" {
 		t.Fatalf("clone after task: %v %+v", ok, v)
 	}
 	f.SetTaskDelay(0)

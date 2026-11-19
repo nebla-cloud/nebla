@@ -469,6 +469,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if f["name"] != "" {
 			full["name"] = f["name"]
 		}
+		if f["description"] != "" {
+			full["description"] = f["description"]
+		}
 		if failed {
 			return s.newTask(src.node, "qmclone", id, failPtr(true), nil), nil
 		}

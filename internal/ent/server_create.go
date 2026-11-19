@@ -158,6 +158,20 @@ func (_c *ServerCreate) SetNillableCloneUpid(v *string) *ServerCreate {
 	return _c
 }
 
+// SetCloneNonce sets the "clone_nonce" field.
+func (_c *ServerCreate) SetCloneNonce(v string) *ServerCreate {
+	_c.mutation.SetCloneNonce(v)
+	return _c
+}
+
+// SetNillableCloneNonce sets the "clone_nonce" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableCloneNonce(v *string) *ServerCreate {
+	if v != nil {
+		_c.SetCloneNonce(*v)
+	}
+	return _c
+}
+
 // SetCreateStep sets the "create_step" field.
 func (_c *ServerCreate) SetCreateStep(v int) *ServerCreate {
 	_c.mutation.SetCreateStep(v)
@@ -453,6 +467,10 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CloneUpid(); ok {
 		_spec.SetField(server.FieldCloneUpid, field.TypeString, value)
 		_node.CloneUpid = &value
+	}
+	if value, ok := _c.mutation.CloneNonce(); ok {
+		_spec.SetField(server.FieldCloneNonce, field.TypeString, value)
+		_node.CloneNonce = &value
 	}
 	if value, ok := _c.mutation.CreateStep(); ok {
 		_spec.SetField(server.FieldCreateStep, field.TypeInt, value)
@@ -767,6 +785,24 @@ func (u *ServerUpsert) UpdateCloneUpid() *ServerUpsert {
 // ClearCloneUpid clears the value of the "clone_upid" field.
 func (u *ServerUpsert) ClearCloneUpid() *ServerUpsert {
 	u.SetNull(server.FieldCloneUpid)
+	return u
+}
+
+// SetCloneNonce sets the "clone_nonce" field.
+func (u *ServerUpsert) SetCloneNonce(v string) *ServerUpsert {
+	u.Set(server.FieldCloneNonce, v)
+	return u
+}
+
+// UpdateCloneNonce sets the "clone_nonce" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateCloneNonce() *ServerUpsert {
+	u.SetExcluded(server.FieldCloneNonce)
+	return u
+}
+
+// ClearCloneNonce clears the value of the "clone_nonce" field.
+func (u *ServerUpsert) ClearCloneNonce() *ServerUpsert {
+	u.SetNull(server.FieldCloneNonce)
 	return u
 }
 
@@ -1119,6 +1155,27 @@ func (u *ServerUpsertOne) UpdateCloneUpid() *ServerUpsertOne {
 func (u *ServerUpsertOne) ClearCloneUpid() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearCloneUpid()
+	})
+}
+
+// SetCloneNonce sets the "clone_nonce" field.
+func (u *ServerUpsertOne) SetCloneNonce(v string) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCloneNonce(v)
+	})
+}
+
+// UpdateCloneNonce sets the "clone_nonce" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateCloneNonce() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCloneNonce()
+	})
+}
+
+// ClearCloneNonce clears the value of the "clone_nonce" field.
+func (u *ServerUpsertOne) ClearCloneNonce() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearCloneNonce()
 	})
 }
 
@@ -1653,6 +1710,27 @@ func (u *ServerUpsertBulk) UpdateCloneUpid() *ServerUpsertBulk {
 func (u *ServerUpsertBulk) ClearCloneUpid() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearCloneUpid()
+	})
+}
+
+// SetCloneNonce sets the "clone_nonce" field.
+func (u *ServerUpsertBulk) SetCloneNonce(v string) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetCloneNonce(v)
+	})
+}
+
+// UpdateCloneNonce sets the "clone_nonce" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateCloneNonce() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateCloneNonce()
+	})
+}
+
+// ClearCloneNonce clears the value of the "clone_nonce" field.
+func (u *ServerUpsertBulk) ClearCloneNonce() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearCloneNonce()
 	})
 }
 

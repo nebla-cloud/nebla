@@ -9750,6 +9750,7 @@ type ServerMutation struct {
 	iso_generation     *int
 	addiso_generation  *int
 	clone_upid         *string
+	clone_nonce        *string
 	create_step        *int
 	addcreate_step     *int
 	cores              *int
@@ -10484,6 +10485,55 @@ func (m *ServerMutation) ResetCloneUpid() {
 	delete(m.clearedFields, server.FieldCloneUpid)
 }
 
+// SetCloneNonce sets the "clone_nonce" field.
+func (m *ServerMutation) SetCloneNonce(s string) {
+	m.clone_nonce = &s
+}
+
+// CloneNonce returns the value of the "clone_nonce" field in the mutation.
+func (m *ServerMutation) CloneNonce() (r string, exists bool) {
+	v := m.clone_nonce
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCloneNonce returns the old "clone_nonce" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldCloneNonce(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCloneNonce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCloneNonce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCloneNonce: %w", err)
+	}
+	return oldValue.CloneNonce, nil
+}
+
+// ClearCloneNonce clears the value of the "clone_nonce" field.
+func (m *ServerMutation) ClearCloneNonce() {
+	m.clone_nonce = nil
+	m.clearedFields[server.FieldCloneNonce] = struct{}{}
+}
+
+// CloneNonceCleared returns if the "clone_nonce" field was cleared in this mutation.
+func (m *ServerMutation) CloneNonceCleared() bool {
+	_, ok := m.clearedFields[server.FieldCloneNonce]
+	return ok
+}
+
+// ResetCloneNonce resets all changes to the "clone_nonce" field.
+func (m *ServerMutation) ResetCloneNonce() {
+	m.clone_nonce = nil
+	delete(m.clearedFields, server.FieldCloneNonce)
+}
+
 // SetCreateStep sets the "create_step" field.
 func (m *ServerMutation) SetCreateStep(i int) {
 	m.create_step = &i
@@ -10973,7 +11023,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 22)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -11015,6 +11065,9 @@ func (m *ServerMutation) Fields() []string {
 	}
 	if m.clone_upid != nil {
 		fields = append(fields, server.FieldCloneUpid)
+	}
+	if m.clone_nonce != nil {
+		fields = append(fields, server.FieldCloneNonce)
 	}
 	if m.create_step != nil {
 		fields = append(fields, server.FieldCreateStep)
@@ -11073,6 +11126,8 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.IsoGeneration()
 	case server.FieldCloneUpid:
 		return m.CloneUpid()
+	case server.FieldCloneNonce:
+		return m.CloneNonce()
 	case server.FieldCreateStep:
 		return m.CreateStep()
 	case server.FieldCores:
@@ -11124,6 +11179,8 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldIsoGeneration(ctx)
 	case server.FieldCloneUpid:
 		return m.OldCloneUpid(ctx)
+	case server.FieldCloneNonce:
+		return m.OldCloneNonce(ctx)
 	case server.FieldCreateStep:
 		return m.OldCreateStep(ctx)
 	case server.FieldCores:
@@ -11244,6 +11301,13 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCloneUpid(v)
+		return nil
+	case server.FieldCloneNonce:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCloneNonce(v)
 		return nil
 	case server.FieldCreateStep:
 		v, ok := value.(int)
@@ -11420,6 +11484,9 @@ func (m *ServerMutation) ClearedFields() []string {
 	if m.FieldCleared(server.FieldCloneUpid) {
 		fields = append(fields, server.FieldCloneUpid)
 	}
+	if m.FieldCleared(server.FieldCloneNonce) {
+		fields = append(fields, server.FieldCloneNonce)
+	}
 	return fields
 }
 
@@ -11442,6 +11509,9 @@ func (m *ServerMutation) ClearField(name string) error {
 		return nil
 	case server.FieldCloneUpid:
 		m.ClearCloneUpid()
+		return nil
+	case server.FieldCloneNonce:
+		m.ClearCloneNonce()
 		return nil
 	}
 	return fmt.Errorf("unknown Server nullable field %s", name)
@@ -11492,6 +11562,9 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldCloneUpid:
 		m.ResetCloneUpid()
+		return nil
+	case server.FieldCloneNonce:
+		m.ResetCloneNonce()
 		return nil
 	case server.FieldCreateStep:
 		m.ResetCreateStep()

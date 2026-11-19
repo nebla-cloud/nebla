@@ -50,6 +50,8 @@ type Server struct {
 	IsoGeneration int `json:"iso_generation,omitempty"`
 	// CloneUpid holds the value of the "clone_upid" field.
 	CloneUpid *string `json:"clone_upid,omitempty"`
+	// CloneNonce holds the value of the "clone_nonce" field.
+	CloneNonce *string `json:"clone_nonce,omitempty"`
 	// CreateStep holds the value of the "create_step" field.
 	CreateStep int `json:"create_step,omitempty"`
 	// Cores holds the value of the "cores" field.
@@ -138,7 +140,7 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
 			values[i] = new(sql.NullInt64)
-		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldUserData:
+		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldUserData:
 			values[i] = new(sql.NullString)
 		case server.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -251,6 +253,13 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CloneUpid = new(string)
 				*_m.CloneUpid = value.String
+			}
+		case server.FieldCloneNonce:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field clone_nonce", values[i])
+			} else if value.Valid {
+				_m.CloneNonce = new(string)
+				*_m.CloneNonce = value.String
 			}
 		case server.FieldCreateStep:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -397,6 +406,11 @@ func (_m *Server) String() string {
 	builder.WriteString(", ")
 	if v := _m.CloneUpid; v != nil {
 		builder.WriteString("clone_upid=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.CloneNonce; v != nil {
+		builder.WriteString("clone_nonce=")
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")

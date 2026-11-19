@@ -2,6 +2,7 @@ package servers
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -45,6 +46,19 @@ type transientError struct{ msg string }
 func (e *transientError) Error() string { return e.msg }
 
 func transient(format string, a ...any) error { return &transientError{fmt.Sprintf(format, a...)} }
+
+// CloneProof is what the create job saved about its clone request.
+type CloneProof struct{ UPID, Nonce *string }
+
+func newNonce() string { return rand.Text() }
+
+func cloneDescription(serverID int64, nonce string) string {
+	return "nebla " + ServerTag(serverID) + " " + nonce
+}
+
+func hasNonce(cfg map[string]string, nonce string) bool {
+	return nonce != "" && strings.Contains(cfg["description"], nonce)
+}
 
 // upidNode is the node field of a UPID ("UPID:node:...").
 func upidNode(upid string) string {
@@ -164,19 +178,20 @@ func ownedBy(v pve.VM, serverID int64) bool {
 
 const cleanupTimeout = 2 * time.Minute
 
-// destroyVM removes vmid if we can prove it is serverID's VM: by its tags, or by our saved clone task having succeeded.
-// It returns nil only when no VM is left at vmid.
-func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, cloneUPID *string) error {
+// destroyVM removes vmid if it is serverID's VM, proven by tags, a successful saved clone task, or the clone nonce.
+// It returns nil only when no VM of ours is left at vmid; a VM proven foreign is left alone.
+func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, proof CloneProof) error {
 	v, ok, err := findVM(ctx, pc, vmid)
 	if err != nil || !ok {
 		return err
 	}
 	if !ownedBy(v, serverID) {
-		if cloneUPID == nil {
-			return fmt.Errorf("vm %d lacks tags %s and %s", vmid, TagNebla, ServerTag(serverID))
+		ours, err := provenOurs(ctx, pc, v, proof)
+		if err != nil {
+			return err
 		}
-		if err := pc.WaitTask(ctx, upidNode(*cloneUPID), pve.UPID(*cloneUPID)); err != nil {
-			return fmt.Errorf("vm %d: clone task not proven: %w", vmid, err)
+		if !ours {
+			return nil
 		}
 		if err := pc.SetConfig(ctx, v.Node, vmid, map[string]string{"tags": vmTags(serverID)}); err != nil {
 			return fmt.Errorf("tag vm %d: %w", vmid, err)
@@ -201,6 +216,32 @@ func destroyVM(ctx context.Context, pc pve.Client, serverID int64, vmid int, clo
 	return err
 }
 
+// provenOurs decides an untagged VM at our vmid; an error means it could not be decided.
+func provenOurs(ctx context.Context, pc pve.Client, v pve.VM, proof CloneProof) (bool, error) {
+	if proof.UPID != nil {
+		err := pc.WaitTask(ctx, upidNode(*proof.UPID), pve.UPID(*proof.UPID))
+		switch {
+		case err == nil:
+			return true, nil
+		case ctx.Err() != nil || pve.IsTransient(err):
+			return false, fmt.Errorf("vm %d: clone task unresolved: %w", v.VMID, err)
+		}
+		// Our clone task failed, so the VM there is not ours.
+		return false, nil
+	}
+	if proof.Nonce == nil {
+		return false, fmt.Errorf("vm %d lacks tags %s and %s", v.VMID, TagNebla, "nb-srv-*")
+	}
+	cfg, err := pc.Config(ctx, v.Node, v.VMID)
+	if err != nil {
+		return false, fmt.Errorf("vm %d: read config: %w", v.VMID, err)
+	}
+	if cfg["lock"] != "" {
+		return false, fmt.Errorf("vm %d is locked (%s)", v.VMID, cfg["lock"])
+	}
+	return hasNonce(cfg, *proof.Nonce), nil
+}
+
 // deleteISO removes a cloud-init ISO; a missing volume is not an error.
 func deleteISO(ctx context.Context, pc pve.Client, node, storage, volid string) error {
 	err := pc.DeleteVolume(ctx, node, storage, volid)
@@ -211,12 +252,12 @@ func deleteISO(ctx context.Context, pc pve.Client, node, storage, volid string) 
 }
 
 // CleanupVM best-effort removes a server's VM and cloud-init ISO, logging failures; it reports whether the VM is gone.
-func CleanupVM(ctx context.Context, log *slog.Logger, pc pve.Client, serverID int64, node string, vmid *int, cloneUPID *string, isoStorage, volid string) bool {
+func CleanupVM(ctx context.Context, log *slog.Logger, pc pve.Client, serverID int64, node string, vmid *int, proof CloneProof, isoStorage, volid string) bool {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 	gone := true
 	if vmid != nil {
-		if err := destroyVM(ctx, pc, serverID, *vmid, cloneUPID); err != nil {
+		if err := destroyVM(ctx, pc, serverID, *vmid, proof); err != nil {
 			gone = false
 			log.Error("cleanup: destroy vm", "server_id", serverID, "vmid", *vmid, "err", err)
 		}

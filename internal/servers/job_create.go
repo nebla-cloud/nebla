@@ -78,8 +78,10 @@ func (CreateServerArgs) InsertOpts() river.InsertOpts {
 // CreateServerWorker builds a server's VM from its row snapshot, resuming at servers.create_step.
 type CreateServerWorker struct {
 	river.WorkerDefaults[CreateServerArgs]
-	o         WorkerOptions
-	afterStep func(step int)
+	o              WorkerOptions
+	afterStep      func(step int)
+	afterClonePost func()
+	cleanupTxHook  func() error
 }
 
 func NewCreateServerWorker(o WorkerOptions) *CreateServerWorker {
@@ -114,11 +116,11 @@ func (w *CreateServerWorker) Work(ctx context.Context, job *river.Job[CreateServ
 	if err != nil {
 		return err
 	}
-	if act.Finished != nil {
-		return nil
-	}
 	row, err := w.o.Ent.Server.Get(ctx, job.Args.ServerID)
 	if ent.IsNotFound(err) {
+		if act.Finished != nil {
+			return nil
+		}
 		if ferr := w.failAction(ctx, job.Args.ActionID, "server no longer exists"); ferr != nil {
 			return ferr
 		}
@@ -128,8 +130,12 @@ func (w *CreateServerWorker) Work(ctx context.Context, job *river.Job[CreateServ
 		return err
 	}
 	c := &createRun{w: w, args: job.Args, row: row}
-	if msg, ok := pendingCleanup(job); ok || job.Attempt > MaxCreateAttempts {
-		if !ok {
+	msg, pending := pendingCleanup(job)
+	if act.Finished != nil && !pending {
+		return nil
+	}
+	if pending || job.Attempt > MaxCreateAttempts {
+		if !pending {
 			msg = "create did not finish after " + strconv.Itoa(MaxCreateAttempts) + " attempts" + lastError(job)
 		}
 		if err := c.load(ctx); err != nil && retryable(err) {
@@ -323,20 +329,37 @@ func (c *createRun) clone(ctx context.Context) error {
 		if found && ownedBy(v, c.row.ID) {
 			return c.tag(ctx)
 		}
+		if !found && c.row.CloneNonce != nil {
+			// The earlier clone request never landed.
+			if err := c.saveRow(ctx, func(u *ent.ServerUpdateOne) { u.ClearCloneNonce() }); err != nil {
+				return err
+			}
+		}
 		if found {
 			cfg, err := c.pc.Config(ctx, v.Node, vmid)
-			if err != nil && !errors.Is(err, pve.ErrNotFound) {
+			if errors.Is(err, pve.ErrNotFound) {
+				continue
+			}
+			if err != nil {
 				return err
 			}
 			if cfg["lock"] != "" {
 				return transient("vm %d is locked (%s); retrying", vmid, cfg["lock"])
+			}
+			if c.row.CloneNonce != nil && hasNonce(cfg, *c.row.CloneNonce) {
+				return c.tag(ctx)
 			}
 			if err := c.newVMID(ctx); err != nil {
 				return err
 			}
 			continue
 		}
-		p := pve.CloneParams{NewID: vmid, Name: c.row.Name, Storage: c.diskStorage(), Full: true}
+		nonce := newNonce()
+		if err := c.saveRow(ctx, func(u *ent.ServerUpdateOne) { u.SetVmid(vmid).SetCloneNonce(nonce) }); err != nil {
+			return err
+		}
+		p := pve.CloneParams{NewID: vmid, Name: c.row.Name, Storage: c.diskStorage(), Full: true,
+			Description: cloneDescription(c.row.ID, nonce)}
 		if tnode != c.row.Node {
 			p.Target = c.row.Node
 		}
@@ -348,6 +371,9 @@ func (c *createRun) clone(ctx context.Context) error {
 			continue
 		case err != nil:
 			return err
+		}
+		if c.w.afterClonePost != nil {
+			c.w.afterClonePost()
 		}
 		upid := string(up)
 		if err := c.saveRow(ctx, func(u *ent.ServerUpdateOne) { u.SetCloneUpid(upid) }); err != nil {
@@ -375,7 +401,7 @@ func (c *createRun) newVMID(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.saveRow(ctx, func(u *ent.ServerUpdateOne) { u.SetVmid(id) })
+	return c.saveRow(ctx, func(u *ent.ServerUpdateOne) { u.SetVmid(id).ClearCloneNonce().ClearCloneUpid() })
 }
 
 func (c *createRun) saveRow(ctx context.Context, set func(*ent.ServerUpdateOne)) error {
@@ -571,22 +597,30 @@ func (w *CreateServerWorker) cleanup(ctx context.Context, c *createRun, cause er
 	log.Warn("create server failed", "err", cause)
 	gone := c.row.Vmid == nil
 	if c.pc != nil {
-		gone = CleanupVM(ctx, log, c.pc, c.row.ID, c.row.Node, c.row.Vmid, c.row.CloneUpid, c.loc.ISOStorage, c.volid())
+		gone = CleanupVM(ctx, log, c.pc, c.row.ID, c.row.Node, c.row.Vmid, CloneProof{UPID: c.row.CloneUpid, Nonce: c.row.CloneNonce}, c.loc.ISOStorage, c.volid())
 	}
 	if !gone {
 		msg += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *c.row.Vmid)
 	}
 	err := db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		if w.cleanupTxHook != nil {
+			if err := w.cleanupTxHook(); err != nil {
+				return err
+			}
+		}
 		u := etx.Server.UpdateOneID(c.row.ID).SetStatus(server.Status(StatusError))
 		if gone {
 			if err := ipam.Release(ctx, etx, c.row.ID); err != nil {
 				return err
 			}
-			u.ClearVmid().ClearCloneUpid().ClearIsoVolid().SetCreateStep(0)
+			u.ClearVmid().ClearCloneUpid().ClearCloneNonce().ClearIsoVolid().SetCreateStep(0)
 		}
 		return u.Exec(ctx)
 	})
-	return errors.Join(err, w.failAction(ctx, c.args.ActionID, msg))
+	if err != nil {
+		return err
+	}
+	return w.failAction(ctx, c.args.ActionID, msg)
 }
 
 func (w *CreateServerWorker) failAction(ctx context.Context, id int64, msg string) error {
