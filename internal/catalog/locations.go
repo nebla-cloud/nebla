@@ -492,14 +492,31 @@ func (s *Service) ProxmoxFor(ctx context.Context, locationID int64) (pve.Client,
 	if c, ok := s.clients[locationID]; ok && c.updated.Equal(l.UpdatedAt) {
 		return c.client, nil
 	}
-	secret, err := s.openSecret(l)
+	conn, err := s.connOf(l)
 	if err != nil {
 		return nil, err
 	}
-	c := s.opts.NewClient(pve.Conn{BaseURL: l.PveURL, TokenID: l.TokenID, Secret: secret, CAFingerprint: l.CaFingerprint,
-		InsecureTLS: l.InsecureTLS, PollInterval: s.opts.PollInterval})
+	c := s.opts.NewClient(conn)
 	s.clients[locationID] = cachedClient{updated: l.UpdatedAt, client: c}
 	return c, nil
+}
+
+// ConnFor returns a location's Proxmox connection settings, e.g. for pve.TLSConfig.
+func (s *Service) ConnFor(ctx context.Context, locationID int64) (pve.Conn, error) {
+	l, err := s.db.Location.Get(ctx, locationID)
+	if err != nil {
+		return pve.Conn{}, notFound(err)
+	}
+	return s.connOf(l)
+}
+
+func (s *Service) connOf(l *ent.Location) (pve.Conn, error) {
+	secret, err := s.openSecret(l)
+	if err != nil {
+		return pve.Conn{}, err
+	}
+	return pve.Conn{BaseURL: l.PveURL, TokenID: l.TokenID, Secret: secret, CAFingerprint: l.CaFingerprint,
+		InsecureTLS: l.InsecureTLS, PollInterval: s.opts.PollInterval}, nil
 }
 
 func (s *Service) forget(locationID int64) {

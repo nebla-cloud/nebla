@@ -17,6 +17,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
@@ -45,6 +46,8 @@ type Client struct {
 	APIToken *APITokenClient
 	// Action is the client for interacting with the Action builders.
 	Action *ActionClient
+	// ConsoleToken is the client for interacting with the ConsoleToken builders.
+	ConsoleToken *ConsoleTokenClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
 	IPAllocation *IPAllocationClient
 	// IPPool is the client for interacting with the IPPool builders.
@@ -88,6 +91,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIToken = NewAPITokenClient(c.config)
 	c.Action = NewActionClient(c.config)
+	c.ConsoleToken = NewConsoleTokenClient(c.config)
 	c.IPAllocation = NewIPAllocationClient(c.config)
 	c.IPPool = NewIPPoolClient(c.config)
 	c.Image = NewImageClient(c.config)
@@ -197,6 +201,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
 		Action:        NewActionClient(cfg),
+		ConsoleToken:  NewConsoleTokenClient(cfg),
 		IPAllocation:  NewIPAllocationClient(cfg),
 		IPPool:        NewIPPoolClient(cfg),
 		Image:         NewImageClient(cfg),
@@ -233,6 +238,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
 		Action:        NewActionClient(cfg),
+		ConsoleToken:  NewConsoleTokenClient(cfg),
 		IPAllocation:  NewIPAllocationClient(cfg),
 		IPPool:        NewIPPoolClient(cfg),
 		Image:         NewImageClient(cfg),
@@ -277,9 +283,9 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIToken, c.Action, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate,
-		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
-		c.ServerType, c.Session, c.Setting, c.User,
+		c.APIToken, c.Action, c.ConsoleToken, c.IPAllocation, c.IPPool, c.Image,
+		c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project, c.ProjectMember,
+		c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -289,9 +295,9 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIToken, c.Action, c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate,
-		c.Invite, c.Location, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
-		c.ServerType, c.Session, c.Setting, c.User,
+		c.APIToken, c.Action, c.ConsoleToken, c.IPAllocation, c.IPPool, c.Image,
+		c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project, c.ProjectMember,
+		c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -304,6 +310,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.APIToken.mutate(ctx, m)
 	case *ActionMutation:
 		return c.Action.mutate(ctx, m)
+	case *ConsoleTokenMutation:
+		return c.ConsoleToken.mutate(ctx, m)
 	case *IPAllocationMutation:
 		return c.IPAllocation.mutate(ctx, m)
 	case *IPPoolMutation:
@@ -634,6 +642,155 @@ func (c *ActionClient) mutate(ctx context.Context, m *ActionMutation) (Value, er
 		return (&ActionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Action mutation op: %q", m.Op())
+	}
+}
+
+// ConsoleTokenClient is a client for the ConsoleToken schema.
+type ConsoleTokenClient struct {
+	config
+}
+
+// NewConsoleTokenClient returns a client for the ConsoleToken from the given config.
+func NewConsoleTokenClient(c config) *ConsoleTokenClient {
+	return &ConsoleTokenClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `consoletoken.Hooks(f(g(h())))`.
+func (c *ConsoleTokenClient) Use(hooks ...Hook) {
+	c.hooks.ConsoleToken = append(c.hooks.ConsoleToken, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `consoletoken.Intercept(f(g(h())))`.
+func (c *ConsoleTokenClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ConsoleToken = append(c.inters.ConsoleToken, interceptors...)
+}
+
+// Create returns a builder for creating a ConsoleToken entity.
+func (c *ConsoleTokenClient) Create() *ConsoleTokenCreate {
+	mutation := newConsoleTokenMutation(c.config, OpCreate)
+	return &ConsoleTokenCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ConsoleToken entities.
+func (c *ConsoleTokenClient) CreateBulk(builders ...*ConsoleTokenCreate) *ConsoleTokenCreateBulk {
+	return &ConsoleTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ConsoleTokenClient) MapCreateBulk(slice any, setFunc func(*ConsoleTokenCreate, int)) *ConsoleTokenCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ConsoleTokenCreateBulk{err: fmt.Errorf("calling to ConsoleTokenClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ConsoleTokenCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ConsoleTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ConsoleToken.
+func (c *ConsoleTokenClient) Update() *ConsoleTokenUpdate {
+	mutation := newConsoleTokenMutation(c.config, OpUpdate)
+	return &ConsoleTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ConsoleTokenClient) UpdateOne(_m *ConsoleToken) *ConsoleTokenUpdateOne {
+	mutation := newConsoleTokenMutation(c.config, OpUpdateOne, withConsoleToken(_m))
+	return &ConsoleTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ConsoleTokenClient) UpdateOneID(id []byte) *ConsoleTokenUpdateOne {
+	mutation := newConsoleTokenMutation(c.config, OpUpdateOne, withConsoleTokenID(id))
+	return &ConsoleTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ConsoleToken.
+func (c *ConsoleTokenClient) Delete() *ConsoleTokenDelete {
+	mutation := newConsoleTokenMutation(c.config, OpDelete)
+	return &ConsoleTokenDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ConsoleTokenClient) DeleteOne(_m *ConsoleToken) *ConsoleTokenDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ConsoleTokenClient) DeleteOneID(id []byte) *ConsoleTokenDeleteOne {
+	builder := c.Delete().Where(consoletoken.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ConsoleTokenDeleteOne{builder}
+}
+
+// Query returns a query builder for ConsoleToken.
+func (c *ConsoleTokenClient) Query() *ConsoleTokenQuery {
+	return &ConsoleTokenQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeConsoleToken},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ConsoleToken entity by its id.
+func (c *ConsoleTokenClient) Get(ctx context.Context, id []byte) (*ConsoleToken, error) {
+	return c.Query().Where(consoletoken.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ConsoleTokenClient) GetX(ctx context.Context, id []byte) *ConsoleToken {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryServer queries the server edge of a ConsoleToken.
+func (c *ConsoleTokenClient) QueryServer(_m *ConsoleToken) *ServerQuery {
+	query := (&ServerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(consoletoken.Table, consoletoken.FieldID, id),
+			sqlgraph.To(server.Table, server.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, consoletoken.ServerTable, consoletoken.ServerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ConsoleTokenClient) Hooks() []Hook {
+	return c.hooks.ConsoleToken
+}
+
+// Interceptors returns the client interceptors.
+func (c *ConsoleTokenClient) Interceptors() []Interceptor {
+	return c.inters.ConsoleToken
+}
+
+func (c *ConsoleTokenClient) mutate(ctx context.Context, m *ConsoleTokenMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ConsoleTokenCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ConsoleTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ConsoleTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ConsoleTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ConsoleToken mutation op: %q", m.Op())
 	}
 }
 
@@ -2971,14 +3128,14 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIToken, Action, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
-		Node, Project, ProjectMember, SSHKey, Server, ServerType, Session, Setting,
-		User []ent.Hook
+		APIToken, Action, ConsoleToken, IPAllocation, IPPool, Image, ImageTemplate,
+		Invite, Location, Node, Project, ProjectMember, SSHKey, Server, ServerType,
+		Session, Setting, User []ent.Hook
 	}
 	inters struct {
-		APIToken, Action, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
-		Node, Project, ProjectMember, SSHKey, Server, ServerType, Session, Setting,
-		User []ent.Interceptor
+		APIToken, Action, ConsoleToken, IPAllocation, IPPool, Image, ImageTemplate,
+		Invite, Location, Node, Project, ProjectMember, SSHKey, Server, ServerType,
+		Session, Setting, User []ent.Interceptor
 	}
 )
 

@@ -238,6 +238,12 @@ type ChangeTypeInput struct {
 	UpgradeDisk bool `json:"upgrade_disk"`
 }
 
+// ConsoleGrant defines model for ConsoleGrant.
+type ConsoleGrant struct {
+	Password string `json:"password"`
+	WssUrl   string `json:"wss_url"`
+}
+
 // Credentials defines model for Credentials.
 type Credentials struct {
 	Email    string `json:"email"`
@@ -359,6 +365,18 @@ type Meta struct {
 		PerPage      int `json:"per_page"`
 		TotalEntries int `json:"total_entries"`
 	} `json:"pagination"`
+}
+
+// Metrics defines model for Metrics.
+type Metrics struct {
+	End   time.Time `json:"end"`
+	Start time.Time `json:"start"`
+
+	// Step Seconds between points
+	Step int `json:"step"`
+
+	// TimeSeries Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s). Each value is a list of [unix_ts, value] pairs.
+	TimeSeries map[string][][]float64 `json:"time_series"`
 }
 
 // Node defines model for Node.
@@ -727,6 +745,15 @@ type GetServerActionsParams struct {
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
+// GetServerMetricsParams defines parameters for GetServerMetrics.
+type GetServerMetricsParams struct {
+	// Type Required. cpu, disk and/or network; repeat the parameter or separate with commas
+	Type *[]string `form:"type,omitempty" json:"type,omitempty"`
+
+	// Timeframe Required. hour, day, week or month
+	Timeframe *string `form:"timeframe,omitempty" json:"timeframe,omitempty"`
+}
+
 // GetSshKeysParams defines parameters for GetSshKeys.
 type GetSshKeysParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -1040,12 +1067,18 @@ type ServerInterface interface {
 	// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
 	// (POST /servers/{id}/actions/rebuild)
 	RebuildServer(w http.ResponseWriter, r *http.Request, id ID)
+	// RequestServerConsole Get a one-time VNC console URL for a running server
+	// (POST /servers/{id}/actions/request_console)
+	RequestServerConsole(w http.ResponseWriter, r *http.Request, id ID)
 	// ResetServer Reset a server
 	// (POST /servers/{id}/actions/reset)
 	ResetServer(w http.ResponseWriter, r *http.Request, id ID)
 	// ShutdownServer Shut a server down gracefully
 	// (POST /servers/{id}/actions/shutdown)
 	ShutdownServer(w http.ResponseWriter, r *http.Request, id ID)
+	// GetServerMetrics Server metrics from Proxmox RRD data
+	// (GET /servers/{id}/metrics)
+	GetServerMetrics(w http.ResponseWriter, r *http.Request, id ID, params GetServerMetricsParams)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(w http.ResponseWriter, r *http.Request)
@@ -1490,6 +1523,12 @@ func (_ Unimplemented) RebuildServer(w http.ResponseWriter, r *http.Request, id 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// RequestServerConsole Get a one-time VNC console URL for a running server
+// (POST /servers/{id}/actions/request_console)
+func (_ Unimplemented) RequestServerConsole(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ResetServer Reset a server
 // (POST /servers/{id}/actions/reset)
 func (_ Unimplemented) ResetServer(w http.ResponseWriter, r *http.Request, id ID) {
@@ -1499,6 +1538,12 @@ func (_ Unimplemented) ResetServer(w http.ResponseWriter, r *http.Request, id ID
 // ShutdownServer Shut a server down gracefully
 // (POST /servers/{id}/actions/shutdown)
 func (_ Unimplemented) ShutdownServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetServerMetrics Server metrics from Proxmox RRD data
+// (GET /servers/{id}/metrics)
+func (_ Unimplemented) GetServerMetrics(w http.ResponseWriter, r *http.Request, id ID, params GetServerMetricsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3549,6 +3594,32 @@ func (siw *ServerInterfaceWrapper) RebuildServer(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// RequestServerConsole operation middleware
+func (siw *ServerInterfaceWrapper) RequestServerConsole(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestServerConsole(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ResetServer operation middleware
 func (siw *ServerInterfaceWrapper) ResetServer(w http.ResponseWriter, r *http.Request) {
 
@@ -3592,6 +3663,61 @@ func (siw *ServerInterfaceWrapper) ShutdownServer(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ShutdownServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetServerMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetServerMetrics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServerMetricsParams
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", r.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "timeframe" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "timeframe", r.URL.Query(), &params.Timeframe, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "timeframe"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "timeframe", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServerMetrics(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4130,6 +4256,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/servers/{id}/actions/change_type", wrapper.ChangeServerType)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/request_console", wrapper.RequestServerConsole)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/servers/{id}/metrics", wrapper.GetServerMetrics)
 	})
 
 	return r
@@ -8757,6 +8889,98 @@ func (response RebuildServer503JSONResponse) VisitRebuildServerResponse(w http.R
 	return err
 }
 
+type RequestServerConsoleRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type RequestServerConsoleResponseObject interface {
+	VisitRequestServerConsoleResponse(w http.ResponseWriter) error
+}
+
+type RequestServerConsole201JSONResponse ConsoleGrant
+
+func (response RequestServerConsole201JSONResponse) VisitRequestServerConsoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestServerConsole401JSONResponse struct{ ErrorJSONResponse }
+
+func (response RequestServerConsole401JSONResponse) VisitRequestServerConsoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestServerConsole403JSONResponse Error
+
+func (response RequestServerConsole403JSONResponse) VisitRequestServerConsoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestServerConsole404JSONResponse Error
+
+func (response RequestServerConsole404JSONResponse) VisitRequestServerConsoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestServerConsole409JSONResponse Error
+
+func (response RequestServerConsole409JSONResponse) VisitRequestServerConsoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestServerConsole502JSONResponse Error
+
+func (response RequestServerConsole502JSONResponse) VisitRequestServerConsoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ResetServerRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -8937,6 +9161,101 @@ func (response ShutdownServer503JSONResponse) VisitShutdownServerResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerMetricsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetServerMetricsParams
+}
+
+type GetServerMetricsResponseObject interface {
+	VisitGetServerMetricsResponse(w http.ResponseWriter) error
+}
+
+type GetServerMetrics200JSONResponse struct {
+	Metrics Metrics `json:"metrics"`
+}
+
+func (response GetServerMetrics200JSONResponse) VisitGetServerMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerMetrics401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServerMetrics401JSONResponse) VisitGetServerMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerMetrics404JSONResponse Error
+
+func (response GetServerMetrics404JSONResponse) VisitGetServerMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerMetrics409JSONResponse Error
+
+func (response GetServerMetrics409JSONResponse) VisitGetServerMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerMetrics422JSONResponse Error
+
+func (response GetServerMetrics422JSONResponse) VisitGetServerMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerMetrics502JSONResponse Error
+
+func (response GetServerMetrics502JSONResponse) VisitGetServerMetricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -9641,12 +9960,18 @@ type StrictServerInterface interface {
 	// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
 	// (POST /servers/{id}/actions/rebuild)
 	RebuildServer(ctx context.Context, request RebuildServerRequestObject) (RebuildServerResponseObject, error)
+	// RequestServerConsole Get a one-time VNC console URL for a running server
+	// (POST /servers/{id}/actions/request_console)
+	RequestServerConsole(ctx context.Context, request RequestServerConsoleRequestObject) (RequestServerConsoleResponseObject, error)
 	// ResetServer Reset a server
 	// (POST /servers/{id}/actions/reset)
 	ResetServer(ctx context.Context, request ResetServerRequestObject) (ResetServerResponseObject, error)
 	// ShutdownServer Shut a server down gracefully
 	// (POST /servers/{id}/actions/shutdown)
 	ShutdownServer(ctx context.Context, request ShutdownServerRequestObject) (ShutdownServerResponseObject, error)
+	// GetServerMetrics Server metrics from Proxmox RRD data
+	// (GET /servers/{id}/metrics)
+	GetServerMetrics(ctx context.Context, request GetServerMetricsRequestObject) (GetServerMetricsResponseObject, error)
 	// PostSetup Create the first admin
 	// (POST /setup)
 	PostSetup(ctx context.Context, request PostSetupRequestObject) (PostSetupResponseObject, error)
@@ -11657,6 +11982,32 @@ func (sh *strictHandler) RebuildServer(w http.ResponseWriter, r *http.Request, i
 	}
 }
 
+// RequestServerConsole operation middleware
+func (sh *strictHandler) RequestServerConsole(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RequestServerConsoleRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestServerConsole(ctx, request.(RequestServerConsoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestServerConsole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestServerConsoleResponseObject); ok {
+		if err := validResponse.VisitRequestServerConsoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ResetServer operation middleware
 func (sh *strictHandler) ResetServer(w http.ResponseWriter, r *http.Request, id ID) {
 	var request ResetServerRequestObject
@@ -11702,6 +12053,33 @@ func (sh *strictHandler) ShutdownServer(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ShutdownServerResponseObject); ok {
 		if err := validResponse.VisitShutdownServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetServerMetrics operation middleware
+func (sh *strictHandler) GetServerMetrics(w http.ResponseWriter, r *http.Request, id ID, params GetServerMetricsParams) {
+	var request GetServerMetricsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServerMetrics(ctx, request.(GetServerMetricsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServerMetrics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServerMetricsResponseObject); ok {
+		if err := validResponse.VisitGetServerMetricsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

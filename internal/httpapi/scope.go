@@ -40,6 +40,9 @@ var projectScopedOps = map[string]bool{
 	"ResetServer":      true,
 	"RebuildServer":    true,
 	"ChangeServerType": true,
+
+	"RequestServerConsole": true,
+	"GetServerMetrics":     true,
 }
 
 // RoleAPIToken is Scope.Role for requests authenticated by an API token.

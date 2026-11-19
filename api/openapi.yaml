@@ -1460,6 +1460,63 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/request_console:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: requestServerConsole
+      x-nebla-scope: project
+      summary: Get a one-time VNC console URL for a running server
+      description: >-
+        Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 60s and bound to the
+        server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only
+        auth. password is the VNC password for noVNC.
+      responses:
+        "201":
+          description: Console credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsoleGrant" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+  /servers/{id}/metrics:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getServerMetrics
+      x-nebla-scope: project
+      summary: Server metrics from Proxmox RRD data
+      parameters:
+        - name: type
+          in: query
+          description: Required. cpu, disk and/or network; repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: timeframe
+          in: query
+          description: Required. hour, day, week or month
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [metrics]
+                properties:
+                  metrics: { $ref: "#/components/schemas/Metrics" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
 components:
   responses:
     ActionCreated:
@@ -1874,6 +1931,31 @@ components:
       required: [image]
       properties:
         image: { type: string, description: Image id or name }
+    ConsoleGrant:
+      type: object
+      required: [wss_url, password]
+      properties:
+        wss_url: { type: string }
+        password: { type: string }
+    Metrics:
+      type: object
+      required: [start, end, step, time_series]
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        step: { type: integer, description: Seconds between points }
+        time_series:
+          type: object
+          description: >-
+            Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s).
+            Each value is a list of [unix_ts, value] pairs.
+          additionalProperties:
+            type: array
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items: { type: number, format: double }
     ChangeTypeInput:
       type: object
       required: [server_type, upgrade_disk]

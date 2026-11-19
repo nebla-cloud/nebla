@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -8,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hexeption/nebla/internal/actions"
+	"github.com/Hexeption/nebla/internal/ent/server"
 	"github.com/Hexeption/nebla/internal/httpapi"
 	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/pve/fake"
@@ -104,4 +107,21 @@ func (e *ServerEnv) CreateServer(name string, extra map[string]any) CreatedServe
 	}
 	e.C.decode(e.C.Send(http.MethodPost, "/v1/servers", body), http.StatusCreated, &out)
 	return CreatedServer{ServerID: out.Server.ID, ActionID: out.Action.ID}
+}
+
+// RunningServer creates a server and settles it by hand: its action succeeded and it runs as a fake VM on pve1.
+func (e *ServerEnv) RunningServer(name string) CreatedServer {
+	e.App.t.Helper()
+	ctx := context.Background()
+	s := e.CreateServer(name, nil)
+	if err := actions.Succeed(ctx, e.App.Ent, s.ActionID); err != nil {
+		e.App.t.Fatal(err)
+	}
+	vmid := 100 + int(s.ServerID)
+	e.App.PVE.AddVM("pve1", vmid, name)
+	e.App.PVE.SetVMStatus(vmid, "running")
+	if err := e.App.Ent.Server.UpdateOneID(s.ServerID).SetVmid(vmid).SetNode("pve1").SetStatus(server.StatusRunning).Exec(ctx); err != nil {
+		e.App.t.Fatal(err)
+	}
+	return s
 }

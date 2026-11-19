@@ -10,6 +10,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
@@ -136,6 +137,33 @@ func (f TraverseAction) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ActionQuery", q)
+}
+
+// The ConsoleTokenFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ConsoleTokenFunc func(context.Context, *ent.ConsoleTokenQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ConsoleTokenFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ConsoleTokenQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ConsoleTokenQuery", q)
+}
+
+// The TraverseConsoleToken type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseConsoleToken func(context.Context, *ent.ConsoleTokenQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseConsoleToken) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseConsoleToken) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ConsoleTokenQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ConsoleTokenQuery", q)
 }
 
 // The IPAllocationFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -550,6 +578,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.APITokenQuery, predicate.APIToken, apitoken.OrderOption]{typ: ent.TypeAPIToken, tq: q}, nil
 	case *ent.ActionQuery:
 		return &query[*ent.ActionQuery, predicate.Action, action.OrderOption]{typ: ent.TypeAction, tq: q}, nil
+	case *ent.ConsoleTokenQuery:
+		return &query[*ent.ConsoleTokenQuery, predicate.ConsoleToken, consoletoken.OrderOption]{typ: ent.TypeConsoleToken, tq: q}, nil
 	case *ent.IPAllocationQuery:
 		return &query[*ent.IPAllocationQuery, predicate.IPAllocation, ipallocation.OrderOption]{typ: ent.TypeIPAllocation, tq: q}, nil
 	case *ent.IPPoolQuery:

@@ -79,7 +79,12 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 		}
 		deps.Jobs = StartJobs(t, pool, sqlDB, workers)
 	}
-	srv := httptest.NewServer(httpapi.New(deps))
+	srv := httptest.NewUnstartedServer(nil)
+	if deps.Config.BaseURL == "" {
+		deps.Config.BaseURL = "http://" + srv.Listener.Addr().String()
+	}
+	srv.Config.Handler = httpapi.New(deps)
+	srv.Start()
 	t.Cleanup(srv.Close)
 	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration),
 		PVE: pve, Catalog: deps.Catalog, Jobs: deps.Jobs, t: t}

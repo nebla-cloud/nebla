@@ -265,7 +265,7 @@ func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, pc pve.Client
 	q, err := r.o.SQL.QueryContext(ctx, `
 		select a.id, s.id from actions a join servers s
 		on s.location_id = $1 and a.resources @> jsonb_build_array(jsonb_build_object('id', s.id, 'type', $2::text))
-		where `+jobs.Orphaned, locationID, servers.ResourceType)
+		where `+jobs.Orphaned+` order by a.id`, locationID, servers.ResourceType)
 	if err != nil {
 		return []error{fmt.Errorf("find orphaned actions: %w", err)}
 	}

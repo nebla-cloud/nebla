@@ -7,6 +7,7 @@ import (
 
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
@@ -60,6 +61,12 @@ func init() {
 	actionDescStarted := actionFields[8].Descriptor()
 	// action.DefaultStarted holds the default value on creation for the started field.
 	action.DefaultStarted = actionDescStarted.Default.(func() time.Time)
+	consoletokenFields := schema.ConsoleToken{}.Fields()
+	_ = consoletokenFields
+	// consoletokenDescCreatedAt is the schema descriptor for created_at field.
+	consoletokenDescCreatedAt := consoletokenFields[7].Descriptor()
+	// consoletoken.DefaultCreatedAt holds the default value on creation for the created_at field.
+	consoletoken.DefaultCreatedAt = consoletokenDescCreatedAt.Default.(func() time.Time)
 	ipallocationFields := schema.IPAllocation{}.Fields()
 	_ = ipallocationFields
 	// ipallocationDescCreatedAt is the schema descriptor for created_at field.

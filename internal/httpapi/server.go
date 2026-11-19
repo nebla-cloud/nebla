@@ -14,6 +14,7 @@ import (
 	"github.com/Hexeption/nebla/internal/auth"
 	"github.com/Hexeption/nebla/internal/catalog"
 	"github.com/Hexeption/nebla/internal/config"
+	"github.com/Hexeption/nebla/internal/console"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/ipam"
@@ -62,6 +63,7 @@ type server struct {
 	ipam       *ipam.Service
 	sshkeys    *sshkeys.Service
 	servers    *servers.Service
+	console    *console.Service
 	loginLimit *ratelimit.Limiter
 }
 
@@ -104,6 +106,8 @@ func New(deps Deps) http.Handler {
 		servers:    servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
 		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
 	}
+	s.console = console.New(console.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, BaseURL: deps.Config.BaseURL,
+		Logger: log, WriteError: func(w http.ResponseWriter, err error) { s.responseError(w, nil, err) }})
 	strict := apigen.NewStrictHandlerWithOptions(s, []apigen.StrictMiddlewareFunc{s.authMiddleware}, apigen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  requestError,
 		ResponseErrorHandlerFunc: s.responseError,
@@ -122,6 +126,10 @@ func New(deps Deps) http.Handler {
 	apigen.HandlerWithOptions(strict, apigen.ChiServerOptions{
 		BaseRouter:       api,
 		ErrorHandlerFunc: requestError,
+	})
+	// The console websocket is outside the spec and auth: the one-time token in the path is its only credential.
+	api.Get("/console/{token}", func(w http.ResponseWriter, r *http.Request) {
+		s.console.Serve(w, r, chi.URLParam(r, "token"))
 	})
 	if deps.ScopedRoutes != nil {
 		api.Group(func(g chi.Router) {
