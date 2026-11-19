@@ -1,0 +1,12 @@
+.git
+.idea
+.superpowers
+.DS_Store
+bin
+deploy
+docs
+*.md
+.env
+**/.env
+Dockerfile
+.dockerignore

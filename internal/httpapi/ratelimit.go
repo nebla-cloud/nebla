@@ -2,13 +2,13 @@ package httpapi
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/ratelimit"
+	"github.com/Hexeption/nebla/internal/realip"
 	"golang.org/x/time/rate"
 )
 
@@ -71,11 +71,7 @@ func newAPILimiter(l *ratelimit.Limiter) *ratelimit.Limiter {
 // (one lookup, no repeat); others by IP here. The writer is a fallback so every response has headers.
 func (s *server) rateLimitMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			host = r.RemoteAddr
-		}
-		st := &rlState{s: s, w: w, ip: host}
+		st := &rlState{s: s, w: w, ip: realip.ClientIP(r, s.deps.Config.TrustedProxies)}
 		rw := &rlWriter{ResponseWriter: w, st: st}
 		if r.Header.Get("Authorization") == "" {
 			if _, cerr := r.Cookie(sessionCookie); cerr != nil {

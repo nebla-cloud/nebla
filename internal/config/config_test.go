@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"net/netip"
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/config"
@@ -31,4 +32,23 @@ func TestLoadRequiresDatabaseURL(t *testing.T) {
 	t.Setenv("PANEL_SECRET_KEY", "0123456789abcdef0123456789abcdef")
 	_, err := config.Load()
 	require.ErrorContains(t, err, "PANEL_DATABASE_URL")
+}
+
+func TestLoadTrustedProxies(t *testing.T) {
+	t.Setenv("PANEL_DATABASE_URL", "postgres://x")
+	t.Setenv("PANEL_BASE_URL", "https://panel.test")
+	t.Setenv("PANEL_SECRET_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("PANEL_TRUSTED_PROXIES", "")
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Empty(t, cfg.TrustedProxies)
+
+	t.Setenv("PANEL_TRUSTED_PROXIES", "172.16.0.0/12, 10.0.0.1")
+	cfg, err = config.Load()
+	require.NoError(t, err)
+	require.Equal(t, []netip.Prefix{netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("10.0.0.1/32")}, cfg.TrustedProxies)
+
+	t.Setenv("PANEL_TRUSTED_PROXIES", "bogus")
+	_, err = config.Load()
+	require.ErrorContains(t, err, "PANEL_TRUSTED_PROXIES")
 }

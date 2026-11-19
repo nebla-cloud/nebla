@@ -1,7 +1,11 @@
 package httpapi_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
+	"net/netip"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -63,4 +67,54 @@ func TestRateLimitExceeded(t *testing.T) {
 	require.Equal(t, "1", res.Header.Get("Retry-After"))
 	require.Equal(t, "2", res.Header.Get("RateLimit-Reset"))
 	require.Equal(t, 200, tokB.Get(path).StatusCode)
+}
+
+func trustLoopback(d *httpapi.Deps) {
+	d.Config.TrustedProxies = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128")}
+}
+
+// fromIP sends a request forwarded for ip and returns its status.
+func fromIP(t *testing.T, app *testutil.App, method, path, ip string, body any) int {
+	t.Helper()
+	var r io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		require.NoError(t, err)
+		r = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, app.URL+path, r)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", ip)
+	res := app.Do(req)
+	res.Body.Close()
+	return res.StatusCode
+}
+
+func TestRateLimitTrustedProxyUsesForwardedIP(t *testing.T) {
+	lim := ratelimit.New(rate.Every(time.Hour), 2)
+	app := testutil.NewApp(t, trustLoopback, func(d *httpapi.Deps) { d.APILimiter = lim })
+	for range 2 {
+		require.Equal(t, 200, fromIP(t, app, "GET", "/v1/healthz", "198.51.100.1", nil))
+	}
+	require.Equal(t, 429, fromIP(t, app, "GET", "/v1/healthz", "198.51.100.1", nil))
+	require.Equal(t, 200, fromIP(t, app, "GET", "/v1/healthz", "198.51.100.2", nil))
+}
+
+func TestRateLimitUntrustedIgnoresForwardedFor(t *testing.T) {
+	lim := ratelimit.New(rate.Every(time.Hour), 2)
+	app := testutil.NewApp(t, func(d *httpapi.Deps) { d.APILimiter = lim })
+	require.Equal(t, 200, fromIP(t, app, "GET", "/v1/healthz", "198.51.100.1", nil))
+	require.Equal(t, 200, fromIP(t, app, "GET", "/v1/healthz", "198.51.100.2", nil))
+	require.Equal(t, 429, fromIP(t, app, "GET", "/v1/healthz", "198.51.100.3", nil))
+}
+
+func TestLoginLimitTrustedProxyUsesForwardedIP(t *testing.T) {
+	app := testutil.NewApp(t, trustLoopback)
+	b := map[string]string{"email": "a@example.com", "password": "wrong-password"}
+	for range 10 {
+		require.Equal(t, 401, fromIP(t, app, "POST", "/v1/auth/login", "198.51.100.1", b))
+	}
+	require.Equal(t, 429, fromIP(t, app, "POST", "/v1/auth/login", "198.51.100.1", b))
+	require.Equal(t, 401, fromIP(t, app, "POST", "/v1/auth/login", "198.51.100.2", b))
 }

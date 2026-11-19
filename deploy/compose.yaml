@@ -1,0 +1,46 @@
+# Copy .env.example to .env next to this file and fill it in, then: docker compose up -d
+name: nebla
+
+services:
+  panel:
+    image: ${NEBLA_IMAGE:-nebla:dev}
+    build:
+      context: ..
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PANEL_PORT:-8080}:8080"
+    environment:
+      PANEL_DATABASE_URL: postgres://nebla:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/nebla?sslmode=disable
+      PANEL_LISTEN: ":8080"
+      PANEL_BASE_URL: ${PANEL_BASE_URL:?set PANEL_BASE_URL in .env}
+      PANEL_SECRET_KEY: ${PANEL_SECRET_KEY:?set PANEL_SECRET_KEY in .env}
+      PANEL_SMTP_URL: ${PANEL_SMTP_URL:-}
+      # Only set this when a reverse proxy sits in front; its X-Forwarded-For is then trusted.
+      # PANEL_TRUSTED_PROXIES: "172.16.0.0/12,10.0.0.5"
+    healthcheck:
+      test: ["CMD", "/nebla-server", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nebla
+      POSTGRES_USER: nebla
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nebla -d nebla"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

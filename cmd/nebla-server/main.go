@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,6 +25,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(healthcheck())
+	}
 	if err := run(); err != nil {
 		slog.Error("fatal", "err", err)
 		os.Exit(1)
@@ -31,7 +35,8 @@ func main() {
 }
 
 func run() error {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -53,7 +58,6 @@ func run() error {
 	log := slog.Default()
 	exts := ext.Defaults(settings.New(client))
 	bus := ext.NewBus(exts.BillingSink)
-	defer bus.Close()
 	projectHooks, catalogHooks := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
 	cat := catalog.New(sqlDB, client, catalog.Options{SecretKey: cfg.SecretKey, Hooks: catalogHooks})
 	workers := river.NewWorkers()
@@ -71,16 +75,11 @@ func run() error {
 	if n > 0 {
 		log.Warn("failed orphaned actions", "count", n)
 	}
-	if err := runner.Start(ctx); err != nil {
+	// River gets its own context so a signal stops it via Stop, not by cancelling Start's context.
+	if err := runner.Start(context.WithoutCancel(ctx)); err != nil {
+		bus.Close()
 		return err
 	}
-	defer func() {
-		sctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := runner.Stop(sctx); err != nil {
-			log.Error("stop jobs", "err", err)
-		}
-	}()
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: httpapi.New(httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: cfg, Logger: log, Mail: sender, Jobs: runner,
@@ -90,13 +89,30 @@ func run() error {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
 	log.Info("listening", "addr", cfg.Listen)
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	var serveErr error
 	select {
-	case err := <-errc:
-		return err
-	case <-sig:
+	case serveErr = <-errc:
+	case <-ctx.Done():
 		log.Info("shutting down")
-		return srv.Close()
 	}
+	shutdown(log, srv, runner, bus)
+	if errors.Is(serveErr, http.ErrServerClosed) {
+		serveErr = nil
+	}
+	return serveErr
+}
+
+// shutdown drains HTTP, then River, then pending event deliveries; the DB closes after via defers.
+func shutdown(log *slog.Logger, srv *http.Server, runner *jobs.Jobs, bus *ext.Bus) {
+	hctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(hctx); err != nil {
+		log.Error("stop http", "err", err)
+	}
+	jctx, jcancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer jcancel()
+	if err := runner.Stop(jctx); err != nil {
+		log.Error("stop jobs", "err", err)
+	}
+	bus.Close()
 }

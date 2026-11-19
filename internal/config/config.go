@@ -3,7 +3,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
+
+	"github.com/Hexeption/nebla/internal/realip"
 )
 
 type Config struct {
@@ -12,6 +15,8 @@ type Config struct {
 	BaseURL     string
 	SecretKey   []byte
 	SMTPURL     string
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is believed.
+	TrustedProxies []netip.Prefix
 }
 
 func Load() (Config, error) {
@@ -35,5 +40,10 @@ func Load() (Config, error) {
 	if len(c.SecretKey) < 32 {
 		errs = append(errs, fmt.Errorf("PANEL_SECRET_KEY must be at least 32 bytes, got %d", len(c.SecretKey)))
 	}
+	tp, err := realip.ParseCIDRs(os.Getenv("PANEL_TRUSTED_PROXIES"))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("PANEL_TRUSTED_PROXIES: %w", err))
+	}
+	c.TrustedProxies = tp
 	return c, errors.Join(errs...)
 }
