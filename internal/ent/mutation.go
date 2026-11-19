@@ -15,6 +15,8 @@ import (
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/invite"
+	"github.com/Hexeption/nebla/internal/ent/ipallocation"
+	"github.com/Hexeption/nebla/internal/ent/ippool"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
 	"github.com/Hexeption/nebla/internal/ent/predicate"
@@ -37,6 +39,8 @@ const (
 
 	// Node types.
 	TypeAPIToken      = "APIToken"
+	TypeIPAllocation  = "IPAllocation"
+	TypeIPPool        = "IPPool"
 	TypeImage         = "Image"
 	TypeImageTemplate = "ImageTemplate"
 	TypeInvite        = "Invite"
@@ -730,6 +734,1622 @@ func (m *APITokenMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown APIToken edge %s", name)
+}
+
+// IPAllocationMutation represents an operation that mutates the IPAllocation nodes in the graph.
+type IPAllocationMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	ip            *string
+	server_id     *int64
+	addserver_id  *int64
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	pool          *int64
+	clearedpool   bool
+	done          bool
+	oldValue      func(context.Context) (*IPAllocation, error)
+	predicates    []predicate.IPAllocation
+}
+
+var _ ent.Mutation = (*IPAllocationMutation)(nil)
+
+// ipallocationOption allows management of the mutation configuration using functional options.
+type ipallocationOption func(*IPAllocationMutation)
+
+// newIPAllocationMutation creates new mutation for the IPAllocation entity.
+func newIPAllocationMutation(c config, op Op, opts ...ipallocationOption) *IPAllocationMutation {
+	m := &IPAllocationMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIPAllocation,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIPAllocationID sets the ID field of the mutation.
+func withIPAllocationID(id int64) ipallocationOption {
+	return func(m *IPAllocationMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *IPAllocation
+		)
+		m.oldValue = func(ctx context.Context) (*IPAllocation, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().IPAllocation.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIPAllocation sets the old IPAllocation of the mutation.
+func withIPAllocation(node *IPAllocation) ipallocationOption {
+	return func(m *IPAllocationMutation) {
+		m.oldValue = func(context.Context) (*IPAllocation, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IPAllocationMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IPAllocationMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of IPAllocation entities.
+func (m *IPAllocationMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IPAllocationMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IPAllocationMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().IPAllocation.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetPoolID sets the "pool_id" field.
+func (m *IPAllocationMutation) SetPoolID(i int64) {
+	m.pool = &i
+}
+
+// PoolID returns the value of the "pool_id" field in the mutation.
+func (m *IPAllocationMutation) PoolID() (r int64, exists bool) {
+	v := m.pool
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPoolID returns the old "pool_id" field's value of the IPAllocation entity.
+// If the IPAllocation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAllocationMutation) OldPoolID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPoolID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPoolID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPoolID: %w", err)
+	}
+	return oldValue.PoolID, nil
+}
+
+// ResetPoolID resets all changes to the "pool_id" field.
+func (m *IPAllocationMutation) ResetPoolID() {
+	m.pool = nil
+}
+
+// SetIP sets the "ip" field.
+func (m *IPAllocationMutation) SetIP(s string) {
+	m.ip = &s
+}
+
+// IP returns the value of the "ip" field in the mutation.
+func (m *IPAllocationMutation) IP() (r string, exists bool) {
+	v := m.ip
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIP returns the old "ip" field's value of the IPAllocation entity.
+// If the IPAllocation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAllocationMutation) OldIP(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIP is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIP requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIP: %w", err)
+	}
+	return oldValue.IP, nil
+}
+
+// ResetIP resets all changes to the "ip" field.
+func (m *IPAllocationMutation) ResetIP() {
+	m.ip = nil
+}
+
+// SetServerID sets the "server_id" field.
+func (m *IPAllocationMutation) SetServerID(i int64) {
+	m.server_id = &i
+	m.addserver_id = nil
+}
+
+// ServerID returns the value of the "server_id" field in the mutation.
+func (m *IPAllocationMutation) ServerID() (r int64, exists bool) {
+	v := m.server_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerID returns the old "server_id" field's value of the IPAllocation entity.
+// If the IPAllocation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAllocationMutation) OldServerID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerID: %w", err)
+	}
+	return oldValue.ServerID, nil
+}
+
+// AddServerID adds i to the "server_id" field.
+func (m *IPAllocationMutation) AddServerID(i int64) {
+	if m.addserver_id != nil {
+		*m.addserver_id += i
+	} else {
+		m.addserver_id = &i
+	}
+}
+
+// AddedServerID returns the value that was added to the "server_id" field in this mutation.
+func (m *IPAllocationMutation) AddedServerID() (r int64, exists bool) {
+	v := m.addserver_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetServerID resets all changes to the "server_id" field.
+func (m *IPAllocationMutation) ResetServerID() {
+	m.server_id = nil
+	m.addserver_id = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *IPAllocationMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *IPAllocationMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the IPAllocation entity.
+// If the IPAllocation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAllocationMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *IPAllocationMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearPool clears the "pool" edge to the IPPool entity.
+func (m *IPAllocationMutation) ClearPool() {
+	m.clearedpool = true
+	m.clearedFields[ipallocation.FieldPoolID] = struct{}{}
+}
+
+// PoolCleared reports if the "pool" edge to the IPPool entity was cleared.
+func (m *IPAllocationMutation) PoolCleared() bool {
+	return m.clearedpool
+}
+
+// PoolIDs returns the "pool" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PoolID instead. It exists only for internal usage by the builders.
+func (m *IPAllocationMutation) PoolIDs() (ids []int64) {
+	if id := m.pool; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPool resets all changes to the "pool" edge.
+func (m *IPAllocationMutation) ResetPool() {
+	m.pool = nil
+	m.clearedpool = false
+}
+
+// Where appends a list predicates to the IPAllocationMutation builder.
+func (m *IPAllocationMutation) Where(ps ...predicate.IPAllocation) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IPAllocationMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IPAllocationMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.IPAllocation, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IPAllocationMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IPAllocationMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (IPAllocation).
+func (m *IPAllocationMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IPAllocationMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.pool != nil {
+		fields = append(fields, ipallocation.FieldPoolID)
+	}
+	if m.ip != nil {
+		fields = append(fields, ipallocation.FieldIP)
+	}
+	if m.server_id != nil {
+		fields = append(fields, ipallocation.FieldServerID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, ipallocation.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IPAllocationMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case ipallocation.FieldPoolID:
+		return m.PoolID()
+	case ipallocation.FieldIP:
+		return m.IP()
+	case ipallocation.FieldServerID:
+		return m.ServerID()
+	case ipallocation.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IPAllocationMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case ipallocation.FieldPoolID:
+		return m.OldPoolID(ctx)
+	case ipallocation.FieldIP:
+		return m.OldIP(ctx)
+	case ipallocation.FieldServerID:
+		return m.OldServerID(ctx)
+	case ipallocation.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown IPAllocation field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IPAllocationMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case ipallocation.FieldPoolID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPoolID(v)
+		return nil
+	case ipallocation.FieldIP:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIP(v)
+		return nil
+	case ipallocation.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerID(v)
+		return nil
+	case ipallocation.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IPAllocation field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IPAllocationMutation) AddedFields() []string {
+	var fields []string
+	if m.addserver_id != nil {
+		fields = append(fields, ipallocation.FieldServerID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IPAllocationMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case ipallocation.FieldServerID:
+		return m.AddedServerID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IPAllocationMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case ipallocation.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddServerID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IPAllocation numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IPAllocationMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IPAllocationMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IPAllocationMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown IPAllocation nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IPAllocationMutation) ResetField(name string) error {
+	switch name {
+	case ipallocation.FieldPoolID:
+		m.ResetPoolID()
+		return nil
+	case ipallocation.FieldIP:
+		m.ResetIP()
+		return nil
+	case ipallocation.FieldServerID:
+		m.ResetServerID()
+		return nil
+	case ipallocation.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown IPAllocation field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IPAllocationMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.pool != nil {
+		edges = append(edges, ipallocation.EdgePool)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IPAllocationMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case ipallocation.EdgePool:
+		if id := m.pool; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IPAllocationMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IPAllocationMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IPAllocationMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedpool {
+		edges = append(edges, ipallocation.EdgePool)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IPAllocationMutation) EdgeCleared(name string) bool {
+	switch name {
+	case ipallocation.EdgePool:
+		return m.clearedpool
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IPAllocationMutation) ClearEdge(name string) error {
+	switch name {
+	case ipallocation.EdgePool:
+		m.ClearPool()
+		return nil
+	}
+	return fmt.Errorf("unknown IPAllocation unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IPAllocationMutation) ResetEdge(name string) error {
+	switch name {
+	case ipallocation.EdgePool:
+		m.ResetPool()
+		return nil
+	}
+	return fmt.Errorf("unknown IPAllocation edge %s", name)
+}
+
+// IPPoolMutation represents an operation that mutates the IPPool nodes in the graph.
+type IPPoolMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *int64
+	family             *string
+	bridge             *string
+	vlan_tag           *int
+	addvlan_tag        *int
+	cidr               *string
+	gateway            *string
+	dns                *[]string
+	appenddns          []string
+	range_start        *string
+	range_end          *string
+	created_at         *time.Time
+	clearedFields      map[string]struct{}
+	location           *int64
+	clearedlocation    bool
+	allocations        map[int64]struct{}
+	removedallocations map[int64]struct{}
+	clearedallocations bool
+	done               bool
+	oldValue           func(context.Context) (*IPPool, error)
+	predicates         []predicate.IPPool
+}
+
+var _ ent.Mutation = (*IPPoolMutation)(nil)
+
+// ippoolOption allows management of the mutation configuration using functional options.
+type ippoolOption func(*IPPoolMutation)
+
+// newIPPoolMutation creates new mutation for the IPPool entity.
+func newIPPoolMutation(c config, op Op, opts ...ippoolOption) *IPPoolMutation {
+	m := &IPPoolMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIPPool,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIPPoolID sets the ID field of the mutation.
+func withIPPoolID(id int64) ippoolOption {
+	return func(m *IPPoolMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *IPPool
+		)
+		m.oldValue = func(ctx context.Context) (*IPPool, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().IPPool.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIPPool sets the old IPPool of the mutation.
+func withIPPool(node *IPPool) ippoolOption {
+	return func(m *IPPoolMutation) {
+		m.oldValue = func(context.Context) (*IPPool, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IPPoolMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IPPoolMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of IPPool entities.
+func (m *IPPoolMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IPPoolMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IPPoolMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().IPPool.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *IPPoolMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *IPPoolMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *IPPoolMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetFamily sets the "family" field.
+func (m *IPPoolMutation) SetFamily(s string) {
+	m.family = &s
+}
+
+// Family returns the value of the "family" field in the mutation.
+func (m *IPPoolMutation) Family() (r string, exists bool) {
+	v := m.family
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFamily returns the old "family" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldFamily(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFamily is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFamily requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFamily: %w", err)
+	}
+	return oldValue.Family, nil
+}
+
+// ResetFamily resets all changes to the "family" field.
+func (m *IPPoolMutation) ResetFamily() {
+	m.family = nil
+}
+
+// SetBridge sets the "bridge" field.
+func (m *IPPoolMutation) SetBridge(s string) {
+	m.bridge = &s
+}
+
+// Bridge returns the value of the "bridge" field in the mutation.
+func (m *IPPoolMutation) Bridge() (r string, exists bool) {
+	v := m.bridge
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBridge returns the old "bridge" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldBridge(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBridge is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBridge requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBridge: %w", err)
+	}
+	return oldValue.Bridge, nil
+}
+
+// ResetBridge resets all changes to the "bridge" field.
+func (m *IPPoolMutation) ResetBridge() {
+	m.bridge = nil
+}
+
+// SetVlanTag sets the "vlan_tag" field.
+func (m *IPPoolMutation) SetVlanTag(i int) {
+	m.vlan_tag = &i
+	m.addvlan_tag = nil
+}
+
+// VlanTag returns the value of the "vlan_tag" field in the mutation.
+func (m *IPPoolMutation) VlanTag() (r int, exists bool) {
+	v := m.vlan_tag
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVlanTag returns the old "vlan_tag" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldVlanTag(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVlanTag is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVlanTag requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVlanTag: %w", err)
+	}
+	return oldValue.VlanTag, nil
+}
+
+// AddVlanTag adds i to the "vlan_tag" field.
+func (m *IPPoolMutation) AddVlanTag(i int) {
+	if m.addvlan_tag != nil {
+		*m.addvlan_tag += i
+	} else {
+		m.addvlan_tag = &i
+	}
+}
+
+// AddedVlanTag returns the value that was added to the "vlan_tag" field in this mutation.
+func (m *IPPoolMutation) AddedVlanTag() (r int, exists bool) {
+	v := m.addvlan_tag
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearVlanTag clears the value of the "vlan_tag" field.
+func (m *IPPoolMutation) ClearVlanTag() {
+	m.vlan_tag = nil
+	m.addvlan_tag = nil
+	m.clearedFields[ippool.FieldVlanTag] = struct{}{}
+}
+
+// VlanTagCleared returns if the "vlan_tag" field was cleared in this mutation.
+func (m *IPPoolMutation) VlanTagCleared() bool {
+	_, ok := m.clearedFields[ippool.FieldVlanTag]
+	return ok
+}
+
+// ResetVlanTag resets all changes to the "vlan_tag" field.
+func (m *IPPoolMutation) ResetVlanTag() {
+	m.vlan_tag = nil
+	m.addvlan_tag = nil
+	delete(m.clearedFields, ippool.FieldVlanTag)
+}
+
+// SetCidr sets the "cidr" field.
+func (m *IPPoolMutation) SetCidr(s string) {
+	m.cidr = &s
+}
+
+// Cidr returns the value of the "cidr" field in the mutation.
+func (m *IPPoolMutation) Cidr() (r string, exists bool) {
+	v := m.cidr
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCidr returns the old "cidr" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldCidr(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCidr is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCidr requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCidr: %w", err)
+	}
+	return oldValue.Cidr, nil
+}
+
+// ResetCidr resets all changes to the "cidr" field.
+func (m *IPPoolMutation) ResetCidr() {
+	m.cidr = nil
+}
+
+// SetGateway sets the "gateway" field.
+func (m *IPPoolMutation) SetGateway(s string) {
+	m.gateway = &s
+}
+
+// Gateway returns the value of the "gateway" field in the mutation.
+func (m *IPPoolMutation) Gateway() (r string, exists bool) {
+	v := m.gateway
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGateway returns the old "gateway" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldGateway(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGateway is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGateway requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGateway: %w", err)
+	}
+	return oldValue.Gateway, nil
+}
+
+// ResetGateway resets all changes to the "gateway" field.
+func (m *IPPoolMutation) ResetGateway() {
+	m.gateway = nil
+}
+
+// SetDNS sets the "dns" field.
+func (m *IPPoolMutation) SetDNS(s []string) {
+	m.dns = &s
+	m.appenddns = nil
+}
+
+// DNS returns the value of the "dns" field in the mutation.
+func (m *IPPoolMutation) DNS() (r []string, exists bool) {
+	v := m.dns
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDNS returns the old "dns" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldDNS(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDNS is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDNS requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDNS: %w", err)
+	}
+	return oldValue.DNS, nil
+}
+
+// AppendDNS adds s to the "dns" field.
+func (m *IPPoolMutation) AppendDNS(s []string) {
+	m.appenddns = append(m.appenddns, s...)
+}
+
+// AppendedDNS returns the list of values that were appended to the "dns" field in this mutation.
+func (m *IPPoolMutation) AppendedDNS() ([]string, bool) {
+	if len(m.appenddns) == 0 {
+		return nil, false
+	}
+	return m.appenddns, true
+}
+
+// ResetDNS resets all changes to the "dns" field.
+func (m *IPPoolMutation) ResetDNS() {
+	m.dns = nil
+	m.appenddns = nil
+}
+
+// SetRangeStart sets the "range_start" field.
+func (m *IPPoolMutation) SetRangeStart(s string) {
+	m.range_start = &s
+}
+
+// RangeStart returns the value of the "range_start" field in the mutation.
+func (m *IPPoolMutation) RangeStart() (r string, exists bool) {
+	v := m.range_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRangeStart returns the old "range_start" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldRangeStart(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRangeStart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRangeStart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRangeStart: %w", err)
+	}
+	return oldValue.RangeStart, nil
+}
+
+// ResetRangeStart resets all changes to the "range_start" field.
+func (m *IPPoolMutation) ResetRangeStart() {
+	m.range_start = nil
+}
+
+// SetRangeEnd sets the "range_end" field.
+func (m *IPPoolMutation) SetRangeEnd(s string) {
+	m.range_end = &s
+}
+
+// RangeEnd returns the value of the "range_end" field in the mutation.
+func (m *IPPoolMutation) RangeEnd() (r string, exists bool) {
+	v := m.range_end
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRangeEnd returns the old "range_end" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldRangeEnd(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRangeEnd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRangeEnd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRangeEnd: %w", err)
+	}
+	return oldValue.RangeEnd, nil
+}
+
+// ResetRangeEnd resets all changes to the "range_end" field.
+func (m *IPPoolMutation) ResetRangeEnd() {
+	m.range_end = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *IPPoolMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *IPPoolMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the IPPool entity.
+// If the IPPool object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPPoolMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *IPPoolMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *IPPoolMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[ippool.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *IPPoolMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *IPPoolMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *IPPoolMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// AddAllocationIDs adds the "allocations" edge to the IPAllocation entity by ids.
+func (m *IPPoolMutation) AddAllocationIDs(ids ...int64) {
+	if m.allocations == nil {
+		m.allocations = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.allocations[ids[i]] = struct{}{}
+	}
+}
+
+// ClearAllocations clears the "allocations" edge to the IPAllocation entity.
+func (m *IPPoolMutation) ClearAllocations() {
+	m.clearedallocations = true
+}
+
+// AllocationsCleared reports if the "allocations" edge to the IPAllocation entity was cleared.
+func (m *IPPoolMutation) AllocationsCleared() bool {
+	return m.clearedallocations
+}
+
+// RemoveAllocationIDs removes the "allocations" edge to the IPAllocation entity by IDs.
+func (m *IPPoolMutation) RemoveAllocationIDs(ids ...int64) {
+	if m.removedallocations == nil {
+		m.removedallocations = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.allocations, ids[i])
+		m.removedallocations[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedAllocations returns the removed IDs of the "allocations" edge to the IPAllocation entity.
+func (m *IPPoolMutation) RemovedAllocationsIDs() (ids []int64) {
+	for id := range m.removedallocations {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// AllocationsIDs returns the "allocations" edge IDs in the mutation.
+func (m *IPPoolMutation) AllocationsIDs() (ids []int64) {
+	for id := range m.allocations {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetAllocations resets all changes to the "allocations" edge.
+func (m *IPPoolMutation) ResetAllocations() {
+	m.allocations = nil
+	m.clearedallocations = false
+	m.removedallocations = nil
+}
+
+// Where appends a list predicates to the IPPoolMutation builder.
+func (m *IPPoolMutation) Where(ps ...predicate.IPPool) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IPPoolMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IPPoolMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.IPPool, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IPPoolMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IPPoolMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (IPPool).
+func (m *IPPoolMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IPPoolMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.location != nil {
+		fields = append(fields, ippool.FieldLocationID)
+	}
+	if m.family != nil {
+		fields = append(fields, ippool.FieldFamily)
+	}
+	if m.bridge != nil {
+		fields = append(fields, ippool.FieldBridge)
+	}
+	if m.vlan_tag != nil {
+		fields = append(fields, ippool.FieldVlanTag)
+	}
+	if m.cidr != nil {
+		fields = append(fields, ippool.FieldCidr)
+	}
+	if m.gateway != nil {
+		fields = append(fields, ippool.FieldGateway)
+	}
+	if m.dns != nil {
+		fields = append(fields, ippool.FieldDNS)
+	}
+	if m.range_start != nil {
+		fields = append(fields, ippool.FieldRangeStart)
+	}
+	if m.range_end != nil {
+		fields = append(fields, ippool.FieldRangeEnd)
+	}
+	if m.created_at != nil {
+		fields = append(fields, ippool.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IPPoolMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case ippool.FieldLocationID:
+		return m.LocationID()
+	case ippool.FieldFamily:
+		return m.Family()
+	case ippool.FieldBridge:
+		return m.Bridge()
+	case ippool.FieldVlanTag:
+		return m.VlanTag()
+	case ippool.FieldCidr:
+		return m.Cidr()
+	case ippool.FieldGateway:
+		return m.Gateway()
+	case ippool.FieldDNS:
+		return m.DNS()
+	case ippool.FieldRangeStart:
+		return m.RangeStart()
+	case ippool.FieldRangeEnd:
+		return m.RangeEnd()
+	case ippool.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IPPoolMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case ippool.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case ippool.FieldFamily:
+		return m.OldFamily(ctx)
+	case ippool.FieldBridge:
+		return m.OldBridge(ctx)
+	case ippool.FieldVlanTag:
+		return m.OldVlanTag(ctx)
+	case ippool.FieldCidr:
+		return m.OldCidr(ctx)
+	case ippool.FieldGateway:
+		return m.OldGateway(ctx)
+	case ippool.FieldDNS:
+		return m.OldDNS(ctx)
+	case ippool.FieldRangeStart:
+		return m.OldRangeStart(ctx)
+	case ippool.FieldRangeEnd:
+		return m.OldRangeEnd(ctx)
+	case ippool.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown IPPool field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IPPoolMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case ippool.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case ippool.FieldFamily:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFamily(v)
+		return nil
+	case ippool.FieldBridge:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBridge(v)
+		return nil
+	case ippool.FieldVlanTag:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVlanTag(v)
+		return nil
+	case ippool.FieldCidr:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCidr(v)
+		return nil
+	case ippool.FieldGateway:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGateway(v)
+		return nil
+	case ippool.FieldDNS:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDNS(v)
+		return nil
+	case ippool.FieldRangeStart:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRangeStart(v)
+		return nil
+	case ippool.FieldRangeEnd:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRangeEnd(v)
+		return nil
+	case ippool.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IPPool field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IPPoolMutation) AddedFields() []string {
+	var fields []string
+	if m.addvlan_tag != nil {
+		fields = append(fields, ippool.FieldVlanTag)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IPPoolMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case ippool.FieldVlanTag:
+		return m.AddedVlanTag()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IPPoolMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case ippool.FieldVlanTag:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVlanTag(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IPPool numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IPPoolMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(ippool.FieldVlanTag) {
+		fields = append(fields, ippool.FieldVlanTag)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IPPoolMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IPPoolMutation) ClearField(name string) error {
+	switch name {
+	case ippool.FieldVlanTag:
+		m.ClearVlanTag()
+		return nil
+	}
+	return fmt.Errorf("unknown IPPool nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IPPoolMutation) ResetField(name string) error {
+	switch name {
+	case ippool.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case ippool.FieldFamily:
+		m.ResetFamily()
+		return nil
+	case ippool.FieldBridge:
+		m.ResetBridge()
+		return nil
+	case ippool.FieldVlanTag:
+		m.ResetVlanTag()
+		return nil
+	case ippool.FieldCidr:
+		m.ResetCidr()
+		return nil
+	case ippool.FieldGateway:
+		m.ResetGateway()
+		return nil
+	case ippool.FieldDNS:
+		m.ResetDNS()
+		return nil
+	case ippool.FieldRangeStart:
+		m.ResetRangeStart()
+		return nil
+	case ippool.FieldRangeEnd:
+		m.ResetRangeEnd()
+		return nil
+	case ippool.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown IPPool field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IPPoolMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.location != nil {
+		edges = append(edges, ippool.EdgeLocation)
+	}
+	if m.allocations != nil {
+		edges = append(edges, ippool.EdgeAllocations)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IPPoolMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case ippool.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	case ippool.EdgeAllocations:
+		ids := make([]ent.Value, 0, len(m.allocations))
+		for id := range m.allocations {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IPPoolMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.removedallocations != nil {
+		edges = append(edges, ippool.EdgeAllocations)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IPPoolMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case ippool.EdgeAllocations:
+		ids := make([]ent.Value, 0, len(m.removedallocations))
+		for id := range m.removedallocations {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IPPoolMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedlocation {
+		edges = append(edges, ippool.EdgeLocation)
+	}
+	if m.clearedallocations {
+		edges = append(edges, ippool.EdgeAllocations)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IPPoolMutation) EdgeCleared(name string) bool {
+	switch name {
+	case ippool.EdgeLocation:
+		return m.clearedlocation
+	case ippool.EdgeAllocations:
+		return m.clearedallocations
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IPPoolMutation) ClearEdge(name string) error {
+	switch name {
+	case ippool.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	}
+	return fmt.Errorf("unknown IPPool unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IPPoolMutation) ResetEdge(name string) error {
+	switch name {
+	case ippool.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	case ippool.EdgeAllocations:
+		m.ResetAllocations()
+		return nil
+	}
+	return fmt.Errorf("unknown IPPool edge %s", name)
 }
 
 // ImageMutation represents an operation that mutates the Image nodes in the graph.
