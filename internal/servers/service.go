@@ -52,7 +52,7 @@ const (
 	MaxLabels   = 64
 )
 
-// CreateServerArgs is the create_server job; the worker is in Task 11.
+// CreateServerArgs is the create_server job, worked by CreateServerWorker.
 type CreateServerArgs struct {
 	ServerID   int64 `json:"server_id"`
 	ActionID   int64 `json:"action_id"`

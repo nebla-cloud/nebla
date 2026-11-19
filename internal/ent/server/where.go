@@ -105,6 +105,16 @@ func IsoVolid(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldIsoVolid, v))
 }
 
+// IsoGeneration applies equality check predicate on the "iso_generation" field. It's identical to IsoGenerationEQ.
+func IsoGeneration(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldIsoGeneration, v))
+}
+
+// CreateStep applies equality check predicate on the "create_step" field. It's identical to CreateStepEQ.
+func CreateStep(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCreateStep, v))
+}
+
 // Cores applies equality check predicate on the "cores" field. It's identical to CoresEQ.
 func Cores(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCores, v))
@@ -588,6 +598,86 @@ func IsoVolidEqualFold(v string) predicate.Server {
 // IsoVolidContainsFold applies the ContainsFold predicate on the "iso_volid" field.
 func IsoVolidContainsFold(v string) predicate.Server {
 	return predicate.Server(sql.FieldContainsFold(FieldIsoVolid, v))
+}
+
+// IsoGenerationEQ applies the EQ predicate on the "iso_generation" field.
+func IsoGenerationEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldIsoGeneration, v))
+}
+
+// IsoGenerationNEQ applies the NEQ predicate on the "iso_generation" field.
+func IsoGenerationNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldIsoGeneration, v))
+}
+
+// IsoGenerationIn applies the In predicate on the "iso_generation" field.
+func IsoGenerationIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldIsoGeneration, vs...))
+}
+
+// IsoGenerationNotIn applies the NotIn predicate on the "iso_generation" field.
+func IsoGenerationNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldIsoGeneration, vs...))
+}
+
+// IsoGenerationGT applies the GT predicate on the "iso_generation" field.
+func IsoGenerationGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldIsoGeneration, v))
+}
+
+// IsoGenerationGTE applies the GTE predicate on the "iso_generation" field.
+func IsoGenerationGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldIsoGeneration, v))
+}
+
+// IsoGenerationLT applies the LT predicate on the "iso_generation" field.
+func IsoGenerationLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldIsoGeneration, v))
+}
+
+// IsoGenerationLTE applies the LTE predicate on the "iso_generation" field.
+func IsoGenerationLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldIsoGeneration, v))
+}
+
+// CreateStepEQ applies the EQ predicate on the "create_step" field.
+func CreateStepEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldCreateStep, v))
+}
+
+// CreateStepNEQ applies the NEQ predicate on the "create_step" field.
+func CreateStepNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldCreateStep, v))
+}
+
+// CreateStepIn applies the In predicate on the "create_step" field.
+func CreateStepIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldCreateStep, vs...))
+}
+
+// CreateStepNotIn applies the NotIn predicate on the "create_step" field.
+func CreateStepNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldCreateStep, vs...))
+}
+
+// CreateStepGT applies the GT predicate on the "create_step" field.
+func CreateStepGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldCreateStep, v))
+}
+
+// CreateStepGTE applies the GTE predicate on the "create_step" field.
+func CreateStepGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldCreateStep, v))
+}
+
+// CreateStepLT applies the LT predicate on the "create_step" field.
+func CreateStepLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldCreateStep, v))
+}
+
+// CreateStepLTE applies the LTE predicate on the "create_step" field.
+func CreateStepLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldCreateStep, v))
 }
 
 // CoresEQ applies the EQ predicate on the "cores" field.

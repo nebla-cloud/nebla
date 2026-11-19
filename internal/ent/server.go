@@ -46,6 +46,10 @@ type Server struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	// IsoVolid holds the value of the "iso_volid" field.
 	IsoVolid *string `json:"iso_volid,omitempty"`
+	// IsoGeneration holds the value of the "iso_generation" field.
+	IsoGeneration int `json:"iso_generation,omitempty"`
+	// CreateStep holds the value of the "create_step" field.
+	CreateStep int `json:"create_step,omitempty"`
 	// Cores holds the value of the "cores" field.
 	Cores int `json:"cores,omitempty"`
 	// MemoryMB holds the value of the "memory_mb" field.
@@ -130,7 +134,7 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
 			values[i] = new(sql.NullInt64)
 		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldUserData:
 			values[i] = new(sql.NullString)
@@ -232,6 +236,18 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.IsoVolid = new(string)
 				*_m.IsoVolid = value.String
+			}
+		case server.FieldIsoGeneration:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field iso_generation", values[i])
+			} else if value.Valid {
+				_m.IsoGeneration = int(value.Int64)
+			}
+		case server.FieldCreateStep:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field create_step", values[i])
+			} else if value.Valid {
+				_m.CreateStep = int(value.Int64)
 			}
 		case server.FieldCores:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -366,6 +382,12 @@ func (_m *Server) String() string {
 		builder.WriteString("iso_volid=")
 		builder.WriteString(*v)
 	}
+	builder.WriteString(", ")
+	builder.WriteString("iso_generation=")
+	builder.WriteString(fmt.Sprintf("%v", _m.IsoGeneration))
+	builder.WriteString(", ")
+	builder.WriteString("create_step=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CreateStep))
 	builder.WriteString(", ")
 	builder.WriteString("cores=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Cores))

@@ -1,13 +1,25 @@
 package testutil
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/httpapi"
 	"github.com/Hexeption/nebla/internal/jobs"
+	"github.com/Hexeption/nebla/internal/pve/fake"
+	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/riverqueue/river"
 )
+
+// ServerWorkers is a WorkerSetup that registers the server job workers.
+func ServerWorkers(w *river.Workers, deps *httpapi.Deps, _ *fake.Server) {
+	servers.RegisterWorkers(w, servers.WorkerOptions{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Bus: deps.Bus,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), PollInterval: 20 * time.Millisecond})
+}
 
 // QueueOnlyJobs is a NewApp option whose job runtime inserts jobs but never works them.
 func QueueOnlyJobs(t testing.TB) func(*httpapi.Deps) {
