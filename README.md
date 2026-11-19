@@ -24,7 +24,7 @@ images and IP pools. Nebla drives Proxmox only through its API and runs as one c
 | Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |
 | `PANEL_DATABASE_URL` | yes | | Postgres URL. Compose sets it for the bundled database. |
-| `PANEL_BASE_URL` | yes | | Public URL of the panel. It builds console URLs and is the allowed websocket origin. |
+| `PANEL_BASE_URL` | yes | | Public URL of the panel. It builds console URLs, is the allowed websocket origin, and its scheme and host are the trusted origin for API requests. |
 | `PANEL_SECRET_KEY` | yes | | At least 32 bytes. Seals Proxmox token secrets. Generate it with `openssl rand -base64 48` and keep it: losing it makes stored secrets unreadable. |
 | `PANEL_LISTEN` | no | `:8080` | HTTP listen address. |
 | `PANEL_SMTP_URL` | no | | `smtp://user:pass@host:587?from=panel@example.com` or `smtps://...`. Without it, invite mails are not sent. |
