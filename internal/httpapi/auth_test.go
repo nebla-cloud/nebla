@@ -73,7 +73,7 @@ func TestLoginRequiresTOTPWhenEnabled(t *testing.T) {
 	app := testutil.NewApp(t)
 	app.CreateUser("a@example.com", true)
 	cl := app.Login("a@example.com")
-	res := cl.Send("POST", "/v1/auth/totp/enroll", nil)
+	res := cl.Send("POST", "/v1/auth/totp/enroll", map[string]string{"password": testutil.Password})
 	require.Equal(t, 200, res.StatusCode)
 	var en struct {
 		Secret     string `json:"secret"`
@@ -92,7 +92,7 @@ func TestLoginRequiresTOTPWhenEnabled(t *testing.T) {
 	login["totp_code"] = code
 	require.Equal(t, 200, app.PostJSON("/v1/auth/login", login).StatusCode)
 
-	require.Equal(t, 204, cl.Send("POST", "/v1/auth/totp/disable", map[string]string{"code": code}).StatusCode)
+	require.Equal(t, 204, cl.Send("POST", "/v1/auth/totp/disable", map[string]string{"code": code, "password": testutil.Password}).StatusCode)
 	delete(login, "totp_code")
 	require.Equal(t, 200, app.PostJSON("/v1/auth/login", login).StatusCode)
 }
@@ -155,4 +155,47 @@ func TestOversizeBodyRejected(t *testing.T) {
 	res := app.PostJSON("/v1/auth/login", map[string]string{"email": "a@example.com", "password": strings.Repeat("x", 2<<20)})
 	require.Equal(t, 413, res.StatusCode)
 	require.Equal(t, "request_too_large", errCode(t, app, res))
+}
+
+func TestTotpEnrollWrongPasswordAndSessionRevocation(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("a@example.com", true)
+	cl := app.Login("a@example.com")
+	other := app.Login("a@example.com")
+
+	res := cl.Send("POST", "/v1/auth/totp/enroll", map[string]string{"password": "wrong-password"})
+	require.Equal(t, 401, res.StatusCode)
+	require.Equal(t, "invalid_credentials", errCode(t, app, res))
+
+	res = cl.Send("POST", "/v1/auth/totp/enroll", map[string]string{"password": testutil.Password})
+	require.Equal(t, 200, res.StatusCode)
+	var en struct {
+		Secret string `json:"secret"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(app.Body(res)), &en))
+	code, err := totp.GenerateCode(en.Secret, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, 204, cl.Send("POST", "/v1/auth/totp/verify", map[string]string{"code": code}).StatusCode)
+
+	require.Equal(t, 200, cl.Get("/v1/me").StatusCode)
+	require.Equal(t, 401, other.Get("/v1/me").StatusCode)
+}
+
+func TestTotpPasswordChecksRateLimited(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("a@example.com", true)
+	cl := app.Login("a@example.com")
+	b := map[string]string{"password": "wrong-password"}
+	var res *http.Response
+	for range 20 {
+		if res = cl.Send("POST", "/v1/auth/totp/enroll", b); res.StatusCode != 401 {
+			break
+		}
+		res.Body.Close()
+	}
+	require.Equal(t, 429, res.StatusCode)
+	require.Equal(t, "rate_limited", errCode(t, app, res))
+	res = cl.Send("POST", "/v1/auth/totp/disable", map[string]string{"code": "000000", "password": "wrong-password"})
+	require.Equal(t, 429, res.StatusCode)
+	require.Equal(t, "rate_limited", errCode(t, app, res))
 }

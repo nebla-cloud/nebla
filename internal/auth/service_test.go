@@ -78,13 +78,13 @@ func TestLoginRequiresTOTPWhenEnabled(t *testing.T) {
 	ctx := context.Background()
 	u, err := s.Setup(ctx, "a@example.com", pw, "A")
 	require.NoError(t, err)
-	secret, url, err := s.EnrollTOTP(ctx, u.ID)
+	secret, url, err := s.EnrollTOTP(ctx, u.ID, pw)
 	require.NoError(t, err)
 	require.Contains(t, url, "otpauth://totp/Nebla:")
 	code, err := totp.GenerateCode(secret, time.Now())
 	require.NoError(t, err)
-	requireCode(t, s.VerifyTOTP(ctx, u.ID, "000000"), http.StatusUnauthorized, "invalid_code")
-	require.NoError(t, s.VerifyTOTP(ctx, u.ID, code))
+	requireCode(t, s.VerifyTOTP(ctx, u.ID, "000000", ""), http.StatusUnauthorized, "invalid_code")
+	require.NoError(t, s.VerifyTOTP(ctx, u.ID, code, ""))
 
 	_, err = s.Login(ctx, "a@example.com", pw, "")
 	requireCode(t, err, http.StatusUnauthorized, "totp_required")
@@ -96,8 +96,8 @@ func TestLoginRequiresTOTPWhenEnabled(t *testing.T) {
 	_, err = s.Login(ctx, "a@example.com", pw, code)
 	require.NoError(t, err)
 
-	requireCode(t, s.DisableTOTP(ctx, u.ID, "000000"), http.StatusUnauthorized, "invalid_code")
-	require.NoError(t, s.DisableTOTP(ctx, u.ID, code))
+	requireCode(t, s.DisableTOTP(ctx, u.ID, "000000", pw, ""), http.StatusUnauthorized, "invalid_code")
+	require.NoError(t, s.DisableTOTP(ctx, u.ID, code, pw, ""))
 	_, err = s.Login(ctx, "a@example.com", pw, "")
 	require.NoError(t, err)
 }

@@ -52,13 +52,21 @@ func (s *server) PostSignup(ctx context.Context, req apigen.PostSignupRequestObj
 	}, nil
 }
 
-func (s *server) PostAuthLogin(ctx context.Context, req apigen.PostAuthLoginRequestObject) (apigen.PostAuthLoginResponseObject, error) {
+// limitPassword applies the login limiter to a password check for email from this client.
+func (s *server) limitPassword(ctx context.Context, email string) error {
 	ip := ""
 	if r := requestFrom(ctx); r != nil {
 		ip = realip.ClientIP(r, s.deps.Config.TrustedProxies)
 	}
-	if !s.loginLimit.Allow(auth.NormalizeEmail(req.Body.Email) + "|" + ip) {
-		return nil, apierr.New(http.StatusTooManyRequests, "rate_limited", "too many login attempts, try again later")
+	if !s.loginLimit.Allow(auth.NormalizeEmail(email) + "|" + ip) {
+		return apierr.New(http.StatusTooManyRequests, "rate_limited", "too many login attempts, try again later")
+	}
+	return nil
+}
+
+func (s *server) PostAuthLogin(ctx context.Context, req apigen.PostAuthLoginRequestObject) (apigen.PostAuthLoginResponseObject, error) {
+	if err := s.limitPassword(ctx, req.Body.Email); err != nil {
+		return nil, err
 	}
 	code := ""
 	if req.Body.TotpCode != nil {
@@ -76,6 +84,16 @@ func (s *server) PostAuthLogin(ctx context.Context, req apigen.PostAuthLoginRequ
 		Body:    apiUser(u),
 		Headers: apigen.PostAuthLogin200ResponseHeaders{SetCookie: new(s.sessionCookie(tok).String())},
 	}, nil
+}
+
+// sessionToken returns the request's session cookie value, or "" when absent.
+func sessionToken(ctx context.Context) string {
+	if r := requestFrom(ctx); r != nil {
+		if c, err := r.Cookie(sessionCookie); err == nil {
+			return c.Value
+		}
+	}
+	return ""
 }
 
 func (s *server) PostAuthLogout(ctx context.Context, _ apigen.PostAuthLogoutRequestObject) (apigen.PostAuthLogoutResponseObject, error) {
@@ -96,9 +114,12 @@ func (s *server) GetMe(ctx context.Context, _ apigen.GetMeRequestObject) (apigen
 	return apigen.GetMe200JSONResponse(apiUser(u)), nil
 }
 
-func (s *server) PostAuthTotpEnroll(ctx context.Context, _ apigen.PostAuthTotpEnrollRequestObject) (apigen.PostAuthTotpEnrollResponseObject, error) {
+func (s *server) PostAuthTotpEnroll(ctx context.Context, req apigen.PostAuthTotpEnrollRequestObject) (apigen.PostAuthTotpEnrollResponseObject, error) {
 	u, _ := UserFrom(ctx)
-	secret, url, err := s.auth.EnrollTOTP(ctx, u.ID)
+	if err := s.limitPassword(ctx, u.Email); err != nil {
+		return nil, err
+	}
+	secret, url, err := s.auth.EnrollTOTP(ctx, u.ID, req.Body.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +130,7 @@ func (s *server) PostAuthTotpEnroll(ctx context.Context, _ apigen.PostAuthTotpEn
 
 func (s *server) PostAuthTotpVerify(ctx context.Context, req apigen.PostAuthTotpVerifyRequestObject) (apigen.PostAuthTotpVerifyResponseObject, error) {
 	u, _ := UserFrom(ctx)
-	if err := s.auth.VerifyTOTP(ctx, u.ID, req.Body.Code); err != nil {
+	if err := s.auth.VerifyTOTP(ctx, u.ID, req.Body.Code, sessionToken(ctx)); err != nil {
 		return nil, err
 	}
 	return apigen.PostAuthTotpVerify204Response{}, nil
@@ -117,7 +138,10 @@ func (s *server) PostAuthTotpVerify(ctx context.Context, req apigen.PostAuthTotp
 
 func (s *server) PostAuthTotpDisable(ctx context.Context, req apigen.PostAuthTotpDisableRequestObject) (apigen.PostAuthTotpDisableResponseObject, error) {
 	u, _ := UserFrom(ctx)
-	if err := s.auth.DisableTOTP(ctx, u.ID, req.Body.Code); err != nil {
+	if err := s.limitPassword(ctx, u.Email); err != nil {
+		return nil, err
+	}
+	if err := s.auth.DisableTOTP(ctx, u.ID, req.Body.Code, req.Body.Password, sessionToken(ctx)); err != nil {
 		return nil, err
 	}
 	return apigen.PostAuthTotpDisable204Response{}, nil
