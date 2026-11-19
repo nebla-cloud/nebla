@@ -337,13 +337,21 @@ func (s *Service) SetRole(ctx context.Context, userID, projectID, memberID int64
 	if err := validRole(role); err != nil {
 		return Member{}, err
 	}
-	return s.changeMember(ctx, userID, projectID, memberID, role, func(tx *ent.Client, _ Member) error {
+	return s.changeMember(ctx, userID, projectID, memberID, role, func(tx *ent.Client, m Member) error {
 		_, err := tx.ProjectMember.Update().
 			Where(projectmember.ProjectID(projectID), projectmember.UserID(memberID)).SetRole(role).Save(ctx)
-		if err != nil || slices.Contains(managers, role) {
+		if err != nil {
 			return err
 		}
-		return deleteInvitesBy(ctx, tx, projectID, memberID)
+		if !slices.Contains(managers, role) {
+			return deleteInvitesBy(ctx, tx, projectID, memberID)
+		}
+		if m.Role == RoleOwner && role != RoleOwner {
+			// Owner invites need an owner creator, so drop them on demotion.
+			_, err = tx.Invite.Delete().Where(invite.ProjectID(projectID), invite.CreatedBy(memberID),
+				invite.AcceptedAtIsNil(), invite.Role(RoleOwner)).Exec(ctx)
+		}
+		return err
 	})
 }
 
@@ -488,8 +496,9 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, u *auth.User, 
 		if err != nil {
 			return err
 		}
-		// The creator must still manage the project for their invite to count.
-		if r, err := roleIn(ctx, tx, inv.CreatedBy, inv.ProjectID); err != nil || !slices.Contains(managers, r) {
+		// The creator must still manage the project (and own it, for owner invites).
+		if r, err := roleIn(ctx, tx, inv.CreatedBy, inv.ProjectID); err != nil || !slices.Contains(managers, r) ||
+			(inv.Role == RoleOwner && r != RoleOwner) {
 			return errNotFound
 		}
 		if _, err := roleIn(ctx, tx, uid, inv.ProjectID); err == nil {
