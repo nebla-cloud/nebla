@@ -118,11 +118,15 @@ go test -tags e2e -timeout 60m -v ./internal/e2e/
 
 ## Status
 
-Backend v1: the API, jobs, reconciler, console proxy and metrics. The web panel ships with these parts: first-admin
-setup, login and logout, projects, servers (list, create, detail with power actions), SSH keys, and the admin area
-(Get Nebla ready, locations, OS images, server types, IP pools). The web console, metrics graphs, API tokens, members
-and invites, and account settings are not in the panel yet. The `nebla` CLI is described in the
-[CLI guide](docs/cli.md).
+The API, jobs, reconciler, console proxy and metrics are done, and the web panel covers them:
+
+- first-admin setup, login with passwords, TOTP and passkeys, and account settings
+- projects, members and invites, API tokens and SSH keys
+- servers: create, power actions, rebuild, change type, the web console, metrics graphs and activity
+- the admin area: one-line Proxmox setup, locations, OS images, server types, IP pools, users, projects, settings and
+  activity
+
+The `nebla` CLI is described in the [CLI guide](docs/cli.md).
 
 ## Contributing
 
