@@ -1,8 +1,10 @@
 package enroll
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -55,58 +57,77 @@ func TestParseReportRejects(t *testing.T) {
 		}
 		return
 	}
-	cases := map[string]func(m map[string]any){
-		"v2":            func(m map[string]any) { m["v"] = 2 },
-		"version 7.4-1": func(m map[string]any) { m["pve_version"] = "7.4-1" },
-		"version junk":  func(m map[string]any) { m["pve_version"] = "x" },
-		"non-uuid secret": func(m map[string]any) {
-			m["token"].(map[string]any)["value"] = "NOT-A-UUID"
-		},
-		"uppercase uuid": func(m map[string]any) {
-			m["token"].(map[string]any)["value"] = "3F2B8C1E-5D4A-4E7B-9A10-0C6D2E8F7A11"
-		},
-		"wrong tokenid prefix": func(m map[string]any) {
-			m["token"].(map[string]any)["full-tokenid"] = "root@pam!nebla-home-ab12cd"
-		},
-		"bad tokenid suffix": func(m map[string]any) {
-			m["token"].(map[string]any)["full-tokenid"] = "nebla@pve!nebla-home-AB12CD"
-		},
-		"no nodes": func(m map[string]any) { m["cluster"] = []any{map[string]any{"type": "cluster", "name": "c"}} },
-		"65 nodes": func(m map[string]any) {
+	type row struct {
+		mut  func(m map[string]any)
+		want string
+	}
+	node0 := func(m map[string]any) map[string]any { return m["cluster"].([]any)[0].(map[string]any) }
+	stor0 := func(m map[string]any) map[string]any { return m["storage"].([]any)[0].(map[string]any) }
+	tok := func(m map[string]any) map[string]any { return m["token"].(map[string]any) }
+	cases := map[string]row{
+		"v2":              {func(m map[string]any) { m["v"] = 2 }, "unsupported report version"},
+		"version 7.4-1":   {func(m map[string]any) { m["pve_version"] = "7.4-1" }, "unsupported Proxmox VE version"},
+		"version +9":      {func(m map[string]any) { m["pve_version"] = "+9.0" }, "invalid Proxmox VE version"},
+		"version 09":      {func(m map[string]any) { m["pve_version"] = "09.0" }, "unsupported Proxmox VE version"},
+		"version junk":    {func(m map[string]any) { m["pve_version"] = "x" }, "invalid Proxmox VE version"},
+		"version long":    {func(m map[string]any) { m["pve_version"] = "9.0" + strings.Repeat("a", 64) }, "invalid Proxmox VE version"},
+		"non-uuid secret": {func(m map[string]any) { tok(m)["value"] = "NOT-A-UUID" }, "invalid token secret"},
+		"uppercase uuid": {func(m map[string]any) {
+			tok(m)["value"] = "3F2B8C1E-5D4A-4E7B-9A10-0C6D2E8F7A11"
+		}, "invalid token secret"},
+		"wrong tokenid prefix": {func(m map[string]any) { tok(m)["full-tokenid"] = "root@pam!nebla-home-ab12cd" }, "invalid token id"},
+		"bad tokenid suffix":   {func(m map[string]any) { tok(m)["full-tokenid"] = "nebla@pve!nebla-home-AB12CD" }, "invalid token id"},
+		"no nodes": {func(m map[string]any) {
+			m["cluster"] = []any{map[string]any{"type": "cluster", "name": "c"}}
+		}, "no nodes"},
+		"65 nodes": {func(m map[string]any) {
 			cl, f := many(65)
 			m["cluster"], m["fingerprints"], m["node"] = cl, f, "naa"
-		},
-		"bad node name": func(m map[string]any) {
-			m["cluster"].([]any)[0].(map[string]any)["name"] = "pve_1"
-		},
-		"missing fingerprint": func(m map[string]any) { m["fingerprints"] = map[string]any{} },
-		"short fingerprint":   func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": "AA:BB"} },
-		"non-hex fingerprint": func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": strings.Repeat("ZZ", 32)} },
-		"node not in nodes":   func(m map[string]any) { m["node"] = "other" },
-		"quote in storage id": func(m map[string]any) {
-			m["storage"].([]any)[0].(map[string]any)["storage"] = `lo"cal`
+		}, "too many nodes"},
+		"bad node name": {func(m map[string]any) { node0(m)["name"] = "pve_1" }, "invalid node name"},
+		"duplicate node": {func(m map[string]any) {
+			m["cluster"] = append(m["cluster"].([]any), node0(m))
+		}, "duplicate node"},
+		"bad node ip":         {func(m map[string]any) { node0(m)["ip"] = "10.0.0.256" }, "invalid node ip"},
+		"empty node ip":       {func(m map[string]any) { node0(m)["ip"] = "" }, "invalid node ip"},
+		"missing fingerprint": {func(m map[string]any) { m["fingerprints"] = map[string]any{} }, "fingerprint"},
+		"short fingerprint":   {func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": "AA:BB"} }, "fingerprint"},
+		"non-hex fingerprint": {func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": strings.Repeat("ZZ", 32)} }, "fingerprint"},
+		"node not in nodes":   {func(m map[string]any) { m["node"] = "other" }, "not in the cluster"},
+		"quote in storage id": {func(m map[string]any) {
+			stor0(m)["storage"] = `lo"cal`
 			m["nebla_iso"] = []any{}
-		},
-		"newline in storage id": func(m map[string]any) {
-			m["storage"].([]any)[0].(map[string]any)["storage"] = "lo\ncal"
+		}, "invalid storage id"},
+		"newline in storage id": {func(m map[string]any) {
+			stor0(m)["storage"] = "lo\ncal"
 			m["nebla_iso"] = []any{}
-		},
-		"nebla_iso without iso content": func(m map[string]any) {
-			m["storage"].([]any)[0].(map[string]any)["content"] = "images,backup"
-		},
-		"nebla_iso unknown storage": func(m map[string]any) { m["nebla_iso"] = []any{"ghost"} },
-		"513 storages": func(m map[string]any) {
+		}, "invalid storage id"},
+		"duplicate storage": {func(m map[string]any) {
+			m["storage"] = append(m["storage"].([]any), stor0(m))
+		}, "duplicate storage"},
+		"long storage type": {func(m map[string]any) { stor0(m)["type"] = strings.Repeat("a", 65) }, "invalid storage type"},
+		"bad storage type":  {func(m map[string]any) { stor0(m)["type"] = "d ir" }, "invalid storage type"},
+		"bad content item":  {func(m map[string]any) { stor0(m)["content"] = "iso,b\"ad" }, "invalid storage content"},
+		"long content item": {func(m map[string]any) { stor0(m)["content"] = "iso," + strings.Repeat("a", 65) }, "invalid storage content"},
+		"nebla_iso without iso content": {func(m map[string]any) {
+			stor0(m)["content"] = "images,backup"
+		}, "no iso or import"},
+		"nebla_iso unknown storage": {func(m map[string]any) { m["nebla_iso"] = []any{"ghost"} }, "unknown storage"},
+		"invalid online flag":       {func(m map[string]any) { node0(m)["online"] = "yes" }, "invalid flag"},
+		"invalid shared flag":       {func(m map[string]any) { stor0(m)["shared"] = 2 }, "invalid flag"},
+		"513 storages": {func(m map[string]any) {
 			var st []any
 			for i := 0; i < 513; i++ {
 				st = append(st, map[string]any{"storage": "s" + strings.Repeat("a", i/26) + string(rune('a'+i%26)), "type": "dir", "content": "iso"})
 			}
 			m["storage"], m["nebla_iso"] = st, []any{}
-		},
+		}, "too many storages"},
+		"oversize": {func(m map[string]any) { m["pad"] = strings.Repeat("a", maxReportBytes) }, "too large"},
 	}
-	for name, mut := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			m := baseReport()
-			mut(m)
+			c.mut(m)
 			raw, err := json.Marshal(m)
 			require.NoError(t, err)
 			_, err = ParseReport(raw)
@@ -114,6 +135,7 @@ func TestParseReportRejects(t *testing.T) {
 			require.True(t, errors.As(err, &e), "got %v", err)
 			require.Equal(t, "invalid_report", e.Code)
 			require.Equal(t, 400, e.Status)
+			require.Contains(t, e.Msg, c.want)
 			require.NotContains(t, e.Msg, "3f2b8c1e")
 		})
 	}
@@ -121,6 +143,18 @@ func TestParseReportRejects(t *testing.T) {
 	var e apierr.E
 	require.True(t, errors.As(err, &e))
 	require.Equal(t, "invalid_report", e.Code)
+	require.Contains(t, e.Msg, "not valid JSON")
+}
+
+func TestReportRedactsSecret(t *testing.T) {
+	raw, _ := json.Marshal(baseReport())
+	r, err := ParseReport(raw)
+	require.NoError(t, err)
+	secret := "3f2b8c1e-5d4a-4e7b-9a10-0c6d2e8f7a11"
+	require.Equal(t, secret, r.TokenSecret)
+	for _, out := range []string{fmt.Sprintf("%v", r), fmt.Sprintf("%+v", r), fmt.Sprintf("%#v", r), fmt.Sprint(&r)} {
+		require.NotContains(t, out, secret)
+	}
 }
 
 func TestParseReportAcceptsBaseline(t *testing.T) {
@@ -149,7 +183,11 @@ func TestBlobRoundTrip(t *testing.T) {
 func TestDecodeBlobRejects(t *testing.T) {
 	good := EncodeBlob("nbe_x", []byte(`{"v":1}`))
 	noTok := EncodeBlob("", []byte(`{"v":1}`))
+	noKey := blobPrefix + base64.RawURLEncoding.EncodeToString([]byte(`{"v":1}`))
+	big := blobPrefix + base64.RawURLEncoding.EncodeToString([]byte(`{"enroll_token":"nbe_x","pad":"`+strings.Repeat("a", maxReportBytes)+`"}`))
 	for name, line := range map[string]string{
+		"no token key": noKey,
+		"oversize":     big,
 		"wrong prefix": "nebla-enroll:v2:" + strings.TrimPrefix(good, "nebla-enroll:v1:"),
 		"bad base64":   "nebla-enroll:v1:!!!",
 		"no token":     noTok,
