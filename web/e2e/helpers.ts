@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import { expect, type Page } from '@playwright/test'
+import { expect, type CDPSession, type Page } from '@playwright/test'
 
 // Infrastructure words that must never reach a project page.
 export const LEAKS = /vmid|local-lvm|vmbr|pve1|pve2|ceph|\bimp\b|proxmox/i
@@ -8,11 +8,11 @@ export async function expectNoLeaks(page: Page) {
   expect(await page.content()).not.toMatch(LEAKS)
 }
 
-export async function login(page: Page) {
+export async function login(page: Page, email = 'admin@example.test') {
   await page.goto('/login')
-  await page.locator('input[name=email]').fill('admin@example.test')
+  await page.locator('input[name=email]').fill(email)
   await page.locator('input[name=password]').fill('correct-horse-battery')
-  await page.getByRole('button', { name: 'Log in' }).click()
+  await page.getByRole('button', { name: 'Log in', exact: true }).click()
   await expect(page).not.toHaveURL(/\/login/)
 }
 
@@ -58,4 +58,23 @@ export function totpCode(secret: string, at: number = Date.now()): string {
   const off = mac[mac.length - 1]! & 0xf
   const n = (mac.readUInt32BE(off) & 0x7fffffff) % 1_000_000
   return String(n).padStart(6, '0')
+}
+
+// Adds a CTAP2 platform authenticator that approves every ceremony.
+export async function addVirtualAuthenticator(
+  page: Page,
+): Promise<{ cdp: CDPSession; id: string }> {
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('WebAuthn.enable')
+  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: {
+      protocol: 'ctap2',
+      transport: 'internal',
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  })
+  return { cdp, id: authenticatorId }
 }

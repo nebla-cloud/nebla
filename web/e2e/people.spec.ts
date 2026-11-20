@@ -129,7 +129,7 @@ test('totp: turn on, log in with a code, turn off', async ({ browser }) => {
     await page.goto('/login')
     await page.locator('input[name=email]').fill(email)
     await page.locator('input[name=password]').fill(PASSWORD)
-    await page.getByRole('button', { name: 'Log in' }).click()
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await expect(page).not.toHaveURL(/\/login/)
 
     await page.goto('/account')
@@ -144,11 +144,11 @@ test('totp: turn on, log in with a code, turn off', async ({ browser }) => {
     await logOut(page)
     await page.locator('input[name=email]').fill(email)
     await page.locator('input[name=password]').fill(PASSWORD)
-    await page.getByRole('button', { name: 'Log in' }).click()
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
     const code = page.locator('input[name=totp_code]')
     await expect(code).toBeVisible()
     await code.fill(totpCode(secret))
-    await page.getByRole('button', { name: 'Log in' }).click()
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await expect(page).not.toHaveURL(/\/login/)
 
     await page.goto('/account')
