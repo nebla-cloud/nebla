@@ -79,12 +79,17 @@ async function openPopover() {
   await flushPromises()
 }
 
+let mounted: ReturnType<typeof mountApp> | undefined
+
 async function mountCell() {
-  mountApp(Harness)
+  mounted = mountApp(Harness)
   await vi.waitFor(() => expect(document.body.querySelector('[data-cell-trigger]')).not.toBe(null))
 }
 
 afterEach(() => {
+  // Unmount first: wiping the DOM under a live app lets a late patch hit a detached parent.
+  mounted?.wrapper.unmount()
+  mounted = undefined
   useToast().clear()
   retired = false
   document.body.innerHTML = ''
