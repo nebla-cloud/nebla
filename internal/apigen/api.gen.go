@@ -411,6 +411,17 @@ type Invite struct {
 	Role      Role      `json:"role"`
 }
 
+// InvitePreview defines model for InvitePreview.
+type InvitePreview struct {
+	AccountExists    bool      `json:"account_exists"`
+	CanCreateAccount bool      `json:"can_create_account"`
+	Email            string    `json:"email"`
+	Expires          time.Time `json:"expires"`
+	InviterName      string    `json:"inviter_name"`
+	ProjectName      string    `json:"project_name"`
+	Role             Role      `json:"role"`
+}
+
 // IpPool defines model for IpPool.
 type IpPool struct {
 	Allocated  int          `json:"allocated"`
@@ -481,6 +492,11 @@ type LocationRef struct {
 	Name        string `json:"name"`
 }
 
+// MeInput defines model for MeInput.
+type MeInput struct {
+	Name string `json:"name"`
+}
+
 // Member defines model for Member.
 type Member struct {
 	Email  string `json:"email"`
@@ -536,6 +552,12 @@ type NodeInput struct {
 	// DiskStorageOverride Empty clears the override
 	DiskStorageOverride *string `json:"disk_storage_override,omitempty"`
 	Enabled             *bool   `json:"enabled,omitempty"`
+}
+
+// PasswordChange defines model for PasswordChange.
+type PasswordChange struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 // Project defines model for Project.
@@ -1006,6 +1028,12 @@ type PostAuthTotpVerifyJSONRequestBody = TotpCode
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
 
+// PutMeJSONRequestBody defines body for PutMe for application/json ContentType.
+type PutMeJSONRequestBody = MeInput
+
+// PostMePasswordJSONRequestBody defines body for PostMePassword for application/json ContentType.
+type PostMePasswordJSONRequestBody = PasswordChange
+
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody = ProjectInput
 
@@ -1179,6 +1207,9 @@ type ServerInterface interface {
 	// GetImage Get an image
 	// (GET /images/{id})
 	GetImage(w http.ResponseWriter, r *http.Request, id ID)
+	// GetInvite Preview an invite
+	// (GET /invites/{token})
+	GetInvite(w http.ResponseWriter, r *http.Request, token string)
 	// PostInviteAccept Accept an invite
 	// (POST /invites/{token}/accept)
 	PostInviteAccept(w http.ResponseWriter, r *http.Request, token string)
@@ -1191,6 +1222,12 @@ type ServerInterface interface {
 	// GetMe Current user
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// PutMe Update the current user's name
+	// (PUT /me)
+	PutMe(w http.ResponseWriter, r *http.Request)
+	// PostMePassword Change the current user's password and sign out other sessions
+	// (POST /me/password)
+	PostMePassword(w http.ResponseWriter, r *http.Request)
 	// GetProjects List the caller's projects
 	// (GET /projects)
 	GetProjects(w http.ResponseWriter, r *http.Request)
@@ -1218,7 +1255,7 @@ type ServerInterface interface {
 	// GetProjectMembers List project members
 	// (GET /projects/{id}/members)
 	GetProjectMembers(w http.ResponseWriter, r *http.Request, id ProjectID)
-	// DeleteProjectMember Remove a member
+	// DeleteProjectMember Remove a member, or leave the project when user_id is you
 	// (DELETE /projects/{id}/members/{user_id})
 	DeleteProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64)
 	// GetProjectMember Get a project member
@@ -1581,6 +1618,12 @@ func (_ Unimplemented) GetImage(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetInvite Preview an invite
+// (GET /invites/{token})
+func (_ Unimplemented) GetInvite(w http.ResponseWriter, r *http.Request, token string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PostInviteAccept Accept an invite
 // (POST /invites/{token}/accept)
 func (_ Unimplemented) PostInviteAccept(w http.ResponseWriter, r *http.Request, token string) {
@@ -1602,6 +1645,18 @@ func (_ Unimplemented) GetLocation(w http.ResponseWriter, r *http.Request, id ID
 // GetMe Current user
 // (GET /me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutMe Update the current user's name
+// (PUT /me)
+func (_ Unimplemented) PutMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostMePassword Change the current user's password and sign out other sessions
+// (POST /me/password)
+func (_ Unimplemented) PostMePassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1659,7 +1714,7 @@ func (_ Unimplemented) GetProjectMembers(w http.ResponseWriter, r *http.Request,
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// DeleteProjectMember Remove a member
+// DeleteProjectMember Remove a member, or leave the project when user_id is you
 // (DELETE /projects/{id}/members/{user_id})
 func (_ Unimplemented) DeleteProjectMember(w http.ResponseWriter, r *http.Request, id ProjectID, userId int64) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -3137,6 +3192,32 @@ func (siw *ServerInterfaceWrapper) GetImage(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// GetInvite operation middleware
+func (siw *ServerInterfaceWrapper) GetInvite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", chi.URLParam(r, "token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetInvite(w, r, token)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostInviteAccept operation middleware
 func (siw *ServerInterfaceWrapper) PostInviteAccept(w http.ResponseWriter, r *http.Request) {
 
@@ -3240,6 +3321,34 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutMe operation middleware
+func (siw *ServerInterfaceWrapper) PutMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostMePassword operation middleware
+func (siw *ServerInterfaceWrapper) PostMePassword(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostMePassword(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4577,6 +4686,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/me", wrapper.GetMe)
 	})
 	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/me", wrapper.PutMe)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/me/password", wrapper.PostMePassword)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/admin/settings", wrapper.GetAdminSettings)
 	})
 	r.Group(func(r chi.Router) {
@@ -4629,6 +4744,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/projects/{id}/invites/{invite_id}", wrapper.DeleteProjectInvite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/invites/{token}", wrapper.GetInvite)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/invites/{token}/accept", wrapper.PostInviteAccept)
@@ -8525,6 +8643,73 @@ func (response GetImagedefaultJSONResponse) VisitGetImageResponse(w http.Respons
 	return err
 }
 
+type GetInviteRequestObject struct {
+	Token string `json:"token"`
+}
+
+type GetInviteResponseObject interface {
+	VisitGetInviteResponse(w http.ResponseWriter) error
+}
+
+type GetInvite200JSONResponse InvitePreview
+
+func (response GetInvite200JSONResponse) VisitGetInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInvite404JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetInvite404JSONResponse) VisitGetInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInvite429JSONResponse Error
+
+func (response GetInvite429JSONResponse) VisitGetInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInvitedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetInvitedefaultJSONResponse) VisitGetInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostInviteAcceptRequestObject struct {
 	Token string `json:"token"`
 	Body  *PostInviteAcceptJSONRequestBody
@@ -8823,6 +9008,148 @@ type GetMedefaultJSONResponse struct {
 }
 
 func (response GetMedefaultJSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMeRequestObject struct {
+	Body *PutMeJSONRequestBody
+}
+
+type PutMeResponseObject interface {
+	VisitPutMeResponse(w http.ResponseWriter) error
+}
+
+type PutMe200JSONResponse User
+
+func (response PutMe200JSONResponse) VisitPutMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMe401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutMe401JSONResponse) VisitPutMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMe422JSONResponse Error
+
+func (response PutMe422JSONResponse) VisitPutMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutMedefaultJSONResponse) VisitPutMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasswordRequestObject struct {
+	Body *PostMePasswordJSONRequestBody
+}
+
+type PostMePasswordResponseObject interface {
+	VisitPostMePasswordResponse(w http.ResponseWriter) error
+}
+
+type PostMePassword204Response struct {
+}
+
+func (response PostMePassword204Response) VisitPostMePasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostMePassword401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostMePassword401JSONResponse) VisitPostMePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePassword422JSONResponse Error
+
+func (response PostMePassword422JSONResponse) VisitPostMePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePassword429JSONResponse Error
+
+func (response PostMePassword429JSONResponse) VisitPostMePasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePassworddefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostMePassworddefaultJSONResponse) VisitPostMePasswordResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -12543,6 +12870,9 @@ type StrictServerInterface interface {
 	// GetImage Get an image
 	// (GET /images/{id})
 	GetImage(ctx context.Context, request GetImageRequestObject) (GetImageResponseObject, error)
+	// GetInvite Preview an invite
+	// (GET /invites/{token})
+	GetInvite(ctx context.Context, request GetInviteRequestObject) (GetInviteResponseObject, error)
 	// PostInviteAccept Accept an invite
 	// (POST /invites/{token}/accept)
 	PostInviteAccept(ctx context.Context, request PostInviteAcceptRequestObject) (PostInviteAcceptResponseObject, error)
@@ -12555,6 +12885,12 @@ type StrictServerInterface interface {
 	// GetMe Current user
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// PutMe Update the current user's name
+	// (PUT /me)
+	PutMe(ctx context.Context, request PutMeRequestObject) (PutMeResponseObject, error)
+	// PostMePassword Change the current user's password and sign out other sessions
+	// (POST /me/password)
+	PostMePassword(ctx context.Context, request PostMePasswordRequestObject) (PostMePasswordResponseObject, error)
 	// GetProjects List the caller's projects
 	// (GET /projects)
 	GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error)
@@ -12582,7 +12918,7 @@ type StrictServerInterface interface {
 	// GetProjectMembers List project members
 	// (GET /projects/{id}/members)
 	GetProjectMembers(ctx context.Context, request GetProjectMembersRequestObject) (GetProjectMembersResponseObject, error)
-	// DeleteProjectMember Remove a member
+	// DeleteProjectMember Remove a member, or leave the project when user_id is you
 	// (DELETE /projects/{id}/members/{user_id})
 	DeleteProjectMember(ctx context.Context, request DeleteProjectMemberRequestObject) (DeleteProjectMemberResponseObject, error)
 	// GetProjectMember Get a project member
@@ -13948,6 +14284,32 @@ func (sh *strictHandler) GetImage(w http.ResponseWriter, r *http.Request, id ID)
 	}
 }
 
+// GetInvite operation middleware
+func (sh *strictHandler) GetInvite(w http.ResponseWriter, r *http.Request, token string) {
+	var request GetInviteRequestObject
+
+	request.Token = token
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetInvite(ctx, request.(GetInviteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetInvite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetInviteResponseObject); ok {
+		if err := validResponse.VisitGetInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostInviteAccept operation middleware
 func (sh *strictHandler) PostInviteAccept(w http.ResponseWriter, r *http.Request, token string) {
 	var request PostInviteAcceptRequestObject
@@ -14053,6 +14415,68 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutMe operation middleware
+func (sh *strictHandler) PutMe(w http.ResponseWriter, r *http.Request) {
+	var request PutMeRequestObject
+
+	var body PutMeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutMe(ctx, request.(PutMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutMeResponseObject); ok {
+		if err := validResponse.VisitPutMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostMePassword operation middleware
+func (sh *strictHandler) PostMePassword(w http.ResponseWriter, r *http.Request) {
+	var request PostMePasswordRequestObject
+
+	var body PostMePasswordJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostMePassword(ctx, request.(PostMePasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostMePassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostMePasswordResponseObject); ok {
+		if err := validResponse.VisitPostMePasswordResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

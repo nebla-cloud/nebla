@@ -199,3 +199,51 @@ func TestTotpPasswordChecksRateLimited(t *testing.T) {
 	require.Equal(t, 429, res.StatusCode)
 	require.Equal(t, "rate_limited", errCode(t, app, res))
 }
+
+func TestPutMe(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("a@example.com", false)
+	cl := app.Login("a@example.com")
+	res := cl.Send("PUT", "/v1/me", map[string]string{"name": "Ann"})
+	body := app.Body(res)
+	require.Equal(t, 200, res.StatusCode, body)
+	var u struct{ Name string }
+	require.NoError(t, json.Unmarshal([]byte(body), &u))
+	require.Equal(t, "Ann", u.Name)
+	res = cl.Get("/v1/me")
+	require.NoError(t, json.Unmarshal([]byte(app.Body(res)), &u))
+	require.Equal(t, "Ann", u.Name)
+	res = cl.Send("PUT", "/v1/me", map[string]string{"name": " "})
+	require.Equal(t, 422, res.StatusCode)
+	res.Body.Close()
+}
+
+func TestPostMePasswordRevokesOthers(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("a@example.com", false)
+	cl, other := app.Login("a@example.com"), app.Login("a@example.com")
+	res := cl.Send("POST", "/v1/me/password", map[string]string{"current_password": testutil.Password, "new_password": "a-brand-new-password"})
+	require.Equal(t, 204, res.StatusCode, app.Body(res))
+	res = other.Get("/v1/me")
+	require.Equal(t, 401, res.StatusCode)
+	res.Body.Close()
+	res = cl.Get("/v1/me")
+	require.Equal(t, 200, res.StatusCode)
+	res.Body.Close()
+}
+
+func TestPostMePasswordRateLimited(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("a@example.com", false)
+	cl := app.Login("a@example.com")
+	b := map[string]string{"current_password": "wrong-password", "new_password": "a-brand-new-password"}
+	var res *http.Response
+	for range 20 {
+		if res = cl.Send("POST", "/v1/me/password", b); res.StatusCode != 401 {
+			break
+		}
+		res.Body.Close()
+	}
+	require.Equal(t, 429, res.StatusCode)
+	require.Equal(t, "rate_limited", errCode(t, app, res))
+}

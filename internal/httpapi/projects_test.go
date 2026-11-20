@@ -291,3 +291,23 @@ func TestProjectUsage(t *testing.T) {
 	require.Equal(t, 20, got.Usage.DiskGB)
 	require.Equal(t, 1, got.Usage.IPs)
 }
+
+func TestMemberLeavesViaDelete(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("o@example.test", false)
+	m := app.CreateUser("m@example.test", false)
+	o := app.Login("o@example.test")
+	pid := o.CreateProject("p")
+	tok := o.Invite(pid, "m@example.test", "member")
+	mc := app.Login("m@example.test")
+	res := mc.Send(http.MethodPost, "/v1/invites/"+tok+"/accept", nil)
+	require.Equal(t, 200, res.StatusCode, app.Body(res))
+	res.Body.Close()
+
+	base := "/v1/projects/" + strconv.FormatInt(pid, 10)
+	res = mc.Send(http.MethodDelete, base+"/members/"+strconv.FormatInt(m.ID, 10), nil)
+	require.Equal(t, 204, res.StatusCode, app.Body(res))
+	res = mc.Get(base)
+	require.Equal(t, 404, res.StatusCode)
+	res.Body.Close()
+}

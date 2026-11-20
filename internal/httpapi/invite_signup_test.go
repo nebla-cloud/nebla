@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -69,4 +70,28 @@ func TestAdminInviteCreatesAccountWithoutSelfSignup(t *testing.T) {
 	res = app.NewClient().Send(http.MethodPost, "/v1/auth/login", map[string]string{"email": "new@example.test", "password": testutil.Password})
 	res.Body.Close()
 	require.Equal(t, 200, res.StatusCode, "the admin's invite created the account")
+}
+
+func TestGetInvitePublic(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.CreateUser("u@example.test", false)
+	u := app.Login("u@example.test")
+	token := u.Invite(u.CreateProject("Homelab"), "new@example.test", "member")
+
+	res := app.NewClient().Get("/v1/invites/" + token)
+	body := app.Body(res)
+	require.Equal(t, 200, res.StatusCode, body)
+	var pv map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &pv))
+	require.Equal(t, "Homelab", pv["project_name"])
+	require.Equal(t, "new@example.test", pv["email"])
+	require.Equal(t, "member", pv["role"])
+	require.Equal(t, "u@example.test", pv["inviter_name"])
+	require.Equal(t, false, pv["account_exists"])
+	require.Equal(t, false, pv["can_create_account"])
+	require.NotEmpty(t, pv["expires"])
+
+	res = app.NewClient().Get("/v1/invites/unknown-token")
+	require.Equal(t, 404, res.StatusCode)
+	require.Equal(t, "not_found", errCode(t, app, res))
 }

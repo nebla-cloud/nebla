@@ -274,6 +274,43 @@ func (s *Service) VerifyTOTP(ctx context.Context, userID int64, code, keepToken 
 	})
 }
 
+// SetName updates the user's display name.
+func (s *Service) SetName(ctx context.Context, userID int64, name string) (User, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 100 {
+		return User{}, apierr.New(http.StatusUnprocessableEntity, "invalid_input", "name must be 1-100 characters")
+	}
+	row, err := s.db.User.UpdateOneID(userID).SetName(name).Save(ctx)
+	if err != nil {
+		return User{}, err
+	}
+	return toUser(row), nil
+}
+
+// ChangePassword sets a new password given the current one and revokes the user's other sessions.
+func (s *Service) ChangePassword(ctx context.Context, userID int64, current, next, keepToken string) error {
+	return s.inTx(ctx, func(tx *ent.Client) error {
+		u, err := tx.User.Query().Where(user.ID(userID)).ForUpdate().Only(ctx)
+		if err != nil {
+			return err
+		}
+		if !VerifyPassword(ctx, u.PasswordHash, current) {
+			return errInvalidCreds
+		}
+		if len(next) < MinPasswordLen {
+			return apierr.New(http.StatusUnprocessableEntity, "invalid_input", "password must be at least 10 characters")
+		}
+		hash, err := HashPassword(ctx, next)
+		if err != nil {
+			return err
+		}
+		if err := tx.User.UpdateOneID(userID).SetPasswordHash(hash).Exec(ctx); err != nil {
+			return err
+		}
+		return revokeOtherSessions(ctx, tx, userID, keepToken)
+	})
+}
+
 // inTx runs fn in a transaction, committing only when it returns nil.
 func (s *Service) inTx(ctx context.Context, fn func(tx *ent.Client) error) error {
 	tx, err := s.db.Tx(ctx)

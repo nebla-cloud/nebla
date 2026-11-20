@@ -166,8 +166,26 @@ export interface paths {
         };
         /** Current user */
         get: operations["getMe"];
-        put?: never;
+        /** Update the current user's name */
+        put: operations["putMe"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the current user's password and sign out other sessions */
+        post: operations["postMePassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -317,7 +335,7 @@ export interface paths {
         /** Change a member's role */
         put: operations["putProjectMember"];
         post?: never;
-        /** Remove a member */
+        /** Remove a member, or leave the project when user_id is you */
         delete: operations["deleteProjectMember"];
         options?: never;
         head?: never;
@@ -359,6 +377,23 @@ export interface paths {
         post?: never;
         /** Revoke a pending invite */
         delete: operations["deleteProjectInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview an invite */
+        get: operations["getInvite"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1232,6 +1267,23 @@ export interface components {
         TotpCode: {
             code: string;
         };
+        InvitePreview: {
+            project_name: string;
+            email: string;
+            role: components["schemas"]["Role"];
+            inviter_name: string;
+            /** Format: date-time */
+            expires: string;
+            account_exists: boolean;
+            can_create_account: boolean;
+        };
+        MeInput: {
+            name: string;
+        };
+        PasswordChange: {
+            current_password: string;
+            new_password: string;
+        };
         TotpEnroll: {
             password: string;
         };
@@ -1922,6 +1974,59 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    putMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postMePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
     getAdminSettings: {
         parameters: {
             query?: never;
@@ -2426,6 +2531,31 @@ export interface operations {
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitePreview"];
+                };
+            };
+            404: components["responses"]["Error"];
+            429: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };
