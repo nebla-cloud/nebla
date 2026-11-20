@@ -1,7 +1,23 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo-light.svg" alt="Nebla" height="64">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://github.com/nebla-cloud/nebla/actions/workflows/ci.yml"><img src="https://github.com/nebla-cloud/nebla/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-15181D" alt="License: AGPL-3.0"></a>
+  <a href="https://github.com/nebla-cloud/nebla/releases"><img src="https://img.shields.io/github/v/release/nebla-cloud/nebla?include_prereleases&color=15181D" alt="Latest release"></a>
+  <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/nebla-cloud/nebla?color=15181D" alt="Go version"></a>
+</p>
+
 # Nebla
 
-Nebla is a self-hosted cloud panel for Proxmox VE. Users get projects, API tokens, SSH keys and servers with fixed types,
-images and IP pools. Nebla drives Proxmox only through its API and runs as one container next to Postgres.
+Nebla is an open-source cloud console for Proxmox VE. Users get projects, API tokens, SSH keys and servers with fixed
+types, images and IP pools, with quotas and tenant isolation built in. Nebla drives Proxmox only through its API, runs as
+one container next to Postgres and installs nothing on the host. The core is AGPL-3.0 with no limit on nodes. The web
+panel and the `nebla` CLI are in progress (see [Status](#status)). More at [nebla.io](https://nebla.io).
 
 ## Quick start
 
@@ -57,6 +73,12 @@ go test -tags e2e -timeout 60m -v ./internal/e2e/
 ## Status
 
 Backend v1: the API, jobs, reconciler, console proxy and metrics. The web UI and the `nebla` CLI come next.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and pull request flow. Contributors sign the
+[CLA](CLA.md) once, before their first pull request is merged. Report security issues as described in
+[SECURITY.md](SECURITY.md).
 
 ## License
 
