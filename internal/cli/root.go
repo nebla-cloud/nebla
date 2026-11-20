@@ -131,7 +131,7 @@ func newRootCmd(env Env) *cobra.Command {
 	f.DurationVar(&g.timeout, "timeout", 0, "stop waiting for actions after this long (0 waits forever)")
 
 	root.AddCommand(newContextCmd(a))
-	root.AddCommand(newSSHKeyCmd(a), newImageCmd(a), newServerTypeCmd(a), newLocationCmd(a))
+	root.AddCommand(newSSHKeyCmd(a), newImageCmd(a), newServerTypeCmd(a), newLocationCmd(a), newServerCmd(a))
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print the nebla version",
