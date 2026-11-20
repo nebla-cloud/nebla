@@ -16,8 +16,8 @@
 
 Nebla is an open-source cloud console for Proxmox VE. Users get projects, API tokens, SSH keys and servers with fixed
 types, images and IP pools, with quotas and tenant isolation built in. Nebla drives Proxmox only through its API, runs as
-one container next to Postgres and installs nothing on the host. The core is AGPL-3.0 with no limit on nodes. The web
-panel and the `nebla` CLI are in progress (see [Status](#status)). More at [nebla.dev](https://nebla.dev).
+one container next to Postgres and installs nothing on the host. The core is AGPL-3.0 with no limit on nodes. A web
+panel ships in the binary, and the `nebla` CLI works from a terminal (see [Status](#status)). More at [nebla.dev](https://nebla.dev).
 
 ## Quick start
 
@@ -32,8 +32,9 @@ panel and the `nebla` CLI are in progress (see [Status](#status)). More at [nebl
    curl -fs localhost:8080/v1/healthz
    ```
 
-3. Create the first admin with `POST /v1/setup`, then add a location, server types, images and IP pools under
-   `/v1/admin`. The API is described in [api/openapi.yaml](api/openapi.yaml).
+3. Open the panel at your `PANEL_BASE_URL` (`http://localhost:8080` for a local run), create the first admin account,
+   and follow Get Nebla ready. It walks you through connecting Proxmox, turning on OS images, adding server types and
+   adding an IP pool. The API is described in [api/openapi.yaml](api/openapi.yaml).
 4. To use the panel from a terminal, see the [CLI guide](docs/cli.md).
 
 ## Configuration
@@ -61,6 +62,19 @@ make build      # bin/nebla-server
 docker build -t nebla:dev .
 ```
 
+The web panel is a Vue app in [web](web), embedded in the binary at build time. It needs Node 24 or newer and pnpm.
+`go build` works without Node: the binary then serves a placeholder page instead of the panel.
+
+```sh
+cd web && pnpm install
+pnpm dev     # Vite dev server, proxies API calls to the panel on :8080
+pnpm test    # unit tests
+pnpm build   # type-checks and writes web/dist, which the Go build embeds
+pnpm e2e     # Playwright against a fake Proxmox
+```
+
+Run the panel on `:8080` first (the compose setup above works) so `pnpm dev` has an API to talk to.
+
 The end-to-end smoke test in [internal/e2e](internal/e2e/smoke_test.go) creates real VMs, so point it only at a
 disposable or nested Proxmox VE. It skips unless `E2E_PVE_URL` is set, and then needs `E2E_PVE_TOKEN_ID`,
 `E2E_PVE_SECRET`, `E2E_PVE_FINGERPRINT` (or `E2E_PVE_INSECURE=1`), `E2E_TEMPLATE_VMID`, `E2E_NODE`, `E2E_POOL_CIDR`,
@@ -73,7 +87,11 @@ go test -tags e2e -timeout 60m -v ./internal/e2e/
 
 ## Status
 
-Backend v1: the API, jobs, reconciler, console proxy and metrics. The web UI and the `nebla` CLI come next.
+Backend v1: the API, jobs, reconciler, console proxy and metrics. The web panel ships with these parts: first-admin
+setup, login and logout, projects, servers (list, create, detail with power actions), SSH keys, and the admin area
+(Get Nebla ready, locations, OS images, server types, IP pools). The web console, metrics graphs, API tokens, members
+and invites, and account settings are not in the panel yet. The `nebla` CLI is described in the
+[CLI guide](docs/cli.md).
 
 ## Contributing
 
