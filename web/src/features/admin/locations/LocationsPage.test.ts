@@ -195,9 +195,23 @@ describe('admin locations', () => {
       const text = wrapper.text()
       expect(text).toContain('garage · Ready to finish')
       expect(text).toContain('home (re-run) · Expired')
+      expect(text).toContain('0 nodes')
       const hrefs = wrapper.findAll('a').map((a) => a.attributes('href'))
       expect(hrefs).toContain('/admin/locations/enroll/5')
       expect(hrefs).toContain('/admin/locations/enroll/6')
+      expect(hrefs).toContain('/admin/locations/1')
+    })
+
+    it('keeps the empty state below the enrollments', async () => {
+      server.use(
+        list([]),
+        http.get('*/v1/admin/location_enrollments', () =>
+          json(200, { enrollments: [enr(5, 'lab', 'waiting')] }),
+        ),
+      )
+      const { wrapper } = mountApp(LocationsPage, { router: routers() })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('lab · Waiting for setup'))
+      await vi.waitFor(() => expect(wrapper.text()).toContain('No locations yet'))
     })
 
     it('connect manually reveals the full form', async () => {
