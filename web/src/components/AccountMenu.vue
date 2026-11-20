@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UPopover from '@nuxt/ui/components/Popover.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
@@ -45,6 +45,12 @@ async function logOut() {
           <p class="truncate text-sm font-semibold text-highlighted">{{ me?.name || me?.email }}</p>
           <p v-if="me?.name" class="truncate text-sm text-muted">{{ me?.email }}</p>
         </div>
+        <RouterLink
+          to="/account"
+          class="rounded-md px-2 py-1.5 text-sm text-toned hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          Account settings
+        </RouterLink>
         <ColorModeToggle />
         <UButton color="neutral" variant="outline" block @click="logOut">Log out</UButton>
       </div>
