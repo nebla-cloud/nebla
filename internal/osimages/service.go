@@ -263,19 +263,19 @@ func restart(u *ent.CatalogBuildUpdateOne) *ent.CatalogBuildUpdateOne {
 		ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid().ClearBuildNode()
 }
 
-// cleanupArgs is the cleanup for a row's leftover half-built VM, if it kept one.
+// cleanupArgs is the cleanup for a row's leftover half-built VM or import volume, if it kept either.
 func cleanupArgs(entries []Entry, loc catalog.Location, r *ent.CatalogBuild) (CleanupArgs, bool) {
-	if r.NewVmid == nil || r.NewNonce == nil {
-		return CleanupArgs{}, false
+	a := CleanupArgs{BuildID: r.ID, LocationID: loc.ID}
+	if r.NewVmid != nil && r.NewNonce != nil {
+		a.VMID, a.Tag = *r.NewVmid, templateTag(r.ID, *r.NewNonce)
 	}
-	a := CleanupArgs{BuildID: r.ID, LocationID: loc.ID, VMID: *r.NewVmid, Tag: templateTag(r.ID, *r.NewNonce)}
 	if r.BuildNode != nil {
 		a.Node = *r.BuildNode
 	}
 	if e, ok := Lookup(entries, r.CatalogKey); ok && r.NewChecksum != nil && r.BuildNode != nil && loc.ImportStorage != "" {
 		a.Volume = importVolume(loc.ImportStorage, r.CatalogKey, *r.NewChecksum, r.ID, e.Format)
 	}
-	return a, true
+	return a, a.VMID != 0 || a.Volume != ""
 }
 
 func enqueueBuilds(ctx context.Context, j *jobs.Jobs, tx *sql.Tx, etx *ent.Client, ids []int64) error {

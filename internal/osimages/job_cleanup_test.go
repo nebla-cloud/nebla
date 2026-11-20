@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
@@ -159,4 +160,49 @@ func TestCleanupRetiredEntryNoVolume(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []osimages.CleanupArgs{{BuildID: row.ID, LocationID: loc, Node: "pve1", VMID: 7000,
 		Tag: osimages.TemplateTag(row.ID, "aa")}}, e.cleanupJobs())
+}
+
+func TestCleanupVolumeDeleteExcludesEnable(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "local-lvm", "imp")
+	e.failedHalfBuilt(loc)
+	e.pve.DeleteVM(7000)
+	_, err := e.svc.Disable(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	a := e.cleanupJobs()[0]
+	row, _ := e.failedHalfBuilt(loc)
+	a.BuildID = row.ID
+	a.Volume = fmt.Sprintf("imp:import/nebla-debian-13-%s-%d.qcow2", debianSum[:12], row.ID)
+	e.pve.SetTaskDelay(400 * time.Millisecond)
+
+	var cleanupDone time.Time
+	errc := make(chan error, 1)
+	go func() {
+		err := e.cleanupWork(a)
+		cleanupDone = time.Now()
+		errc <- err
+	}()
+	time.Sleep(150 * time.Millisecond)
+	_, err = e.svc.Enable(ctx, "debian-13", loc)
+	enableDone := time.Now()
+	require.NoError(t, err)
+	require.NoError(t, <-errc)
+	require.False(t, e.volExists(a.Volume))
+	require.False(t, cleanupDone.After(enableDone), "Enable must wait for the volume delete")
+}
+
+func TestDisableCleansOrphanVolume(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "local-lvm", "imp")
+	row, vol := e.failedHalfBuilt(loc)
+	e.pve.DeleteVM(7000)
+	require.NoError(t, row.Update().ClearNewVmid().ClearNewNonce().Exec(ctx))
+	_, err := e.svc.Disable(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	jobs := e.cleanupJobs()
+	require.Equal(t, []osimages.CleanupArgs{{BuildID: row.ID, LocationID: loc, Node: "pve1", Volume: vol}}, jobs)
+	require.NoError(t, e.cleanupWork(jobs[0]))
+	require.False(t, e.volExists(vol))
 }
