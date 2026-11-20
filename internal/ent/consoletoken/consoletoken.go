@@ -26,6 +26,12 @@ const (
 	FieldPort = "port"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
+	// FieldUserID holds the string denoting the user_id field in the database.
+	FieldUserID = "user_id"
+	// FieldSessionHash holds the string denoting the session_hash field in the database.
+	FieldSessionHash = "session_hash"
+	// FieldAPITokenID holds the string denoting the api_token_id field in the database.
+	FieldAPITokenID = "api_token_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeServer holds the string denoting the server edge name in mutations.
@@ -52,6 +58,9 @@ var Columns = []string{
 	FieldTicket,
 	FieldPort,
 	FieldExpiresAt,
+	FieldUserID,
+	FieldSessionHash,
+	FieldAPITokenID,
 	FieldCreatedAt,
 }
 
@@ -106,6 +115,16 @@ func ByPort(opts ...sql.OrderTermOption) OrderOption {
 // ByExpiresAt orders the results by the expires_at field.
 func ByExpiresAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldExpiresAt, opts...).ToFunc()
+}
+
+// ByUserID orders the results by the user_id field.
+func ByUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUserID, opts...).ToFunc()
+}
+
+// ByAPITokenID orders the results by the api_token_id field.
+func ByAPITokenID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAPITokenID, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

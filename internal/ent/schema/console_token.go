@@ -21,6 +21,10 @@ func (ConsoleToken) Fields() []ent.Field {
 		// port is an int, which ent cannot mark Sensitive; it is useless without the ticket.
 		field.Int("port").Immutable(),
 		field.Time("expires_at").Immutable(),
+		// Who asked for the console: a session user or an API token. Live sessions re-check it.
+		field.Int64("user_id").Optional().Nillable().Immutable(),
+		field.Bytes("session_hash").Optional().Nillable().Immutable().Sensitive(),
+		field.Int64("api_token_id").Optional().Nillable().Immutable(),
 		createdAt(),
 	}
 }

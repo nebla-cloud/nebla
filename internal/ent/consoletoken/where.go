@@ -85,6 +85,21 @@ func ExpiresAt(v time.Time) predicate.ConsoleToken {
 	return predicate.ConsoleToken(sql.FieldEQ(FieldExpiresAt, v))
 }
 
+// UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
+func UserID(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldEQ(FieldUserID, v))
+}
+
+// SessionHash applies equality check predicate on the "session_hash" field. It's identical to SessionHashEQ.
+func SessionHash(v []byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldEQ(FieldSessionHash, v))
+}
+
+// APITokenID applies equality check predicate on the "api_token_id" field. It's identical to APITokenIDEQ.
+func APITokenID(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldEQ(FieldAPITokenID, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.ConsoleToken {
 	return predicate.ConsoleToken(sql.FieldEQ(FieldCreatedAt, v))
@@ -333,6 +348,156 @@ func ExpiresAtLT(v time.Time) predicate.ConsoleToken {
 // ExpiresAtLTE applies the LTE predicate on the "expires_at" field.
 func ExpiresAtLTE(v time.Time) predicate.ConsoleToken {
 	return predicate.ConsoleToken(sql.FieldLTE(FieldExpiresAt, v))
+}
+
+// UserIDEQ applies the EQ predicate on the "user_id" field.
+func UserIDEQ(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldEQ(FieldUserID, v))
+}
+
+// UserIDNEQ applies the NEQ predicate on the "user_id" field.
+func UserIDNEQ(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNEQ(FieldUserID, v))
+}
+
+// UserIDIn applies the In predicate on the "user_id" field.
+func UserIDIn(vs ...int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldIn(FieldUserID, vs...))
+}
+
+// UserIDNotIn applies the NotIn predicate on the "user_id" field.
+func UserIDNotIn(vs ...int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNotIn(FieldUserID, vs...))
+}
+
+// UserIDGT applies the GT predicate on the "user_id" field.
+func UserIDGT(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldGT(FieldUserID, v))
+}
+
+// UserIDGTE applies the GTE predicate on the "user_id" field.
+func UserIDGTE(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldGTE(FieldUserID, v))
+}
+
+// UserIDLT applies the LT predicate on the "user_id" field.
+func UserIDLT(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldLT(FieldUserID, v))
+}
+
+// UserIDLTE applies the LTE predicate on the "user_id" field.
+func UserIDLTE(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldLTE(FieldUserID, v))
+}
+
+// UserIDIsNil applies the IsNil predicate on the "user_id" field.
+func UserIDIsNil() predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldIsNull(FieldUserID))
+}
+
+// UserIDNotNil applies the NotNil predicate on the "user_id" field.
+func UserIDNotNil() predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNotNull(FieldUserID))
+}
+
+// SessionHashEQ applies the EQ predicate on the "session_hash" field.
+func SessionHashEQ(v []byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldEQ(FieldSessionHash, v))
+}
+
+// SessionHashNEQ applies the NEQ predicate on the "session_hash" field.
+func SessionHashNEQ(v []byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNEQ(FieldSessionHash, v))
+}
+
+// SessionHashIn applies the In predicate on the "session_hash" field.
+func SessionHashIn(vs ...[]byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldIn(FieldSessionHash, vs...))
+}
+
+// SessionHashNotIn applies the NotIn predicate on the "session_hash" field.
+func SessionHashNotIn(vs ...[]byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNotIn(FieldSessionHash, vs...))
+}
+
+// SessionHashGT applies the GT predicate on the "session_hash" field.
+func SessionHashGT(v []byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldGT(FieldSessionHash, v))
+}
+
+// SessionHashGTE applies the GTE predicate on the "session_hash" field.
+func SessionHashGTE(v []byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldGTE(FieldSessionHash, v))
+}
+
+// SessionHashLT applies the LT predicate on the "session_hash" field.
+func SessionHashLT(v []byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldLT(FieldSessionHash, v))
+}
+
+// SessionHashLTE applies the LTE predicate on the "session_hash" field.
+func SessionHashLTE(v []byte) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldLTE(FieldSessionHash, v))
+}
+
+// SessionHashIsNil applies the IsNil predicate on the "session_hash" field.
+func SessionHashIsNil() predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldIsNull(FieldSessionHash))
+}
+
+// SessionHashNotNil applies the NotNil predicate on the "session_hash" field.
+func SessionHashNotNil() predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNotNull(FieldSessionHash))
+}
+
+// APITokenIDEQ applies the EQ predicate on the "api_token_id" field.
+func APITokenIDEQ(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldEQ(FieldAPITokenID, v))
+}
+
+// APITokenIDNEQ applies the NEQ predicate on the "api_token_id" field.
+func APITokenIDNEQ(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNEQ(FieldAPITokenID, v))
+}
+
+// APITokenIDIn applies the In predicate on the "api_token_id" field.
+func APITokenIDIn(vs ...int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldIn(FieldAPITokenID, vs...))
+}
+
+// APITokenIDNotIn applies the NotIn predicate on the "api_token_id" field.
+func APITokenIDNotIn(vs ...int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNotIn(FieldAPITokenID, vs...))
+}
+
+// APITokenIDGT applies the GT predicate on the "api_token_id" field.
+func APITokenIDGT(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldGT(FieldAPITokenID, v))
+}
+
+// APITokenIDGTE applies the GTE predicate on the "api_token_id" field.
+func APITokenIDGTE(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldGTE(FieldAPITokenID, v))
+}
+
+// APITokenIDLT applies the LT predicate on the "api_token_id" field.
+func APITokenIDLT(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldLT(FieldAPITokenID, v))
+}
+
+// APITokenIDLTE applies the LTE predicate on the "api_token_id" field.
+func APITokenIDLTE(v int64) predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldLTE(FieldAPITokenID, v))
+}
+
+// APITokenIDIsNil applies the IsNil predicate on the "api_token_id" field.
+func APITokenIDIsNil() predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldIsNull(FieldAPITokenID))
+}
+
+// APITokenIDNotNil applies the NotNil predicate on the "api_token_id" field.
+func APITokenIDNotNil() predicate.ConsoleToken {
+	return predicate.ConsoleToken(sql.FieldNotNull(FieldAPITokenID))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

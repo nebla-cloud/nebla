@@ -19,8 +19,12 @@ import (
 	"github.com/nebla-cloud/nebla/internal/auth"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/session"
+	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 )
@@ -31,6 +35,8 @@ const (
 	// MaxSession and IdleTimeout are the defaults for Options.
 	MaxSession  = 8 * time.Hour
 	IdleTimeout = 30 * time.Minute
+	// Recheck is how often an open console re-checks that its principal still has access.
+	Recheck = 30 * time.Second
 	// MaxBrowserMessage caps frames from the browser; MaxUpstreamMessage caps frames from Proxmox.
 	MaxBrowserMessage  = 1 << 20
 	MaxUpstreamMessage = 8 << 20
@@ -60,6 +66,8 @@ type Options struct {
 	WriteError func(w http.ResponseWriter, err error)
 	// MaxSession and IdleTimeout default to the package constants.
 	MaxSession, IdleTimeout time.Duration
+	// Recheck defaults to the package constant.
+	Recheck time.Duration
 }
 
 type Service struct {
@@ -78,6 +86,9 @@ func New(o Options) *Service {
 	}
 	if o.IdleTimeout <= 0 {
 		o.IdleTimeout = IdleTimeout
+	}
+	if o.Recheck <= 0 {
+		o.Recheck = Recheck
 	}
 	s := &Service{o: o}
 	base := strings.TrimRight(o.BaseURL, "/")
@@ -101,8 +112,18 @@ type Grant struct {
 	Password string
 }
 
+// Principal is who asked for a console: an API token, or a user with their session hash.
+type Principal struct {
+	UserID      int64
+	SessionHash []byte
+	TokenID     int64
+}
+
 // Request asks Proxmox for a VNC ticket and stores a one-time token for the project's running server.
-func (s *Service) Request(ctx context.Context, projectID, serverID int64) (Grant, error) {
+func (s *Service) Request(ctx context.Context, projectID, serverID int64, who Principal) (Grant, error) {
+	if who.TokenID == 0 && (who.UserID == 0 || len(who.SessionHash) == 0) {
+		return Grant{}, errNotFound
+	}
 	row, err := s.o.Ent.Server.Query().Where(server.ID(serverID), server.ProjectID(projectID)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return Grant{}, errNotFound
@@ -144,7 +165,8 @@ func (s *Service) Request(ctx context.Context, projectID, serverID int64) (Grant
 		return Grant{}, err
 	}
 	err = s.o.Ent.ConsoleToken.Create().SetID(auth.HashSecret(tok)).SetServerID(serverID).SetProjectID(projectID).
-		SetVmid(*row.Vmid).SetTicket(t.Ticket).SetPort(t.Port).SetExpiresAt(now.Add(TokenTTL)).Exec(ctx)
+		SetVmid(*row.Vmid).SetTicket(t.Ticket).SetPort(t.Port).SetExpiresAt(now.Add(TokenTTL)).
+		SetNillableUserID(nonZero(who.UserID)).SetSessionHash(who.SessionHash).SetNillableAPITokenID(nonZero(who.TokenID)).Exec(ctx)
 	if err != nil {
 		return Grant{}, err
 	}
@@ -155,6 +177,14 @@ type redeemed struct {
 	serverID, projectID int64
 	vmid, port          int
 	ticket              string
+	who                 Principal
+}
+
+func nonZero(v int64) *int64 {
+	if v == 0 {
+		return nil
+	}
+	return &v
 }
 
 // consume deletes a live token and returns it; a second use finds no row.
@@ -163,13 +193,39 @@ func (s *Service) consume(ctx context.Context, tok string) (redeemed, bool, erro
 		return redeemed{}, false, nil
 	}
 	var t redeemed
+	var userID, tokenID sql.NullInt64
 	err := s.o.SQL.QueryRowContext(ctx, `delete from console_tokens where token_hash = $1 and expires_at > $2
-		returning server_id, project_id, vmid, port, ticket`, auth.HashSecret(tok), time.Now()).
-		Scan(&t.serverID, &t.projectID, &t.vmid, &t.port, &t.ticket)
+		returning server_id, project_id, vmid, port, ticket, user_id, session_hash, api_token_id`, auth.HashSecret(tok), time.Now()).
+		Scan(&t.serverID, &t.projectID, &t.vmid, &t.port, &t.ticket, &userID, &t.who.SessionHash, &tokenID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return redeemed{}, false, nil
 	}
+	t.who.UserID, t.who.TokenID = userID.Int64, tokenID.Int64
 	return t, err == nil, err
+}
+
+// allowed reports whether who may still use a console in projectID; it fails open on database errors.
+func (s *Service) allowed(ctx context.Context, projectID int64, who Principal) bool {
+	ctx, cancel := context.WithTimeout(ctx, dialTimeout)
+	defer cancel()
+	var ok bool
+	var err error
+	if who.TokenID != 0 {
+		ok, err = s.o.Ent.APIToken.Query().Where(apitoken.ID(who.TokenID), apitoken.ProjectID(projectID),
+			apitoken.Permission(auth.PermReadWrite)).Exist(ctx)
+	} else {
+		ok, err = s.o.Ent.ProjectMember.Query().Where(projectmember.ProjectID(projectID), projectmember.UserID(who.UserID),
+			projectmember.RoleNEQ(projects.RoleReadOnly)).Exist(ctx)
+		if err == nil && ok {
+			ok, err = s.o.Ent.Session.Query().Where(session.ID(who.SessionHash), session.UserID(who.UserID),
+				session.ExpiresAtGT(time.Now())).Exist(ctx)
+		}
+	}
+	if err != nil {
+		s.o.Logger.Warn("console: recheck access", "err", err)
+		return true
+	}
+	return ok
 }
 
 // originOK allows no Origin (non-browser clients) or exactly the panel's own origin.
@@ -265,7 +321,7 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request, tok string) {
 		up.CloseNow()
 		return
 	}
-	s.pipe(browser, up)
+	s.pipe(browser, up, func(ctx context.Context) bool { return s.allowed(ctx, t.projectID, t.who) })
 }
 
 // ownedNode is the node of row's VM if it still carries row's tags.
@@ -315,8 +371,8 @@ func copyFrames(ctx context.Context, dst, src *websocket.Conn, last *atomic.Int6
 	}
 }
 
-// pipe copies frames both ways until a side closes, the session limit or the idle timeout.
-func (s *Service) pipe(browser, up *websocket.Conn) {
+// pipe copies frames both ways until a side closes, the session limit, the idle timeout or allowed turns false.
+func (s *Service) pipe(browser, up *websocket.Conn, allowed func(context.Context) bool) {
 	browser.SetReadLimit(MaxBrowserMessage)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -330,6 +386,8 @@ func (s *Service) pipe(browser, up *websocket.Conn) {
 	defer limit.Stop()
 	tick := time.NewTicker(min(s.o.IdleTimeout/4, time.Minute))
 	defer tick.Stop()
+	recheck := time.NewTicker(s.o.Recheck)
+	defer recheck.Stop()
 	for {
 		select {
 		case err := <-done:
@@ -342,6 +400,13 @@ func (s *Service) pipe(browser, up *websocket.Conn) {
 			<-done
 			<-done
 			return
+		case <-recheck.C:
+			if allowed != nil && !allowed(ctx) {
+				closeBoth(browser, up, websocket.StatusPolicyViolation, "access revoked")
+				<-done
+				<-done
+				return
+			}
 		case <-tick.C:
 			if time.Since(time.Unix(0, last.Load())) >= s.o.IdleTimeout {
 				closeBoth(browser, up, websocket.StatusPolicyViolation, "idle timeout")

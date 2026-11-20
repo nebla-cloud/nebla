@@ -64,6 +64,8 @@ type Deps struct {
 	APILimiter *ratelimit.Limiter
 	// Passkeys defaults to a service over the API's auth service and Config.PasskeyOrigin.
 	Passkeys *auth.Passkeys
+	// ConsoleRecheck overrides how often open consoles re-check access (tests).
+	ConsoleRecheck time.Duration
 }
 
 type server struct {
@@ -155,7 +157,7 @@ func New(deps Deps) http.Handler {
 		enrollLimit: ratelimit.New(rate.Every(6*time.Second), 10),
 	}
 	s.console = console.New(console.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, BaseURL: deps.Config.BaseURL,
-		Logger: log, WriteError: func(w http.ResponseWriter, err error) { s.responseError(w, nil, err) }})
+		Logger: log, WriteError: func(w http.ResponseWriter, err error) { s.responseError(w, nil, err) }, Recheck: deps.ConsoleRecheck})
 	strict := apigen.NewStrictHandlerWithOptions(s, []apigen.StrictMiddlewareFunc{s.authMiddleware}, apigen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  requestError,
 		ResponseErrorHandlerFunc: s.responseError,

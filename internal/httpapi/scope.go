@@ -55,6 +55,10 @@ type Scope struct {
 	ProjectID int64
 	Role      string
 	CanWrite  bool
+	// Who the scope belongs to: TokenID for an API token, else UserID and SessionHash.
+	TokenID     int64
+	UserID      int64
+	SessionHash []byte
 }
 
 func ScopeFrom(ctx context.Context) (Scope, bool) {
@@ -81,7 +85,8 @@ func (s *server) scope(ctx context.Context, r *http.Request) (context.Context, e
 	}
 	var sc Scope
 	if p.token != nil {
-		sc = Scope{ProjectID: p.token.ProjectID, Role: RoleAPIToken, CanWrite: p.token.Permission == auth.PermReadWrite}
+		sc = Scope{ProjectID: p.token.ProjectID, Role: RoleAPIToken, CanWrite: p.token.Permission == auth.PermReadWrite,
+			TokenID: p.token.ID}
 	} else {
 		id, err := strconv.ParseInt(r.Header.Get(ProjectHeader), 10, 64)
 		if err != nil {
@@ -91,7 +96,7 @@ func (s *server) scope(ctx context.Context, r *http.Request) (context.Context, e
 		if err != nil {
 			return ctx, err
 		}
-		sc = Scope{ProjectID: id, Role: role, CanWrite: role != projects.RoleReadOnly}
+		sc = Scope{ProjectID: id, Role: role, CanWrite: role != projects.RoleReadOnly, UserID: p.user.ID, SessionHash: p.session}
 		ctx = context.WithValue(ctx, userKey, *p.user)
 	}
 	if !sc.CanWrite && r.Method != http.MethodGet && r.Method != http.MethodHead {

@@ -86,6 +86,15 @@ func (_u *ConsoleTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 			}
 		}
 	}
+	if _u.mutation.UserIDCleared() {
+		_spec.ClearField(consoletoken.FieldUserID, field.TypeInt64)
+	}
+	if _u.mutation.SessionHashCleared() {
+		_spec.ClearField(consoletoken.FieldSessionHash, field.TypeBytes)
+	}
+	if _u.mutation.APITokenIDCleared() {
+		_spec.ClearField(consoletoken.FieldAPITokenID, field.TypeInt64)
+	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -195,6 +204,15 @@ func (_u *ConsoleTokenUpdateOne) sqlSave(ctx context.Context) (_node *ConsoleTok
 				ps[i](selector)
 			}
 		}
+	}
+	if _u.mutation.UserIDCleared() {
+		_spec.ClearField(consoletoken.FieldUserID, field.TypeInt64)
+	}
+	if _u.mutation.SessionHashCleared() {
+		_spec.ClearField(consoletoken.FieldSessionHash, field.TypeBytes)
+	}
+	if _u.mutation.APITokenIDCleared() {
+		_spec.ClearField(consoletoken.FieldAPITokenID, field.TypeInt64)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	_node = &ConsoleToken{config: _u.config}

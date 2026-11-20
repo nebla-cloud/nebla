@@ -30,6 +30,12 @@ type ConsoleToken struct {
 	Port int `json:"port,omitempty"`
 	// ExpiresAt holds the value of the "expires_at" field.
 	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	// UserID holds the value of the "user_id" field.
+	UserID *int64 `json:"user_id,omitempty"`
+	// SessionHash holds the value of the "session_hash" field.
+	SessionHash *[]byte `json:"-"`
+	// APITokenID holds the value of the "api_token_id" field.
+	APITokenID *int64 `json:"api_token_id,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -63,9 +69,9 @@ func (*ConsoleToken) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case consoletoken.FieldID:
+		case consoletoken.FieldID, consoletoken.FieldSessionHash:
 			values[i] = new([]byte)
-		case consoletoken.FieldServerID, consoletoken.FieldProjectID, consoletoken.FieldVmid, consoletoken.FieldPort:
+		case consoletoken.FieldServerID, consoletoken.FieldProjectID, consoletoken.FieldVmid, consoletoken.FieldPort, consoletoken.FieldUserID, consoletoken.FieldAPITokenID:
 			values[i] = new(sql.NullInt64)
 		case consoletoken.FieldTicket:
 			values[i] = new(sql.NullString)
@@ -127,6 +133,26 @@ func (_m *ConsoleToken) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field expires_at", values[i])
 			} else if value.Valid {
 				_m.ExpiresAt = value.Time
+			}
+		case consoletoken.FieldUserID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field user_id", values[i])
+			} else if value.Valid {
+				_m.UserID = new(int64)
+				*_m.UserID = value.Int64
+			}
+		case consoletoken.FieldSessionHash:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field session_hash", values[i])
+			} else if value != nil {
+				_m.SessionHash = value
+			}
+		case consoletoken.FieldAPITokenID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field api_token_id", values[i])
+			} else if value.Valid {
+				_m.APITokenID = new(int64)
+				*_m.APITokenID = value.Int64
 			}
 		case consoletoken.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -191,6 +217,18 @@ func (_m *ConsoleToken) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("expires_at=")
 	builder.WriteString(_m.ExpiresAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	if v := _m.UserID; v != nil {
+		builder.WriteString("user_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("session_hash=<sensitive>")
+	builder.WriteString(", ")
+	if v := _m.APITokenID; v != nil {
+		builder.WriteString("api_token_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

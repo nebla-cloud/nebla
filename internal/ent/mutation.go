@@ -3797,24 +3797,29 @@ func (m *CatalogBuildMutation) ResetEdge(name string) error {
 // ConsoleTokenMutation represents an operation that mutates the ConsoleToken nodes in the graph.
 type ConsoleTokenMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *[]byte
-	project_id    *int64
-	addproject_id *int64
-	vmid          *int
-	addvmid       *int
-	ticket        *string
-	port          *int
-	addport       *int
-	expires_at    *time.Time
-	created_at    *time.Time
-	clearedFields map[string]struct{}
-	server        *int64
-	clearedserver bool
-	done          bool
-	oldValue      func(context.Context) (*ConsoleToken, error)
-	predicates    []predicate.ConsoleToken
+	op              Op
+	typ             string
+	id              *[]byte
+	project_id      *int64
+	addproject_id   *int64
+	vmid            *int
+	addvmid         *int
+	ticket          *string
+	port            *int
+	addport         *int
+	expires_at      *time.Time
+	user_id         *int64
+	adduser_id      *int64
+	session_hash    *[]byte
+	api_token_id    *int64
+	addapi_token_id *int64
+	created_at      *time.Time
+	clearedFields   map[string]struct{}
+	server          *int64
+	clearedserver   bool
+	done            bool
+	oldValue        func(context.Context) (*ConsoleToken, error)
+	predicates      []predicate.ConsoleToken
 }
 
 var _ ent.Mutation = (*ConsoleTokenMutation)(nil)
@@ -4197,6 +4202,195 @@ func (m *ConsoleTokenMutation) ResetExpiresAt() {
 	m.expires_at = nil
 }
 
+// SetUserID sets the "user_id" field.
+func (m *ConsoleTokenMutation) SetUserID(i int64) {
+	m.user_id = &i
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ConsoleTokenMutation) UserID() (r int64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldUserID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds i to the "user_id" field.
+func (m *ConsoleTokenMutation) AddUserID(i int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += i
+	} else {
+		m.adduser_id = &i
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *ConsoleTokenMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (m *ConsoleTokenMutation) ClearUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+	m.clearedFields[consoletoken.FieldUserID] = struct{}{}
+}
+
+// UserIDCleared returns if the "user_id" field was cleared in this mutation.
+func (m *ConsoleTokenMutation) UserIDCleared() bool {
+	_, ok := m.clearedFields[consoletoken.FieldUserID]
+	return ok
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ConsoleTokenMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+	delete(m.clearedFields, consoletoken.FieldUserID)
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (m *ConsoleTokenMutation) SetSessionHash(b []byte) {
+	m.session_hash = &b
+}
+
+// SessionHash returns the value of the "session_hash" field in the mutation.
+func (m *ConsoleTokenMutation) SessionHash() (r []byte, exists bool) {
+	v := m.session_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionHash returns the old "session_hash" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldSessionHash(ctx context.Context) (v *[]byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionHash: %w", err)
+	}
+	return oldValue.SessionHash, nil
+}
+
+// ClearSessionHash clears the value of the "session_hash" field.
+func (m *ConsoleTokenMutation) ClearSessionHash() {
+	m.session_hash = nil
+	m.clearedFields[consoletoken.FieldSessionHash] = struct{}{}
+}
+
+// SessionHashCleared returns if the "session_hash" field was cleared in this mutation.
+func (m *ConsoleTokenMutation) SessionHashCleared() bool {
+	_, ok := m.clearedFields[consoletoken.FieldSessionHash]
+	return ok
+}
+
+// ResetSessionHash resets all changes to the "session_hash" field.
+func (m *ConsoleTokenMutation) ResetSessionHash() {
+	m.session_hash = nil
+	delete(m.clearedFields, consoletoken.FieldSessionHash)
+}
+
+// SetAPITokenID sets the "api_token_id" field.
+func (m *ConsoleTokenMutation) SetAPITokenID(i int64) {
+	m.api_token_id = &i
+	m.addapi_token_id = nil
+}
+
+// APITokenID returns the value of the "api_token_id" field in the mutation.
+func (m *ConsoleTokenMutation) APITokenID() (r int64, exists bool) {
+	v := m.api_token_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPITokenID returns the old "api_token_id" field's value of the ConsoleToken entity.
+// If the ConsoleToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConsoleTokenMutation) OldAPITokenID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPITokenID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPITokenID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPITokenID: %w", err)
+	}
+	return oldValue.APITokenID, nil
+}
+
+// AddAPITokenID adds i to the "api_token_id" field.
+func (m *ConsoleTokenMutation) AddAPITokenID(i int64) {
+	if m.addapi_token_id != nil {
+		*m.addapi_token_id += i
+	} else {
+		m.addapi_token_id = &i
+	}
+}
+
+// AddedAPITokenID returns the value that was added to the "api_token_id" field in this mutation.
+func (m *ConsoleTokenMutation) AddedAPITokenID() (r int64, exists bool) {
+	v := m.addapi_token_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAPITokenID clears the value of the "api_token_id" field.
+func (m *ConsoleTokenMutation) ClearAPITokenID() {
+	m.api_token_id = nil
+	m.addapi_token_id = nil
+	m.clearedFields[consoletoken.FieldAPITokenID] = struct{}{}
+}
+
+// APITokenIDCleared returns if the "api_token_id" field was cleared in this mutation.
+func (m *ConsoleTokenMutation) APITokenIDCleared() bool {
+	_, ok := m.clearedFields[consoletoken.FieldAPITokenID]
+	return ok
+}
+
+// ResetAPITokenID resets all changes to the "api_token_id" field.
+func (m *ConsoleTokenMutation) ResetAPITokenID() {
+	m.api_token_id = nil
+	m.addapi_token_id = nil
+	delete(m.clearedFields, consoletoken.FieldAPITokenID)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ConsoleTokenMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -4294,7 +4488,7 @@ func (m *ConsoleTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ConsoleTokenMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 10)
 	if m.server != nil {
 		fields = append(fields, consoletoken.FieldServerID)
 	}
@@ -4312,6 +4506,15 @@ func (m *ConsoleTokenMutation) Fields() []string {
 	}
 	if m.expires_at != nil {
 		fields = append(fields, consoletoken.FieldExpiresAt)
+	}
+	if m.user_id != nil {
+		fields = append(fields, consoletoken.FieldUserID)
+	}
+	if m.session_hash != nil {
+		fields = append(fields, consoletoken.FieldSessionHash)
+	}
+	if m.api_token_id != nil {
+		fields = append(fields, consoletoken.FieldAPITokenID)
 	}
 	if m.created_at != nil {
 		fields = append(fields, consoletoken.FieldCreatedAt)
@@ -4336,6 +4539,12 @@ func (m *ConsoleTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.Port()
 	case consoletoken.FieldExpiresAt:
 		return m.ExpiresAt()
+	case consoletoken.FieldUserID:
+		return m.UserID()
+	case consoletoken.FieldSessionHash:
+		return m.SessionHash()
+	case consoletoken.FieldAPITokenID:
+		return m.APITokenID()
 	case consoletoken.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -4359,6 +4568,12 @@ func (m *ConsoleTokenMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldPort(ctx)
 	case consoletoken.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
+	case consoletoken.FieldUserID:
+		return m.OldUserID(ctx)
+	case consoletoken.FieldSessionHash:
+		return m.OldSessionHash(ctx)
+	case consoletoken.FieldAPITokenID:
+		return m.OldAPITokenID(ctx)
 	case consoletoken.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -4412,6 +4627,27 @@ func (m *ConsoleTokenMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetExpiresAt(v)
 		return nil
+	case consoletoken.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case consoletoken.FieldSessionHash:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionHash(v)
+		return nil
+	case consoletoken.FieldAPITokenID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPITokenID(v)
+		return nil
 	case consoletoken.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -4436,6 +4672,12 @@ func (m *ConsoleTokenMutation) AddedFields() []string {
 	if m.addport != nil {
 		fields = append(fields, consoletoken.FieldPort)
 	}
+	if m.adduser_id != nil {
+		fields = append(fields, consoletoken.FieldUserID)
+	}
+	if m.addapi_token_id != nil {
+		fields = append(fields, consoletoken.FieldAPITokenID)
+	}
 	return fields
 }
 
@@ -4450,6 +4692,10 @@ func (m *ConsoleTokenMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedVmid()
 	case consoletoken.FieldPort:
 		return m.AddedPort()
+	case consoletoken.FieldUserID:
+		return m.AddedUserID()
+	case consoletoken.FieldAPITokenID:
+		return m.AddedAPITokenID()
 	}
 	return nil, false
 }
@@ -4480,6 +4726,20 @@ func (m *ConsoleTokenMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddPort(v)
 		return nil
+	case consoletoken.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case consoletoken.FieldAPITokenID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAPITokenID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown ConsoleToken numeric field %s", name)
 }
@@ -4487,7 +4747,17 @@ func (m *ConsoleTokenMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *ConsoleTokenMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(consoletoken.FieldUserID) {
+		fields = append(fields, consoletoken.FieldUserID)
+	}
+	if m.FieldCleared(consoletoken.FieldSessionHash) {
+		fields = append(fields, consoletoken.FieldSessionHash)
+	}
+	if m.FieldCleared(consoletoken.FieldAPITokenID) {
+		fields = append(fields, consoletoken.FieldAPITokenID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -4500,6 +4770,17 @@ func (m *ConsoleTokenMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *ConsoleTokenMutation) ClearField(name string) error {
+	switch name {
+	case consoletoken.FieldUserID:
+		m.ClearUserID()
+		return nil
+	case consoletoken.FieldSessionHash:
+		m.ClearSessionHash()
+		return nil
+	case consoletoken.FieldAPITokenID:
+		m.ClearAPITokenID()
+		return nil
+	}
 	return fmt.Errorf("unknown ConsoleToken nullable field %s", name)
 }
 
@@ -4524,6 +4805,15 @@ func (m *ConsoleTokenMutation) ResetField(name string) error {
 		return nil
 	case consoletoken.FieldExpiresAt:
 		m.ResetExpiresAt()
+		return nil
+	case consoletoken.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case consoletoken.FieldSessionHash:
+		m.ResetSessionHash()
+		return nil
+	case consoletoken.FieldAPITokenID:
+		m.ResetAPITokenID()
 		return nil
 	case consoletoken.FieldCreatedAt:
 		m.ResetCreatedAt()

@@ -60,6 +60,40 @@ func (_c *ConsoleTokenCreate) SetExpiresAt(v time.Time) *ConsoleTokenCreate {
 	return _c
 }
 
+// SetUserID sets the "user_id" field.
+func (_c *ConsoleTokenCreate) SetUserID(v int64) *ConsoleTokenCreate {
+	_c.mutation.SetUserID(v)
+	return _c
+}
+
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (_c *ConsoleTokenCreate) SetNillableUserID(v *int64) *ConsoleTokenCreate {
+	if v != nil {
+		_c.SetUserID(*v)
+	}
+	return _c
+}
+
+// SetSessionHash sets the "session_hash" field.
+func (_c *ConsoleTokenCreate) SetSessionHash(v []byte) *ConsoleTokenCreate {
+	_c.mutation.SetSessionHash(v)
+	return _c
+}
+
+// SetAPITokenID sets the "api_token_id" field.
+func (_c *ConsoleTokenCreate) SetAPITokenID(v int64) *ConsoleTokenCreate {
+	_c.mutation.SetAPITokenID(v)
+	return _c
+}
+
+// SetNillableAPITokenID sets the "api_token_id" field if the given value is not nil.
+func (_c *ConsoleTokenCreate) SetNillableAPITokenID(v *int64) *ConsoleTokenCreate {
+	if v != nil {
+		_c.SetAPITokenID(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ConsoleTokenCreate) SetCreatedAt(v time.Time) *ConsoleTokenCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -205,6 +239,18 @@ func (_c *ConsoleTokenCreate) createSpec() (*ConsoleToken, *sqlgraph.CreateSpec)
 		_spec.SetField(consoletoken.FieldExpiresAt, field.TypeTime, value)
 		_node.ExpiresAt = value
 	}
+	if value, ok := _c.mutation.UserID(); ok {
+		_spec.SetField(consoletoken.FieldUserID, field.TypeInt64, value)
+		_node.UserID = &value
+	}
+	if value, ok := _c.mutation.SessionHash(); ok {
+		_spec.SetField(consoletoken.FieldSessionHash, field.TypeBytes, value)
+		_node.SessionHash = &value
+	}
+	if value, ok := _c.mutation.APITokenID(); ok {
+		_spec.SetField(consoletoken.FieldAPITokenID, field.TypeInt64, value)
+		_node.APITokenID = &value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(consoletoken.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -312,6 +358,15 @@ func (u *ConsoleTokenUpsertOne) UpdateNewValues() *ConsoleTokenUpsertOne {
 		}
 		if _, exists := u.create.mutation.ExpiresAt(); exists {
 			s.SetIgnore(consoletoken.FieldExpiresAt)
+		}
+		if _, exists := u.create.mutation.UserID(); exists {
+			s.SetIgnore(consoletoken.FieldUserID)
+		}
+		if _, exists := u.create.mutation.SessionHash(); exists {
+			s.SetIgnore(consoletoken.FieldSessionHash)
+		}
+		if _, exists := u.create.mutation.APITokenID(); exists {
+			s.SetIgnore(consoletoken.FieldAPITokenID)
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(consoletoken.FieldCreatedAt)
@@ -547,6 +602,15 @@ func (u *ConsoleTokenUpsertBulk) UpdateNewValues() *ConsoleTokenUpsertBulk {
 			}
 			if _, exists := b.mutation.ExpiresAt(); exists {
 				s.SetIgnore(consoletoken.FieldExpiresAt)
+			}
+			if _, exists := b.mutation.UserID(); exists {
+				s.SetIgnore(consoletoken.FieldUserID)
+			}
+			if _, exists := b.mutation.SessionHash(); exists {
+				s.SetIgnore(consoletoken.FieldSessionHash)
+			}
+			if _, exists := b.mutation.APITokenID(); exists {
+				s.SetIgnore(consoletoken.FieldAPITokenID)
 			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(consoletoken.FieldCreatedAt)
