@@ -7,10 +7,11 @@ import {
   type RouterHistory,
 } from 'vue-router'
 import { redirectOnUnauthorized, setProjectId } from '@/api/client'
+import { panelReady } from '@/features/admin/getready/checklist'
 import { queryClient } from '@/lib/queryClient'
 import { setMe } from '@/lib/session'
-import { installGuards, notFound } from './guards'
-import { navItems, type Side } from './nav'
+import { installGuards } from './guards'
+import type { Side } from './nav'
 
 interface RouteModule {
   default: RouteRecordRaw[]
@@ -52,10 +53,10 @@ export function createAppRouter(history: RouterHistory = createWebHistory()): Ro
             path: '',
             name: 'admin-home',
             component: Empty,
-            beforeEnter: (to) => {
-              const first = navItems(router, 'admin')[0]
-              return first ? { name: first.name } : notFound(to)
-            },
+            beforeEnter: async () =>
+              (await panelReady(queryClient)) === false
+                ? { name: 'admin-get-ready' }
+                : { name: 'admin-locations' },
           },
           ...bySide('admin'),
         ],
