@@ -239,6 +239,11 @@ func spaHandler(dist fs.FS, placeholder []byte) http.Handler {
 				}
 			}
 		}
+		if strings.HasPrefix(name, "assets/") {
+			// A stale hashed chunk must not be answered with the index.
+			notFound(w, r)
+			return
+		}
 		w.Header().Set("Cache-Control", "no-cache")
 		r2 := r.Clone(r.Context())
 		r2.URL.Path = "/"
