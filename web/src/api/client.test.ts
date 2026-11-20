@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { testRouter } from '@/test/mount'
-import { api, onUnauthorized, redirectOnUnauthorized, setProjectId } from './client'
+import { parseProjectId } from '@/lib/project'
+import { api, onUnauthorized, redirectOnUnauthorized, setProjectSource } from './client'
 import { ApiError, errorMessage, unwrap } from './errors'
 
 describe('api client', () => {
-  it('adds Project-ID when set', async () => {
+  it('sends the Project-ID of the current route at request time', async () => {
     const seen: (string | null)[] = []
     server.use(
       http.get('*/v1/servers', ({ request }) => {
@@ -14,11 +15,19 @@ describe('api client', () => {
         return json(200, { data: [], meta: {} })
       }),
     )
-    setProjectId(7)
+    const router = testRouter([
+      { path: '/p/:projectId/servers', name: 'servers', component: { render: () => null } },
+      { path: '/projects', name: 'projects', component: { render: () => null } },
+    ])
+    setProjectSource(() => parseProjectId(router.currentRoute.value.params.projectId))
+    await router.push('/p/7/servers')
     await api.GET('/servers')
-    setProjectId(null)
+    await router.push('/p/8/servers')
     await api.GET('/servers')
-    expect(seen).toEqual(['7', null])
+    await router.push('/projects')
+    await api.GET('/servers')
+    setProjectSource(null)
+    expect(seen).toEqual(['7', '8', null])
   })
 
   it('calls onUnauthorized on 401 except from /me', async () => {

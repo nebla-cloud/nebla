@@ -6,11 +6,13 @@ import {
   type Router,
   type RouterHistory,
 } from 'vue-router'
-import { redirectOnUnauthorized, setProjectId } from '@/api/client'
+import { redirectOnUnauthorized, setProjectSource } from '@/api/client'
 import { panelReady } from '@/features/admin/getready/checklist'
+import { parseProjectId } from '@/lib/project'
 import { queryClient } from '@/lib/queryClient'
 import { setMe } from '@/lib/session'
 import { installGuards } from './guards'
+import { handleLoadErrors } from './loadError'
 import type { Side } from './nav'
 
 interface RouteModule {
@@ -28,7 +30,10 @@ function bySide(side: Side): RouteRecordRaw[] {
     .flatMap((m) => m.default)
 }
 
-export function createAppRouter(history: RouterHistory = createWebHistory()): Router {
+export function createAppRouter(
+  history: RouterHistory = createWebHistory(),
+  reload: (url: string) => void = (url) => window.location.assign(url),
+): Router {
   const router = createRouter({
     history,
     routes: [
@@ -70,10 +75,11 @@ export function createAppRouter(history: RouterHistory = createWebHistory()): Ro
     ],
     scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
   })
+  setProjectSource(() => parseProjectId(router.currentRoute.value.params.projectId))
+  handleLoadErrors(router, reload)
   installGuards(router)
   redirectOnUnauthorized(router, () => {
     setMe(null)
-    setProjectId(null)
     queryClient.clear()
   })
   return router

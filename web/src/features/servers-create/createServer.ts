@@ -63,11 +63,21 @@ export function availableTypes(
     }))
 }
 
+export const noAddresses = (name: string) =>
+  `No free addresses in ${name}. Ask your Nebla admin to add an IP pool.`
+export const PICK_FAMILY = 'Pick IPv4 or IPv6 so the server can be reached.'
+
 export function networkChoice(loc: Location): { ipv4: string | null; ipv6: string | null } {
   return {
     ipv4: loc.networks.ipv4 ? null : `No free IPv4 addresses in ${loc.name}`,
     ipv6: loc.networks.ipv6 ? null : `No free IPv6 addresses in ${loc.name}`,
   }
+}
+
+// A location with one free family starts with that family picked.
+export function pickFamilies(form: CreateForm, loc: Location): CreateForm {
+  const { ipv4, ipv6 } = loc.networks
+  return ipv4 !== ipv6 ? { ...form, ipv4, ipv6 } : form
 }
 
 // Mirrors projects.ReserveQuota: a max of 0 is unlimited and only growing dimensions are checked.
@@ -129,11 +139,13 @@ export function createBlocker(
   ctx: CreateContext,
   opts: { quotaOk: boolean; existing: string[] },
 ): string | null {
+  const loc = ctx.locations.find((l) => l.id === form.locationId)
+  if (!loc) return 'Pick a location.'
+  if (!loc.networks.ipv4 && !loc.networks.ipv6) return noAddresses(loc.name)
   const checked = reconcile(form, ctx)
-  if (form.locationId === null || !ctx.locations.some((l) => l.id === form.locationId))
-    return 'Pick a location.'
   if (checked.imageId === null) return 'Pick an image.'
   if (checked.typeId === null) return 'Pick a type.'
+  if (!checked.ipv4 && !checked.ipv6) return PICK_FAMILY
   const name = form.name.trim()
   if (!name) return 'Give the server a name.'
   if (!NAME_PATTERN.test(name))

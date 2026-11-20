@@ -1,7 +1,6 @@
 import { computed, watch, type ComputedRef, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
-import { setProjectId } from '@/api/client'
 import type { Project } from '@/api/types'
 import { projectQuery } from '@/features/projects/queries'
 import { readStorage, writeStorage } from './storage'
@@ -31,9 +30,7 @@ export function useCurrentProject(): {
   watch(
     projectId,
     (id) => {
-      if (!id) return
-      setProjectId(id)
-      writeLastProject(id)
+      if (id) writeLastProject(id)
     },
     { immediate: true },
   )
