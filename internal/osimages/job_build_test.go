@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,10 +15,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hexeption/nebla/internal/actions"
+	"github.com/Hexeption/nebla/internal/catalog"
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
+	"github.com/Hexeption/nebla/internal/httpapi"
 	"github.com/Hexeption/nebla/internal/osimages"
 	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/Hexeption/nebla/internal/servers"
@@ -99,9 +104,9 @@ func importVolume(r *ent.CatalogBuild, storage string) string {
 }
 
 func (e *env) setSum(dir, sum string) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.sums[dir] = sum
+	e.up.mu.Lock()
+	defer e.up.mu.Unlock()
+	e.up.sums[dir] = sum
 }
 
 func TestBuildHappyPathShared(t *testing.T) {
@@ -608,4 +613,46 @@ func TestWaitBudgetClampedToDeadline(t *testing.T) {
 	ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel3()
 	require.InDelta(t, float64(4*time.Minute+30*time.Second), float64(osimages.BudgetFor(ctx3)), float64(time.Second))
+}
+
+func TestFinalizeWaitsForTemplateFlag(t *testing.T) {
+	ctx := context.Background()
+	up := newUpstream(t)
+	var svc *osimages.Service
+	app := testutil.NewAppWithWorkers(t, testutil.ServerWorkers, func(d *httpapi.Deps) {
+		d.Catalog = catalog.New(d.SQL, d.Ent, testutil.CatalogOptions(catalog.Hooks{}))
+		svc = osimages.New(osimages.Options{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Entries: up.entries, HTTP: up.client,
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		d.OSImages = svc
+	})
+	se := testutil.NewServerEnv(app)
+	for _, n := range []string{"pve1", "pve2"} {
+		app.PVE.AddStorage(n, "imp", []string{"import"}, false)
+	}
+	require.NoError(t, app.Ent.Location.UpdateOneID(se.Location).SetImportStorage("imp").Exec(ctx))
+	app.PVE.SetTemplateListDelay(1500 * time.Millisecond)
+
+	_, err := svc.Enable(ctx, "debian-13", se.Location)
+	require.NoError(t, err)
+	row, err := app.Ent.CatalogBuild.Query().Where(catalogbuild.CatalogKey("debian-13")).Only(ctx)
+	require.NoError(t, err)
+	e := &env{t: t, ent: app.Ent}
+	r := e.waitSettled(row.ID)
+	requireReady(t, r)
+
+	pc, err := app.Catalog.ProxmoxFor(ctx, se.Location)
+	require.NoError(t, err)
+	vms, err := pc.VMs(ctx)
+	require.NoError(t, err)
+	listed := false
+	for _, v := range vms {
+		if v.VMID == *r.Vmid {
+			listed = v.Template
+		}
+	}
+	require.True(t, listed, "ready before Proxmox listed the template")
+
+	s := se.CreateServer("web", map[string]any{"image": "debian-13"})
+	a := testutil.WaitAction(t, app.Ent, s.ActionID)
+	require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
 }

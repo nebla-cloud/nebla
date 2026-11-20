@@ -52,6 +52,7 @@ const (
 	// cleanupPending prefixes a job error whose failure cleanup must run again.
 	cleanupPending = "nebla: cleanup pending: "
 	lockPoll       = 250 * time.Millisecond
+	listPoll       = time.Second
 	maxAllocations = 5
 )
 
@@ -490,7 +491,40 @@ func (b *build) template(ctx context.Context) error {
 			return err
 		}
 	}
+	if err := b.awaitListed(ctx); err != nil {
+		return err
+	}
 	return b.save(ctx, func(u *ent.CatalogBuildUpdate) { u.SetStep(stepTemplate).ClearUpid() })
+}
+
+// awaitListed waits until the cluster listing shows new_vmid as a template with this build's tag; server builds read that flag.
+func (b *build) awaitListed(ctx context.Context) error {
+	vmid, tag := *b.row.NewVmid, b.tag(*b.row.NewNonce)
+	deadline := time.Now().Add(budgetFor(ctx))
+	for {
+		v, found, err := findVM(ctx, b.pc, vmid)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return permanent("the new VM %d is gone", vmid)
+		}
+		if !hasTag(v.Tags, tag) {
+			return permanent("VM %d does not carry this build's tag", vmid)
+		}
+		if v.Template {
+			return nil
+		}
+		if !time.Now().Add(listPoll).Before(deadline) {
+			b.log.Info("template not listed yet; snoozing", "vmid", vmid)
+			return river.JobSnooze(snoozeFor)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(listPoll):
+		}
+	}
 }
 
 // finalize registers the template and swaps it in, in one transaction, and retires the previous one.
