@@ -269,6 +269,19 @@ func (s *Server) SetTaskDelay(d time.Duration) {
 	s.delay = d
 }
 
+// FinishTasks finishes every running task now, in start order.
+func (s *Server) FinishTasks() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	s.sweepAt(now.Add(1 << 62))
+	for _, tk := range s.tasks {
+		if tk.ready.After(now) {
+			tk.ready = now
+		}
+	}
+}
+
 // SetDown makes every request fail with 503 until it is set back.
 func (s *Server) SetDown(down bool) {
 	s.mu.Lock()

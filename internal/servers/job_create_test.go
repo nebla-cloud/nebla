@@ -96,6 +96,17 @@ func countCalls(e *testutil.ServerEnv, call string) int {
 	return n
 }
 
+// taskPolls counts task status requests.
+func taskPolls(e *testutil.ServerEnv) int {
+	n := 0
+	for _, c := range e.App.PVE.Calls() {
+		if strings.HasPrefix(c, "GET ") && strings.Contains(c, "/tasks/") && strings.HasSuffix(c, "/status") {
+			n++
+		}
+	}
+	return n
+}
+
 func isoVolid(id int64) string { return fmt.Sprintf("local:iso/nb-srv-%d-1.iso", id) }
 
 func TestCreateServerHappyPath(t *testing.T) {
@@ -251,23 +262,27 @@ func vmCount(t *testing.T, e *testutil.ServerEnv) int {
 	return n
 }
 
-// crashMidClone cancels Work while a delayed clone task is still running.
+// crashMidClone cancels Work once the clone upid is saved; the clone task keeps running until FinishTasks.
 func crashMidClone(t *testing.T, e *testutil.ServerEnv, w *servers.CreateServerWorker, s testutil.CreatedServer, attempt int) int {
 	t.Helper()
 	ctx := context.Background()
-	e.App.PVE.SetTaskDelay(500 * time.Millisecond)
+	e.App.PVE.SetTaskDelay(time.Hour)
 	crashCtx, crash := context.WithCancel(ctx)
 	defer crash()
-	servers.SetAfterStep(w, func(step int) {
-		if step == 1 {
-			go func() { time.Sleep(100 * time.Millisecond); crash() }()
+	go func() {
+		defer crash()
+		for crashCtx.Err() == nil {
+			row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+			if err != nil || row.CloneUpid != nil {
+				return
+			}
+			time.Sleep(testTick)
 		}
-	})
+	}()
 	err := w.Work(crashCtx, job(s, attempt))
 	require.Error(t, err)
 	var cancel *river.JobCancelError
 	require.False(t, errors.As(err, &cancel), "%v", err)
-	servers.SetAfterStep(w, nil)
 	e.App.PVE.SetTaskDelay(0)
 	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
 	require.NoError(t, err)
@@ -286,8 +301,18 @@ func TestCreateServerResumesAfterCrashMidClone(t *testing.T) {
 	s := e.CreateServer("web", nil)
 	vmid := crashMidClone(t, e, w, s, 1)
 
-	// Resumes while the clone task is still running.
-	require.NoError(t, w.Work(ctx, job(s, 2)))
+	// Resumes while the clone task is still running, then sees it finish.
+	polls := taskPolls(e)
+	done := make(chan error, 1)
+	go func() { done <- w.Work(ctx, job(s, 2)) }()
+	require.Eventually(t, func() bool { return taskPolls(e) > polls }, testWait, testTick)
+	e.App.PVE.FinishTasks()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(testWait):
+		t.Fatal("resumed Work did not finish after the clone task did")
+	}
 	require.Equal(t, 1, vmCount(t, e), "exactly one VM")
 	require.Equal(t, 1, countCalls(e, "GET /cluster/nextid"))
 	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"), "no second clone")
@@ -305,7 +330,6 @@ func TestCreateServerLockedVMIDIsTransient(t *testing.T) {
 	e, w := directEnv(t)
 	s := e.CreateServer("web", nil)
 	crashMidClone(t, e, w, s, 1)
-	e.App.PVE.SetTaskDelay(time.Hour)
 	// Without the saved upid, a locked VM at our vmid is retried, never a collision.
 	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).ClearCloneUpid().Exec(ctx))
 	err := w.Work(ctx, job(s, 2))
@@ -339,8 +363,8 @@ func TestCreateServerCleanupAfterCap(t *testing.T) {
 	ctx := context.Background()
 	e, w := directEnv(t)
 	s := e.CreateServer("web", nil)
-	vmid := crashMidClone(t, e, w, s, servers.MaxAttempts)
-	require.Eventually(t, func() bool { v, _ := e.App.PVE.VM(vmid); return v.Name != "" }, testWait, testTick)
+	crashMidClone(t, e, w, s, servers.MaxAttempts)
+	e.App.PVE.FinishTasks()
 
 	// The spare attempt after the cap only cleans up, proving the untagged clone by its upid.
 	err := w.Work(ctx, job(s, servers.MaxAttempts+1))
