@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/catalog"
@@ -554,4 +555,34 @@ func TestListRetiredKey(t *testing.T) {
 
 func TestTemplateTag(t *testing.T) {
 	require.Equal(t, "nebla-tpl-42-abc", osimages.TemplateTag(42, "abc"))
+}
+
+func TestDisableTakesFinalizeLock(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "local-lvm", "imp")
+	e.readyWithImage(loc)
+	tx, err := e.sql.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtext('osimages:' || $1))`, "debian-13")
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := e.svc.Disable(ctx, "debian-13", loc)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("disable did not wait for the lock: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	require.NoError(t, tx.Rollback())
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("disable still blocked after the lock was released")
+	}
 }

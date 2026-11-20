@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -60,6 +61,8 @@ var (
 	// waitBudget bounds one task wait; past it the job snoozes and resumes on the saved UPID.
 	waitBudget = 10 * time.Minute
 	snoozeFor  = 30 * time.Second
+	// lockedForeignLimit is how long a locked untagged VM at new_vmid may block the build before it counts as foreign.
+	lockedForeignLimit = time.Hour
 )
 
 // errStale means the row is no longer building under this job.
@@ -446,6 +449,9 @@ func (b *build) claim(ctx context.Context) (bool, error) {
 		case !ours && cfg["tags"] != "":
 			return false, nil
 		case time.Now().After(deadline):
+			if !ours && b.lockedTooLong(ctx, vmid) {
+				return false, nil
+			}
 			// Locked and ours or untagged: it may be our create, so keep new_vmid and come back.
 			return false, river.JobSnooze(snoozeFor)
 		}
@@ -455,6 +461,26 @@ func (b *build) claim(ctx context.Context) (bool, error) {
 		case <-time.After(lockPoll):
 		}
 	}
+}
+
+const lockedKey = "nebla_locked_untagged"
+
+type lockedSeen struct {
+	VMID  int       `json:"vmid"`
+	Since time.Time `json:"since"`
+}
+
+// lockedTooLong reports whether vmid has been locked and untagged past lockedForeignLimit, noting when it was first seen.
+func (b *build) lockedTooLong(ctx context.Context, vmid int) bool {
+	var m map[string]json.RawMessage
+	var seen lockedSeen
+	if json.Unmarshal(b.job.Metadata, &m) == nil && json.Unmarshal(m[lockedKey], &seen) == nil && seen.VMID == vmid {
+		return time.Since(seen.Since) > lockedForeignLimit
+	}
+	if err := river.MetadataSet(ctx, lockedKey, lockedSeen{VMID: vmid, Since: time.Now()}); err != nil {
+		b.log.Warn("could not record locked vmid", "vmid", vmid, "err", err)
+	}
+	return false
 }
 
 func (b *build) template(ctx context.Context) error {
@@ -568,7 +594,7 @@ func (b *build) finalize(ctx context.Context) error {
 			b.log.Warn("previous template has no nonce; not retiring it", "vmid", *row.Vmid)
 		default:
 			args := RetireArgs{LocationID: row.LocationID, Node: row.Node, VMID: *row.Vmid, Tag: templateTag(row.ID, *row.Nonce)}
-			if _, err := j.InsertTx(ctx, tx, args, nil); err != nil {
+			if _, err := j.InsertTx(ctx, tx, args, retireOpts()); err != nil {
 				return err
 			}
 		}
@@ -712,7 +738,7 @@ func (e *stepError) Unwrap() error { return e.err }
 
 var urlPattern = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^\s'"]+`)
 
-const downloadForbidden = "permission denied; the API token needs Datastore.AllocateTemplate on the import storage and Sys.AccessNetwork on the node"
+const downloadForbidden = "permission denied; the API token needs Datastore.AllocateTemplate and Datastore.Allocate on the import storage and Sys.AccessNetwork on the node"
 
 // failure is the row's error code and a message free of URLs and Proxmox transport details.
 func failure(err error) (code, msg string) {

@@ -42,3 +42,17 @@ const CleanupPending = cleanupPending
 var BudgetFor = budgetFor
 
 func NewRetireWorker(s *Service) *RetireWorker { return &RetireWorker{s: s} }
+
+// SetRetireDelay overrides retireDelay and returns a restore func.
+func SetRetireDelay(d time.Duration) func() {
+	old := retireDelay
+	retireDelay = d
+	return func() { retireDelay = old }
+}
+
+// SetLockedForeignLimit overrides lockedForeignLimit and returns a restore func.
+func SetLockedForeignLimit(d time.Duration) func() {
+	old := lockedForeignLimit
+	lockedForeignLimit = d
+	return func() { lockedForeignLimit = old }
+}
