@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import UButton from '@nuxt/ui/components/Button.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { ApiError, errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
@@ -39,21 +38,9 @@ async function remove(takeOver: boolean) {
     v-model:open="open"
     :name="user?.email ?? ''"
     title="Delete this user?"
-    confirm-label="Delete user"
+    :confirm-label="soleOwner ? 'Make me the owner and delete' : 'Delete user'"
     :loading="del.isPending.value"
     :error="error"
-    @confirm="remove(false)"
-  >
-    <template #actions>
-      <UButton
-        v-if="soleOwner"
-        color="error"
-        variant="outline"
-        :loading="del.isPending.value"
-        @click="remove(true)"
-      >
-        Make me the owner and delete
-      </UButton>
-    </template>
-  </ConfirmByName>
+    @confirm="remove(soleOwner)"
+  />
 </template>

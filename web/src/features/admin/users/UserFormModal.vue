@@ -26,7 +26,8 @@ const formError = ref<string | null>(null)
 
 const isSelf = computed(() => props.user !== undefined && props.user.id === me.value?.id)
 const emailChanged = computed(
-  () => props.user !== undefined && email.value.trim() !== props.user.email,
+  () =>
+    props.user !== undefined && email.value.trim().toLowerCase() !== props.user.email.toLowerCase(),
 )
 const pending = computed(() => create.isPending.value || update.isPending.value)
 

@@ -8,6 +8,7 @@ import AdminPager from '@/components/AdminPager.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ActionList from '@/features/activity/ActionList.vue'
 import { useAdminProjects } from '@/features/admin/projects/queries'
+import { usePageClamp } from '@/lib/usePageClamp'
 import { PER_PAGE, useAdminActions, type AdminStatus } from './queries'
 
 const route = useRoute()
@@ -34,6 +35,12 @@ const status = computed(() => {
 const { data, isPending, error: loadError } = useAdminActions({ page, projectId, status })
 const actions = computed(() => data.value?.actions ?? [])
 const total = computed(() => data.value?.meta.pagination.total_entries ?? 0)
+usePageClamp(
+  page,
+  computed(() => data.value?.actions.length),
+  total,
+  PER_PAGE,
+)
 
 const { data: projectsData } = useAdminProjects(ref(1))
 const projectOptions = computed(() => {

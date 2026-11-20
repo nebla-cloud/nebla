@@ -6,6 +6,7 @@ import { errorMessage } from '@/api/errors'
 import AdminPager from '@/components/AdminPager.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDate } from '@/lib/format'
+import { usePageClamp } from '@/lib/usePageClamp'
 import { PER_PAGE, useAdminProjects, type AdminProject } from './queries'
 
 const route = useRoute()
@@ -15,6 +16,12 @@ const page = computed(() => Math.max(1, Number.parseInt(String(route.query.page 
 const { data, isPending, error: loadError } = useAdminProjects(page)
 const projects = computed(() => data.value?.projects ?? [])
 const total = computed(() => data.value?.meta.pagination.total_entries ?? 0)
+usePageClamp(
+  page,
+  computed(() => data.value?.projects.length),
+  total,
+  PER_PAGE,
+)
 
 const servers = (p: AdminProject) =>
   p.quota.max_servers > 0 ? `${p.usage.servers} of ${p.quota.max_servers}` : `${p.usage.servers}`

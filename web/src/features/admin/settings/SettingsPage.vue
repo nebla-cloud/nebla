@@ -27,7 +27,10 @@ async function toggle(on: boolean) {
 
 <template>
   <div class="flex flex-col gap-6">
-    <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Settings</h1>
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Settings</h1>
+      <p class="text-sm text-muted">Panel-wide options that apply to everyone.</p>
+    </div>
 
     <UAlert
       v-if="loadError"

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { http } from 'msw'
-import type { VueWrapper } from '@vue/test-utils'
+import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { json, server } from '@/test/server'
-import { mountApp, testRouter } from '@/test/mount'
+import { mountApp, testQueryClient, testRouter } from '@/test/mount'
 import { resetSession } from '@/lib/session'
 import ProjectDetailPage from './ProjectDetailPage.vue'
 
@@ -37,7 +37,7 @@ function serve(extra: Parameters<typeof server.use> = []) {
   )
 }
 
-async function mount() {
+async function mount(queryClient = testQueryClient()) {
   const router = testRouter([
     {
       path: '/admin/projects/:projectId',
@@ -49,7 +49,7 @@ async function mount() {
   ])
   await router.push('/admin/projects/7')
   await router.isReady()
-  const m = mountApp(ProjectDetailPage, { router })
+  const m = mountApp(ProjectDetailPage, { router, queryClient })
   wrappers.push(m.wrapper)
   return m
 }
@@ -125,11 +125,18 @@ describe('ProjectDetailPage', () => {
 
   it('keeps typed limits when a refetch returns the same quota', async () => {
     serve()
-    const { wrapper, queryClient } = await mount()
+    const qc = testQueryClient()
+    // A new but equal quota object, as a refetch can hand over.
+    qc.setQueryDefaults(['admin', 'project'], { structuralSharing: false })
+    const { wrapper, queryClient } = await mount(qc)
     await ready(wrapper)
     await setValue('max_servers', '9')
+    const before = queryClient.getQueryData(['admin', 'project', 7])
     await queryClient.refetchQueries({ queryKey: ['admin', 'project'] })
-    await new Promise((r) => setTimeout(r, 20))
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryData(['admin', 'project', 7])).not.toBe(before),
+    )
+    await flushPromises()
     expect(input('max_servers').value).toBe('9')
   })
 
@@ -179,7 +186,9 @@ describe('ProjectDetailPage', () => {
   it('shows the API message on project_not_empty', async () => {
     serve([
       http.delete('*/v1/admin/projects/7', () =>
-        json(409, { error: { code: 'project_not_empty', message: 'raw' } }),
+        json(409, {
+          error: { code: 'project_not_empty', message: "Delete the project's servers first." },
+        }),
       ),
     ])
     const { wrapper } = await mount()

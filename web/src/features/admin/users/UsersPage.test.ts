@@ -95,6 +95,8 @@ describe('UsersPage', () => {
     const cells = rows[1]!.findAll('td')
     expect(cells.some((c) => c.attributes('data-col') === 'passkeys' && c.text() === '')).toBe(true)
     expect(rows[2]!.find('td[data-col="passkeys"]').text()).toContain('3')
+    // The row leaves room for the menu button pinned to its corner on phones.
+    expect(rows[0]!.classes()).toContain('pe-12')
     expect(wrapper.text()).toContain(
       "There's no email from here. Send them their password yourself.",
     )
@@ -160,5 +162,25 @@ describe('UsersPage', () => {
     await next.trigger('click')
     await vi.waitFor(() => expect(router.currentRoute.value.query.page).toBe('2'))
     await vi.waitFor(() => expect(pages).toContain('2'))
+  })
+
+  it('an empty page past the end moves back to the last page', async () => {
+    server.use(
+      http.get('*/v1/admin/users', ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page') ?? '1'
+        pages.push(page)
+        return json(200, {
+          users: page === '3' ? [] : users,
+          meta: { pagination: { page: Number(page), per_page: 50, total_entries: 100 } },
+        })
+      }),
+    )
+    const router = testRouter()
+    await router.push('/admin/users?page=3')
+    const m = mountApp(UsersPage, { router })
+    wrappers.push(m.wrapper)
+    await vi.waitFor(() => expect(router.currentRoute.value.query.page).toBe('2'))
+    await vi.waitFor(() => expect(m.wrapper.text()).toContain('bo@example.com'))
+    expect(m.wrapper.text()).not.toContain('Nobody has an account yet.')
   })
 })

@@ -23,8 +23,8 @@ export function useSaveSettings() {
       unwrap(await api.PUT('/admin/settings', { body })),
     onSuccess: async (data) => {
       qc.setQueryData(key, data)
-      // The login page reads signup_enabled from the manifest.
-      await session.refresh()
+      // The login page reads signup_enabled from the manifest; the save already worked.
+      void session.refresh().catch(() => {})
     },
   })
 }

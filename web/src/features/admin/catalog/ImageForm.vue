@@ -9,12 +9,14 @@ import { useAdminLocations } from '@/lib/adminQueries'
 import { useCatalog, useSaveImage, type AdminImage, type ImageInput } from './queries'
 
 interface Row {
+  id: number
   location: string
   node: string
   vmid: string
 }
 
 const OTHER = 'other'
+let nextId = 0
 
 const props = defineProps<{ item?: AdminImage }>()
 const emit = defineEmits<{ done: []; cancel: [] }>()
@@ -35,11 +37,12 @@ const osVersion = ref(props.item?.os_version ?? '')
 const rows = ref<Row[]>(
   props.item?.templates.length
     ? props.item.templates.map((t) => ({
+        id: nextId++,
         location: String(t.location_id),
         node: t.node ?? '',
         vmid: String(t.vmid),
       }))
-    : [{ location: '', node: '', vmid: '' }],
+    : [{ id: nextId++, location: '', node: '', vmid: '' }],
 )
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
@@ -76,7 +79,7 @@ function pickLocation(r: Row, v: string) {
 }
 
 function addRow() {
-  rows.value.push({ location: '', node: '', vmid: '' })
+  rows.value.push({ id: nextId++, location: '', node: '', vmid: '' })
 }
 
 function removeRow(i: number) {
@@ -88,19 +91,22 @@ async function submit() {
   const e: Record<string, string> = {}
   const flavorName = flavor.value.trim()
   if (!name.value.trim()) e.name = 'Give the image a name.'
-  if (!flavorName) e.os_flavor = 'Choose the OS flavor.'
+  if (!flavorName) {
+    if (otherPicked.value) e.os_flavor_other = 'Enter the OS flavor.'
+    else e.os_flavor = 'Choose the OS flavor.'
+  }
   if (!osVersion.value.trim()) e.os_version = 'Enter the OS version.'
   const templates: ImageInput['templates'] = []
   const seen = new Set<string>()
-  rows.value.forEach((r, i) => {
-    if (!r.location) e[`location-${i}`] = 'Choose a location.'
+  rows.value.forEach((r) => {
+    if (!r.location) e[`location-${r.id}`] = 'Choose a location.'
     const vmid = Number(r.vmid)
     if (r.vmid.trim() === '' || !Number.isInteger(vmid) || vmid <= 0) {
-      e[`vmid-${i}`] = 'Enter the VMID as a whole number.'
+      e[`vmid-${r.id}`] = 'Enter the VMID as a whole number.'
     }
     if (!r.location) return
     const k = `${r.location}/${r.node}`
-    if (seen.has(k)) e[`node-${i}`] = 'Each location and node can have only one template.'
+    if (seen.has(k)) e[`node-${r.id}`] = 'Each location and node can have only one template.'
     seen.add(k)
     const t: ImageInput['templates'][number] = {
       location_id: Number(r.location),
@@ -149,7 +155,12 @@ async function submit() {
         <UInput v-model="osVersion" name="os_version" autocomplete="off" class="w-full" />
       </UFormField>
     </div>
-    <UFormField v-if="otherPicked" label="Other flavor" name="os_flavor_other">
+    <UFormField
+      v-if="otherPicked"
+      label="Other flavor"
+      name="os_flavor_other"
+      :error="errors.os_flavor_other"
+    >
       <UInput v-model="flavor" name="os_flavor_other" autocomplete="off" class="w-full" />
     </UFormField>
 
@@ -157,7 +168,7 @@ async function submit() {
       <legend class="mb-1 text-sm font-medium text-highlighted">Templates</legend>
       <div
         v-for="(r, i) in rows"
-        :key="i"
+        :key="r.id"
         class="flex flex-col gap-3 rounded-lg border border-default p-3"
       >
         <div class="flex items-center justify-between gap-2">
@@ -173,7 +184,7 @@ async function submit() {
           />
         </div>
         <div class="grid gap-3 sm:grid-cols-3">
-          <UFormField label="Location" :name="`location-${i}`" :error="errors[`location-${i}`]">
+          <UFormField label="Location" :name="`location-${i}`" :error="errors[`location-${r.id}`]">
             <select
               :value="r.location"
               :name="`location-${i}`"
@@ -184,13 +195,13 @@ async function submit() {
               <option v-for="l in locations" :key="l.id" :value="String(l.id)">{{ l.name }}</option>
             </select>
           </UFormField>
-          <UFormField label="Node" :name="`node-${i}`" :error="errors[`node-${i}`]">
+          <UFormField label="Node" :name="`node-${i}`" :error="errors[`node-${r.id}`]">
             <select v-model="r.node" :name="`node-${i}`" :class="selectClass">
               <option value="">Shared storage</option>
               <option v-for="n in nodesFor(r.location)" :key="n" :value="n">{{ n }}</option>
             </select>
           </UFormField>
-          <UFormField label="VMID" :name="`vmid-${i}`" :error="errors[`vmid-${i}`]">
+          <UFormField label="VMID" :name="`vmid-${i}`" :error="errors[`vmid-${r.id}`]">
             <UInput
               v-model="r.vmid"
               :name="`vmid-${i}`"
