@@ -10,7 +10,7 @@ const product = computed(() => manifest.value?.branding.product_name || 'Nebla')
 
 <template>
   <main
-    class="aurora-glow flex overflow-x-clip min-h-dvh flex-col items-center px-4 pt-[12vh] pb-12"
+    class="flex overflow-x-clip min-h-dvh flex-col items-center px-4 pt-[12vh] pb-12"
   >
     <div class="mb-8 flex items-center gap-2.5">
       <BrandMark :size="28" />

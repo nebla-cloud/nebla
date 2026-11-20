@@ -3,6 +3,7 @@
 
 @theme static {
   --font-sans: 'Onest', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 
   --color-ink-50: #F6F8FA;
   --color-ink-100: #EDF0F3;
@@ -26,45 +27,85 @@
 
 :root {
   --ui-bg: #FBFCFD;
+  --ui-bg-elevated: #FFFFFF;
+  --ui-border: #DCE1E6;
+  --ui-text-muted: #5B6470;
   --ui-primary: var(--color-ink-950);
   /* red-500 is 3.7:1 on the light background; 700 reaches 6.2:1. */
   --ui-error: var(--ui-color-error-700);
   --ui-radius: .5rem;
-  --glow-a: var(--color-mint);
-  --glow-b: var(--color-sky);
-  --glow-c: var(--color-rose);
-  --glow-strength: 1;
+
+  --nb-sidebar: #F1F4F7;
+  --nb-soft: #F6F8FA;
+  --nb-ink-active: #262B33;
+  --nb-run: #1E9E74;
+  --nb-busy: #3A86D6;
+  --nb-err: #D9547D;
+  --nb-off: #7D8795;
+  --nb-run-bg: #E2F7EF;
+  --nb-run-fg: #14735A;
+  --nb-busy-fg: #2F6FB8;
+  --nb-ring: #DCE1E6;
+  --nb-focus: #15181D;
+  --nb-gradient: linear-gradient(120deg, #2FC795, #4C9BEA 55%, #EE6F95);
+  --nb-radius-panel: 0.875rem;
 }
 
 .dark {
   --ui-bg: #14171C;
   --ui-bg-muted: #1A1E25;
-  --ui-bg-elevated: #1F242C;
+  --ui-bg-elevated: #1A1E25;
+  --ui-border: #2A3039;
+  --ui-text: var(--color-ink-300);
+  --ui-text-muted: #98A2AE;
   --ui-primary: #F2F4F6;
   /* Restated because the unlayered :root value would otherwise win; red-400 is 6.2:1 here. */
   --ui-error: var(--ui-color-error-400);
-  --glow-a: #1E5A49;
-  --glow-b: #1F3F66;
-  --glow-c: #5A2A3B;
-  --glow-strength: 0.9;
+
+  --nb-sidebar: #101317;
+  --nb-soft: #1A1E25;
+  --nb-run: #2FC795;
+  --nb-busy: #4C9BEA;
+  --nb-err: #EE6F95;
+  --nb-off: #98A2AE;
+  --nb-run-bg: #1B3A31;
+  --nb-run-fg: #5FDDB0;
+  --nb-busy-fg: #78B4F0;
+  --nb-ring: #3A414B;
+  --nb-focus: #EDF0F3;
 }
 
-.aurora-glow {
-  position: relative;
-  isolation: isolate;
+/* Unlayered so it beats Nuxt UI's translucent focus utilities. */
+:focus-visible {
+  outline: 2px solid var(--nb-focus);
+  outline-offset: 2px;
 }
 
-.aurora-glow::before {
-  content: "";
-  position: absolute;
-  inset: -12rem -10% auto -10%;
-  height: 46rem;
-  z-index: -1;
-  pointer-events: none;
-  opacity: var(--glow-strength);
-  background:
-    radial-gradient(38% 46% at 22% 55%, var(--glow-a) 0, transparent 70%),
-    radial-gradient(34% 44% at 55% 45%, var(--glow-b) 0, transparent 70%),
-    radial-gradient(30% 42% at 86% 60%, var(--glow-c) 0, transparent 70%);
-  filter: blur(24px);
+.nb-h1 {
+  font-size: 1.625rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+@media (min-width: 40rem) {
+  .nb-h1 { font-size: 2rem; }
+}
+
+.nb-h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nb-mono {
+  font-family: var(--font-mono);
+}
+
+/* A 2px brand-gradient underline, drawn inside the element. */
+.nb-gradient-underline {
+  background-image: var(--nb-gradient);
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 2px;
 }
