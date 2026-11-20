@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/config"
-	"github.com/Hexeption/nebla/internal/httpapi"
-	"github.com/Hexeption/nebla/internal/projects"
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/config"
+	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

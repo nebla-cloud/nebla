@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/action"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
-	"github.com/Hexeption/nebla/internal/ent/schema"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/schema"
 )
 
 // ActionUpdate is the builder for updating Action entities.

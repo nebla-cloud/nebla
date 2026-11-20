@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/apitoken"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 )
 
 // APITokenUpdate is the builder for updating APIToken entities.

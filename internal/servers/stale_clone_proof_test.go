@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/actions"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/require"
 )

@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/session"
-	"github.com/Hexeption/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/session"
+	"github.com/nebla-cloud/nebla/internal/ent/user"
 )
 
 // Session is the model entity for the Session schema.

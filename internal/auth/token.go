@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 )
 
 const (

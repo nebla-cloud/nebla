@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/crypto"
+	"github.com/nebla-cloud/nebla/internal/crypto"
 	"github.com/stretchr/testify/require"
 )
 

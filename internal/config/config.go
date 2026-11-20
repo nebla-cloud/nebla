@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Hexeption/nebla/internal/projects"
-	"github.com/Hexeption/nebla/internal/realip"
+	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/realip"
 )
 
 type Config struct {

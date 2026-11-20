@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/catalog"
-	"github.com/Hexeption/nebla/internal/cloudinit"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ipam"
-	"github.com/Hexeption/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/cloudinit"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
 // VM build steps shared by create and rebuild, persisted in that job's step column.

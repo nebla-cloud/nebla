@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/sshkey"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"golang.org/x/crypto/ssh"
 )
 

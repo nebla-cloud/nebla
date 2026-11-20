@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/consoletoken"
-	"github.com/Hexeption/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
 )
 
 // ConsoleTokenCreate is the builder for creating a ConsoleToken entity.

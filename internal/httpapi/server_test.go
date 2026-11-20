@@ -9,9 +9,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/Hexeption/nebla/internal/httpapi"
-	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

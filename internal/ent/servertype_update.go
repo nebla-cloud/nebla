@@ -10,9 +10,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/location"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
-	"github.com/Hexeption/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 )
 
 // ServerTypeUpdate is the builder for updating ServerType entities.

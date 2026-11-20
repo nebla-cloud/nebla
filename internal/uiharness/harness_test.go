@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/osimages"
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 )
 
 type pveOut struct {

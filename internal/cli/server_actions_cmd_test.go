@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/cli/apiclient"
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/cli/apiclient"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 )
 
 func runningServer(t *testing.T) *harness {

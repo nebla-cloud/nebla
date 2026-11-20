@@ -10,8 +10,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
-	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 )
 
 // ProjectMemberUpdate is the builder for updating ProjectMember entities.

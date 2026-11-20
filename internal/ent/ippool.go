@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/ippool"
-	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/ippool"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 )
 
 // IPPool is the model entity for the IPPool schema.

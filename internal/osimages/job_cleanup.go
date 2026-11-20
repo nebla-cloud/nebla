@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/db"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
-	"github.com/Hexeption/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
+	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
 )
 

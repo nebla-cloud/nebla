@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/consoletoken"
-	"github.com/Hexeption/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
 )
 
 // ConsoleToken is the model entity for the ConsoleToken schema.

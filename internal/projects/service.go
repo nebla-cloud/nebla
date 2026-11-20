@@ -15,15 +15,15 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/auth"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/apitoken"
-	"github.com/Hexeption/nebla/internal/ent/invite"
-	"github.com/Hexeption/nebla/internal/ent/project"
-	"github.com/Hexeption/nebla/internal/ent/projectmember"
-	"github.com/Hexeption/nebla/internal/ent/user"
-	"github.com/Hexeption/nebla/internal/mail"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/invite"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
+	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/mail"
 )
 
 const (

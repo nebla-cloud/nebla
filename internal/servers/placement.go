@@ -3,8 +3,8 @@ package servers
 import (
 	"net/http"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/catalog"
 )
 
 // NodeLoad is a node's memory picture; Reserved is the memory of panel servers placed on it. All in bytes.

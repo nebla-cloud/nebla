@@ -3,9 +3,9 @@ package httpapi
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/catalog"
-	"github.com/Hexeption/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 )
 
 // pageParams applies the spec defaults (page 1, per_page 25, max 50).

@@ -8,7 +8,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/setting"
+	"github.com/nebla-cloud/nebla/internal/ent/setting"
 )
 
 // Setting is the model entity for the Setting schema.

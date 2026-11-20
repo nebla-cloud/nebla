@@ -1,4 +1,4 @@
-module github.com/Hexeption/nebla
+module github.com/nebla-cloud/nebla
 
 go 1.27
 

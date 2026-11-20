@@ -3,8 +3,8 @@ package httpapi
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 )
 
 func apiIPPool(p ipam.Pool) apigen.IpPool {

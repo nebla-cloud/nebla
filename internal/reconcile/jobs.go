@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/jackc/pgx/v5"
+	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/riverqueue/river"
 )
 

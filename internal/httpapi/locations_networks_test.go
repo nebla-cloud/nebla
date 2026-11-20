@@ -3,7 +3,7 @@ package httpapi_test
 import (
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

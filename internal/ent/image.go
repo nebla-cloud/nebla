@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/image"
+	"github.com/nebla-cloud/nebla/internal/ent/image"
 )
 
 // Image is the model entity for the Image schema.

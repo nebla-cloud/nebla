@@ -12,12 +12,12 @@ import (
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/db"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/ipallocation"
-	"github.com/Hexeption/nebla/internal/ent/ippool"
-	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
+	"github.com/nebla-cloud/nebla/internal/ent/ippool"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/catalog"
 )
 
 var ParseChecksums = parseChecksums

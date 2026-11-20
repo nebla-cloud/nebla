@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/cli"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/cli"
+	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/stretchr/testify/require"
 )
 

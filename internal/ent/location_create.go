@@ -11,11 +11,11 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
-	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
-	"github.com/Hexeption/nebla/internal/ent/location"
-	"github.com/Hexeption/nebla/internal/ent/node"
-	"github.com/Hexeption/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
+	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/node"
+	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 )
 
 // LocationCreate is the builder for creating a Location entity.

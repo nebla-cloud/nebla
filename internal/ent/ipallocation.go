@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/ipallocation"
-	"github.com/Hexeption/nebla/internal/ent/ippool"
+	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
+	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 )
 
 // IPAllocation is the model entity for the IPAllocation schema.

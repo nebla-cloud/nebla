@@ -11,8 +11,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Hexeption/nebla/internal/ipam"
 	"github.com/kdomanski/iso9660"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 	"go.yaml.in/yaml/v4"
 )
 

@@ -3,9 +3,9 @@ package httpapi
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/auth"
-	"github.com/Hexeption/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/projects"
 )
 
 func apiQuota(q projects.Quota) apigen.Quota {

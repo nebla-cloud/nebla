@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
-	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
-	"github.com/Hexeption/nebla/internal/ent/ippool"
-	"github.com/Hexeption/nebla/internal/ent/location"
-	"github.com/Hexeption/nebla/internal/ent/node"
-	"github.com/Hexeption/nebla/internal/ent/servertype"
-	"github.com/Hexeption/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
+	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
+	"github.com/nebla-cloud/nebla/internal/ent/ippool"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/node"
+	"github.com/nebla-cloud/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
 // NodeMissing is the status of a node Proxmox no longer reports; placement needs Enabled and status "online".

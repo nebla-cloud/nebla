@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )

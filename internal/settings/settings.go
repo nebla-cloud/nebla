@@ -5,8 +5,8 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/setting"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/setting"
 )
 
 type Store struct{ db *ent.Client }

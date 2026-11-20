@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/actions"
-	"github.com/Hexeption/nebla/internal/ent/server"
-	"github.com/Hexeption/nebla/internal/httpapi"
-	"github.com/Hexeption/nebla/internal/jobs"
-	"github.com/Hexeption/nebla/internal/pve/fake"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/pve/fake"
+	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
 )
 

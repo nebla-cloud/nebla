@@ -3,8 +3,8 @@ package httpapi
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/sshkeys"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/sshkeys"
 )
 
 func apiSSHKey(k sshkeys.Key) apigen.SshKey {

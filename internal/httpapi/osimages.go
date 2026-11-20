@@ -3,8 +3,8 @@ package httpapi
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/osimages"
 )
 
 func apiCatalogLocation(l osimages.LocationState) apigen.CatalogLocationState {

@@ -8,8 +8,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/db"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nebla-cloud/nebla/internal/db"
 )
 
 func TestIsTransient(t *testing.T) {
