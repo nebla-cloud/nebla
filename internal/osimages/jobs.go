@@ -10,14 +10,14 @@ const (
 	KindRetire = "os_template_retire"
 )
 
-// BuildArgs builds or refreshes the template for one catalog_builds row.
+// BuildArgs builds or refreshes one catalog_builds row; the worker no-ops unless the row is building with its job id.
 type BuildArgs struct {
 	BuildID int64 `json:"build_id"`
 }
 
 func (BuildArgs) Kind() string { return KindBuild }
 
-func (BuildArgs) InsertOpts() river.InsertOpts { return maintenanceOpts() }
+func (BuildArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{Queue: jobs.QueueMaintenance} }
 
 // RetireArgs destroys a catalog template VM once no server can still clone it.
 type RetireArgs struct {
@@ -29,8 +29,6 @@ type RetireArgs struct {
 
 func (RetireArgs) Kind() string { return KindRetire }
 
-func (RetireArgs) InsertOpts() river.InsertOpts { return maintenanceOpts() }
-
-func maintenanceOpts() river.InsertOpts {
+func (RetireArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{Queue: jobs.QueueMaintenance, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: jobs.LiveStates}}
 }

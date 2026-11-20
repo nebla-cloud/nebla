@@ -416,7 +416,12 @@ func (s *Service) Disable(ctx context.Context, key string, locationID int64) (Lo
 	if err != nil {
 		return LocationState{}, err
 	}
-	return s.locationState(ctx, key, loc, s.availability(ctx, loc), !inCatalog)
+	// No Proxmox probe here, so Disable answers while Proxmox is down.
+	av := availability{}
+	if loc.ImportStorage == "" {
+		av.reason = reasonNoImport
+	}
+	return s.locationState(ctx, key, loc, av, !inCatalog)
 }
 
 func (s *Service) locationState(ctx context.Context, key string, loc catalog.Location, av availability, retired bool) (LocationState, error) {
