@@ -27,6 +27,7 @@ func (Action) Fields() []ent.Field {
 		field.Int("progress").Default(0).Min(0).Max(100),
 		field.JSON("resources", []ActionResource{}),
 		field.Text("error_code").Optional().Nillable(),
+		// error_message is admin-only technical detail; members see actions.Message.
 		field.Text("error_message").Optional().Nillable(),
 		field.Time("started").Default(time.Now).Immutable().Annotations(entsql.DefaultExpr("now()")),
 		field.Time("finished").Optional().Nillable(),

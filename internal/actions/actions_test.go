@@ -60,13 +60,14 @@ func TestActionFail(t *testing.T) {
 	require.Equal(t, []actions.Resource{}, a.Resources)
 
 	require.NoError(t, actions.Progress(ctx, c, a.ID, 30))
-	require.NoError(t, actions.Fail(ctx, c, a.ID, "pve_unreachable", "Proxmox did not answer"))
+	require.NoError(t, actions.Fail(ctx, c, a.ID, actions.CodeUnreachable, "Proxmox did not answer"))
 	got, err := actions.Get(ctx, c, pid, a.ID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, got.Status)
 	require.Equal(t, 30, got.Progress)
 	require.NotNil(t, got.Finished)
-	require.Equal(t, &actions.Error{Code: "pve_unreachable", Message: "Proxmox did not answer"}, got.Error)
+	require.Equal(t, &actions.Error{Code: actions.CodeUnreachable, Message: actions.Message("start_server", actions.CodeUnreachable),
+		Detail: "Proxmox did not answer"}, got.Error)
 }
 
 func TestProgressClampsAndNeverDecreases(t *testing.T) {

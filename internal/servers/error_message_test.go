@@ -28,8 +28,8 @@ func TestActionErrorHidesProxmoxURL(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
 	require.NoError(t, err)
 	require.NotNil(t, a.Error)
-	require.Contains(t, a.Error.Message, "could not reach Proxmox")
-	require.NotContains(t, a.Error.Message, "127.0.0.1:1")
+	require.Contains(t, a.Error.Detail, "could not reach Proxmox")
+	require.NotContains(t, a.Error.Detail, "127.0.0.1:1")
 }
 
 func TestErrorMessageKeepsPVEMessages(t *testing.T) {

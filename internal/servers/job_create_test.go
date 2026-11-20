@@ -329,7 +329,7 @@ func TestCreateServerCloneTaskFails(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Contains(t, a.Error.Message, "clone template")
+	require.Contains(t, a.Error.Detail, "clone template")
 	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Zero(t, n)
@@ -351,7 +351,7 @@ func TestCreateServerCleanupAfterCap(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Equal(t, "pve_error", a.Error.Code)
+	require.Equal(t, actions.CodeFailed, a.Error.Code)
 	n, err := e.App.Ent.IPAllocation.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Zero(t, n)
@@ -374,7 +374,7 @@ func TestCreateServerCleanupPendingResumesCleanup(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Equal(t, "resize disk: boom", a.Error.Message)
+	require.Equal(t, "resize disk: boom", a.Error.Detail)
 }
 
 func TestCreateServerCleanupIncompleteKeepsIPs(t *testing.T) {
@@ -401,8 +401,8 @@ func TestCreateServerCleanupIncompleteKeepsIPs(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Contains(t, a.Error.Message, "resize disk: injected failure (status 500)")
-	require.Contains(t, a.Error.Message, "cleanup incomplete")
+	require.Contains(t, a.Error.Detail, "resize disk: injected failure (status 500)")
+	require.Contains(t, a.Error.Detail, "cleanup incomplete")
 }
 
 func TestCreateServerLeavesVMWithoutNeblaTag(t *testing.T) {
@@ -427,7 +427,7 @@ func TestCreateServerLeavesVMWithoutNeblaTag(t *testing.T) {
 	require.Equal(t, 1, n)
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
-	require.Contains(t, a.Error.Message, "cleanup incomplete")
+	require.Contains(t, a.Error.Detail, "cleanup incomplete")
 }
 
 func TestCreateServerVMIDCollision(t *testing.T) {
@@ -484,8 +484,8 @@ func TestCreateServerPVEFailureCleansUp(t *testing.T) {
 		a := testutil.WaitAction(t, e.App.Ent, s.ActionID)
 		require.Equal(t, actions.StatusError, a.Status)
 		require.NotNil(t, a.Error)
-		require.Equal(t, "pve_error", a.Error.Code)
-		require.Contains(t, a.Error.Message, msg)
+		require.Equal(t, actions.CodeFailed, a.Error.Code)
+		require.Contains(t, a.Error.Detail, msg)
 		require.Empty(t, taggedVMs(t, e, s.ServerID), "vm destroyed")
 		_, ok := e.App.PVE.Volume(isoVolid(s.ServerID))
 		require.False(t, ok, "iso deleted")
@@ -529,7 +529,7 @@ func TestCreateServerCleanupStopsRunningVM(t *testing.T) {
 	require.False(t, ok)
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
-	require.Equal(t, "pve_error", a.Error.Code)
+	require.Equal(t, actions.CodeFailed, a.Error.Code)
 }
 
 func TestCreateServerTemplateGone(t *testing.T) {
@@ -542,7 +542,7 @@ func TestCreateServerTemplateGone(t *testing.T) {
 	a, err := actions.Get(context.Background(), e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Contains(t, a.Error.Message, "template 9000")
+	require.Contains(t, a.Error.Detail, "template 9000")
 	require.Empty(t, taggedVMs(t, e, s.ServerID))
 }
 
@@ -580,7 +580,7 @@ func TestCreateServerCleanupTxFailureIsResumed(t *testing.T) {
 	a, err = actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Contains(t, a.Error.Message, "resize disk: injected failure (status 500)")
+	require.Contains(t, a.Error.Detail, "resize disk: injected failure (status 500)")
 	require.Zero(t, vmCount(t, e))
 }
 
@@ -681,7 +681,7 @@ func TestCreateServerCleanupFailedCloneTaskReleasesIPs(t *testing.T) {
 	require.Equal(t, "foreign", foreign.Name)
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
-	require.NotContains(t, a.Error.Message, "cleanup incomplete")
+	require.NotContains(t, a.Error.Detail, "cleanup incomplete")
 }
 
 // TestCreateDoesNotAdoptTaggedVM checks a VM already tagged for the server id is left alone; create picks NextID.

@@ -50,12 +50,12 @@ func TestWaitTTY(t *testing.T) {
 func TestWaitError(t *testing.T) {
 	h := newHarnessQueueOnly(t)
 	s := h.Env.CreateServer("web", nil)
-	if err := actions.Fail(context.Background(), h.Env.App.Ent, s.ActionID, "pve_error", "boom"); err != nil {
+	if err := actions.Fail(context.Background(), h.Env.App.Ent, s.ActionID, actions.CodeFailed, "vm 4242: boom"); err != nil {
 		t.Fatal(err)
 	}
 	var stderr bytes.Buffer
 	_, err := h.api().Wait(context.Background(), &stderr, false, s.ActionID)
-	want := fmt.Sprintf("action create_server (%d) failed: boom (pve_error)", s.ActionID)
+	want := fmt.Sprintf("action create_server (%d) failed: Couldn't create the server. Try again, or contact your admin. (failed)", s.ActionID)
 	if err == nil || err.Error() != want {
 		t.Fatalf("err=%v", err)
 	}
