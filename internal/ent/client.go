@@ -25,6 +25,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
@@ -63,6 +64,8 @@ type Client struct {
 	Invite *InviteClient
 	// Location is the client for interacting with the Location builders.
 	Location *LocationClient
+	// LocationEnrollment is the client for interacting with the LocationEnrollment builders.
+	LocationEnrollment *LocationEnrollmentClient
 	// Node is the client for interacting with the Node builders.
 	Node *NodeClient
 	// Project is the client for interacting with the Project builders.
@@ -102,6 +105,7 @@ func (c *Client) init() {
 	c.ImageTemplate = NewImageTemplateClient(c.config)
 	c.Invite = NewInviteClient(c.config)
 	c.Location = NewLocationClient(c.config)
+	c.LocationEnrollment = NewLocationEnrollmentClient(c.config)
 	c.Node = NewNodeClient(c.config)
 	c.Project = NewProjectClient(c.config)
 	c.ProjectMember = NewProjectMemberClient(c.config)
@@ -201,27 +205,28 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:           ctx,
-		config:        cfg,
-		APIToken:      NewAPITokenClient(cfg),
-		Action:        NewActionClient(cfg),
-		CatalogBuild:  NewCatalogBuildClient(cfg),
-		ConsoleToken:  NewConsoleTokenClient(cfg),
-		IPAllocation:  NewIPAllocationClient(cfg),
-		IPPool:        NewIPPoolClient(cfg),
-		Image:         NewImageClient(cfg),
-		ImageTemplate: NewImageTemplateClient(cfg),
-		Invite:        NewInviteClient(cfg),
-		Location:      NewLocationClient(cfg),
-		Node:          NewNodeClient(cfg),
-		Project:       NewProjectClient(cfg),
-		ProjectMember: NewProjectMemberClient(cfg),
-		SSHKey:        NewSSHKeyClient(cfg),
-		Server:        NewServerClient(cfg),
-		ServerType:    NewServerTypeClient(cfg),
-		Session:       NewSessionClient(cfg),
-		Setting:       NewSettingClient(cfg),
-		User:          NewUserClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		APIToken:           NewAPITokenClient(cfg),
+		Action:             NewActionClient(cfg),
+		CatalogBuild:       NewCatalogBuildClient(cfg),
+		ConsoleToken:       NewConsoleTokenClient(cfg),
+		IPAllocation:       NewIPAllocationClient(cfg),
+		IPPool:             NewIPPoolClient(cfg),
+		Image:              NewImageClient(cfg),
+		ImageTemplate:      NewImageTemplateClient(cfg),
+		Invite:             NewInviteClient(cfg),
+		Location:           NewLocationClient(cfg),
+		LocationEnrollment: NewLocationEnrollmentClient(cfg),
+		Node:               NewNodeClient(cfg),
+		Project:            NewProjectClient(cfg),
+		ProjectMember:      NewProjectMemberClient(cfg),
+		SSHKey:             NewSSHKeyClient(cfg),
+		Server:             NewServerClient(cfg),
+		ServerType:         NewServerTypeClient(cfg),
+		Session:            NewSessionClient(cfg),
+		Setting:            NewSettingClient(cfg),
+		User:               NewUserClient(cfg),
 	}, nil
 }
 
@@ -239,27 +244,28 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:           ctx,
-		config:        cfg,
-		APIToken:      NewAPITokenClient(cfg),
-		Action:        NewActionClient(cfg),
-		CatalogBuild:  NewCatalogBuildClient(cfg),
-		ConsoleToken:  NewConsoleTokenClient(cfg),
-		IPAllocation:  NewIPAllocationClient(cfg),
-		IPPool:        NewIPPoolClient(cfg),
-		Image:         NewImageClient(cfg),
-		ImageTemplate: NewImageTemplateClient(cfg),
-		Invite:        NewInviteClient(cfg),
-		Location:      NewLocationClient(cfg),
-		Node:          NewNodeClient(cfg),
-		Project:       NewProjectClient(cfg),
-		ProjectMember: NewProjectMemberClient(cfg),
-		SSHKey:        NewSSHKeyClient(cfg),
-		Server:        NewServerClient(cfg),
-		ServerType:    NewServerTypeClient(cfg),
-		Session:       NewSessionClient(cfg),
-		Setting:       NewSettingClient(cfg),
-		User:          NewUserClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		APIToken:           NewAPITokenClient(cfg),
+		Action:             NewActionClient(cfg),
+		CatalogBuild:       NewCatalogBuildClient(cfg),
+		ConsoleToken:       NewConsoleTokenClient(cfg),
+		IPAllocation:       NewIPAllocationClient(cfg),
+		IPPool:             NewIPPoolClient(cfg),
+		Image:              NewImageClient(cfg),
+		ImageTemplate:      NewImageTemplateClient(cfg),
+		Invite:             NewInviteClient(cfg),
+		Location:           NewLocationClient(cfg),
+		LocationEnrollment: NewLocationEnrollmentClient(cfg),
+		Node:               NewNodeClient(cfg),
+		Project:            NewProjectClient(cfg),
+		ProjectMember:      NewProjectMemberClient(cfg),
+		SSHKey:             NewSSHKeyClient(cfg),
+		Server:             NewServerClient(cfg),
+		ServerType:         NewServerTypeClient(cfg),
+		Session:            NewSessionClient(cfg),
+		Setting:            NewSettingClient(cfg),
+		User:               NewUserClient(cfg),
 	}, nil
 }
 
@@ -290,9 +296,9 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.IPAllocation, c.IPPool,
-		c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
-		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
-		c.User,
+		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
+		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
+		c.Setting, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -303,9 +309,9 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.IPAllocation, c.IPPool,
-		c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
-		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
-		c.User,
+		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
+		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
+		c.Setting, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -334,6 +340,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Invite.mutate(ctx, m)
 	case *LocationMutation:
 		return c.Location.mutate(ctx, m)
+	case *LocationEnrollmentMutation:
+		return c.LocationEnrollment.mutate(ctx, m)
 	case *NodeMutation:
 		return c.Node.mutate(ctx, m)
 	case *ProjectMutation:
@@ -1943,6 +1951,171 @@ func (c *LocationClient) mutate(ctx context.Context, m *LocationMutation) (Value
 	}
 }
 
+// LocationEnrollmentClient is a client for the LocationEnrollment schema.
+type LocationEnrollmentClient struct {
+	config
+}
+
+// NewLocationEnrollmentClient returns a client for the LocationEnrollment from the given config.
+func NewLocationEnrollmentClient(c config) *LocationEnrollmentClient {
+	return &LocationEnrollmentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `locationenrollment.Hooks(f(g(h())))`.
+func (c *LocationEnrollmentClient) Use(hooks ...Hook) {
+	c.hooks.LocationEnrollment = append(c.hooks.LocationEnrollment, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `locationenrollment.Intercept(f(g(h())))`.
+func (c *LocationEnrollmentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.LocationEnrollment = append(c.inters.LocationEnrollment, interceptors...)
+}
+
+// Create returns a builder for creating a LocationEnrollment entity.
+func (c *LocationEnrollmentClient) Create() *LocationEnrollmentCreate {
+	mutation := newLocationEnrollmentMutation(c.config, OpCreate)
+	return &LocationEnrollmentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of LocationEnrollment entities.
+func (c *LocationEnrollmentClient) CreateBulk(builders ...*LocationEnrollmentCreate) *LocationEnrollmentCreateBulk {
+	return &LocationEnrollmentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *LocationEnrollmentClient) MapCreateBulk(slice any, setFunc func(*LocationEnrollmentCreate, int)) *LocationEnrollmentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &LocationEnrollmentCreateBulk{err: fmt.Errorf("calling to LocationEnrollmentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*LocationEnrollmentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &LocationEnrollmentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for LocationEnrollment.
+func (c *LocationEnrollmentClient) Update() *LocationEnrollmentUpdate {
+	mutation := newLocationEnrollmentMutation(c.config, OpUpdate)
+	return &LocationEnrollmentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *LocationEnrollmentClient) UpdateOne(_m *LocationEnrollment) *LocationEnrollmentUpdateOne {
+	mutation := newLocationEnrollmentMutation(c.config, OpUpdateOne, withLocationEnrollment(_m))
+	return &LocationEnrollmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *LocationEnrollmentClient) UpdateOneID(id int64) *LocationEnrollmentUpdateOne {
+	mutation := newLocationEnrollmentMutation(c.config, OpUpdateOne, withLocationEnrollmentID(id))
+	return &LocationEnrollmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for LocationEnrollment.
+func (c *LocationEnrollmentClient) Delete() *LocationEnrollmentDelete {
+	mutation := newLocationEnrollmentMutation(c.config, OpDelete)
+	return &LocationEnrollmentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *LocationEnrollmentClient) DeleteOne(_m *LocationEnrollment) *LocationEnrollmentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *LocationEnrollmentClient) DeleteOneID(id int64) *LocationEnrollmentDeleteOne {
+	builder := c.Delete().Where(locationenrollment.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &LocationEnrollmentDeleteOne{builder}
+}
+
+// Query returns a query builder for LocationEnrollment.
+func (c *LocationEnrollmentClient) Query() *LocationEnrollmentQuery {
+	return &LocationEnrollmentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeLocationEnrollment},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a LocationEnrollment entity by its id.
+func (c *LocationEnrollmentClient) Get(ctx context.Context, id int64) (*LocationEnrollment, error) {
+	return c.Query().Where(locationenrollment.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *LocationEnrollmentClient) GetX(ctx context.Context, id int64) *LocationEnrollment {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryLocation queries the location edge of a LocationEnrollment.
+func (c *LocationEnrollmentClient) QueryLocation(_m *LocationEnrollment) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(locationenrollment.Table, locationenrollment.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, locationenrollment.LocationTable, locationenrollment.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCreator queries the creator edge of a LocationEnrollment.
+func (c *LocationEnrollmentClient) QueryCreator(_m *LocationEnrollment) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(locationenrollment.Table, locationenrollment.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, locationenrollment.CreatorTable, locationenrollment.CreatorColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *LocationEnrollmentClient) Hooks() []Hook {
+	return c.hooks.LocationEnrollment
+}
+
+// Interceptors returns the client interceptors.
+func (c *LocationEnrollmentClient) Interceptors() []Interceptor {
+	return c.inters.LocationEnrollment
+}
+
+func (c *LocationEnrollmentClient) mutate(ctx context.Context, m *LocationEnrollmentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&LocationEnrollmentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&LocationEnrollmentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&LocationEnrollmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&LocationEnrollmentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown LocationEnrollment mutation op: %q", m.Op())
+	}
+}
+
 // NodeClient is a client for the Node schema.
 type NodeClient struct {
 	config
@@ -3336,13 +3509,14 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		APIToken, Action, CatalogBuild, ConsoleToken, IPAllocation, IPPool, Image,
-		ImageTemplate, Invite, Location, Node, Project, ProjectMember, SSHKey, Server,
-		ServerType, Session, Setting, User []ent.Hook
+		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
+		ProjectMember, SSHKey, Server, ServerType, Session, Setting, User []ent.Hook
 	}
 	inters struct {
 		APIToken, Action, CatalogBuild, ConsoleToken, IPAllocation, IPPool, Image,
-		ImageTemplate, Invite, Location, Node, Project, ProjectMember, SSHKey, Server,
-		ServerType, Session, Setting, User []ent.Interceptor
+		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
+		ProjectMember, SSHKey, Server, ServerType, Session, Setting,
+		User []ent.Interceptor
 	}
 )
 

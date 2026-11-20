@@ -129,6 +129,18 @@ func (f LocationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LocationMutation", m)
 }
 
+// The LocationEnrollmentFunc type is an adapter to allow the use of ordinary
+// function as LocationEnrollment mutator.
+type LocationEnrollmentFunc func(context.Context, *ent.LocationEnrollmentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f LocationEnrollmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.LocationEnrollmentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LocationEnrollmentMutation", m)
+}
+
 // The NodeFunc type is an adapter to allow the use of ordinary
 // function as Node mutator.
 type NodeFunc func(context.Context, *ent.NodeMutation) (ent.Value, error)

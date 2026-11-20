@@ -21,6 +21,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
@@ -43,25 +44,26 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAPIToken      = "APIToken"
-	TypeAction        = "Action"
-	TypeCatalogBuild  = "CatalogBuild"
-	TypeConsoleToken  = "ConsoleToken"
-	TypeIPAllocation  = "IPAllocation"
-	TypeIPPool        = "IPPool"
-	TypeImage         = "Image"
-	TypeImageTemplate = "ImageTemplate"
-	TypeInvite        = "Invite"
-	TypeLocation      = "Location"
-	TypeNode          = "Node"
-	TypeProject       = "Project"
-	TypeProjectMember = "ProjectMember"
-	TypeSSHKey        = "SSHKey"
-	TypeServer        = "Server"
-	TypeServerType    = "ServerType"
-	TypeSession       = "Session"
-	TypeSetting       = "Setting"
-	TypeUser          = "User"
+	TypeAPIToken           = "APIToken"
+	TypeAction             = "Action"
+	TypeCatalogBuild       = "CatalogBuild"
+	TypeConsoleToken       = "ConsoleToken"
+	TypeIPAllocation       = "IPAllocation"
+	TypeIPPool             = "IPPool"
+	TypeImage              = "Image"
+	TypeImageTemplate      = "ImageTemplate"
+	TypeInvite             = "Invite"
+	TypeLocation           = "Location"
+	TypeLocationEnrollment = "LocationEnrollment"
+	TypeNode               = "Node"
+	TypeProject            = "Project"
+	TypeProjectMember      = "ProjectMember"
+	TypeSSHKey             = "SSHKey"
+	TypeServer             = "Server"
+	TypeServerType         = "ServerType"
+	TypeSession            = "Session"
+	TypeSetting            = "Setting"
+	TypeUser               = "User"
 )
 
 // APITokenMutation represents an operation that mutates the APIToken nodes in the graph.
@@ -9544,6 +9546,1108 @@ func (m *LocationMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Location edge %s", name)
+}
+
+// LocationEnrollmentMutation represents an operation that mutates the LocationEnrollment nodes in the graph.
+type LocationEnrollmentMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	name            *string
+	description     *string
+	token_name      *string
+	token_hash      *[]byte
+	state           *locationenrollment.State
+	expires_at      *time.Time
+	token_id        *string
+	token_secret    *[]byte
+	report          *[]byte
+	created_at      *time.Time
+	clearedFields   map[string]struct{}
+	location        *int64
+	clearedlocation bool
+	creator         *int64
+	clearedcreator  bool
+	done            bool
+	oldValue        func(context.Context) (*LocationEnrollment, error)
+	predicates      []predicate.LocationEnrollment
+}
+
+var _ ent.Mutation = (*LocationEnrollmentMutation)(nil)
+
+// locationenrollmentOption allows management of the mutation configuration using functional options.
+type locationenrollmentOption func(*LocationEnrollmentMutation)
+
+// newLocationEnrollmentMutation creates new mutation for the LocationEnrollment entity.
+func newLocationEnrollmentMutation(c config, op Op, opts ...locationenrollmentOption) *LocationEnrollmentMutation {
+	m := &LocationEnrollmentMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeLocationEnrollment,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withLocationEnrollmentID sets the ID field of the mutation.
+func withLocationEnrollmentID(id int64) locationenrollmentOption {
+	return func(m *LocationEnrollmentMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *LocationEnrollment
+		)
+		m.oldValue = func(ctx context.Context) (*LocationEnrollment, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().LocationEnrollment.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withLocationEnrollment sets the old LocationEnrollment of the mutation.
+func withLocationEnrollment(node *LocationEnrollment) locationenrollmentOption {
+	return func(m *LocationEnrollmentMutation) {
+		m.oldValue = func(context.Context) (*LocationEnrollment, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m LocationEnrollmentMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m LocationEnrollmentMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of LocationEnrollment entities.
+func (m *LocationEnrollmentMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *LocationEnrollmentMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *LocationEnrollmentMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().LocationEnrollment.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *LocationEnrollmentMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *LocationEnrollmentMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *LocationEnrollmentMutation) ResetName() {
+	m.name = nil
+}
+
+// SetDescription sets the "description" field.
+func (m *LocationEnrollmentMutation) SetDescription(s string) {
+	m.description = &s
+}
+
+// Description returns the value of the "description" field in the mutation.
+func (m *LocationEnrollmentMutation) Description() (r string, exists bool) {
+	v := m.description
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDescription returns the old "description" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldDescription(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDescription is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDescription requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDescription: %w", err)
+	}
+	return oldValue.Description, nil
+}
+
+// ResetDescription resets all changes to the "description" field.
+func (m *LocationEnrollmentMutation) ResetDescription() {
+	m.description = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *LocationEnrollmentMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *LocationEnrollmentMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldLocationID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ClearLocationID clears the value of the "location_id" field.
+func (m *LocationEnrollmentMutation) ClearLocationID() {
+	m.location = nil
+	m.clearedFields[locationenrollment.FieldLocationID] = struct{}{}
+}
+
+// LocationIDCleared returns if the "location_id" field was cleared in this mutation.
+func (m *LocationEnrollmentMutation) LocationIDCleared() bool {
+	_, ok := m.clearedFields[locationenrollment.FieldLocationID]
+	return ok
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *LocationEnrollmentMutation) ResetLocationID() {
+	m.location = nil
+	delete(m.clearedFields, locationenrollment.FieldLocationID)
+}
+
+// SetTokenName sets the "token_name" field.
+func (m *LocationEnrollmentMutation) SetTokenName(s string) {
+	m.token_name = &s
+}
+
+// TokenName returns the value of the "token_name" field in the mutation.
+func (m *LocationEnrollmentMutation) TokenName() (r string, exists bool) {
+	v := m.token_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenName returns the old "token_name" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldTokenName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenName: %w", err)
+	}
+	return oldValue.TokenName, nil
+}
+
+// ResetTokenName resets all changes to the "token_name" field.
+func (m *LocationEnrollmentMutation) ResetTokenName() {
+	m.token_name = nil
+}
+
+// SetTokenHash sets the "token_hash" field.
+func (m *LocationEnrollmentMutation) SetTokenHash(b []byte) {
+	m.token_hash = &b
+}
+
+// TokenHash returns the value of the "token_hash" field in the mutation.
+func (m *LocationEnrollmentMutation) TokenHash() (r []byte, exists bool) {
+	v := m.token_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenHash returns the old "token_hash" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldTokenHash(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenHash: %w", err)
+	}
+	return oldValue.TokenHash, nil
+}
+
+// ResetTokenHash resets all changes to the "token_hash" field.
+func (m *LocationEnrollmentMutation) ResetTokenHash() {
+	m.token_hash = nil
+}
+
+// SetState sets the "state" field.
+func (m *LocationEnrollmentMutation) SetState(l locationenrollment.State) {
+	m.state = &l
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *LocationEnrollmentMutation) State() (r locationenrollment.State, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldState(ctx context.Context) (v locationenrollment.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *LocationEnrollmentMutation) ResetState() {
+	m.state = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *LocationEnrollmentMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *LocationEnrollmentMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *LocationEnrollmentMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// SetTokenID sets the "token_id" field.
+func (m *LocationEnrollmentMutation) SetTokenID(s string) {
+	m.token_id = &s
+}
+
+// TokenID returns the value of the "token_id" field in the mutation.
+func (m *LocationEnrollmentMutation) TokenID() (r string, exists bool) {
+	v := m.token_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenID returns the old "token_id" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldTokenID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenID: %w", err)
+	}
+	return oldValue.TokenID, nil
+}
+
+// ResetTokenID resets all changes to the "token_id" field.
+func (m *LocationEnrollmentMutation) ResetTokenID() {
+	m.token_id = nil
+}
+
+// SetTokenSecret sets the "token_secret" field.
+func (m *LocationEnrollmentMutation) SetTokenSecret(b []byte) {
+	m.token_secret = &b
+}
+
+// TokenSecret returns the value of the "token_secret" field in the mutation.
+func (m *LocationEnrollmentMutation) TokenSecret() (r []byte, exists bool) {
+	v := m.token_secret
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenSecret returns the old "token_secret" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldTokenSecret(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenSecret is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenSecret requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenSecret: %w", err)
+	}
+	return oldValue.TokenSecret, nil
+}
+
+// ClearTokenSecret clears the value of the "token_secret" field.
+func (m *LocationEnrollmentMutation) ClearTokenSecret() {
+	m.token_secret = nil
+	m.clearedFields[locationenrollment.FieldTokenSecret] = struct{}{}
+}
+
+// TokenSecretCleared returns if the "token_secret" field was cleared in this mutation.
+func (m *LocationEnrollmentMutation) TokenSecretCleared() bool {
+	_, ok := m.clearedFields[locationenrollment.FieldTokenSecret]
+	return ok
+}
+
+// ResetTokenSecret resets all changes to the "token_secret" field.
+func (m *LocationEnrollmentMutation) ResetTokenSecret() {
+	m.token_secret = nil
+	delete(m.clearedFields, locationenrollment.FieldTokenSecret)
+}
+
+// SetReport sets the "report" field.
+func (m *LocationEnrollmentMutation) SetReport(b []byte) {
+	m.report = &b
+}
+
+// Report returns the value of the "report" field in the mutation.
+func (m *LocationEnrollmentMutation) Report() (r []byte, exists bool) {
+	v := m.report
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReport returns the old "report" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldReport(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReport is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReport requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReport: %w", err)
+	}
+	return oldValue.Report, nil
+}
+
+// ClearReport clears the value of the "report" field.
+func (m *LocationEnrollmentMutation) ClearReport() {
+	m.report = nil
+	m.clearedFields[locationenrollment.FieldReport] = struct{}{}
+}
+
+// ReportCleared returns if the "report" field was cleared in this mutation.
+func (m *LocationEnrollmentMutation) ReportCleared() bool {
+	_, ok := m.clearedFields[locationenrollment.FieldReport]
+	return ok
+}
+
+// ResetReport resets all changes to the "report" field.
+func (m *LocationEnrollmentMutation) ResetReport() {
+	m.report = nil
+	delete(m.clearedFields, locationenrollment.FieldReport)
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *LocationEnrollmentMutation) SetCreatedBy(i int64) {
+	m.creator = &i
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *LocationEnrollmentMutation) CreatedBy() (r int64, exists bool) {
+	v := m.creator
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldCreatedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *LocationEnrollmentMutation) ResetCreatedBy() {
+	m.creator = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *LocationEnrollmentMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *LocationEnrollmentMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the LocationEnrollment entity.
+// If the LocationEnrollment object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationEnrollmentMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *LocationEnrollmentMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *LocationEnrollmentMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[locationenrollment.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *LocationEnrollmentMutation) LocationCleared() bool {
+	return m.LocationIDCleared() || m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *LocationEnrollmentMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *LocationEnrollmentMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// SetCreatorID sets the "creator" edge to the User entity by id.
+func (m *LocationEnrollmentMutation) SetCreatorID(id int64) {
+	m.creator = &id
+}
+
+// ClearCreator clears the "creator" edge to the User entity.
+func (m *LocationEnrollmentMutation) ClearCreator() {
+	m.clearedcreator = true
+	m.clearedFields[locationenrollment.FieldCreatedBy] = struct{}{}
+}
+
+// CreatorCleared reports if the "creator" edge to the User entity was cleared.
+func (m *LocationEnrollmentMutation) CreatorCleared() bool {
+	return m.clearedcreator
+}
+
+// CreatorID returns the "creator" edge ID in the mutation.
+func (m *LocationEnrollmentMutation) CreatorID() (id int64, exists bool) {
+	if m.creator != nil {
+		return *m.creator, true
+	}
+	return
+}
+
+// CreatorIDs returns the "creator" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CreatorID instead. It exists only for internal usage by the builders.
+func (m *LocationEnrollmentMutation) CreatorIDs() (ids []int64) {
+	if id := m.creator; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCreator resets all changes to the "creator" edge.
+func (m *LocationEnrollmentMutation) ResetCreator() {
+	m.creator = nil
+	m.clearedcreator = false
+}
+
+// Where appends a list predicates to the LocationEnrollmentMutation builder.
+func (m *LocationEnrollmentMutation) Where(ps ...predicate.LocationEnrollment) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the LocationEnrollmentMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *LocationEnrollmentMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.LocationEnrollment, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *LocationEnrollmentMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *LocationEnrollmentMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (LocationEnrollment).
+func (m *LocationEnrollmentMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *LocationEnrollmentMutation) Fields() []string {
+	fields := make([]string, 0, 12)
+	if m.name != nil {
+		fields = append(fields, locationenrollment.FieldName)
+	}
+	if m.description != nil {
+		fields = append(fields, locationenrollment.FieldDescription)
+	}
+	if m.location != nil {
+		fields = append(fields, locationenrollment.FieldLocationID)
+	}
+	if m.token_name != nil {
+		fields = append(fields, locationenrollment.FieldTokenName)
+	}
+	if m.token_hash != nil {
+		fields = append(fields, locationenrollment.FieldTokenHash)
+	}
+	if m.state != nil {
+		fields = append(fields, locationenrollment.FieldState)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, locationenrollment.FieldExpiresAt)
+	}
+	if m.token_id != nil {
+		fields = append(fields, locationenrollment.FieldTokenID)
+	}
+	if m.token_secret != nil {
+		fields = append(fields, locationenrollment.FieldTokenSecret)
+	}
+	if m.report != nil {
+		fields = append(fields, locationenrollment.FieldReport)
+	}
+	if m.creator != nil {
+		fields = append(fields, locationenrollment.FieldCreatedBy)
+	}
+	if m.created_at != nil {
+		fields = append(fields, locationenrollment.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *LocationEnrollmentMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case locationenrollment.FieldName:
+		return m.Name()
+	case locationenrollment.FieldDescription:
+		return m.Description()
+	case locationenrollment.FieldLocationID:
+		return m.LocationID()
+	case locationenrollment.FieldTokenName:
+		return m.TokenName()
+	case locationenrollment.FieldTokenHash:
+		return m.TokenHash()
+	case locationenrollment.FieldState:
+		return m.State()
+	case locationenrollment.FieldExpiresAt:
+		return m.ExpiresAt()
+	case locationenrollment.FieldTokenID:
+		return m.TokenID()
+	case locationenrollment.FieldTokenSecret:
+		return m.TokenSecret()
+	case locationenrollment.FieldReport:
+		return m.Report()
+	case locationenrollment.FieldCreatedBy:
+		return m.CreatedBy()
+	case locationenrollment.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *LocationEnrollmentMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case locationenrollment.FieldName:
+		return m.OldName(ctx)
+	case locationenrollment.FieldDescription:
+		return m.OldDescription(ctx)
+	case locationenrollment.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case locationenrollment.FieldTokenName:
+		return m.OldTokenName(ctx)
+	case locationenrollment.FieldTokenHash:
+		return m.OldTokenHash(ctx)
+	case locationenrollment.FieldState:
+		return m.OldState(ctx)
+	case locationenrollment.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case locationenrollment.FieldTokenID:
+		return m.OldTokenID(ctx)
+	case locationenrollment.FieldTokenSecret:
+		return m.OldTokenSecret(ctx)
+	case locationenrollment.FieldReport:
+		return m.OldReport(ctx)
+	case locationenrollment.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
+	case locationenrollment.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown LocationEnrollment field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LocationEnrollmentMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case locationenrollment.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case locationenrollment.FieldDescription:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDescription(v)
+		return nil
+	case locationenrollment.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case locationenrollment.FieldTokenName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenName(v)
+		return nil
+	case locationenrollment.FieldTokenHash:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenHash(v)
+		return nil
+	case locationenrollment.FieldState:
+		v, ok := value.(locationenrollment.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case locationenrollment.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case locationenrollment.FieldTokenID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenID(v)
+		return nil
+	case locationenrollment.FieldTokenSecret:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenSecret(v)
+		return nil
+	case locationenrollment.FieldReport:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReport(v)
+		return nil
+	case locationenrollment.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
+		return nil
+	case locationenrollment.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown LocationEnrollment field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *LocationEnrollmentMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *LocationEnrollmentMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *LocationEnrollmentMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown LocationEnrollment numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *LocationEnrollmentMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(locationenrollment.FieldLocationID) {
+		fields = append(fields, locationenrollment.FieldLocationID)
+	}
+	if m.FieldCleared(locationenrollment.FieldTokenSecret) {
+		fields = append(fields, locationenrollment.FieldTokenSecret)
+	}
+	if m.FieldCleared(locationenrollment.FieldReport) {
+		fields = append(fields, locationenrollment.FieldReport)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *LocationEnrollmentMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *LocationEnrollmentMutation) ClearField(name string) error {
+	switch name {
+	case locationenrollment.FieldLocationID:
+		m.ClearLocationID()
+		return nil
+	case locationenrollment.FieldTokenSecret:
+		m.ClearTokenSecret()
+		return nil
+	case locationenrollment.FieldReport:
+		m.ClearReport()
+		return nil
+	}
+	return fmt.Errorf("unknown LocationEnrollment nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *LocationEnrollmentMutation) ResetField(name string) error {
+	switch name {
+	case locationenrollment.FieldName:
+		m.ResetName()
+		return nil
+	case locationenrollment.FieldDescription:
+		m.ResetDescription()
+		return nil
+	case locationenrollment.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case locationenrollment.FieldTokenName:
+		m.ResetTokenName()
+		return nil
+	case locationenrollment.FieldTokenHash:
+		m.ResetTokenHash()
+		return nil
+	case locationenrollment.FieldState:
+		m.ResetState()
+		return nil
+	case locationenrollment.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case locationenrollment.FieldTokenID:
+		m.ResetTokenID()
+		return nil
+	case locationenrollment.FieldTokenSecret:
+		m.ResetTokenSecret()
+		return nil
+	case locationenrollment.FieldReport:
+		m.ResetReport()
+		return nil
+	case locationenrollment.FieldCreatedBy:
+		m.ResetCreatedBy()
+		return nil
+	case locationenrollment.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown LocationEnrollment field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *LocationEnrollmentMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.location != nil {
+		edges = append(edges, locationenrollment.EdgeLocation)
+	}
+	if m.creator != nil {
+		edges = append(edges, locationenrollment.EdgeCreator)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *LocationEnrollmentMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case locationenrollment.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	case locationenrollment.EdgeCreator:
+		if id := m.creator; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *LocationEnrollmentMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *LocationEnrollmentMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *LocationEnrollmentMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedlocation {
+		edges = append(edges, locationenrollment.EdgeLocation)
+	}
+	if m.clearedcreator {
+		edges = append(edges, locationenrollment.EdgeCreator)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *LocationEnrollmentMutation) EdgeCleared(name string) bool {
+	switch name {
+	case locationenrollment.EdgeLocation:
+		return m.clearedlocation
+	case locationenrollment.EdgeCreator:
+		return m.clearedcreator
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *LocationEnrollmentMutation) ClearEdge(name string) error {
+	switch name {
+	case locationenrollment.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	case locationenrollment.EdgeCreator:
+		m.ClearCreator()
+		return nil
+	}
+	return fmt.Errorf("unknown LocationEnrollment unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *LocationEnrollmentMutation) ResetEdge(name string) error {
+	switch name {
+	case locationenrollment.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	case locationenrollment.EdgeCreator:
+		m.ResetCreator()
+		return nil
+	}
+	return fmt.Errorf("unknown LocationEnrollment edge %s", name)
 }
 
 // NodeMutation represents an operation that mutates the Node nodes in the graph.

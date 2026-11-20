@@ -34,6 +34,8 @@ type Tx struct {
 	Invite *InviteClient
 	// Location is the client for interacting with the Location builders.
 	Location *LocationClient
+	// LocationEnrollment is the client for interacting with the LocationEnrollment builders.
+	LocationEnrollment *LocationEnrollmentClient
 	// Node is the client for interacting with the Node builders.
 	Node *NodeClient
 	// Project is the client for interacting with the Project builders.
@@ -193,6 +195,7 @@ func (tx *Tx) init() {
 	tx.ImageTemplate = NewImageTemplateClient(tx.config)
 	tx.Invite = NewInviteClient(tx.config)
 	tx.Location = NewLocationClient(tx.config)
+	tx.LocationEnrollment = NewLocationEnrollmentClient(tx.config)
 	tx.Node = NewNodeClient(tx.config)
 	tx.Project = NewProjectClient(tx.config)
 	tx.ProjectMember = NewProjectMemberClient(tx.config)
