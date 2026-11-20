@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/cli/apiclient"
+	"github.com/Hexeption/nebla/internal/testutil"
 )
 
 func runningServer(t *testing.T) *harness {
@@ -32,38 +33,57 @@ func statusOf(t *testing.T, h *harness) string {
 	return ""
 }
 
+func actionJSON(t *testing.T, h *harness, args ...string) apiclient.Action {
+	t.Helper()
+	out, errOut, code := h.run(append([]string{"-o", "json", "server"}, args...)...)
+	if code != 0 {
+		t.Fatalf("%v: %d %q %q", args, code, out, errOut)
+	}
+	var a apiclient.Action
+	if err := json.Unmarshal([]byte(out), &a); err != nil {
+		t.Fatalf("%v: not an action: %v %q", args, err, out)
+	}
+	return a
+}
+
 func TestServerPowerCycle(t *testing.T) {
 	h := runningServer(t)
-	out, errOut, code := h.run("server", "poweroff", "web1")
-	if code != 0 || strings.TrimSpace(out) != "Server web1 powered off" {
-		t.Fatalf("poweroff: %d %q %q", code, out, errOut)
+	steps := []struct{ cmd, command, msg, status string }{
+		{"poweroff", "stop_server", "powered off", "off"},
+		{"poweron", "start_server", "powered on", "running"},
+		{"reboot", "reboot_server", "rebooted", "running"},
+		{"reset", "reset_server", "reset", "running"},
+		{"shutdown", "shutdown_server", "shut down", "off"},
 	}
-	if s := statusOf(t, h); s != "off" {
-		t.Fatalf("status %q", s)
-	}
-	out, errOut, code = h.run("server", "poweron", "web1")
-	if code != 0 || strings.TrimSpace(out) != "Server web1 powered on" {
-		t.Fatalf("poweron: %d %q %q", code, out, errOut)
-	}
-	if s := statusOf(t, h); s != "running" {
-		t.Fatalf("status %q", s)
-	}
-	for cmd, msg := range map[string]string{"reboot": "rebooted", "reset": "reset", "shutdown": "shut down"} {
-		out, errOut, code = h.run("server", cmd, "web1")
-		if code != 0 || strings.TrimSpace(out) != "Server web1 "+msg {
-			t.Fatalf("%s: %d %q %q", cmd, code, out, errOut)
+	for _, s := range steps {
+		if a := actionJSON(t, h, s.cmd, "web1"); a.Command != s.command || a.Status != apiclient.ActionStatusSuccess {
+			t.Fatalf("%s: command %q status %q", s.cmd, a.Command, a.Status)
 		}
-		if cmd == "shutdown" {
-			h.run("server", "poweron", "web1")
+		if got := statusOf(t, h); got != s.status {
+			t.Fatalf("after %s: status %q, want %q", s.cmd, got, s.status)
+		}
+	}
+	for _, s := range []struct{ cmd, msg string }{{"poweron", "powered on"}, {"shutdown", "shut down"}} {
+		out, errOut, code := h.run("server", s.cmd, "web1")
+		if code != 0 || strings.TrimSpace(out) != "Server web1 "+s.msg {
+			t.Fatalf("%s: %d %q %q", s.cmd, code, out, errOut)
 		}
 	}
 }
 
 func TestServerRebuild(t *testing.T) {
 	h := runningServer(t)
-	out, errOut, code := h.run("server", "rebuild", "web1", "--image", "ubuntu")
-	if code != 0 || strings.TrimSpace(out) != "Server web1 rebuilt from ubuntu" {
+	h.Env.Admin.CreateImage("debian", h.Env.Location, testutil.TemplateVMID)
+	out, errOut, code := h.run("server", "rebuild", "web1", "--image", "debian")
+	if code != 0 || strings.TrimSpace(out) != "Server web1 rebuilt from debian" {
 		t.Fatalf("rebuild: %d %q %q", code, out, errOut)
+	}
+	out, _, _ = h.run("server", "describe", "web1")
+	if !strings.Contains(out, "Image:") || !strings.Contains(out, "debian") {
+		t.Fatalf("describe after rebuild: %q", out)
+	}
+	if a := actionJSON(t, h, "rebuild", "web1", "--image", "ubuntu"); a.Command != "rebuild_server" {
+		t.Fatalf("command %q", a.Command)
 	}
 }
 
@@ -73,6 +93,9 @@ func TestChangeTypeNeedsStopped(t *testing.T) {
 	out, errOut, code := h.run("server", "change-type", "web1", "--type", "medium")
 	if code != 1 || out != "" || !strings.HasPrefix(errOut, "error: ") {
 		t.Fatalf("running: %d %q %q", code, out, errOut)
+	}
+	if !strings.Contains(errOut, "the server must be stopped") {
+		t.Fatalf("409 message not shown: %q", errOut)
 	}
 	if _, errOut, code = h.run("server", "poweroff", "web1"); code != 0 {
 		t.Fatalf("poweroff: %d %q", code, errOut)
