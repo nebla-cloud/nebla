@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/Hexeption/nebla/internal/actions"
 	"github.com/Hexeption/nebla/internal/cli/apiclient"
 )
 
@@ -140,5 +143,26 @@ func TestServerDelete(t *testing.T) {
 	out, _, code = h.run("server", "list", "--no-header")
 	if code != 0 || strings.TrimSpace(out) != "" {
 		t.Fatalf("list: %d %q", code, out)
+	}
+}
+
+func TestServerCreateWaitFailureNamesServer(t *testing.T) {
+	h := newHarnessQueueOnly(t)
+	ctx := context.Background()
+	go func() {
+		for i := 0; i < 200; i++ {
+			ids, _ := h.Env.App.Ent.Action.Query().IDs(ctx)
+			if len(ids) > 0 {
+				for _, id := range ids {
+					_ = actions.Fail(ctx, h.Env.App.Ent, id, "pve_error", "boom")
+				}
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}()
+	_, errOut, code := h.run(createArgs("web1")...)
+	if code != 1 || !strings.Contains(errOut, "server 1 was created, but:") || !strings.Contains(errOut, "boom") {
+		t.Fatalf("got %d %q", code, errOut)
 	}
 }
