@@ -11,6 +11,8 @@ import {
   reportUnauthorized,
   setProjectSource,
 } from './client'
+import { setMe } from '@/lib/session'
+import type { User } from '@/api/types'
 import { ApiError, errorMessage, unwrap } from './errors'
 
 describe('api client', () => {
@@ -154,6 +156,19 @@ describe('api client', () => {
       "Nebla's background jobs aren't running. Check the server logs.",
     )
     expect(errorMessage(new ApiError(409, 'conflict', 'name taken'))).toBe('name taken')
+  })
+
+  it('pve_unreachable admin wording', () => {
+    const err = new ApiError(502, 'pve_unreachable', 'dial tcp')
+    const member = "The server's host didn't respond. Try again in a moment."
+    setMe({ id: 1, email: 'a@x.io', name: 'A', is_admin: true } as User)
+    expect(errorMessage(err)).toBe(
+      "Proxmox didn't respond. Check that the host is up and the location's API URL is right, then try again.",
+    )
+    setMe({ id: 2, email: 'b@x.io', name: 'B', is_admin: false } as User)
+    expect(errorMessage(err)).toBe(member)
+    setMe(null)
+    expect(errorMessage(err)).toBe(member)
   })
 
   it('401 redirects once with next', async () => {

@@ -2,9 +2,9 @@ import { ref, type Ref } from 'vue'
 import { api } from '@/api/client'
 import { ApiError, unwrap } from '@/api/errors'
 import type { UiManifest, User } from '@/api/types'
+import { me } from './me'
 
 const manifest = ref<UiManifest>()
-const me = ref<User | null>()
 let loading: Promise<void> | null = null
 
 async function load(): Promise<void> {

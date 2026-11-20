@@ -1,3 +1,5 @@
+import { me } from '@/lib/me'
+
 export class ApiError extends Error {
   status: number
   code: string
@@ -35,8 +37,15 @@ export function unwrap<T>(r: { data?: T; error?: unknown; response: Response }):
   return r.data as T
 }
 
+const adminFriendly: Record<string, string> = {
+  pve_unreachable:
+    "Proxmox didn't respond. Check that the host is up and the location's API URL is right, then try again.",
+}
+
 export function errorMessage(e: unknown): string {
-  if (e instanceof ApiError) return friendly[e.code] ?? e.message
+  if (e instanceof ApiError) {
+    return (me.value?.is_admin ? adminFriendly[e.code] : undefined) ?? friendly[e.code] ?? e.message
+  }
   if (e instanceof Error) return e.message
   return 'Something went wrong.'
 }
