@@ -17,6 +17,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -46,6 +47,8 @@ type Client struct {
 	APIToken *APITokenClient
 	// Action is the client for interacting with the Action builders.
 	Action *ActionClient
+	// CatalogBuild is the client for interacting with the CatalogBuild builders.
+	CatalogBuild *CatalogBuildClient
 	// ConsoleToken is the client for interacting with the ConsoleToken builders.
 	ConsoleToken *ConsoleTokenClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
@@ -91,6 +94,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIToken = NewAPITokenClient(c.config)
 	c.Action = NewActionClient(c.config)
+	c.CatalogBuild = NewCatalogBuildClient(c.config)
 	c.ConsoleToken = NewConsoleTokenClient(c.config)
 	c.IPAllocation = NewIPAllocationClient(c.config)
 	c.IPPool = NewIPPoolClient(c.config)
@@ -201,6 +205,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
 		Action:        NewActionClient(cfg),
+		CatalogBuild:  NewCatalogBuildClient(cfg),
 		ConsoleToken:  NewConsoleTokenClient(cfg),
 		IPAllocation:  NewIPAllocationClient(cfg),
 		IPPool:        NewIPPoolClient(cfg),
@@ -238,6 +243,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:        cfg,
 		APIToken:      NewAPITokenClient(cfg),
 		Action:        NewActionClient(cfg),
+		CatalogBuild:  NewCatalogBuildClient(cfg),
 		ConsoleToken:  NewConsoleTokenClient(cfg),
 		IPAllocation:  NewIPAllocationClient(cfg),
 		IPPool:        NewIPPoolClient(cfg),
@@ -283,9 +289,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIToken, c.Action, c.ConsoleToken, c.IPAllocation, c.IPPool, c.Image,
-		c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project, c.ProjectMember,
-		c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting, c.User,
+		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.IPAllocation, c.IPPool,
+		c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
+		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
+		c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -295,9 +302,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIToken, c.Action, c.ConsoleToken, c.IPAllocation, c.IPPool, c.Image,
-		c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project, c.ProjectMember,
-		c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting, c.User,
+		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.IPAllocation, c.IPPool,
+		c.Image, c.ImageTemplate, c.Invite, c.Location, c.Node, c.Project,
+		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
+		c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -310,6 +318,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.APIToken.mutate(ctx, m)
 	case *ActionMutation:
 		return c.Action.mutate(ctx, m)
+	case *CatalogBuildMutation:
+		return c.CatalogBuild.mutate(ctx, m)
 	case *ConsoleTokenMutation:
 		return c.ConsoleToken.mutate(ctx, m)
 	case *IPAllocationMutation:
@@ -642,6 +652,155 @@ func (c *ActionClient) mutate(ctx context.Context, m *ActionMutation) (Value, er
 		return (&ActionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Action mutation op: %q", m.Op())
+	}
+}
+
+// CatalogBuildClient is a client for the CatalogBuild schema.
+type CatalogBuildClient struct {
+	config
+}
+
+// NewCatalogBuildClient returns a client for the CatalogBuild from the given config.
+func NewCatalogBuildClient(c config) *CatalogBuildClient {
+	return &CatalogBuildClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `catalogbuild.Hooks(f(g(h())))`.
+func (c *CatalogBuildClient) Use(hooks ...Hook) {
+	c.hooks.CatalogBuild = append(c.hooks.CatalogBuild, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `catalogbuild.Intercept(f(g(h())))`.
+func (c *CatalogBuildClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CatalogBuild = append(c.inters.CatalogBuild, interceptors...)
+}
+
+// Create returns a builder for creating a CatalogBuild entity.
+func (c *CatalogBuildClient) Create() *CatalogBuildCreate {
+	mutation := newCatalogBuildMutation(c.config, OpCreate)
+	return &CatalogBuildCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CatalogBuild entities.
+func (c *CatalogBuildClient) CreateBulk(builders ...*CatalogBuildCreate) *CatalogBuildCreateBulk {
+	return &CatalogBuildCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CatalogBuildClient) MapCreateBulk(slice any, setFunc func(*CatalogBuildCreate, int)) *CatalogBuildCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CatalogBuildCreateBulk{err: fmt.Errorf("calling to CatalogBuildClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CatalogBuildCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CatalogBuildCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CatalogBuild.
+func (c *CatalogBuildClient) Update() *CatalogBuildUpdate {
+	mutation := newCatalogBuildMutation(c.config, OpUpdate)
+	return &CatalogBuildUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CatalogBuildClient) UpdateOne(_m *CatalogBuild) *CatalogBuildUpdateOne {
+	mutation := newCatalogBuildMutation(c.config, OpUpdateOne, withCatalogBuild(_m))
+	return &CatalogBuildUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CatalogBuildClient) UpdateOneID(id int64) *CatalogBuildUpdateOne {
+	mutation := newCatalogBuildMutation(c.config, OpUpdateOne, withCatalogBuildID(id))
+	return &CatalogBuildUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CatalogBuild.
+func (c *CatalogBuildClient) Delete() *CatalogBuildDelete {
+	mutation := newCatalogBuildMutation(c.config, OpDelete)
+	return &CatalogBuildDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CatalogBuildClient) DeleteOne(_m *CatalogBuild) *CatalogBuildDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CatalogBuildClient) DeleteOneID(id int64) *CatalogBuildDeleteOne {
+	builder := c.Delete().Where(catalogbuild.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CatalogBuildDeleteOne{builder}
+}
+
+// Query returns a query builder for CatalogBuild.
+func (c *CatalogBuildClient) Query() *CatalogBuildQuery {
+	return &CatalogBuildQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCatalogBuild},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CatalogBuild entity by its id.
+func (c *CatalogBuildClient) Get(ctx context.Context, id int64) (*CatalogBuild, error) {
+	return c.Query().Where(catalogbuild.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CatalogBuildClient) GetX(ctx context.Context, id int64) *CatalogBuild {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryLocation queries the location edge of a CatalogBuild.
+func (c *CatalogBuildClient) QueryLocation(_m *CatalogBuild) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(catalogbuild.Table, catalogbuild.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, catalogbuild.LocationTable, catalogbuild.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CatalogBuildClient) Hooks() []Hook {
+	return c.hooks.CatalogBuild
+}
+
+// Interceptors returns the client interceptors.
+func (c *CatalogBuildClient) Interceptors() []Interceptor {
+	return c.inters.CatalogBuild
+}
+
+func (c *CatalogBuildClient) mutate(ctx context.Context, m *CatalogBuildMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CatalogBuildCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CatalogBuildUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CatalogBuildUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CatalogBuildDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CatalogBuild mutation op: %q", m.Op())
 	}
 }
 
@@ -1736,6 +1895,22 @@ func (c *LocationClient) QueryImageTemplates(_m *Location) *ImageTemplateQuery {
 			sqlgraph.From(location.Table, location.FieldID, id),
 			sqlgraph.To(imagetemplate.Table, imagetemplate.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, true, location.ImageTemplatesTable, location.ImageTemplatesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCatalogBuilds queries the catalog_builds edge of a Location.
+func (c *LocationClient) QueryCatalogBuilds(_m *Location) *CatalogBuildQuery {
+	query := (&CatalogBuildClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(location.Table, location.FieldID, id),
+			sqlgraph.To(catalogbuild.Table, catalogbuild.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, location.CatalogBuildsTable, location.CatalogBuildsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -3128,14 +3303,14 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIToken, Action, ConsoleToken, IPAllocation, IPPool, Image, ImageTemplate,
-		Invite, Location, Node, Project, ProjectMember, SSHKey, Server, ServerType,
-		Session, Setting, User []ent.Hook
+		APIToken, Action, CatalogBuild, ConsoleToken, IPAllocation, IPPool, Image,
+		ImageTemplate, Invite, Location, Node, Project, ProjectMember, SSHKey, Server,
+		ServerType, Session, Setting, User []ent.Hook
 	}
 	inters struct {
-		APIToken, Action, ConsoleToken, IPAllocation, IPPool, Image, ImageTemplate,
-		Invite, Location, Node, Project, ProjectMember, SSHKey, Server, ServerType,
-		Session, Setting, User []ent.Interceptor
+		APIToken, Action, CatalogBuild, ConsoleToken, IPAllocation, IPPool, Image,
+		ImageTemplate, Invite, Location, Node, Project, ProjectMember, SSHKey, Server,
+		ServerType, Session, Setting, User []ent.Interceptor
 	}
 )
 

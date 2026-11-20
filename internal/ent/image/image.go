@@ -22,6 +22,8 @@ const (
 	FieldOsFlavor = "os_flavor"
 	// FieldOsVersion holds the string denoting the os_version field in the database.
 	FieldOsVersion = "os_version"
+	// FieldCatalogKey holds the string denoting the catalog_key field in the database.
+	FieldCatalogKey = "catalog_key"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeTemplates holds the string denoting the templates edge name in mutations.
@@ -44,6 +46,7 @@ var Columns = []string{
 	FieldDescription,
 	FieldOsFlavor,
 	FieldOsVersion,
+	FieldCatalogKey,
 	FieldCreatedAt,
 }
 
@@ -90,6 +93,11 @@ func ByOsFlavor(opts ...sql.OrderTermOption) OrderOption {
 // ByOsVersion orders the results by the os_version field.
 func ByOsVersion(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldOsVersion, opts...).ToFunc()
+}
+
+// ByCatalogKey orders the results by the catalog_key field.
+func ByCatalogKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCatalogKey, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

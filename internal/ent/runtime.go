@@ -7,6 +7,7 @@ import (
 
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -61,6 +62,26 @@ func init() {
 	actionDescStarted := actionFields[8].Descriptor()
 	// action.DefaultStarted holds the default value on creation for the started field.
 	action.DefaultStarted = actionDescStarted.Default.(func() time.Time)
+	catalogbuildFields := schema.CatalogBuild{}.Fields()
+	_ = catalogbuildFields
+	// catalogbuildDescNode is the schema descriptor for node field.
+	catalogbuildDescNode := catalogbuildFields[3].Descriptor()
+	// catalogbuild.DefaultNode holds the default value on creation for the node field.
+	catalogbuild.DefaultNode = catalogbuildDescNode.Default.(string)
+	// catalogbuildDescStep is the schema descriptor for step field.
+	catalogbuildDescStep := catalogbuildFields[5].Descriptor()
+	// catalogbuild.DefaultStep holds the default value on creation for the step field.
+	catalogbuild.DefaultStep = catalogbuildDescStep.Default.(int)
+	// catalogbuildDescCreatedAt is the schema descriptor for created_at field.
+	catalogbuildDescCreatedAt := catalogbuildFields[19].Descriptor()
+	// catalogbuild.DefaultCreatedAt holds the default value on creation for the created_at field.
+	catalogbuild.DefaultCreatedAt = catalogbuildDescCreatedAt.Default.(func() time.Time)
+	// catalogbuildDescUpdatedAt is the schema descriptor for updated_at field.
+	catalogbuildDescUpdatedAt := catalogbuildFields[20].Descriptor()
+	// catalogbuild.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	catalogbuild.DefaultUpdatedAt = catalogbuildDescUpdatedAt.Default.(func() time.Time)
+	// catalogbuild.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	catalogbuild.UpdateDefaultUpdatedAt = catalogbuildDescUpdatedAt.UpdateDefault.(func() time.Time)
 	consoletokenFields := schema.ConsoleToken{}.Fields()
 	_ = consoletokenFields
 	// consoletokenDescCreatedAt is the schema descriptor for created_at field.
@@ -86,7 +107,7 @@ func init() {
 	// image.DefaultDescription holds the default value on creation for the description field.
 	image.DefaultDescription = imageDescDescription.Default.(string)
 	// imageDescCreatedAt is the schema descriptor for created_at field.
-	imageDescCreatedAt := imageFields[5].Descriptor()
+	imageDescCreatedAt := imageFields[6].Descriptor()
 	// image.DefaultCreatedAt holds the default value on creation for the created_at field.
 	image.DefaultCreatedAt = imageDescCreatedAt.Default.(func() time.Time)
 	imagetemplateFields := schema.ImageTemplate{}.Fields()
@@ -115,12 +136,16 @@ func init() {
 	locationDescInsecureTLS := locationFields[7].Descriptor()
 	// location.DefaultInsecureTLS holds the default value on creation for the insecure_tls field.
 	location.DefaultInsecureTLS = locationDescInsecureTLS.Default.(bool)
+	// locationDescImportStorage is the schema descriptor for import_storage field.
+	locationDescImportStorage := locationFields[10].Descriptor()
+	// location.DefaultImportStorage holds the default value on creation for the import_storage field.
+	location.DefaultImportStorage = locationDescImportStorage.Default.(string)
 	// locationDescCreatedAt is the schema descriptor for created_at field.
-	locationDescCreatedAt := locationFields[10].Descriptor()
+	locationDescCreatedAt := locationFields[11].Descriptor()
 	// location.DefaultCreatedAt holds the default value on creation for the created_at field.
 	location.DefaultCreatedAt = locationDescCreatedAt.Default.(func() time.Time)
 	// locationDescUpdatedAt is the schema descriptor for updated_at field.
-	locationDescUpdatedAt := locationFields[11].Descriptor()
+	locationDescUpdatedAt := locationFields[12].Descriptor()
 	// location.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
 	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

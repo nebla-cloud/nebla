@@ -25,6 +25,8 @@ type Image struct {
 	OsFlavor string `json:"os_flavor,omitempty"`
 	// OsVersion holds the value of the "os_version" field.
 	OsVersion string `json:"os_version,omitempty"`
+	// CatalogKey holds the value of the "catalog_key" field.
+	CatalogKey *string `json:"catalog_key,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -58,7 +60,7 @@ func (*Image) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case image.FieldID:
 			values[i] = new(sql.NullInt64)
-		case image.FieldName, image.FieldDescription, image.FieldOsFlavor, image.FieldOsVersion:
+		case image.FieldName, image.FieldDescription, image.FieldOsFlavor, image.FieldOsVersion, image.FieldCatalogKey:
 			values[i] = new(sql.NullString)
 		case image.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -106,6 +108,13 @@ func (_m *Image) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field os_version", values[i])
 			} else if value.Valid {
 				_m.OsVersion = value.String
+			}
+		case image.FieldCatalogKey:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field catalog_key", values[i])
+			} else if value.Valid {
+				_m.CatalogKey = new(string)
+				*_m.CatalogKey = value.String
 			}
 		case image.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -165,6 +174,11 @@ func (_m *Image) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("os_version=")
 	builder.WriteString(_m.OsVersion)
+	builder.WriteString(", ")
+	if v := _m.CatalogKey; v != nil {
+		builder.WriteString("catalog_key=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

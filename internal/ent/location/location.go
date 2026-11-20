@@ -32,6 +32,8 @@ const (
 	FieldDiskStorage = "disk_storage"
 	// FieldIsoStorage holds the string denoting the iso_storage field in the database.
 	FieldIsoStorage = "iso_storage"
+	// FieldImportStorage holds the string denoting the import_storage field in the database.
+	FieldImportStorage = "import_storage"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -42,6 +44,8 @@ const (
 	EdgeServerTypes = "server_types"
 	// EdgeImageTemplates holds the string denoting the image_templates edge name in mutations.
 	EdgeImageTemplates = "image_templates"
+	// EdgeCatalogBuilds holds the string denoting the catalog_builds edge name in mutations.
+	EdgeCatalogBuilds = "catalog_builds"
 	// Table holds the table name of the location in the database.
 	Table = "locations"
 	// NodesTable is the table that holds the nodes relation/edge.
@@ -63,6 +67,13 @@ const (
 	ImageTemplatesInverseTable = "image_templates"
 	// ImageTemplatesColumn is the table column denoting the image_templates relation/edge.
 	ImageTemplatesColumn = "location_id"
+	// CatalogBuildsTable is the table that holds the catalog_builds relation/edge.
+	CatalogBuildsTable = "catalog_builds"
+	// CatalogBuildsInverseTable is the table name for the CatalogBuild entity.
+	// It exists in this package in order to avoid circular dependency with the "catalogbuild" package.
+	CatalogBuildsInverseTable = "catalog_builds"
+	// CatalogBuildsColumn is the table column denoting the catalog_builds relation/edge.
+	CatalogBuildsColumn = "location_id"
 )
 
 // Columns holds all SQL columns for location fields.
@@ -77,6 +88,7 @@ var Columns = []string{
 	FieldInsecureTLS,
 	FieldDiskStorage,
 	FieldIsoStorage,
+	FieldImportStorage,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -104,6 +116,8 @@ var (
 	DefaultCaFingerprint string
 	// DefaultInsecureTLS holds the default value on creation for the "insecure_tls" field.
 	DefaultInsecureTLS bool
+	// DefaultImportStorage holds the default value on creation for the "import_storage" field.
+	DefaultImportStorage string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -160,6 +174,11 @@ func ByIsoStorage(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsoStorage, opts...).ToFunc()
 }
 
+// ByImportStorage orders the results by the import_storage field.
+func ByImportStorage(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldImportStorage, opts...).ToFunc()
+}
+
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
@@ -211,6 +230,20 @@ func ByImageTemplates(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newImageTemplatesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByCatalogBuildsCount orders the results by catalog_builds count.
+func ByCatalogBuildsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCatalogBuildsStep(), opts...)
+	}
+}
+
+// ByCatalogBuilds orders the results by catalog_builds terms.
+func ByCatalogBuilds(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCatalogBuildsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newNodesStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -230,5 +263,12 @@ func newImageTemplatesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ImageTemplatesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, ImageTemplatesTable, ImageTemplatesColumn),
+	)
+}
+func newCatalogBuildsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CatalogBuildsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, CatalogBuildsTable, CatalogBuildsColumn),
 	)
 }

@@ -18,6 +18,8 @@ type Tx struct {
 	APIToken *APITokenClient
 	// Action is the client for interacting with the Action builders.
 	Action *ActionClient
+	// CatalogBuild is the client for interacting with the CatalogBuild builders.
+	CatalogBuild *CatalogBuildClient
 	// ConsoleToken is the client for interacting with the ConsoleToken builders.
 	ConsoleToken *ConsoleTokenClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
@@ -183,6 +185,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.APIToken = NewAPITokenClient(tx.config)
 	tx.Action = NewActionClient(tx.config)
+	tx.CatalogBuild = NewCatalogBuildClient(tx.config)
 	tx.ConsoleToken = NewConsoleTokenClient(tx.config)
 	tx.IPAllocation = NewIPAllocationClient(tx.config)
 	tx.IPPool = NewIPPoolClient(tx.config)

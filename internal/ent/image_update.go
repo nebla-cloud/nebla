@@ -85,6 +85,26 @@ func (_u *ImageUpdate) SetNillableOsVersion(v *string) *ImageUpdate {
 	return _u
 }
 
+// SetCatalogKey sets the "catalog_key" field.
+func (_u *ImageUpdate) SetCatalogKey(v string) *ImageUpdate {
+	_u.mutation.SetCatalogKey(v)
+	return _u
+}
+
+// SetNillableCatalogKey sets the "catalog_key" field if the given value is not nil.
+func (_u *ImageUpdate) SetNillableCatalogKey(v *string) *ImageUpdate {
+	if v != nil {
+		_u.SetCatalogKey(*v)
+	}
+	return _u
+}
+
+// ClearCatalogKey clears the value of the "catalog_key" field.
+func (_u *ImageUpdate) ClearCatalogKey() *ImageUpdate {
+	_u.mutation.ClearCatalogKey()
+	return _u
+}
+
 // AddTemplateIDs adds the "templates" edge to the ImageTemplate entity by IDs.
 func (_u *ImageUpdate) AddTemplateIDs(ids ...int64) *ImageUpdate {
 	_u.mutation.AddTemplateIDs(ids...)
@@ -179,6 +199,12 @@ func (_u *ImageUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.OsVersion(); ok {
 		_spec.SetField(image.FieldOsVersion, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CatalogKey(); ok {
+		_spec.SetField(image.FieldCatalogKey, field.TypeString, value)
+	}
+	if _u.mutation.CatalogKeyCleared() {
+		_spec.ClearField(image.FieldCatalogKey, field.TypeString)
 	}
 	if _u.mutation.TemplatesCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -300,6 +326,26 @@ func (_u *ImageUpdateOne) SetNillableOsVersion(v *string) *ImageUpdateOne {
 	if v != nil {
 		_u.SetOsVersion(*v)
 	}
+	return _u
+}
+
+// SetCatalogKey sets the "catalog_key" field.
+func (_u *ImageUpdateOne) SetCatalogKey(v string) *ImageUpdateOne {
+	_u.mutation.SetCatalogKey(v)
+	return _u
+}
+
+// SetNillableCatalogKey sets the "catalog_key" field if the given value is not nil.
+func (_u *ImageUpdateOne) SetNillableCatalogKey(v *string) *ImageUpdateOne {
+	if v != nil {
+		_u.SetCatalogKey(*v)
+	}
+	return _u
+}
+
+// ClearCatalogKey clears the value of the "catalog_key" field.
+func (_u *ImageUpdateOne) ClearCatalogKey() *ImageUpdateOne {
+	_u.mutation.ClearCatalogKey()
 	return _u
 }
 
@@ -427,6 +473,12 @@ func (_u *ImageUpdateOne) sqlSave(ctx context.Context) (_node *Image, err error)
 	}
 	if value, ok := _u.mutation.OsVersion(); ok {
 		_spec.SetField(image.FieldOsVersion, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CatalogKey(); ok {
+		_spec.SetField(image.FieldCatalogKey, field.TypeString, value)
+	}
+	if _u.mutation.CatalogKeyCleared() {
+		_spec.ClearField(image.FieldCatalogKey, field.TypeString)
 	}
 	if _u.mutation.TemplatesCleared() {
 		edge := &sqlgraph.EdgeSpec{

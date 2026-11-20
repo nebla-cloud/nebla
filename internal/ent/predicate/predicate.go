@@ -12,6 +12,9 @@ type APIToken func(*sql.Selector)
 // Action is the predicate function for action builders.
 type Action func(*sql.Selector)
 
+// CatalogBuild is the predicate function for catalogbuild builders.
+type CatalogBuild func(*sql.Selector)
+
 // ConsoleToken is the predicate function for consoletoken builders.
 type ConsoleToken func(*sql.Selector)
 

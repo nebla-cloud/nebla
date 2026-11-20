@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
@@ -30,6 +31,7 @@ type LocationQuery struct {
 	withNodes          *NodeQuery
 	withServerTypes    *ServerTypeQuery
 	withImageTemplates *ImageTemplateQuery
+	withCatalogBuilds  *CatalogBuildQuery
 	modifiers          []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -126,6 +128,28 @@ func (_q *LocationQuery) QueryImageTemplates() *ImageTemplateQuery {
 			sqlgraph.From(location.Table, location.FieldID, selector),
 			sqlgraph.To(imagetemplate.Table, imagetemplate.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, true, location.ImageTemplatesTable, location.ImageTemplatesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryCatalogBuilds chains the current query on the "catalog_builds" edge.
+func (_q *LocationQuery) QueryCatalogBuilds() *CatalogBuildQuery {
+	query := (&CatalogBuildClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(location.Table, location.FieldID, selector),
+			sqlgraph.To(catalogbuild.Table, catalogbuild.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, location.CatalogBuildsTable, location.CatalogBuildsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -328,6 +352,7 @@ func (_q *LocationQuery) Clone() *LocationQuery {
 		withNodes:          _q.withNodes.Clone(),
 		withServerTypes:    _q.withServerTypes.Clone(),
 		withImageTemplates: _q.withImageTemplates.Clone(),
+		withCatalogBuilds:  _q.withCatalogBuilds.Clone(),
 		// clone intermediate query.
 		sql:       _q.sql.Clone(),
 		path:      _q.path,
@@ -365,6 +390,17 @@ func (_q *LocationQuery) WithImageTemplates(opts ...func(*ImageTemplateQuery)) *
 		opt(query)
 	}
 	_q.withImageTemplates = query
+	return _q
+}
+
+// WithCatalogBuilds tells the query-builder to eager-load the nodes that are connected to
+// the "catalog_builds" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *LocationQuery) WithCatalogBuilds(opts ...func(*CatalogBuildQuery)) *LocationQuery {
+	query := (&CatalogBuildClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withCatalogBuilds = query
 	return _q
 }
 
@@ -446,10 +482,11 @@ func (_q *LocationQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Loc
 	var (
 		nodes       = []*Location{}
 		_spec       = _q.querySpec()
-		loadedTypes = [3]bool{
+		loadedTypes = [4]bool{
 			_q.withNodes != nil,
 			_q.withServerTypes != nil,
 			_q.withImageTemplates != nil,
+			_q.withCatalogBuilds != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -491,6 +528,13 @@ func (_q *LocationQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Loc
 		if err := _q.loadImageTemplates(ctx, query, nodes,
 			func(n *Location) { n.Edges.ImageTemplates = []*ImageTemplate{} },
 			func(n *Location, e *ImageTemplate) { n.Edges.ImageTemplates = append(n.Edges.ImageTemplates, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withCatalogBuilds; query != nil {
+		if err := _q.loadCatalogBuilds(ctx, query, nodes,
+			func(n *Location) { n.Edges.CatalogBuilds = []*CatalogBuild{} },
+			func(n *Location, e *CatalogBuild) { n.Edges.CatalogBuilds = append(n.Edges.CatalogBuilds, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -603,6 +647,36 @@ func (_q *LocationQuery) loadImageTemplates(ctx context.Context, query *ImageTem
 	}
 	query.Where(predicate.ImageTemplate(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(location.ImageTemplatesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.LocationID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "location_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *LocationQuery) loadCatalogBuilds(ctx context.Context, query *CatalogBuildQuery, nodes []*Location, init func(*Location), assign func(*Location, *CatalogBuild)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*Location)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(catalogbuild.FieldLocationID)
+	}
+	query.Where(predicate.CatalogBuild(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(location.CatalogBuildsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

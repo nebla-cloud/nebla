@@ -93,6 +93,51 @@ var (
 			},
 		},
 	}
+	// CatalogBuildsColumns holds the columns for the "catalog_builds" table.
+	CatalogBuildsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "catalog_key", Type: field.TypeString, Size: 2147483647},
+		{Name: "node", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"building", "ready", "failed"}, Default: "building"},
+		{Name: "step", Type: field.TypeInt, Default: 0},
+		{Name: "vmid", Type: field.TypeInt, Nullable: true},
+		{Name: "new_vmid", Type: field.TypeInt, Nullable: true},
+		{Name: "nonce", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "new_nonce", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "upid", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "file", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "checksum", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "new_file", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "new_checksum", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "built_at", Type: field.TypeTime, Nullable: true},
+		{Name: "error_code", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "error_message", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "river_job_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "location_id", Type: field.TypeInt64},
+	}
+	// CatalogBuildsTable holds the schema information for the "catalog_builds" table.
+	CatalogBuildsTable = &schema.Table{
+		Name:       "catalog_builds",
+		Columns:    CatalogBuildsColumns,
+		PrimaryKey: []*schema.Column{CatalogBuildsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "catalog_builds_locations_location",
+				Columns:    []*schema.Column{CatalogBuildsColumns[20]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "catalog_builds_key_location_node_key",
+				Unique:  true,
+				Columns: []*schema.Column{CatalogBuildsColumns[1], CatalogBuildsColumns[20], CatalogBuildsColumns[2]},
+			},
+		},
+	}
 	// ConsoleTokensColumns holds the columns for the "console_tokens" table.
 	ConsoleTokensColumns = []*schema.Column{
 		{Name: "token_hash", Type: field.TypeBytes},
@@ -206,6 +251,7 @@ var (
 		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "os_flavor", Type: field.TypeString, Size: 2147483647},
 		{Name: "os_version", Type: field.TypeString, Size: 2147483647},
+		{Name: "catalog_key", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
 	// ImagesTable holds the schema information for the "images" table.
@@ -218,6 +264,11 @@ var (
 				Name:    "images_name_key",
 				Unique:  true,
 				Columns: []*schema.Column{ImagesColumns[1]},
+			},
+			{
+				Name:    "images_catalog_key_key",
+				Unique:  true,
+				Columns: []*schema.Column{ImagesColumns[5]},
 			},
 		},
 	}
@@ -317,6 +368,7 @@ var (
 		{Name: "insecure_tls", Type: field.TypeBool, Default: false},
 		{Name: "disk_storage", Type: field.TypeString, Size: 2147483647},
 		{Name: "iso_storage", Type: field.TypeString, Size: 2147483647},
+		{Name: "import_storage", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
@@ -660,6 +712,7 @@ var (
 	Tables = []*schema.Table{
 		APITokensTable,
 		ActionsTable,
+		CatalogBuildsTable,
 		ConsoleTokensTable,
 		IPAllocationsTable,
 		IPPoolsTable,
@@ -686,6 +739,7 @@ func init() {
 		Table: "api_tokens",
 	}
 	ActionsTable.ForeignKeys[0].RefTable = ProjectsTable
+	CatalogBuildsTable.ForeignKeys[0].RefTable = LocationsTable
 	ConsoleTokensTable.ForeignKeys[0].RefTable = ServersTable
 	IPAllocationsTable.ForeignKeys[0].RefTable = IPPoolsTable
 	IPPoolsTable.ForeignKeys[0].RefTable = LocationsTable

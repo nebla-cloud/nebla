@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -44,6 +45,7 @@ const (
 	// Node types.
 	TypeAPIToken      = "APIToken"
 	TypeAction        = "Action"
+	TypeCatalogBuild  = "CatalogBuild"
 	TypeConsoleToken  = "ConsoleToken"
 	TypeIPAllocation  = "IPAllocation"
 	TypeIPPool        = "IPPool"
@@ -1778,6 +1780,1806 @@ func (m *ActionMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Action edge %s", name)
+}
+
+// CatalogBuildMutation represents an operation that mutates the CatalogBuild nodes in the graph.
+type CatalogBuildMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	catalog_key     *string
+	node            *string
+	status          *catalogbuild.Status
+	step            *int
+	addstep         *int
+	vmid            *int
+	addvmid         *int
+	new_vmid        *int
+	addnew_vmid     *int
+	nonce           *string
+	new_nonce       *string
+	upid            *string
+	file            *string
+	checksum        *string
+	new_file        *string
+	new_checksum    *string
+	built_at        *time.Time
+	error_code      *string
+	error_message   *string
+	river_job_id    *int64
+	addriver_job_id *int64
+	created_at      *time.Time
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	location        *int64
+	clearedlocation bool
+	done            bool
+	oldValue        func(context.Context) (*CatalogBuild, error)
+	predicates      []predicate.CatalogBuild
+}
+
+var _ ent.Mutation = (*CatalogBuildMutation)(nil)
+
+// catalogbuildOption allows management of the mutation configuration using functional options.
+type catalogbuildOption func(*CatalogBuildMutation)
+
+// newCatalogBuildMutation creates new mutation for the CatalogBuild entity.
+func newCatalogBuildMutation(c config, op Op, opts ...catalogbuildOption) *CatalogBuildMutation {
+	m := &CatalogBuildMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCatalogBuild,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCatalogBuildID sets the ID field of the mutation.
+func withCatalogBuildID(id int64) catalogbuildOption {
+	return func(m *CatalogBuildMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CatalogBuild
+		)
+		m.oldValue = func(ctx context.Context) (*CatalogBuild, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CatalogBuild.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCatalogBuild sets the old CatalogBuild of the mutation.
+func withCatalogBuild(node *CatalogBuild) catalogbuildOption {
+	return func(m *CatalogBuildMutation) {
+		m.oldValue = func(context.Context) (*CatalogBuild, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CatalogBuildMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CatalogBuildMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of CatalogBuild entities.
+func (m *CatalogBuildMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CatalogBuildMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CatalogBuildMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CatalogBuild.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCatalogKey sets the "catalog_key" field.
+func (m *CatalogBuildMutation) SetCatalogKey(s string) {
+	m.catalog_key = &s
+}
+
+// CatalogKey returns the value of the "catalog_key" field in the mutation.
+func (m *CatalogBuildMutation) CatalogKey() (r string, exists bool) {
+	v := m.catalog_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCatalogKey returns the old "catalog_key" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldCatalogKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCatalogKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCatalogKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCatalogKey: %w", err)
+	}
+	return oldValue.CatalogKey, nil
+}
+
+// ResetCatalogKey resets all changes to the "catalog_key" field.
+func (m *CatalogBuildMutation) ResetCatalogKey() {
+	m.catalog_key = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *CatalogBuildMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *CatalogBuildMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *CatalogBuildMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetNode sets the "node" field.
+func (m *CatalogBuildMutation) SetNode(s string) {
+	m.node = &s
+}
+
+// Node returns the value of the "node" field in the mutation.
+func (m *CatalogBuildMutation) Node() (r string, exists bool) {
+	v := m.node
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNode returns the old "node" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldNode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNode: %w", err)
+	}
+	return oldValue.Node, nil
+}
+
+// ResetNode resets all changes to the "node" field.
+func (m *CatalogBuildMutation) ResetNode() {
+	m.node = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *CatalogBuildMutation) SetStatus(c catalogbuild.Status) {
+	m.status = &c
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *CatalogBuildMutation) Status() (r catalogbuild.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldStatus(ctx context.Context) (v catalogbuild.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *CatalogBuildMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetStep sets the "step" field.
+func (m *CatalogBuildMutation) SetStep(i int) {
+	m.step = &i
+	m.addstep = nil
+}
+
+// Step returns the value of the "step" field in the mutation.
+func (m *CatalogBuildMutation) Step() (r int, exists bool) {
+	v := m.step
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStep returns the old "step" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldStep(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStep is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStep requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStep: %w", err)
+	}
+	return oldValue.Step, nil
+}
+
+// AddStep adds i to the "step" field.
+func (m *CatalogBuildMutation) AddStep(i int) {
+	if m.addstep != nil {
+		*m.addstep += i
+	} else {
+		m.addstep = &i
+	}
+}
+
+// AddedStep returns the value that was added to the "step" field in this mutation.
+func (m *CatalogBuildMutation) AddedStep() (r int, exists bool) {
+	v := m.addstep
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetStep resets all changes to the "step" field.
+func (m *CatalogBuildMutation) ResetStep() {
+	m.step = nil
+	m.addstep = nil
+}
+
+// SetVmid sets the "vmid" field.
+func (m *CatalogBuildMutation) SetVmid(i int) {
+	m.vmid = &i
+	m.addvmid = nil
+}
+
+// Vmid returns the value of the "vmid" field in the mutation.
+func (m *CatalogBuildMutation) Vmid() (r int, exists bool) {
+	v := m.vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVmid returns the old "vmid" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldVmid(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVmid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVmid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVmid: %w", err)
+	}
+	return oldValue.Vmid, nil
+}
+
+// AddVmid adds i to the "vmid" field.
+func (m *CatalogBuildMutation) AddVmid(i int) {
+	if m.addvmid != nil {
+		*m.addvmid += i
+	} else {
+		m.addvmid = &i
+	}
+}
+
+// AddedVmid returns the value that was added to the "vmid" field in this mutation.
+func (m *CatalogBuildMutation) AddedVmid() (r int, exists bool) {
+	v := m.addvmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearVmid clears the value of the "vmid" field.
+func (m *CatalogBuildMutation) ClearVmid() {
+	m.vmid = nil
+	m.addvmid = nil
+	m.clearedFields[catalogbuild.FieldVmid] = struct{}{}
+}
+
+// VmidCleared returns if the "vmid" field was cleared in this mutation.
+func (m *CatalogBuildMutation) VmidCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldVmid]
+	return ok
+}
+
+// ResetVmid resets all changes to the "vmid" field.
+func (m *CatalogBuildMutation) ResetVmid() {
+	m.vmid = nil
+	m.addvmid = nil
+	delete(m.clearedFields, catalogbuild.FieldVmid)
+}
+
+// SetNewVmid sets the "new_vmid" field.
+func (m *CatalogBuildMutation) SetNewVmid(i int) {
+	m.new_vmid = &i
+	m.addnew_vmid = nil
+}
+
+// NewVmid returns the value of the "new_vmid" field in the mutation.
+func (m *CatalogBuildMutation) NewVmid() (r int, exists bool) {
+	v := m.new_vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNewVmid returns the old "new_vmid" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldNewVmid(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNewVmid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNewVmid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNewVmid: %w", err)
+	}
+	return oldValue.NewVmid, nil
+}
+
+// AddNewVmid adds i to the "new_vmid" field.
+func (m *CatalogBuildMutation) AddNewVmid(i int) {
+	if m.addnew_vmid != nil {
+		*m.addnew_vmid += i
+	} else {
+		m.addnew_vmid = &i
+	}
+}
+
+// AddedNewVmid returns the value that was added to the "new_vmid" field in this mutation.
+func (m *CatalogBuildMutation) AddedNewVmid() (r int, exists bool) {
+	v := m.addnew_vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearNewVmid clears the value of the "new_vmid" field.
+func (m *CatalogBuildMutation) ClearNewVmid() {
+	m.new_vmid = nil
+	m.addnew_vmid = nil
+	m.clearedFields[catalogbuild.FieldNewVmid] = struct{}{}
+}
+
+// NewVmidCleared returns if the "new_vmid" field was cleared in this mutation.
+func (m *CatalogBuildMutation) NewVmidCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldNewVmid]
+	return ok
+}
+
+// ResetNewVmid resets all changes to the "new_vmid" field.
+func (m *CatalogBuildMutation) ResetNewVmid() {
+	m.new_vmid = nil
+	m.addnew_vmid = nil
+	delete(m.clearedFields, catalogbuild.FieldNewVmid)
+}
+
+// SetNonce sets the "nonce" field.
+func (m *CatalogBuildMutation) SetNonce(s string) {
+	m.nonce = &s
+}
+
+// Nonce returns the value of the "nonce" field in the mutation.
+func (m *CatalogBuildMutation) Nonce() (r string, exists bool) {
+	v := m.nonce
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNonce returns the old "nonce" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldNonce(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNonce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNonce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNonce: %w", err)
+	}
+	return oldValue.Nonce, nil
+}
+
+// ClearNonce clears the value of the "nonce" field.
+func (m *CatalogBuildMutation) ClearNonce() {
+	m.nonce = nil
+	m.clearedFields[catalogbuild.FieldNonce] = struct{}{}
+}
+
+// NonceCleared returns if the "nonce" field was cleared in this mutation.
+func (m *CatalogBuildMutation) NonceCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldNonce]
+	return ok
+}
+
+// ResetNonce resets all changes to the "nonce" field.
+func (m *CatalogBuildMutation) ResetNonce() {
+	m.nonce = nil
+	delete(m.clearedFields, catalogbuild.FieldNonce)
+}
+
+// SetNewNonce sets the "new_nonce" field.
+func (m *CatalogBuildMutation) SetNewNonce(s string) {
+	m.new_nonce = &s
+}
+
+// NewNonce returns the value of the "new_nonce" field in the mutation.
+func (m *CatalogBuildMutation) NewNonce() (r string, exists bool) {
+	v := m.new_nonce
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNewNonce returns the old "new_nonce" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldNewNonce(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNewNonce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNewNonce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNewNonce: %w", err)
+	}
+	return oldValue.NewNonce, nil
+}
+
+// ClearNewNonce clears the value of the "new_nonce" field.
+func (m *CatalogBuildMutation) ClearNewNonce() {
+	m.new_nonce = nil
+	m.clearedFields[catalogbuild.FieldNewNonce] = struct{}{}
+}
+
+// NewNonceCleared returns if the "new_nonce" field was cleared in this mutation.
+func (m *CatalogBuildMutation) NewNonceCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldNewNonce]
+	return ok
+}
+
+// ResetNewNonce resets all changes to the "new_nonce" field.
+func (m *CatalogBuildMutation) ResetNewNonce() {
+	m.new_nonce = nil
+	delete(m.clearedFields, catalogbuild.FieldNewNonce)
+}
+
+// SetUpid sets the "upid" field.
+func (m *CatalogBuildMutation) SetUpid(s string) {
+	m.upid = &s
+}
+
+// Upid returns the value of the "upid" field in the mutation.
+func (m *CatalogBuildMutation) Upid() (r string, exists bool) {
+	v := m.upid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpid returns the old "upid" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldUpid(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpid: %w", err)
+	}
+	return oldValue.Upid, nil
+}
+
+// ClearUpid clears the value of the "upid" field.
+func (m *CatalogBuildMutation) ClearUpid() {
+	m.upid = nil
+	m.clearedFields[catalogbuild.FieldUpid] = struct{}{}
+}
+
+// UpidCleared returns if the "upid" field was cleared in this mutation.
+func (m *CatalogBuildMutation) UpidCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldUpid]
+	return ok
+}
+
+// ResetUpid resets all changes to the "upid" field.
+func (m *CatalogBuildMutation) ResetUpid() {
+	m.upid = nil
+	delete(m.clearedFields, catalogbuild.FieldUpid)
+}
+
+// SetFile sets the "file" field.
+func (m *CatalogBuildMutation) SetFile(s string) {
+	m.file = &s
+}
+
+// File returns the value of the "file" field in the mutation.
+func (m *CatalogBuildMutation) File() (r string, exists bool) {
+	v := m.file
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFile returns the old "file" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldFile(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFile is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFile requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFile: %w", err)
+	}
+	return oldValue.File, nil
+}
+
+// ClearFile clears the value of the "file" field.
+func (m *CatalogBuildMutation) ClearFile() {
+	m.file = nil
+	m.clearedFields[catalogbuild.FieldFile] = struct{}{}
+}
+
+// FileCleared returns if the "file" field was cleared in this mutation.
+func (m *CatalogBuildMutation) FileCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldFile]
+	return ok
+}
+
+// ResetFile resets all changes to the "file" field.
+func (m *CatalogBuildMutation) ResetFile() {
+	m.file = nil
+	delete(m.clearedFields, catalogbuild.FieldFile)
+}
+
+// SetChecksum sets the "checksum" field.
+func (m *CatalogBuildMutation) SetChecksum(s string) {
+	m.checksum = &s
+}
+
+// Checksum returns the value of the "checksum" field in the mutation.
+func (m *CatalogBuildMutation) Checksum() (r string, exists bool) {
+	v := m.checksum
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChecksum returns the old "checksum" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldChecksum(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChecksum is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChecksum requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChecksum: %w", err)
+	}
+	return oldValue.Checksum, nil
+}
+
+// ClearChecksum clears the value of the "checksum" field.
+func (m *CatalogBuildMutation) ClearChecksum() {
+	m.checksum = nil
+	m.clearedFields[catalogbuild.FieldChecksum] = struct{}{}
+}
+
+// ChecksumCleared returns if the "checksum" field was cleared in this mutation.
+func (m *CatalogBuildMutation) ChecksumCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldChecksum]
+	return ok
+}
+
+// ResetChecksum resets all changes to the "checksum" field.
+func (m *CatalogBuildMutation) ResetChecksum() {
+	m.checksum = nil
+	delete(m.clearedFields, catalogbuild.FieldChecksum)
+}
+
+// SetNewFile sets the "new_file" field.
+func (m *CatalogBuildMutation) SetNewFile(s string) {
+	m.new_file = &s
+}
+
+// NewFile returns the value of the "new_file" field in the mutation.
+func (m *CatalogBuildMutation) NewFile() (r string, exists bool) {
+	v := m.new_file
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNewFile returns the old "new_file" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldNewFile(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNewFile is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNewFile requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNewFile: %w", err)
+	}
+	return oldValue.NewFile, nil
+}
+
+// ClearNewFile clears the value of the "new_file" field.
+func (m *CatalogBuildMutation) ClearNewFile() {
+	m.new_file = nil
+	m.clearedFields[catalogbuild.FieldNewFile] = struct{}{}
+}
+
+// NewFileCleared returns if the "new_file" field was cleared in this mutation.
+func (m *CatalogBuildMutation) NewFileCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldNewFile]
+	return ok
+}
+
+// ResetNewFile resets all changes to the "new_file" field.
+func (m *CatalogBuildMutation) ResetNewFile() {
+	m.new_file = nil
+	delete(m.clearedFields, catalogbuild.FieldNewFile)
+}
+
+// SetNewChecksum sets the "new_checksum" field.
+func (m *CatalogBuildMutation) SetNewChecksum(s string) {
+	m.new_checksum = &s
+}
+
+// NewChecksum returns the value of the "new_checksum" field in the mutation.
+func (m *CatalogBuildMutation) NewChecksum() (r string, exists bool) {
+	v := m.new_checksum
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNewChecksum returns the old "new_checksum" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldNewChecksum(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNewChecksum is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNewChecksum requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNewChecksum: %w", err)
+	}
+	return oldValue.NewChecksum, nil
+}
+
+// ClearNewChecksum clears the value of the "new_checksum" field.
+func (m *CatalogBuildMutation) ClearNewChecksum() {
+	m.new_checksum = nil
+	m.clearedFields[catalogbuild.FieldNewChecksum] = struct{}{}
+}
+
+// NewChecksumCleared returns if the "new_checksum" field was cleared in this mutation.
+func (m *CatalogBuildMutation) NewChecksumCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldNewChecksum]
+	return ok
+}
+
+// ResetNewChecksum resets all changes to the "new_checksum" field.
+func (m *CatalogBuildMutation) ResetNewChecksum() {
+	m.new_checksum = nil
+	delete(m.clearedFields, catalogbuild.FieldNewChecksum)
+}
+
+// SetBuiltAt sets the "built_at" field.
+func (m *CatalogBuildMutation) SetBuiltAt(t time.Time) {
+	m.built_at = &t
+}
+
+// BuiltAt returns the value of the "built_at" field in the mutation.
+func (m *CatalogBuildMutation) BuiltAt() (r time.Time, exists bool) {
+	v := m.built_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBuiltAt returns the old "built_at" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldBuiltAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBuiltAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBuiltAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBuiltAt: %w", err)
+	}
+	return oldValue.BuiltAt, nil
+}
+
+// ClearBuiltAt clears the value of the "built_at" field.
+func (m *CatalogBuildMutation) ClearBuiltAt() {
+	m.built_at = nil
+	m.clearedFields[catalogbuild.FieldBuiltAt] = struct{}{}
+}
+
+// BuiltAtCleared returns if the "built_at" field was cleared in this mutation.
+func (m *CatalogBuildMutation) BuiltAtCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldBuiltAt]
+	return ok
+}
+
+// ResetBuiltAt resets all changes to the "built_at" field.
+func (m *CatalogBuildMutation) ResetBuiltAt() {
+	m.built_at = nil
+	delete(m.clearedFields, catalogbuild.FieldBuiltAt)
+}
+
+// SetErrorCode sets the "error_code" field.
+func (m *CatalogBuildMutation) SetErrorCode(s string) {
+	m.error_code = &s
+}
+
+// ErrorCode returns the value of the "error_code" field in the mutation.
+func (m *CatalogBuildMutation) ErrorCode() (r string, exists bool) {
+	v := m.error_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorCode returns the old "error_code" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldErrorCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorCode: %w", err)
+	}
+	return oldValue.ErrorCode, nil
+}
+
+// ClearErrorCode clears the value of the "error_code" field.
+func (m *CatalogBuildMutation) ClearErrorCode() {
+	m.error_code = nil
+	m.clearedFields[catalogbuild.FieldErrorCode] = struct{}{}
+}
+
+// ErrorCodeCleared returns if the "error_code" field was cleared in this mutation.
+func (m *CatalogBuildMutation) ErrorCodeCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldErrorCode]
+	return ok
+}
+
+// ResetErrorCode resets all changes to the "error_code" field.
+func (m *CatalogBuildMutation) ResetErrorCode() {
+	m.error_code = nil
+	delete(m.clearedFields, catalogbuild.FieldErrorCode)
+}
+
+// SetErrorMessage sets the "error_message" field.
+func (m *CatalogBuildMutation) SetErrorMessage(s string) {
+	m.error_message = &s
+}
+
+// ErrorMessage returns the value of the "error_message" field in the mutation.
+func (m *CatalogBuildMutation) ErrorMessage() (r string, exists bool) {
+	v := m.error_message
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorMessage returns the old "error_message" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldErrorMessage(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorMessage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorMessage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorMessage: %w", err)
+	}
+	return oldValue.ErrorMessage, nil
+}
+
+// ClearErrorMessage clears the value of the "error_message" field.
+func (m *CatalogBuildMutation) ClearErrorMessage() {
+	m.error_message = nil
+	m.clearedFields[catalogbuild.FieldErrorMessage] = struct{}{}
+}
+
+// ErrorMessageCleared returns if the "error_message" field was cleared in this mutation.
+func (m *CatalogBuildMutation) ErrorMessageCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldErrorMessage]
+	return ok
+}
+
+// ResetErrorMessage resets all changes to the "error_message" field.
+func (m *CatalogBuildMutation) ResetErrorMessage() {
+	m.error_message = nil
+	delete(m.clearedFields, catalogbuild.FieldErrorMessage)
+}
+
+// SetRiverJobID sets the "river_job_id" field.
+func (m *CatalogBuildMutation) SetRiverJobID(i int64) {
+	m.river_job_id = &i
+	m.addriver_job_id = nil
+}
+
+// RiverJobID returns the value of the "river_job_id" field in the mutation.
+func (m *CatalogBuildMutation) RiverJobID() (r int64, exists bool) {
+	v := m.river_job_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRiverJobID returns the old "river_job_id" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldRiverJobID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRiverJobID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRiverJobID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRiverJobID: %w", err)
+	}
+	return oldValue.RiverJobID, nil
+}
+
+// AddRiverJobID adds i to the "river_job_id" field.
+func (m *CatalogBuildMutation) AddRiverJobID(i int64) {
+	if m.addriver_job_id != nil {
+		*m.addriver_job_id += i
+	} else {
+		m.addriver_job_id = &i
+	}
+}
+
+// AddedRiverJobID returns the value that was added to the "river_job_id" field in this mutation.
+func (m *CatalogBuildMutation) AddedRiverJobID() (r int64, exists bool) {
+	v := m.addriver_job_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearRiverJobID clears the value of the "river_job_id" field.
+func (m *CatalogBuildMutation) ClearRiverJobID() {
+	m.river_job_id = nil
+	m.addriver_job_id = nil
+	m.clearedFields[catalogbuild.FieldRiverJobID] = struct{}{}
+}
+
+// RiverJobIDCleared returns if the "river_job_id" field was cleared in this mutation.
+func (m *CatalogBuildMutation) RiverJobIDCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldRiverJobID]
+	return ok
+}
+
+// ResetRiverJobID resets all changes to the "river_job_id" field.
+func (m *CatalogBuildMutation) ResetRiverJobID() {
+	m.river_job_id = nil
+	m.addriver_job_id = nil
+	delete(m.clearedFields, catalogbuild.FieldRiverJobID)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CatalogBuildMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CatalogBuildMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CatalogBuildMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CatalogBuildMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CatalogBuildMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CatalogBuildMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *CatalogBuildMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[catalogbuild.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *CatalogBuildMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *CatalogBuildMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *CatalogBuildMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// Where appends a list predicates to the CatalogBuildMutation builder.
+func (m *CatalogBuildMutation) Where(ps ...predicate.CatalogBuild) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CatalogBuildMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CatalogBuildMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CatalogBuild, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CatalogBuildMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CatalogBuildMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CatalogBuild).
+func (m *CatalogBuildMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CatalogBuildMutation) Fields() []string {
+	fields := make([]string, 0, 20)
+	if m.catalog_key != nil {
+		fields = append(fields, catalogbuild.FieldCatalogKey)
+	}
+	if m.location != nil {
+		fields = append(fields, catalogbuild.FieldLocationID)
+	}
+	if m.node != nil {
+		fields = append(fields, catalogbuild.FieldNode)
+	}
+	if m.status != nil {
+		fields = append(fields, catalogbuild.FieldStatus)
+	}
+	if m.step != nil {
+		fields = append(fields, catalogbuild.FieldStep)
+	}
+	if m.vmid != nil {
+		fields = append(fields, catalogbuild.FieldVmid)
+	}
+	if m.new_vmid != nil {
+		fields = append(fields, catalogbuild.FieldNewVmid)
+	}
+	if m.nonce != nil {
+		fields = append(fields, catalogbuild.FieldNonce)
+	}
+	if m.new_nonce != nil {
+		fields = append(fields, catalogbuild.FieldNewNonce)
+	}
+	if m.upid != nil {
+		fields = append(fields, catalogbuild.FieldUpid)
+	}
+	if m.file != nil {
+		fields = append(fields, catalogbuild.FieldFile)
+	}
+	if m.checksum != nil {
+		fields = append(fields, catalogbuild.FieldChecksum)
+	}
+	if m.new_file != nil {
+		fields = append(fields, catalogbuild.FieldNewFile)
+	}
+	if m.new_checksum != nil {
+		fields = append(fields, catalogbuild.FieldNewChecksum)
+	}
+	if m.built_at != nil {
+		fields = append(fields, catalogbuild.FieldBuiltAt)
+	}
+	if m.error_code != nil {
+		fields = append(fields, catalogbuild.FieldErrorCode)
+	}
+	if m.error_message != nil {
+		fields = append(fields, catalogbuild.FieldErrorMessage)
+	}
+	if m.river_job_id != nil {
+		fields = append(fields, catalogbuild.FieldRiverJobID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, catalogbuild.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, catalogbuild.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CatalogBuildMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case catalogbuild.FieldCatalogKey:
+		return m.CatalogKey()
+	case catalogbuild.FieldLocationID:
+		return m.LocationID()
+	case catalogbuild.FieldNode:
+		return m.Node()
+	case catalogbuild.FieldStatus:
+		return m.Status()
+	case catalogbuild.FieldStep:
+		return m.Step()
+	case catalogbuild.FieldVmid:
+		return m.Vmid()
+	case catalogbuild.FieldNewVmid:
+		return m.NewVmid()
+	case catalogbuild.FieldNonce:
+		return m.Nonce()
+	case catalogbuild.FieldNewNonce:
+		return m.NewNonce()
+	case catalogbuild.FieldUpid:
+		return m.Upid()
+	case catalogbuild.FieldFile:
+		return m.File()
+	case catalogbuild.FieldChecksum:
+		return m.Checksum()
+	case catalogbuild.FieldNewFile:
+		return m.NewFile()
+	case catalogbuild.FieldNewChecksum:
+		return m.NewChecksum()
+	case catalogbuild.FieldBuiltAt:
+		return m.BuiltAt()
+	case catalogbuild.FieldErrorCode:
+		return m.ErrorCode()
+	case catalogbuild.FieldErrorMessage:
+		return m.ErrorMessage()
+	case catalogbuild.FieldRiverJobID:
+		return m.RiverJobID()
+	case catalogbuild.FieldCreatedAt:
+		return m.CreatedAt()
+	case catalogbuild.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CatalogBuildMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case catalogbuild.FieldCatalogKey:
+		return m.OldCatalogKey(ctx)
+	case catalogbuild.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case catalogbuild.FieldNode:
+		return m.OldNode(ctx)
+	case catalogbuild.FieldStatus:
+		return m.OldStatus(ctx)
+	case catalogbuild.FieldStep:
+		return m.OldStep(ctx)
+	case catalogbuild.FieldVmid:
+		return m.OldVmid(ctx)
+	case catalogbuild.FieldNewVmid:
+		return m.OldNewVmid(ctx)
+	case catalogbuild.FieldNonce:
+		return m.OldNonce(ctx)
+	case catalogbuild.FieldNewNonce:
+		return m.OldNewNonce(ctx)
+	case catalogbuild.FieldUpid:
+		return m.OldUpid(ctx)
+	case catalogbuild.FieldFile:
+		return m.OldFile(ctx)
+	case catalogbuild.FieldChecksum:
+		return m.OldChecksum(ctx)
+	case catalogbuild.FieldNewFile:
+		return m.OldNewFile(ctx)
+	case catalogbuild.FieldNewChecksum:
+		return m.OldNewChecksum(ctx)
+	case catalogbuild.FieldBuiltAt:
+		return m.OldBuiltAt(ctx)
+	case catalogbuild.FieldErrorCode:
+		return m.OldErrorCode(ctx)
+	case catalogbuild.FieldErrorMessage:
+		return m.OldErrorMessage(ctx)
+	case catalogbuild.FieldRiverJobID:
+		return m.OldRiverJobID(ctx)
+	case catalogbuild.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case catalogbuild.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown CatalogBuild field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CatalogBuildMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case catalogbuild.FieldCatalogKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCatalogKey(v)
+		return nil
+	case catalogbuild.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case catalogbuild.FieldNode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNode(v)
+		return nil
+	case catalogbuild.FieldStatus:
+		v, ok := value.(catalogbuild.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case catalogbuild.FieldStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStep(v)
+		return nil
+	case catalogbuild.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVmid(v)
+		return nil
+	case catalogbuild.FieldNewVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNewVmid(v)
+		return nil
+	case catalogbuild.FieldNonce:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNonce(v)
+		return nil
+	case catalogbuild.FieldNewNonce:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNewNonce(v)
+		return nil
+	case catalogbuild.FieldUpid:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpid(v)
+		return nil
+	case catalogbuild.FieldFile:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFile(v)
+		return nil
+	case catalogbuild.FieldChecksum:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChecksum(v)
+		return nil
+	case catalogbuild.FieldNewFile:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNewFile(v)
+		return nil
+	case catalogbuild.FieldNewChecksum:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNewChecksum(v)
+		return nil
+	case catalogbuild.FieldBuiltAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBuiltAt(v)
+		return nil
+	case catalogbuild.FieldErrorCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorCode(v)
+		return nil
+	case catalogbuild.FieldErrorMessage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorMessage(v)
+		return nil
+	case catalogbuild.FieldRiverJobID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRiverJobID(v)
+		return nil
+	case catalogbuild.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case catalogbuild.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CatalogBuild field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CatalogBuildMutation) AddedFields() []string {
+	var fields []string
+	if m.addstep != nil {
+		fields = append(fields, catalogbuild.FieldStep)
+	}
+	if m.addvmid != nil {
+		fields = append(fields, catalogbuild.FieldVmid)
+	}
+	if m.addnew_vmid != nil {
+		fields = append(fields, catalogbuild.FieldNewVmid)
+	}
+	if m.addriver_job_id != nil {
+		fields = append(fields, catalogbuild.FieldRiverJobID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CatalogBuildMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case catalogbuild.FieldStep:
+		return m.AddedStep()
+	case catalogbuild.FieldVmid:
+		return m.AddedVmid()
+	case catalogbuild.FieldNewVmid:
+		return m.AddedNewVmid()
+	case catalogbuild.FieldRiverJobID:
+		return m.AddedRiverJobID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CatalogBuildMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case catalogbuild.FieldStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStep(v)
+		return nil
+	case catalogbuild.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVmid(v)
+		return nil
+	case catalogbuild.FieldNewVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddNewVmid(v)
+		return nil
+	case catalogbuild.FieldRiverJobID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRiverJobID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CatalogBuild numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CatalogBuildMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(catalogbuild.FieldVmid) {
+		fields = append(fields, catalogbuild.FieldVmid)
+	}
+	if m.FieldCleared(catalogbuild.FieldNewVmid) {
+		fields = append(fields, catalogbuild.FieldNewVmid)
+	}
+	if m.FieldCleared(catalogbuild.FieldNonce) {
+		fields = append(fields, catalogbuild.FieldNonce)
+	}
+	if m.FieldCleared(catalogbuild.FieldNewNonce) {
+		fields = append(fields, catalogbuild.FieldNewNonce)
+	}
+	if m.FieldCleared(catalogbuild.FieldUpid) {
+		fields = append(fields, catalogbuild.FieldUpid)
+	}
+	if m.FieldCleared(catalogbuild.FieldFile) {
+		fields = append(fields, catalogbuild.FieldFile)
+	}
+	if m.FieldCleared(catalogbuild.FieldChecksum) {
+		fields = append(fields, catalogbuild.FieldChecksum)
+	}
+	if m.FieldCleared(catalogbuild.FieldNewFile) {
+		fields = append(fields, catalogbuild.FieldNewFile)
+	}
+	if m.FieldCleared(catalogbuild.FieldNewChecksum) {
+		fields = append(fields, catalogbuild.FieldNewChecksum)
+	}
+	if m.FieldCleared(catalogbuild.FieldBuiltAt) {
+		fields = append(fields, catalogbuild.FieldBuiltAt)
+	}
+	if m.FieldCleared(catalogbuild.FieldErrorCode) {
+		fields = append(fields, catalogbuild.FieldErrorCode)
+	}
+	if m.FieldCleared(catalogbuild.FieldErrorMessage) {
+		fields = append(fields, catalogbuild.FieldErrorMessage)
+	}
+	if m.FieldCleared(catalogbuild.FieldRiverJobID) {
+		fields = append(fields, catalogbuild.FieldRiverJobID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CatalogBuildMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CatalogBuildMutation) ClearField(name string) error {
+	switch name {
+	case catalogbuild.FieldVmid:
+		m.ClearVmid()
+		return nil
+	case catalogbuild.FieldNewVmid:
+		m.ClearNewVmid()
+		return nil
+	case catalogbuild.FieldNonce:
+		m.ClearNonce()
+		return nil
+	case catalogbuild.FieldNewNonce:
+		m.ClearNewNonce()
+		return nil
+	case catalogbuild.FieldUpid:
+		m.ClearUpid()
+		return nil
+	case catalogbuild.FieldFile:
+		m.ClearFile()
+		return nil
+	case catalogbuild.FieldChecksum:
+		m.ClearChecksum()
+		return nil
+	case catalogbuild.FieldNewFile:
+		m.ClearNewFile()
+		return nil
+	case catalogbuild.FieldNewChecksum:
+		m.ClearNewChecksum()
+		return nil
+	case catalogbuild.FieldBuiltAt:
+		m.ClearBuiltAt()
+		return nil
+	case catalogbuild.FieldErrorCode:
+		m.ClearErrorCode()
+		return nil
+	case catalogbuild.FieldErrorMessage:
+		m.ClearErrorMessage()
+		return nil
+	case catalogbuild.FieldRiverJobID:
+		m.ClearRiverJobID()
+		return nil
+	}
+	return fmt.Errorf("unknown CatalogBuild nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CatalogBuildMutation) ResetField(name string) error {
+	switch name {
+	case catalogbuild.FieldCatalogKey:
+		m.ResetCatalogKey()
+		return nil
+	case catalogbuild.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case catalogbuild.FieldNode:
+		m.ResetNode()
+		return nil
+	case catalogbuild.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case catalogbuild.FieldStep:
+		m.ResetStep()
+		return nil
+	case catalogbuild.FieldVmid:
+		m.ResetVmid()
+		return nil
+	case catalogbuild.FieldNewVmid:
+		m.ResetNewVmid()
+		return nil
+	case catalogbuild.FieldNonce:
+		m.ResetNonce()
+		return nil
+	case catalogbuild.FieldNewNonce:
+		m.ResetNewNonce()
+		return nil
+	case catalogbuild.FieldUpid:
+		m.ResetUpid()
+		return nil
+	case catalogbuild.FieldFile:
+		m.ResetFile()
+		return nil
+	case catalogbuild.FieldChecksum:
+		m.ResetChecksum()
+		return nil
+	case catalogbuild.FieldNewFile:
+		m.ResetNewFile()
+		return nil
+	case catalogbuild.FieldNewChecksum:
+		m.ResetNewChecksum()
+		return nil
+	case catalogbuild.FieldBuiltAt:
+		m.ResetBuiltAt()
+		return nil
+	case catalogbuild.FieldErrorCode:
+		m.ResetErrorCode()
+		return nil
+	case catalogbuild.FieldErrorMessage:
+		m.ResetErrorMessage()
+		return nil
+	case catalogbuild.FieldRiverJobID:
+		m.ResetRiverJobID()
+		return nil
+	case catalogbuild.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case catalogbuild.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CatalogBuild field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CatalogBuildMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.location != nil {
+		edges = append(edges, catalogbuild.EdgeLocation)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CatalogBuildMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case catalogbuild.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CatalogBuildMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CatalogBuildMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CatalogBuildMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedlocation {
+		edges = append(edges, catalogbuild.EdgeLocation)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CatalogBuildMutation) EdgeCleared(name string) bool {
+	switch name {
+	case catalogbuild.EdgeLocation:
+		return m.clearedlocation
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CatalogBuildMutation) ClearEdge(name string) error {
+	switch name {
+	case catalogbuild.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	}
+	return fmt.Errorf("unknown CatalogBuild unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CatalogBuildMutation) ResetEdge(name string) error {
+	switch name {
+	case catalogbuild.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	}
+	return fmt.Errorf("unknown CatalogBuild edge %s", name)
 }
 
 // ConsoleTokenMutation represents an operation that mutates the ConsoleToken nodes in the graph.
@@ -4218,6 +6020,7 @@ type ImageMutation struct {
 	description      *string
 	os_flavor        *string
 	os_version       *string
+	catalog_key      *string
 	created_at       *time.Time
 	clearedFields    map[string]struct{}
 	templates        map[int64]struct{}
@@ -4476,6 +6279,55 @@ func (m *ImageMutation) ResetOsVersion() {
 	m.os_version = nil
 }
 
+// SetCatalogKey sets the "catalog_key" field.
+func (m *ImageMutation) SetCatalogKey(s string) {
+	m.catalog_key = &s
+}
+
+// CatalogKey returns the value of the "catalog_key" field in the mutation.
+func (m *ImageMutation) CatalogKey() (r string, exists bool) {
+	v := m.catalog_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCatalogKey returns the old "catalog_key" field's value of the Image entity.
+// If the Image object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageMutation) OldCatalogKey(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCatalogKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCatalogKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCatalogKey: %w", err)
+	}
+	return oldValue.CatalogKey, nil
+}
+
+// ClearCatalogKey clears the value of the "catalog_key" field.
+func (m *ImageMutation) ClearCatalogKey() {
+	m.catalog_key = nil
+	m.clearedFields[image.FieldCatalogKey] = struct{}{}
+}
+
+// CatalogKeyCleared returns if the "catalog_key" field was cleared in this mutation.
+func (m *ImageMutation) CatalogKeyCleared() bool {
+	_, ok := m.clearedFields[image.FieldCatalogKey]
+	return ok
+}
+
+// ResetCatalogKey resets all changes to the "catalog_key" field.
+func (m *ImageMutation) ResetCatalogKey() {
+	m.catalog_key = nil
+	delete(m.clearedFields, image.FieldCatalogKey)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ImageMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -4600,7 +6452,7 @@ func (m *ImageMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ImageMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.name != nil {
 		fields = append(fields, image.FieldName)
 	}
@@ -4612,6 +6464,9 @@ func (m *ImageMutation) Fields() []string {
 	}
 	if m.os_version != nil {
 		fields = append(fields, image.FieldOsVersion)
+	}
+	if m.catalog_key != nil {
+		fields = append(fields, image.FieldCatalogKey)
 	}
 	if m.created_at != nil {
 		fields = append(fields, image.FieldCreatedAt)
@@ -4632,6 +6487,8 @@ func (m *ImageMutation) Field(name string) (ent.Value, bool) {
 		return m.OsFlavor()
 	case image.FieldOsVersion:
 		return m.OsVersion()
+	case image.FieldCatalogKey:
+		return m.CatalogKey()
 	case image.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -4651,6 +6508,8 @@ func (m *ImageMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldOsFlavor(ctx)
 	case image.FieldOsVersion:
 		return m.OldOsVersion(ctx)
+	case image.FieldCatalogKey:
+		return m.OldCatalogKey(ctx)
 	case image.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -4690,6 +6549,13 @@ func (m *ImageMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetOsVersion(v)
 		return nil
+	case image.FieldCatalogKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCatalogKey(v)
+		return nil
 	case image.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -4726,7 +6592,11 @@ func (m *ImageMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *ImageMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(image.FieldCatalogKey) {
+		fields = append(fields, image.FieldCatalogKey)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -4739,6 +6609,11 @@ func (m *ImageMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *ImageMutation) ClearField(name string) error {
+	switch name {
+	case image.FieldCatalogKey:
+		m.ClearCatalogKey()
+		return nil
+	}
 	return fmt.Errorf("unknown Image nullable field %s", name)
 }
 
@@ -4757,6 +6632,9 @@ func (m *ImageMutation) ResetField(name string) error {
 		return nil
 	case image.FieldOsVersion:
 		m.ResetOsVersion()
+		return nil
+	case image.FieldCatalogKey:
+		m.ResetCatalogKey()
 		return nil
 	case image.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -6342,6 +8220,7 @@ type LocationMutation struct {
 	insecure_tls           *bool
 	disk_storage           *string
 	iso_storage            *string
+	import_storage         *string
 	created_at             *time.Time
 	updated_at             *time.Time
 	clearedFields          map[string]struct{}
@@ -6354,6 +8233,9 @@ type LocationMutation struct {
 	image_templates        map[int64]struct{}
 	removedimage_templates map[int64]struct{}
 	clearedimage_templates bool
+	catalog_builds         map[int64]struct{}
+	removedcatalog_builds  map[int64]struct{}
+	clearedcatalog_builds  bool
 	done                   bool
 	oldValue               func(context.Context) (*Location, error)
 	predicates             []predicate.Location
@@ -6787,6 +8669,42 @@ func (m *LocationMutation) ResetIsoStorage() {
 	m.iso_storage = nil
 }
 
+// SetImportStorage sets the "import_storage" field.
+func (m *LocationMutation) SetImportStorage(s string) {
+	m.import_storage = &s
+}
+
+// ImportStorage returns the value of the "import_storage" field in the mutation.
+func (m *LocationMutation) ImportStorage() (r string, exists bool) {
+	v := m.import_storage
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImportStorage returns the old "import_storage" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldImportStorage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImportStorage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImportStorage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImportStorage: %w", err)
+	}
+	return oldValue.ImportStorage, nil
+}
+
+// ResetImportStorage resets all changes to the "import_storage" field.
+func (m *LocationMutation) ResetImportStorage() {
+	m.import_storage = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *LocationMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -7021,6 +8939,60 @@ func (m *LocationMutation) ResetImageTemplates() {
 	m.removedimage_templates = nil
 }
 
+// AddCatalogBuildIDs adds the "catalog_builds" edge to the CatalogBuild entity by ids.
+func (m *LocationMutation) AddCatalogBuildIDs(ids ...int64) {
+	if m.catalog_builds == nil {
+		m.catalog_builds = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.catalog_builds[ids[i]] = struct{}{}
+	}
+}
+
+// ClearCatalogBuilds clears the "catalog_builds" edge to the CatalogBuild entity.
+func (m *LocationMutation) ClearCatalogBuilds() {
+	m.clearedcatalog_builds = true
+}
+
+// CatalogBuildsCleared reports if the "catalog_builds" edge to the CatalogBuild entity was cleared.
+func (m *LocationMutation) CatalogBuildsCleared() bool {
+	return m.clearedcatalog_builds
+}
+
+// RemoveCatalogBuildIDs removes the "catalog_builds" edge to the CatalogBuild entity by IDs.
+func (m *LocationMutation) RemoveCatalogBuildIDs(ids ...int64) {
+	if m.removedcatalog_builds == nil {
+		m.removedcatalog_builds = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.catalog_builds, ids[i])
+		m.removedcatalog_builds[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedCatalogBuilds returns the removed IDs of the "catalog_builds" edge to the CatalogBuild entity.
+func (m *LocationMutation) RemovedCatalogBuildsIDs() (ids []int64) {
+	for id := range m.removedcatalog_builds {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// CatalogBuildsIDs returns the "catalog_builds" edge IDs in the mutation.
+func (m *LocationMutation) CatalogBuildsIDs() (ids []int64) {
+	for id := range m.catalog_builds {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetCatalogBuilds resets all changes to the "catalog_builds" edge.
+func (m *LocationMutation) ResetCatalogBuilds() {
+	m.catalog_builds = nil
+	m.clearedcatalog_builds = false
+	m.removedcatalog_builds = nil
+}
+
 // Where appends a list predicates to the LocationMutation builder.
 func (m *LocationMutation) Where(ps ...predicate.Location) {
 	m.predicates = append(m.predicates, ps...)
@@ -7055,7 +9027,7 @@ func (m *LocationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *LocationMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.name != nil {
 		fields = append(fields, location.FieldName)
 	}
@@ -7082,6 +9054,9 @@ func (m *LocationMutation) Fields() []string {
 	}
 	if m.iso_storage != nil {
 		fields = append(fields, location.FieldIsoStorage)
+	}
+	if m.import_storage != nil {
+		fields = append(fields, location.FieldImportStorage)
 	}
 	if m.created_at != nil {
 		fields = append(fields, location.FieldCreatedAt)
@@ -7115,6 +9090,8 @@ func (m *LocationMutation) Field(name string) (ent.Value, bool) {
 		return m.DiskStorage()
 	case location.FieldIsoStorage:
 		return m.IsoStorage()
+	case location.FieldImportStorage:
+		return m.ImportStorage()
 	case location.FieldCreatedAt:
 		return m.CreatedAt()
 	case location.FieldUpdatedAt:
@@ -7146,6 +9123,8 @@ func (m *LocationMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldDiskStorage(ctx)
 	case location.FieldIsoStorage:
 		return m.OldIsoStorage(ctx)
+	case location.FieldImportStorage:
+		return m.OldImportStorage(ctx)
 	case location.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case location.FieldUpdatedAt:
@@ -7221,6 +9200,13 @@ func (m *LocationMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetIsoStorage(v)
+		return nil
+	case location.FieldImportStorage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImportStorage(v)
 		return nil
 	case location.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -7312,6 +9298,9 @@ func (m *LocationMutation) ResetField(name string) error {
 	case location.FieldIsoStorage:
 		m.ResetIsoStorage()
 		return nil
+	case location.FieldImportStorage:
+		m.ResetImportStorage()
+		return nil
 	case location.FieldCreatedAt:
 		m.ResetCreatedAt()
 		return nil
@@ -7324,7 +9313,7 @@ func (m *LocationMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *LocationMutation) AddedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.nodes != nil {
 		edges = append(edges, location.EdgeNodes)
 	}
@@ -7333,6 +9322,9 @@ func (m *LocationMutation) AddedEdges() []string {
 	}
 	if m.image_templates != nil {
 		edges = append(edges, location.EdgeImageTemplates)
+	}
+	if m.catalog_builds != nil {
+		edges = append(edges, location.EdgeCatalogBuilds)
 	}
 	return edges
 }
@@ -7359,13 +9351,19 @@ func (m *LocationMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case location.EdgeCatalogBuilds:
+		ids := make([]ent.Value, 0, len(m.catalog_builds))
+		for id := range m.catalog_builds {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *LocationMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.removednodes != nil {
 		edges = append(edges, location.EdgeNodes)
 	}
@@ -7374,6 +9372,9 @@ func (m *LocationMutation) RemovedEdges() []string {
 	}
 	if m.removedimage_templates != nil {
 		edges = append(edges, location.EdgeImageTemplates)
+	}
+	if m.removedcatalog_builds != nil {
+		edges = append(edges, location.EdgeCatalogBuilds)
 	}
 	return edges
 }
@@ -7400,13 +9401,19 @@ func (m *LocationMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case location.EdgeCatalogBuilds:
+		ids := make([]ent.Value, 0, len(m.removedcatalog_builds))
+		for id := range m.removedcatalog_builds {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *LocationMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.clearednodes {
 		edges = append(edges, location.EdgeNodes)
 	}
@@ -7415,6 +9422,9 @@ func (m *LocationMutation) ClearedEdges() []string {
 	}
 	if m.clearedimage_templates {
 		edges = append(edges, location.EdgeImageTemplates)
+	}
+	if m.clearedcatalog_builds {
+		edges = append(edges, location.EdgeCatalogBuilds)
 	}
 	return edges
 }
@@ -7429,6 +9439,8 @@ func (m *LocationMutation) EdgeCleared(name string) bool {
 		return m.clearedserver_types
 	case location.EdgeImageTemplates:
 		return m.clearedimage_templates
+	case location.EdgeCatalogBuilds:
+		return m.clearedcatalog_builds
 	}
 	return false
 }
@@ -7453,6 +9465,9 @@ func (m *LocationMutation) ResetEdge(name string) error {
 		return nil
 	case location.EdgeImageTemplates:
 		m.ResetImageTemplates()
+		return nil
+	case location.EdgeCatalogBuilds:
+		m.ResetCatalogBuilds()
 		return nil
 	}
 	return fmt.Errorf("unknown Location edge %s", name)

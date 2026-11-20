@@ -75,6 +75,11 @@ func OsVersion(v string) predicate.Image {
 	return predicate.Image(sql.FieldEQ(FieldOsVersion, v))
 }
 
+// CatalogKey applies equality check predicate on the "catalog_key" field. It's identical to CatalogKeyEQ.
+func CatalogKey(v string) predicate.Image {
+	return predicate.Image(sql.FieldEQ(FieldCatalogKey, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Image {
 	return predicate.Image(sql.FieldEQ(FieldCreatedAt, v))
@@ -338,6 +343,81 @@ func OsVersionEqualFold(v string) predicate.Image {
 // OsVersionContainsFold applies the ContainsFold predicate on the "os_version" field.
 func OsVersionContainsFold(v string) predicate.Image {
 	return predicate.Image(sql.FieldContainsFold(FieldOsVersion, v))
+}
+
+// CatalogKeyEQ applies the EQ predicate on the "catalog_key" field.
+func CatalogKeyEQ(v string) predicate.Image {
+	return predicate.Image(sql.FieldEQ(FieldCatalogKey, v))
+}
+
+// CatalogKeyNEQ applies the NEQ predicate on the "catalog_key" field.
+func CatalogKeyNEQ(v string) predicate.Image {
+	return predicate.Image(sql.FieldNEQ(FieldCatalogKey, v))
+}
+
+// CatalogKeyIn applies the In predicate on the "catalog_key" field.
+func CatalogKeyIn(vs ...string) predicate.Image {
+	return predicate.Image(sql.FieldIn(FieldCatalogKey, vs...))
+}
+
+// CatalogKeyNotIn applies the NotIn predicate on the "catalog_key" field.
+func CatalogKeyNotIn(vs ...string) predicate.Image {
+	return predicate.Image(sql.FieldNotIn(FieldCatalogKey, vs...))
+}
+
+// CatalogKeyGT applies the GT predicate on the "catalog_key" field.
+func CatalogKeyGT(v string) predicate.Image {
+	return predicate.Image(sql.FieldGT(FieldCatalogKey, v))
+}
+
+// CatalogKeyGTE applies the GTE predicate on the "catalog_key" field.
+func CatalogKeyGTE(v string) predicate.Image {
+	return predicate.Image(sql.FieldGTE(FieldCatalogKey, v))
+}
+
+// CatalogKeyLT applies the LT predicate on the "catalog_key" field.
+func CatalogKeyLT(v string) predicate.Image {
+	return predicate.Image(sql.FieldLT(FieldCatalogKey, v))
+}
+
+// CatalogKeyLTE applies the LTE predicate on the "catalog_key" field.
+func CatalogKeyLTE(v string) predicate.Image {
+	return predicate.Image(sql.FieldLTE(FieldCatalogKey, v))
+}
+
+// CatalogKeyContains applies the Contains predicate on the "catalog_key" field.
+func CatalogKeyContains(v string) predicate.Image {
+	return predicate.Image(sql.FieldContains(FieldCatalogKey, v))
+}
+
+// CatalogKeyHasPrefix applies the HasPrefix predicate on the "catalog_key" field.
+func CatalogKeyHasPrefix(v string) predicate.Image {
+	return predicate.Image(sql.FieldHasPrefix(FieldCatalogKey, v))
+}
+
+// CatalogKeyHasSuffix applies the HasSuffix predicate on the "catalog_key" field.
+func CatalogKeyHasSuffix(v string) predicate.Image {
+	return predicate.Image(sql.FieldHasSuffix(FieldCatalogKey, v))
+}
+
+// CatalogKeyIsNil applies the IsNil predicate on the "catalog_key" field.
+func CatalogKeyIsNil() predicate.Image {
+	return predicate.Image(sql.FieldIsNull(FieldCatalogKey))
+}
+
+// CatalogKeyNotNil applies the NotNil predicate on the "catalog_key" field.
+func CatalogKeyNotNil() predicate.Image {
+	return predicate.Image(sql.FieldNotNull(FieldCatalogKey))
+}
+
+// CatalogKeyEqualFold applies the EqualFold predicate on the "catalog_key" field.
+func CatalogKeyEqualFold(v string) predicate.Image {
+	return predicate.Image(sql.FieldEqualFold(FieldCatalogKey, v))
+}
+
+// CatalogKeyContainsFold applies the ContainsFold predicate on the "catalog_key" field.
+func CatalogKeyContainsFold(v string) predicate.Image {
+	return predicate.Image(sql.FieldContainsFold(FieldCatalogKey, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

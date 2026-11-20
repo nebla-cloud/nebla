@@ -35,6 +35,7 @@ type Location struct {
 	InsecureTLS   bool
 	DiskStorage   string
 	ISOStorage    string
+	ImportStorage string
 	Nodes         []Node
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -78,6 +79,8 @@ type LocationInput struct {
 	PVE         PVEInput
 	DiskStorage string
 	ISOStorage  string
+	// ImportStorage is optional; when set it must allow the import content type.
+	ImportStorage string
 }
 
 type NodeUpdate struct {
@@ -96,7 +99,7 @@ func toNode(n *ent.Node) Node {
 func toLocation(l *ent.Location) Location {
 	out := Location{ID: l.ID, Name: l.Name, Description: l.Description, PVEURL: l.PveURL, TokenID: l.TokenID,
 		HasSecret: len(l.TokenSecret) > 0, CAFingerprint: l.CaFingerprint, InsecureTLS: l.InsecureTLS,
-		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
+		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, ImportStorage: l.ImportStorage, Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
 	for _, n := range l.Edges.Nodes {
 		out.Nodes = append(out.Nodes, toNode(n))
 	}
@@ -111,6 +114,7 @@ func (s *Service) validLocation(in *LocationInput) (pve.Conn, error) {
 	in.Description = strings.TrimSpace(in.Description)
 	in.DiskStorage = strings.TrimSpace(in.DiskStorage)
 	in.ISOStorage = strings.TrimSpace(in.ISOStorage)
+	in.ImportStorage = strings.TrimSpace(in.ImportStorage)
 	in.PVE.TokenID = strings.TrimSpace(in.PVE.TokenID)
 	in.PVE.CAFingerprint = strings.TrimSpace(in.PVE.CAFingerprint)
 	if !nameRE.MatchString(in.Name) {
@@ -134,8 +138,8 @@ func (s *Service) validLocation(in *LocationInput) (pve.Conn, error) {
 		InsecureTLS: in.PVE.InsecureTLS, PollInterval: s.opts.PollInterval}, nil
 }
 
-// probe connects with conn, checks both storages and returns the discovered nodes.
-func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso string) ([]pve.Node, error) {
+// probe connects with conn, checks the storages (imp may be empty) and returns the discovered nodes.
+func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp string) ([]pve.Node, error) {
 	ctx, cancel := context.WithTimeout(ctx, pveTimeout)
 	defer cancel()
 	c := s.opts.NewClient(conn)
@@ -149,7 +153,7 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso string) ([
 	if len(nodes) == 0 {
 		return nil, invalid("Proxmox reports no nodes")
 	}
-	var diskSeen, diskOK, isoSeen, isoOK bool
+	var diskSeen, diskOK, isoSeen, isoOK, impSeen, impOK bool
 	for _, n := range nodes {
 		if n.Status != "online" {
 			continue
@@ -165,6 +169,9 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso string) ([
 			if st.ID == iso {
 				isoSeen, isoOK = true, isoOK || slices.Contains(st.Content, "iso")
 			}
+			if imp != "" && st.ID == imp {
+				impSeen, impOK = true, impOK || slices.Contains(st.Content, "import")
+			}
 		}
 	}
 	switch {
@@ -176,6 +183,10 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso string) ([
 		return nil, invalid("iso_storage %q does not exist on any online node", iso)
 	case !isoOK:
 		return nil, invalid("iso_storage %q does not allow the iso content type", iso)
+	case imp != "" && !impSeen:
+		return nil, invalid("import_storage %q does not exist on any online node", imp)
+	case imp != "" && !impOK:
+		return nil, invalid("import_storage %q does not allow the import content type", imp)
 	}
 	return nodes, nil
 }
@@ -193,7 +204,7 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 		return Location{}, invalid("pve.token_secret is required")
 	}
 	conn.Secret = *in.PVE.TokenSecret
-	nodes, err := s.probe(ctx, conn, in.DiskStorage, in.ISOStorage)
+	nodes, err := s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage)
 	if err != nil {
 		return Location{}, err
 	}
@@ -201,7 +212,7 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 	err = s.withTx(ctx, func(tx *ent.Client) error {
 		l, err := tx.Location.Create().SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetTokenSecret(s.box.Seal([]byte(conn.Secret))).SetCaFingerprint(conn.CAFingerprint).
-			SetInsecureTLS(conn.InsecureTLS).SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).Save(ctx)
+			SetInsecureTLS(conn.InsecureTLS).SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).Save(ctx)
 		if err != nil {
 			return mapWriteErr(err, "location")
 		}
@@ -243,17 +254,18 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 		return Location{}, err
 	}
 	changed := newSecret || conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID || conn.CAFingerprint != cur.CaFingerprint ||
-		conn.InsecureTLS != cur.InsecureTLS || in.DiskStorage != cur.DiskStorage || in.ISOStorage != cur.IsoStorage
+		conn.InsecureTLS != cur.InsecureTLS || in.DiskStorage != cur.DiskStorage || in.ISOStorage != cur.IsoStorage ||
+		in.ImportStorage != cur.ImportStorage
 	var nodes []pve.Node
 	if changed {
-		if nodes, err = s.probe(ctx, conn, in.DiskStorage, in.ISOStorage); err != nil {
+		if nodes, err = s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage); err != nil {
 			return Location{}, err
 		}
 	}
 	err = s.withTx(ctx, func(tx *ent.Client) error {
 		u := tx.Location.UpdateOneID(id).SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetCaFingerprint(conn.CAFingerprint).SetInsecureTLS(conn.InsecureTLS).
-			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage)
+			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage)
 		if newSecret {
 			u.SetTokenSecret(s.box.Seal([]byte(conn.Secret)))
 		}

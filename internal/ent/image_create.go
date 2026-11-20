@@ -55,6 +55,20 @@ func (_c *ImageCreate) SetOsVersion(v string) *ImageCreate {
 	return _c
 }
 
+// SetCatalogKey sets the "catalog_key" field.
+func (_c *ImageCreate) SetCatalogKey(v string) *ImageCreate {
+	_c.mutation.SetCatalogKey(v)
+	return _c
+}
+
+// SetNillableCatalogKey sets the "catalog_key" field if the given value is not nil.
+func (_c *ImageCreate) SetNillableCatalogKey(v *string) *ImageCreate {
+	if v != nil {
+		_c.SetCatalogKey(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ImageCreate) SetCreatedAt(v time.Time) *ImageCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -198,6 +212,10 @@ func (_c *ImageCreate) createSpec() (*Image, *sqlgraph.CreateSpec) {
 		_spec.SetField(image.FieldOsVersion, field.TypeString, value)
 		_node.OsVersion = value
 	}
+	if value, ok := _c.mutation.CatalogKey(); ok {
+		_spec.SetField(image.FieldCatalogKey, field.TypeString, value)
+		_node.CatalogKey = &value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(image.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -318,6 +336,24 @@ func (u *ImageUpsert) UpdateOsVersion() *ImageUpsert {
 	return u
 }
 
+// SetCatalogKey sets the "catalog_key" field.
+func (u *ImageUpsert) SetCatalogKey(v string) *ImageUpsert {
+	u.Set(image.FieldCatalogKey, v)
+	return u
+}
+
+// UpdateCatalogKey sets the "catalog_key" field to the value that was provided on create.
+func (u *ImageUpsert) UpdateCatalogKey() *ImageUpsert {
+	u.SetExcluded(image.FieldCatalogKey)
+	return u
+}
+
+// ClearCatalogKey clears the value of the "catalog_key" field.
+func (u *ImageUpsert) ClearCatalogKey() *ImageUpsert {
+	u.SetNull(image.FieldCatalogKey)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -422,6 +458,27 @@ func (u *ImageUpsertOne) SetOsVersion(v string) *ImageUpsertOne {
 func (u *ImageUpsertOne) UpdateOsVersion() *ImageUpsertOne {
 	return u.Update(func(s *ImageUpsert) {
 		s.UpdateOsVersion()
+	})
+}
+
+// SetCatalogKey sets the "catalog_key" field.
+func (u *ImageUpsertOne) SetCatalogKey(v string) *ImageUpsertOne {
+	return u.Update(func(s *ImageUpsert) {
+		s.SetCatalogKey(v)
+	})
+}
+
+// UpdateCatalogKey sets the "catalog_key" field to the value that was provided on create.
+func (u *ImageUpsertOne) UpdateCatalogKey() *ImageUpsertOne {
+	return u.Update(func(s *ImageUpsert) {
+		s.UpdateCatalogKey()
+	})
+}
+
+// ClearCatalogKey clears the value of the "catalog_key" field.
+func (u *ImageUpsertOne) ClearCatalogKey() *ImageUpsertOne {
+	return u.Update(func(s *ImageUpsert) {
+		s.ClearCatalogKey()
 	})
 }
 
@@ -695,6 +752,27 @@ func (u *ImageUpsertBulk) SetOsVersion(v string) *ImageUpsertBulk {
 func (u *ImageUpsertBulk) UpdateOsVersion() *ImageUpsertBulk {
 	return u.Update(func(s *ImageUpsert) {
 		s.UpdateOsVersion()
+	})
+}
+
+// SetCatalogKey sets the "catalog_key" field.
+func (u *ImageUpsertBulk) SetCatalogKey(v string) *ImageUpsertBulk {
+	return u.Update(func(s *ImageUpsert) {
+		s.SetCatalogKey(v)
+	})
+}
+
+// UpdateCatalogKey sets the "catalog_key" field to the value that was provided on create.
+func (u *ImageUpsertBulk) UpdateCatalogKey() *ImageUpsertBulk {
+	return u.Update(func(s *ImageUpsert) {
+		s.UpdateCatalogKey()
+	})
+}
+
+// ClearCatalogKey clears the value of the "catalog_key" field.
+func (u *ImageUpsertBulk) ClearCatalogKey() *ImageUpsertBulk {
+	return u.Update(func(s *ImageUpsert) {
+		s.ClearCatalogKey()
 	})
 }
 

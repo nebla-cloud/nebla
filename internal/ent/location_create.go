@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
@@ -103,6 +104,20 @@ func (_c *LocationCreate) SetIsoStorage(v string) *LocationCreate {
 	return _c
 }
 
+// SetImportStorage sets the "import_storage" field.
+func (_c *LocationCreate) SetImportStorage(v string) *LocationCreate {
+	_c.mutation.SetImportStorage(v)
+	return _c
+}
+
+// SetNillableImportStorage sets the "import_storage" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableImportStorage(v *string) *LocationCreate {
+	if v != nil {
+		_c.SetImportStorage(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *LocationCreate) SetCreatedAt(v time.Time) *LocationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -182,6 +197,21 @@ func (_c *LocationCreate) AddImageTemplates(v ...*ImageTemplate) *LocationCreate
 	return _c.AddImageTemplateIDs(ids...)
 }
 
+// AddCatalogBuildIDs adds the "catalog_builds" edge to the CatalogBuild entity by IDs.
+func (_c *LocationCreate) AddCatalogBuildIDs(ids ...int64) *LocationCreate {
+	_c.mutation.AddCatalogBuildIDs(ids...)
+	return _c
+}
+
+// AddCatalogBuilds adds the "catalog_builds" edges to the CatalogBuild entity.
+func (_c *LocationCreate) AddCatalogBuilds(v ...*CatalogBuild) *LocationCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddCatalogBuildIDs(ids...)
+}
+
 // Mutation returns the LocationMutation object of the builder.
 func (_c *LocationCreate) Mutation() *LocationMutation {
 	return _c.mutation
@@ -229,6 +259,10 @@ func (_c *LocationCreate) defaults() {
 		v := location.DefaultInsecureTLS
 		_c.mutation.SetInsecureTLS(v)
 	}
+	if _, ok := _c.mutation.ImportStorage(); !ok {
+		v := location.DefaultImportStorage
+		_c.mutation.SetImportStorage(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := location.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -267,6 +301,9 @@ func (_c *LocationCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsoStorage(); !ok {
 		return &ValidationError{Name: "iso_storage", err: errors.New(`ent: missing required field "Location.iso_storage"`)}
+	}
+	if _, ok := _c.mutation.ImportStorage(); !ok {
+		return &ValidationError{Name: "import_storage", err: errors.New(`ent: missing required field "Location.import_storage"`)}
 	}
 	return nil
 }
@@ -337,6 +374,10 @@ func (_c *LocationCreate) createSpec() (*Location, *sqlgraph.CreateSpec) {
 		_spec.SetField(location.FieldIsoStorage, field.TypeString, value)
 		_node.IsoStorage = value
 	}
+	if value, ok := _c.mutation.ImportStorage(); ok {
+		_spec.SetField(location.FieldImportStorage, field.TypeString, value)
+		_node.ImportStorage = value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(location.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -386,6 +427,22 @@ func (_c *LocationCreate) createSpec() (*Location, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(imagetemplate.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.CatalogBuildsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   location.CatalogBuildsTable,
+			Columns: []string{location.CatalogBuildsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(catalogbuild.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -550,6 +607,18 @@ func (u *LocationUpsert) SetIsoStorage(v string) *LocationUpsert {
 // UpdateIsoStorage sets the "iso_storage" field to the value that was provided on create.
 func (u *LocationUpsert) UpdateIsoStorage() *LocationUpsert {
 	u.SetExcluded(location.FieldIsoStorage)
+	return u
+}
+
+// SetImportStorage sets the "import_storage" field.
+func (u *LocationUpsert) SetImportStorage(v string) *LocationUpsert {
+	u.Set(location.FieldImportStorage, v)
+	return u
+}
+
+// UpdateImportStorage sets the "import_storage" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateImportStorage() *LocationUpsert {
+	u.SetExcluded(location.FieldImportStorage)
 	return u
 }
 
@@ -739,6 +808,20 @@ func (u *LocationUpsertOne) SetIsoStorage(v string) *LocationUpsertOne {
 func (u *LocationUpsertOne) UpdateIsoStorage() *LocationUpsertOne {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateIsoStorage()
+	})
+}
+
+// SetImportStorage sets the "import_storage" field.
+func (u *LocationUpsertOne) SetImportStorage(v string) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetImportStorage(v)
+	})
+}
+
+// UpdateImportStorage sets the "import_storage" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateImportStorage() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateImportStorage()
 	})
 }
 
@@ -1096,6 +1179,20 @@ func (u *LocationUpsertBulk) SetIsoStorage(v string) *LocationUpsertBulk {
 func (u *LocationUpsertBulk) UpdateIsoStorage() *LocationUpsertBulk {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateIsoStorage()
+	})
+}
+
+// SetImportStorage sets the "import_storage" field.
+func (u *LocationUpsertBulk) SetImportStorage(v string) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetImportStorage(v)
+	})
+}
+
+// UpdateImportStorage sets the "import_storage" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateImportStorage() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateImportStorage()
 	})
 }
 

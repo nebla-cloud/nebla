@@ -33,6 +33,18 @@ func (f ActionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ActionMutation", m)
 }
 
+// The CatalogBuildFunc type is an adapter to allow the use of ordinary
+// function as CatalogBuild mutator.
+type CatalogBuildFunc func(context.Context, *ent.CatalogBuildMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CatalogBuildFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CatalogBuildMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CatalogBuildMutation", m)
+}
+
 // The ConsoleTokenFunc type is an adapter to allow the use of ordinary
 // function as ConsoleToken mutator.
 type ConsoleTokenFunc func(context.Context, *ent.ConsoleTokenMutation) (ent.Value, error)
