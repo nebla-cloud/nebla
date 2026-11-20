@@ -9,7 +9,9 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/pve"
@@ -154,7 +156,8 @@ func ParseReport(raw []byte) (Report, error) {
 		if names[c.Name] {
 			return Report{}, bad("duplicate node " + c.Name)
 		}
-		if net.ParseIP(c.IP) == nil {
+		// An offline member may lack an ip; the reporting node is checked below.
+		if (c.IP != "" || bool(c.Online)) && net.ParseIP(c.IP) == nil {
 			return Report{}, bad("invalid node ip for " + c.Name)
 		}
 		names[c.Name] = true
@@ -165,6 +168,9 @@ func ParseReport(raw []byte) (Report, error) {
 	}
 	if !names[w.Node] {
 		return Report{}, bad("reporting node is not in the cluster")
+	}
+	if i := slices.IndexFunc(r.Nodes, func(n ReportNode) bool { return n.Name == w.Node }); r.Nodes[i].IP == "" {
+		return Report{}, bad("invalid node ip for " + w.Node)
 	}
 	if len(w.Storage) > maxStorages {
 		return Report{}, bad("too many storages")
@@ -217,7 +223,13 @@ func ParseReport(raw []byte) (Report, error) {
 
 // DecodeBlob unpacks a pasted blob into its enrollment token and the report JSON.
 func DecodeBlob(line string) (string, []byte, error) {
-	line = strings.TrimSpace(line)
+	// Terminals wrap long lines, so drop all whitespace.
+	line = strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, line)
 	enc, ok := strings.CutPrefix(line, blobPrefix)
 	if !ok {
 		return "", nil, bad("not an enrollment blob")

@@ -88,12 +88,18 @@ func TestParseReportRejects(t *testing.T) {
 		"duplicate node": {func(m map[string]any) {
 			m["cluster"] = append(m["cluster"].([]any), node0(m))
 		}, "duplicate node"},
-		"bad node ip":         {func(m map[string]any) { node0(m)["ip"] = "10.0.0.256" }, "invalid node ip"},
-		"empty node ip":       {func(m map[string]any) { node0(m)["ip"] = "" }, "invalid node ip"},
-		"missing fingerprint": {func(m map[string]any) { m["fingerprints"] = map[string]any{} }, "fingerprint"},
-		"short fingerprint":   {func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": "AA:BB"} }, "fingerprint"},
-		"non-hex fingerprint": {func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": strings.Repeat("ZZ", 32)} }, "fingerprint"},
-		"node not in nodes":   {func(m map[string]any) { m["node"] = "other" }, "not in the cluster"},
+		"bad node ip":   {func(m map[string]any) { node0(m)["ip"] = "10.0.0.256" }, "invalid node ip"},
+		"empty node ip": {func(m map[string]any) { node0(m)["ip"] = "" }, "invalid node ip"},
+		"offline reporting node without ip": {func(m map[string]any) {
+			node0(m)["online"] = 0
+			delete(node0(m), "ip")
+		}, "invalid node ip for pve1"},
+		"offline member bad ip":    {func(m map[string]any) { addNode(m, "pve2", "nope", 0) }, "invalid node ip for pve2"},
+		"online member without ip": {func(m map[string]any) { addNode(m, "pve2", "", 1) }, "invalid node ip for pve2"},
+		"missing fingerprint":      {func(m map[string]any) { m["fingerprints"] = map[string]any{} }, "fingerprint"},
+		"short fingerprint":        {func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": "AA:BB"} }, "fingerprint"},
+		"non-hex fingerprint":      {func(m map[string]any) { m["fingerprints"] = map[string]any{"pve1": strings.Repeat("ZZ", 32)} }, "fingerprint"},
+		"node not in nodes":        {func(m map[string]any) { m["node"] = "other" }, "not in the cluster"},
 		"quote in storage id": {func(m map[string]any) {
 			stor0(m)["storage"] = `lo"cal`
 			m["nebla_iso"] = []any{}
@@ -146,6 +152,31 @@ func TestParseReportRejects(t *testing.T) {
 	require.Contains(t, e.Msg, "not valid JSON")
 }
 
+func addNode(m map[string]any, name, ip string, online int) {
+	n := map[string]any{"type": "node", "name": name, "online": online}
+	if ip != "" {
+		n["ip"] = ip
+	}
+	m["cluster"] = append(m["cluster"].([]any), n)
+	m["fingerprints"].(map[string]any)[name] = fp("BB")
+}
+
+func TestParseReportOfflineMemberWithoutIP(t *testing.T) {
+	m := baseReport()
+	addNode(m, "pve2", "", 0)
+	addNode(m, "pve3", "", 0)
+	m["cluster"].([]any)[2].(map[string]any)["ip"] = ""
+	raw, err := json.Marshal(m)
+	require.NoError(t, err)
+	r, err := ParseReport(raw)
+	require.NoError(t, err)
+	require.Equal(t, []ReportNode{
+		{Name: "pve1", IP: "10.0.0.1", Online: true, Fingerprint: strings.Repeat("AA", 32)},
+		{Name: "pve2", Fingerprint: strings.Repeat("BB", 32)},
+		{Name: "pve3", Fingerprint: strings.Repeat("BB", 32)},
+	}, r.Nodes)
+}
+
 func TestReportRedactsSecret(t *testing.T) {
 	raw, _ := json.Marshal(baseReport())
 	r, err := ParseReport(raw)
@@ -176,6 +207,26 @@ func TestBlobRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, tok, got)
 	require.NotContains(t, string(body), "enroll_token")
+	r, err := ParseReport(body)
+	require.NoError(t, err)
+	require.Equal(t, "pve1", r.Node)
+}
+
+func TestDecodeBlobWrapped(t *testing.T) {
+	raw, err := os.ReadFile("testdata/report-pve9.json")
+	require.NoError(t, err)
+	tok := "nbe_" + strings.Repeat("B", 43)
+	line, err := EncodeBlob(tok, raw)
+	require.NoError(t, err)
+	var b strings.Builder
+	for i := 0; i < len(line); i += 80 {
+		b.WriteString(line[i:min(i+80, len(line))])
+		b.WriteString([]string{"\n", "\r\n", " \n\t", "\n  "}[(i/80)%4])
+	}
+	require.Greater(t, strings.Count(b.String(), "\n"), 3)
+	got, body, err := DecodeBlob(b.String())
+	require.NoError(t, err)
+	require.True(t, got == tok, "token mismatch")
 	r, err := ParseReport(body)
 	require.NoError(t, err)
 	require.Equal(t, "pve1", r.Node)

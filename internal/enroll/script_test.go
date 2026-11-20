@@ -377,9 +377,13 @@ func TestScriptOfflineBlob(t *testing.T) {
 
 func TestScriptReportFailsFallsBackToBlob(t *testing.T) {
 	t.Parallel()
-	for _, code := range []string{"000", "500"} {
-		r := runScript(t, map[string]string{"STUB_REPORT": code})
+	for _, code := range []string{"000", "429", "500", "503"} {
+		r := runScript(t, map[string]string{"STUB_REPORT": code, "STUB_MSG": "panel busy"})
 		require.Equal(t, 0, r.code, redact(r.stderr))
+		if code != "000" {
+			require.Contains(t, r.stderr, "panel busy", code)
+		}
+		require.NotContains(t, r.stderr, "pveum user token remove", code)
 		tok, raw, err := DecodeBlob(r.lastLine())
 		require.NoError(t, err, code)
 		require.True(t, tok == testToken, "blob token mismatch")
@@ -397,6 +401,15 @@ func TestScriptReportUsedNoBlob(t *testing.T) {
 		require.Contains(t, r.stdout+r.stderr, "pveum user token remove nebla@pve "+testName)
 		require.Contains(t, r.stdout+r.stderr, "This enrollment was already used.")
 	}
+}
+
+func TestScriptReportInvalidNoBlob(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{"STUB_REPORT": "400", "STUB_MSG": "invalid node ip for pve2"})
+	require.Equal(t, 1, r.code)
+	require.Contains(t, r.stderr, "nebla: error: the panel refused the report: invalid node ip for pve2")
+	require.Contains(t, r.stderr, "pveum user token remove nebla@pve "+testName)
+	require.NotContains(t, r.stdout+r.stderr, "nebla-enroll:")
 }
 
 func TestScriptNeverPrintsSecretOnline(t *testing.T) {
