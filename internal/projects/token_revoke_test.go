@@ -118,6 +118,10 @@ func TestLegacyTokenWithoutCreatorKept(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, e.db.APIToken.Create().SetProjectID(e.pid).SetName("legacy").
 		SetPermission(auth.PermReadWrite).SetTokenHash(hash).Exec(ctx))
+	d, _ := e.member(t, "d@example.com", projects.RoleAdmin)
+	_, err = e.svc.SetRole(ctx, e.owner.ID, e.pid, d.ID, projects.RoleReadOnly)
+	require.NoError(t, err)
+	require.True(t, e.live(t, plain))
 	require.NoError(t, e.svc.RemoveMember(ctx, e.owner.ID, e.pid, m.ID))
 	require.True(t, e.live(t, plain))
 }
