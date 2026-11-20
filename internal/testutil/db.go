@@ -10,7 +10,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // NewDB starts a throwaway Postgres 17, migrates it, and returns a pool.
@@ -21,8 +20,8 @@ func NewDB(t *testing.T) *pgxpool.Pool {
 		postgres.WithDatabase("nebla"),
 		postgres.WithUsername("nebla"),
 		postgres.WithPassword("nebla"),
+		// Waits for the second ready log and the mapped port; replacing it reintroduces "port not found".
 		postgres.BasicWaitStrategies(),
-		testcontainers.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").WithOccurrence(2)),
 	)
 	testcontainers.CleanupContainer(t, ctr)
 	if err != nil {
