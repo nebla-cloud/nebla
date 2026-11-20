@@ -7,3 +7,4 @@ web/dist/*
 !web/dist/.gitkeep
 web/test-results/
 web/playwright-report/
+dist/

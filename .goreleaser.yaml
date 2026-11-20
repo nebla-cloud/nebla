@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: nebla
+
+before:
+  hooks:
+    - go mod tidy -diff
+
+builds:
+  - id: nebla
+    main: ./cmd/nebla
+    binary: nebla
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/nebla-cloud/nebla/internal/cli.Version={{ .Version }}
+      - -X github.com/nebla-cloud/nebla/internal/cli.Commit={{ .ShortCommit }}
+      - -X github.com/nebla-cloud/nebla/internal/cli.Date={{ index (split .CommitDate "T") 0 }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: nebla
+    ids: [nebla]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - docs/cli.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+release:
+  prerelease: auto
+
+homebrew_casks:
+  - name: nebla
+    ids: [nebla]
+    repository:
+      owner: nebla-cloud
+      name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
+    directory: Casks
+    homepage: https://nebla.dev
+    description: Command line client for the Nebla panel
+    license: AGPL-3.0-only
+    skip_upload: auto
+    commit_msg_template: 'nebla {{ .Tag }}'
+    hooks:
+      post:
+        # The binaries are unsigned, so clear the quarantine flag.
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/nebla"]
+          end
