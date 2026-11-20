@@ -496,6 +496,38 @@ func TestExhaustedAttemptsFailRow(t *testing.T) {
 	require.Nil(t, r.NewVmid)
 	require.Nil(t, r.BuildNode)
 	require.Empty(t, e.pve.Downloads())
+	_, err = e.svc.Enable(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	require.Empty(t, e.jobArgs(osimages.KindCleanup))
+}
+
+func TestLastCleanupFailureKeepsHalfBuiltVM(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "ceph", "imp")
+	_, err := e.svc.Enable(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	row := e.rows("debian-13", loc)[0]
+	require.NoError(t, row.Update().SetStep(osimages.StepCreate).SetNewVmid(7000).SetNewNonce("aa").SetBuildNode("pve1").
+		SetNewFile("debian.qcow2").SetNewChecksum(debianSum).Exec(ctx))
+	e.pve.AddVM("pve1", 7000, "nebla-debian-13")
+	e.pve.SetVMConfig(7000, "tags", "nebla-tpl;"+osimages.TemplateTag(row.ID, "aa"))
+	e.pve.SetVMConfig(7000, "lock", "create")
+
+	job := &river.Job[osimages.BuildArgs]{JobRow: &rivertype.JobRow{ID: *row.RiverJobID, Attempt: osimages.MaxAttempts + 2,
+		MaxAttempts: osimages.MaxAttempts + 2}, Args: osimages.BuildArgs{BuildID: row.ID}}
+	var cancel *rivertype.JobCancelError
+	require.ErrorAs(t, osimages.NewBuildWorker(e.svc).Work(ctx, job), &cancel)
+	_, ok := e.pve.VM(7000)
+	require.True(t, ok)
+	r, err := e.ent.CatalogBuild.Get(ctx, row.ID)
+	require.NoError(t, err)
+	require.Equal(t, catalogbuild.StatusFailed, r.Status)
+	require.Equal(t, 7000, *r.NewVmid)
+	require.Equal(t, "aa", *r.NewNonce)
+	require.Equal(t, "pve1", *r.BuildNode)
+	require.Equal(t, debianSum, *r.NewChecksum)
+	require.Nil(t, r.Upid)
 }
 
 // adoptEnv puts a locked VM at the build's first vmid before create, then unlocks it as ours after delay.

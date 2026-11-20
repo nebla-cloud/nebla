@@ -70,3 +70,4 @@ func BuildNodes(s *Service, loc catalog.Location) []string {
 	}
 	return out
 }
+func NewCleanupWorker(s *Service) *CleanupWorker { return &CleanupWorker{s: s} }
