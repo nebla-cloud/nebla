@@ -375,5 +375,57 @@ func TestSweep(t *testing.T) {
 
 func TestScriptBody(t *testing.T) {
 	e := setup(t)
-	require.Equal(t, enroll.Script(panelURL), e.svc.ScriptBody())
+	b, err := e.svc.ScriptBody()
+	require.NoError(t, err)
+	require.Equal(t, enroll.Script(panelURL), b)
+}
+
+func TestBadBaseURL(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	loc, err := e.cat.CreateLocation(ctx, testutil.LocationInput(e.pv, "eu-1"))
+	require.NoError(t, err)
+	waiting := e.create(t, "home")
+	for _, u := range []string{"", "panel.example", "https://panel.example/'x", "https://pa nel"} {
+		svc := enroll.New(e.sql, e.ent, enroll.Options{SecretKey: []byte(testutil.SecretKey), BaseURL: u, Catalog: e.cat, Now: e.clock})
+		require.NotPanics(t, func() {
+			_, err := svc.Create(ctx, enroll.CreateInput{Name: "lab"}, e.userID)
+			requireCode(t, err, 500, "internal_error")
+			_, err = svc.Create(ctx, enroll.CreateInput{LocationID: &loc.ID}, e.userID)
+			requireCode(t, err, 500, "internal_error")
+			_, err = svc.NewToken(ctx, waiting.ID)
+			requireCode(t, err, 500, "internal_error")
+			_, err = svc.ScriptBody()
+			requireCode(t, err, 500, "internal_error")
+		})
+	}
+	n, err := e.ent.LocationEnrollment.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "no row created")
+	require.Equal(t, waiting.TokenName, e.row(t, waiting.ID).TokenName, "token not replaced")
+}
+
+func TestRerunRefusesReportedRerun(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	loc, err := e.cat.CreateLocation(ctx, testutil.LocationInput(e.pv, "eu-1"))
+	require.NoError(t, err)
+	first, err := e.svc.Create(ctx, enroll.CreateInput{LocationID: &loc.ID}, e.userID)
+	require.NoError(t, err)
+	e.report(t, first)
+	before := e.snap(t, first.ID)
+	_, err = e.svc.Create(ctx, enroll.CreateInput{LocationID: &loc.ID}, e.userID)
+	requireCode(t, err, 409, "enrollment_state")
+	var ae apierr.E
+	require.True(t, errors.As(err, &ae))
+	require.Contains(t, ae.Msg, "waiting to be finished")
+	require.True(t, before == e.snap(t, first.ID), "reported re-run changed")
+
+	// Once the report expires, a new Re-run replaces it.
+	e.advance(24 * time.Hour)
+	second, err := e.svc.Create(ctx, enroll.CreateInput{LocationID: &loc.ID}, e.userID)
+	require.NoError(t, err)
+	_, err = e.ent.LocationEnrollment.Get(ctx, first.ID)
+	require.True(t, ent.IsNotFound(err))
+	require.Equal(t, "waiting", second.State)
 }

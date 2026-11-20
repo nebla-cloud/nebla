@@ -214,9 +214,12 @@ main() {
             summary "$token_name" "$isos"
             return 0
             ;;
-        401 | 409 | 410)
+        400 | 401 | 409 | 410)
             printf 'nebla: error: the panel refused the report: %s\n' "$(panel_msg "$body" "$code")" >&2
             exit 1
+            ;;
+        429 | 5??)
+            warn "the panel couldn't take the report: $(panel_msg "$body" "$code"); paste it instead"
             ;;
         *) warn "couldn't send the report to the panel (HTTP ${code:-none}); paste it instead" ;;
         esac

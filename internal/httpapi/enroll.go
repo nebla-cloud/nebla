@@ -80,7 +80,10 @@ func (s *server) GetEnrollScript(ctx context.Context, _ apigen.GetEnrollScriptRe
 	if err := s.enrollAllow(ctx); err != nil {
 		return nil, err
 	}
-	b := s.enroll.ScriptBody()
+	b, err := s.enroll.ScriptBody()
+	if err != nil {
+		return nil, err
+	}
 	return apigen.GetEnrollScript200TextplainCharsetUtf8Response{Body: bytes.NewReader(b), ContentLength: int64(len(b))}, nil
 }
 

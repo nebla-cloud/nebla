@@ -55,6 +55,7 @@ type Service struct {
 	db     *ent.Client
 	box    *crypto.Box
 	boxErr error
+	urlErr error
 	o      Options
 }
 
@@ -91,7 +92,12 @@ func New(sqlDB *sql.DB, client *ent.Client, o Options) *Service {
 		o.Logger = slog.Default()
 	}
 	box, err := crypto.NewBox(o.SecretKey)
-	return &Service{sql: sqlDB, db: client, box: box, boxErr: err, o: o}
+	var urlErr error
+	if !panelURLRe.MatchString(o.BaseURL) {
+		urlErr = apierr.New(http.StatusInternalServerError, "internal_error",
+			"the panel base URL is not set or not usable for enrollment; check PANEL_BASE_URL")
+	}
+	return &Service{sql: sqlDB, db: client, box: box, boxErr: err, urlErr: urlErr, o: o}
 }
 
 var (
@@ -175,6 +181,9 @@ func (s *Service) withTx(ctx context.Context, fn func(tx *ent.Client) error) err
 
 // Create starts an enrollment for a new location or a Re-run of an existing one.
 func (s *Service) Create(ctx context.Context, in CreateInput, userID int64) (Created, error) {
+	if s.urlErr != nil {
+		return Created{}, s.urlErr
+	}
 	name, desc := strings.TrimSpace(in.Name), strings.TrimSpace(in.Description)
 	if in.LocationID != nil {
 		loc, err := s.o.Catalog.GetLocation(ctx, *in.LocationID)
@@ -195,7 +204,14 @@ func (s *Service) Create(ctx context.Context, in CreateInput, userID int64) (Cre
 	var row *ent.LocationEnrollment
 	err := s.withTx(ctx, func(tx *ent.Client) error {
 		if in.LocationID != nil {
-			// One live Re-run per location: the new one replaces it.
+			// One live Re-run per location: the new one replaces it unless it awaits Finish.
+			prev, err := tx.LocationEnrollment.Query().Where(locationenrollment.LocationID(*in.LocationID)).ForUpdate().Only(ctx)
+			if err != nil && !ent.IsNotFound(err) {
+				return err
+			}
+			if prev != nil && prev.State == locationenrollment.StateReported && now.Before(prev.ExpiresAt) {
+				return stateErr("a re-run for this location is waiting to be finished; finish or cancel it first")
+			}
 			if _, err := tx.LocationEnrollment.Delete().Where(locationenrollment.LocationID(*in.LocationID)).Exec(ctx); err != nil {
 				return err
 			}
@@ -238,6 +254,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput, userID int64) (Cre
 
 // NewToken replaces a waiting enrollment's token, token name and expiry.
 func (s *Service) NewToken(ctx context.Context, id int64) (Created, error) {
+	if s.urlErr != nil {
+		return Created{}, s.urlErr
+	}
 	tok := newToken()
 	var row *ent.LocationEnrollment
 	err := s.withTx(ctx, func(tx *ent.Client) error {
@@ -373,4 +392,9 @@ func (s *Service) Sweep(ctx context.Context) (int, error) {
 }
 
 // ScriptBody is the online setup script served at /v1/enroll.sh.
-func (s *Service) ScriptBody() []byte { return Script(s.o.BaseURL) }
+func (s *Service) ScriptBody() ([]byte, error) {
+	if s.urlErr != nil {
+		return nil, s.urlErr
+	}
+	return Script(s.o.BaseURL), nil
+}
