@@ -45,16 +45,41 @@ panel ships in the binary, and the `nebla` CLI works from a terminal (see [Statu
 
 ## Configuration
 
-| Variable | Required | Default | Meaning |
-| --- | --- | --- | --- |
-| `PANEL_DATABASE_URL` | yes | | Postgres URL. Compose sets it for the bundled database. |
-| `PANEL_BASE_URL` | yes | | Public URL of the panel. It builds console URLs, is the allowed websocket origin, and its scheme and host are the trusted origin for API requests. Passkeys need it on https with a domain name (or `http://localhost`), and changing its host makes existing passkeys stop working, though passwords still work. |
-| `PANEL_SECRET_KEY` | yes | | At least 32 bytes. Seals Proxmox token secrets. Generate it with `openssl rand -base64 48` and keep it: losing it makes stored secrets unreadable. |
-| `PANEL_LISTEN` | no | `:8080` | HTTP listen address. |
-| `PANEL_SMTP_URL` | no | | `smtp://user:pass@host:587?from=panel@example.com` or `smtps://...`. Without it, invite mails are not sent. |
-| `PANEL_TRUSTED_PROXIES` | no | | Comma-separated CIDRs of reverse proxies. When a request comes from one, the client IP for rate limits is the rightmost `X-Forwarded-For` address that isn't a trusted proxy. Leave it empty when nothing sits in front of the panel. |
-| `PANEL_DEFAULT_QUOTA` | no | `servers=5,vcpu=8,memory_mb=16384,disk_gb=200,ips=5` | Quota given to projects created by non-admin users, as comma-separated `key=value` pairs. Keys left out keep their default. `0` in a field means unlimited. Projects created by panel admins are always unlimited, and admins can change any project's quota. |
-| `PANEL_MAX_PROJECTS_PER_USER` | no | `3` | How many projects a non-admin user may own. `0` means unlimited. Panel admins are never capped. |
+The panel reads its settings from environment variables. With compose they go in `deploy/.env`.
+
+### Required
+
+- **`PANEL_DATABASE_URL`**: Postgres URL. Compose sets it for the bundled database.
+- **`PANEL_BASE_URL`**: Public URL of the panel. It builds console URLs, is the allowed websocket origin, and its
+  scheme and host are the trusted origin for API requests.
+  - Passkeys need it on https with a domain name (or `http://localhost`).
+  - Changing its host makes existing passkeys stop working, though passwords still work.
+- **`PANEL_SECRET_KEY`**: At least 32 bytes. Seals Proxmox token secrets. Generate it with `openssl rand -base64 48`
+  and keep it: losing it makes stored secrets unreadable.
+
+### Optional
+
+| Variable | Default |
+| --- | --- |
+| `PANEL_LISTEN` | `:8080` |
+| `PANEL_SMTP_URL` | none |
+| `PANEL_TRUSTED_PROXIES` | none |
+| `PANEL_DEFAULT_QUOTA` | `servers=5,vcpu=8,memory_mb=16384,disk_gb=200,ips=5` |
+| `PANEL_MAX_PROJECTS_PER_USER` | `3` |
+
+- **`PANEL_LISTEN`**: HTTP listen address.
+- **`PANEL_SMTP_URL`**: `smtp://user:pass@host:587?from=panel@example.com` or `smtps://...`. Without it, invite mails
+  are not sent.
+- **`PANEL_TRUSTED_PROXIES`**: Comma-separated CIDRs of reverse proxies. When a request comes from one, the client IP
+  for rate limits is the rightmost `X-Forwarded-For` address that isn't a trusted proxy. Leave it empty when nothing
+  sits in front of the panel.
+- **`PANEL_DEFAULT_QUOTA`**: Quota given to projects created by non-admin users, as comma-separated `key=value` pairs.
+  Keys left out keep their default, and `0` in a field means unlimited. Projects created by panel admins are always
+  unlimited, and admins can change any project's quota.
+- **`PANEL_MAX_PROJECTS_PER_USER`**: How many projects a non-admin user may own. `0` means unlimited. Panel admins are
+  never capped.
+
+### Healthcheck
 
 `nebla-server healthcheck` exits 0 when `/v1/healthz` on the local listen port answers 200. The image and compose use it
 as their healthcheck.
