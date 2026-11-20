@@ -168,13 +168,20 @@ test('passkey autofill login', async ({ browser }) => {
     await addPasskey(page)
     const isPost = (r: Response, path: string) =>
       r.request().method() === 'POST' && r.url().endsWith(path)
+    const loggedOut = page.waitForResponse((r) => isPost(r, '/v1/auth/logout'))
+    // Autofill leaves /login within ~50ms, faster than toHaveURL polls, so wait on the navigation.
+    const atLogin = page.waitForURL(/\/login/)
     const begun = page.waitForResponse((r) => isPost(r, '/v1/auth/passkey/begin'))
     const finished = page.waitForResponse((r) => isPost(r, '/v1/auth/passkey/finish'))
-    await logOut(page)
+    await page.getByRole('button', { name: /@example\.test/ }).click()
+    await page.getByRole('button', { name: 'Log out' }).click()
+    expect((await loggedOut).status()).toBe(204)
+    await atLogin
     // No click: the login page's autofill ceremony signs in on its own.
     expect((await begun).status()).toBe(200)
     expect((await finished).status()).toBe(200)
     await expect(page).not.toHaveURL(/\/login/)
+    expect((await page.request.get('/v1/me')).status()).toBe(200)
     await removeAll(page)
   } finally {
     await page.context().close()
