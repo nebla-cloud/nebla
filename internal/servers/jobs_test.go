@@ -190,7 +190,7 @@ func TestPowerShutdownTimeout(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Equal(t, actions.CodeFailed, a.Error.Code)
+	require.Equal(t, actions.CodeTimedOut, a.Error.Code)
 	require.Contains(t, a.Error.Detail, "did not finish within")
 	require.Equal(t, servers.StatusRunning, status(t, e, s.ServerID), "status follows Proxmox")
 }
@@ -374,6 +374,9 @@ func TestChangeTypeQuotaRace(t *testing.T) {
 	w := servers.NewChangeTypeWorker(opts(e))
 	var cancel *river.JobCancelError
 	require.True(t, errors.As(w.Work(ctx, jobOf(queuedArgs[servers.ChangeTypeArgs](t, e, id), 1)), &cancel))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
+	require.NoError(t, err)
+	require.Equal(t, actions.CodeServerMissing, a.Error.Code)
 	u, err := servers.Usage(ctx, e.App.Ent, e.Project)
 	require.NoError(t, err)
 	require.Equal(t, 3, u.VCPU)

@@ -153,7 +153,7 @@ func (w *ChangeTypeWorker) Work(ctx context.Context, job *river.Job[ChangeTypeAr
 		}
 		return w.run(ctx, pc, row, a)
 	}
-	fail := func(ctx context.Context, msg string) error {
+	fail := func(ctx context.Context, f failure) error {
 		if pc == nil {
 			pc, _ = w.o.Catalog.ProxmoxFor(ctx, row.LocationID)
 		}
@@ -171,22 +171,22 @@ func (w *ChangeTypeWorker) Work(ctx context.Context, job *river.Job[ChangeTypeAr
 		if err := a.Restored(actualGB).apply(w.o.Ent.Server.UpdateOneID(row.ID)).Exec(ctx); err != nil {
 			return err
 		}
-		return failAction(ctx, w.o.Ent, a.ActionID, msg)
+		return failAction(ctx, w.o.Ent, a.ActionID, f)
 	}
-	return contract{job: job.JobRow, name: "change type", finished: act.Finished != nil, log: w.o.Logger.With("server_id", row.ID),
+	return contract{job: job.JobRow, name: "change type", finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: run, fail: fail}.work(ctx)
 }
 
 func (w *ChangeTypeWorker) run(ctx context.Context, pc pve.Client, row *ent.Server, a ChangeTypeArgs) error {
 	if row.Vmid == nil {
-		return permanent("server has no VM")
+		return missing("server has no VM")
 	}
 	v, found, err := findVM(ctx, pc, *row.Vmid)
 	switch {
 	case err != nil:
 		return &stepError{"find vm", err}
 	case !found || !ownedBy(v, row.ID):
-		return permanent("vm %d is missing", *row.Vmid)
+		return missing("vm %d is missing", *row.Vmid)
 	case v.Status != "stopped":
 		return permanent("vm %d must be stopped", v.VMID)
 	}

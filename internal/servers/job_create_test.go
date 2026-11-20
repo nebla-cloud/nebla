@@ -366,7 +366,7 @@ func TestCreateServerCleanupPendingResumesCleanup(t *testing.T) {
 	e, w := directEnv(t)
 	s := e.CreateServer("web", nil)
 	j := job(s, 2)
-	j.Errors = []rivertype.AttemptError{{Attempt: 1, Error: servers.CleanupPending + "resize disk: boom"}}
+	j.Errors = []rivertype.AttemptError{{Attempt: 1, Error: servers.CleanupPending + "timed_out: resize disk: boom"}}
 	err := w.Work(ctx, j)
 	var cancel *river.JobCancelError
 	require.True(t, errors.As(err, &cancel), "%v", err)
@@ -374,6 +374,21 @@ func TestCreateServerCleanupPendingResumesCleanup(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
+	require.Equal(t, actions.CodeTimedOut, a.Error.Code, "the code survives the retry")
+	require.Equal(t, "resize disk: boom", a.Error.Detail)
+}
+
+func TestCreateServerLegacyCleanupPendingKeepsDetail(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	j := job(s, 2)
+	j.Errors = []rivertype.AttemptError{{Attempt: 1, Error: servers.CleanupPending + "resize disk: boom"}}
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(w.Work(ctx, j), &cancel))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.CodeFailed, a.Error.Code)
 	require.Equal(t, "resize disk: boom", a.Error.Detail)
 }
 
@@ -401,8 +416,9 @@ func TestCreateServerCleanupIncompleteKeepsIPs(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Contains(t, a.Error.Detail, "resize disk: injected failure (status 500)")
-	require.Contains(t, a.Error.Detail, "cleanup incomplete")
+	require.Contains(t, a.Error.Detail, "resize disk: pve: status 500: injected failure (status 500)")
+	require.Contains(t, a.Error.Detail, fmt.Sprintf("cleanup incomplete: VM %d could not be removed", *row.Vmid))
+	require.Equal(t, actions.Message("create_server", actions.CodeFailed), a.Error.Message)
 }
 
 func TestCreateServerLeavesVMWithoutNeblaTag(t *testing.T) {
@@ -580,7 +596,7 @@ func TestCreateServerCleanupTxFailureIsResumed(t *testing.T) {
 	a, err = actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
 	require.NoError(t, err)
 	require.Equal(t, actions.StatusError, a.Status)
-	require.Contains(t, a.Error.Detail, "resize disk: injected failure (status 500)")
+	require.Contains(t, a.Error.Detail, "resize disk: pve: status 500: injected failure (status 500)")
 	require.Zero(t, vmCount(t, e))
 }
 

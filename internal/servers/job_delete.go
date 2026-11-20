@@ -45,7 +45,7 @@ func (w *DeleteServerWorker) Work(ctx context.Context, job *river.Job[DeleteServ
 		}
 		return w.run(ctx, pc, row, job.Args.ActionID)
 	}
-	fail := func(ctx context.Context, msg string) error {
+	fail := func(ctx context.Context, f failure) error {
 		cur, err := w.o.Ent.Server.Get(ctx, row.ID)
 		if err != nil {
 			return err
@@ -57,9 +57,9 @@ func (w *DeleteServerWorker) Work(ctx context.Context, job *river.Job[DeleteServ
 		if err := w.o.Ent.Server.UpdateOneID(cur.ID).SetStatus(server.Status(st)).Exec(ctx); err != nil {
 			return err
 		}
-		return failAction(ctx, w.o.Ent, job.Args.ActionID, msg)
+		return failAction(ctx, w.o.Ent, job.Args.ActionID, f)
 	}
-	return contract{job: job.JobRow, name: "delete", finished: act.Finished != nil, log: w.o.Logger.With("server_id", row.ID),
+	return contract{job: job.JobRow, name: "delete", finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: run, fail: fail}.work(ctx)
 }
 

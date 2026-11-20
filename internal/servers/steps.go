@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
@@ -38,12 +39,24 @@ func isoVolid(storage string, serverID int64, gen int) string {
 	return storage + ":iso/" + isoName(serverID, gen)
 }
 
-// permanentError fails the job without retry; msg is shown on the action.
-type permanentError struct{ msg string }
+// permanentError fails the job without retry with an actions.Code* kind.
+type permanentError struct{ code, msg string }
 
 func (e *permanentError) Error() string { return e.msg }
 
-func permanent(format string, a ...any) error { return &permanentError{fmt.Sprintf(format, a...)} }
+func permanent(format string, a ...any) error {
+	return &permanentError{actions.CodeFailed, fmt.Sprintf(format, a...)}
+}
+
+// missing fails the job because the server's VM is gone.
+func missing(format string, a ...any) error {
+	return &permanentError{actions.CodeServerMissing, fmt.Sprintf(format, a...)}
+}
+
+// timedOut fails the job because a VM did not reach a state in time.
+func timedOut(format string, a ...any) error {
+	return &permanentError{actions.CodeTimedOut, fmt.Sprintf(format, a...)}
+}
 
 // transientError is retried like a transient Proxmox error.
 type transientError struct{ msg string }
@@ -84,33 +97,25 @@ type stepError struct {
 func (e *stepError) Error() string { return e.step + ": " + e.err.Error() }
 func (e *stepError) Unwrap() error { return e.err }
 
-// errorMessage is the tenant-safe message behind err, prefixed with the step.
-func errorMessage(err error) string {
-	var se *stepError
-	inner := err
-	if errors.As(err, &se) {
-		inner = se.err
-	}
-	msg := "unexpected error"
-	var pe *pve.Error
-	var te *pve.TaskError
+// failure is how an action failed: a stable code for members and admin-only detail.
+type failure struct{ code, detail string }
+
+// classify maps err to a code; the detail is the full error chain.
+func classify(err error) failure {
+	code := actions.CodeFailed
 	var perm *permanentError
+	var te *pve.TaskError
+	var pe *pve.Error
 	var ue *url.Error
 	var ne net.Error
 	switch {
-	case errors.As(inner, &perm):
-		msg = perm.msg
-	case errors.As(inner, &te):
-		msg = te.ExitStatus
-	case errors.As(inner, &pe):
-		msg = pe.Message
-	case errors.As(inner, &ue), errors.As(inner, &ne), errors.Is(inner, context.DeadlineExceeded):
-		msg = "could not reach Proxmox"
+	case errors.As(err, &perm):
+		code = perm.code
+	case errors.As(err, &te), errors.As(err, &pe):
+	case errors.As(err, &ue), errors.As(err, &ne), errors.Is(err, context.DeadlineExceeded):
+		code = actions.CodeUnreachable
 	}
-	if se != nil {
-		return se.step + ": " + msg
-	}
-	return msg
+	return failure{code, err.Error()}
 }
 
 // findVM returns the VM with vmid from the cluster listing.
