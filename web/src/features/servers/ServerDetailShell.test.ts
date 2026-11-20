@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises } from '@vue/test-utils'
+import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { RouterView, type HistoryState } from 'vue-router'
+import { useToast } from '@nuxt/ui/composables/useToast'
 import { mountApp, testRouter } from '@/test/mount'
 import type { Action, Server } from '@/api/types'
 import { makeServer } from './fixtures'
@@ -33,6 +34,8 @@ function serve(s: Server) {
   )
 }
 
+let mounted: VueWrapper | undefined
+
 async function mountDetail(path = '/p/1/servers/1', state?: HistoryState) {
   const router = testRouter([
     {
@@ -43,6 +46,7 @@ async function mountDetail(path = '/p/1/servers/1', state?: HistoryState) {
   ])
   await router.push({ path, state })
   const res = mountApp(RouterView, { router })
+  mounted = res.wrapper
   await vi.waitFor(() => expect(res.wrapper.text()).not.toContain('Loading server'))
   await flushPromises()
   return { ...res, router }
@@ -63,6 +67,10 @@ beforeEach(() => {
   document.body.innerHTML = ''
 })
 afterEach(() => {
+  // Shared toasts and live polls must not outlive the test.
+  mounted?.vm.$.appContext.app.runWithContext(() => useToast().clear())
+  mounted?.unmount()
+  mounted = undefined
   vi.useRealTimers()
   document.body.innerHTML = ''
 })
