@@ -7,7 +7,7 @@ const labels: Record<string, string> = {
   reboot_server: 'Rebooting',
   reset_server: 'Resetting',
   rebuild_server: 'Rebuilding',
-  change_server_type: 'Changing type',
+  change_server_type: 'Resizing',
 }
 
 const done: Record<string, string> = {

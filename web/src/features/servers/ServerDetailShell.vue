@@ -65,6 +65,14 @@ async function adoptHandoff(id: number, sid: number) {
 function started(a: Action) {
   lastName.value = server.value?.name ?? ''
   actionId.value = a.id
+  if (
+    (route.name === 'server-rebuild' || route.name === 'server-resize') &&
+    (a.command === 'rebuild_server' || a.command === 'change_server_type')
+  )
+    void router.push({
+      name: 'server',
+      params: { projectId: projectId.value, serverId: serverId.value },
+    })
 }
 
 async function finished(a: Action) {
