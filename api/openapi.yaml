@@ -938,6 +938,85 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /admin/catalog:
+    get:
+      operationId: getAdminCatalog
+      summary: List built-in OS image entries with per-location build state
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [catalog]
+                properties:
+                  catalog:
+                    type: array
+                    items: { $ref: "#/components/schemas/CatalogEntry" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/catalog/{key}/locations/{location_id}/enable:
+    parameters:
+      - $ref: "#/components/parameters/CatalogKey"
+      - $ref: "#/components/parameters/CatalogLocationID"
+    post:
+      operationId: postAdminCatalogEnable
+      summary: Enable an entry in a location, or retry its failed builds
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogLocationResult" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/catalog/{key}/locations/{location_id}/refresh:
+    parameters:
+      - $ref: "#/components/parameters/CatalogKey"
+      - $ref: "#/components/parameters/CatalogLocationID"
+    post:
+      operationId: postAdminCatalogRefresh
+      summary: Rebuild an entry's templates in a location
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogLocationResult" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/catalog/{key}/locations/{location_id}/disable:
+    parameters:
+      - $ref: "#/components/parameters/CatalogKey"
+      - $ref: "#/components/parameters/CatalogLocationID"
+    post:
+      operationId: postAdminCatalogDisable
+      summary: Remove an entry from a location
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogLocationResult" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
   /admin/ip_pools:
     get:
       operationId: getAdminIpPools
@@ -1678,6 +1757,16 @@ components:
       in: path
       required: true
       schema: { type: integer, format: int64 }
+    CatalogKey:
+      name: key
+      in: path
+      required: true
+      schema: { type: string }
+    CatalogLocationID:
+      name: location_id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     Page:
       name: page
       in: query
@@ -1991,6 +2080,44 @@ components:
           type: array
           items: { $ref: "#/components/schemas/ImageTemplate" }
         created: { type: string, format: date-time }
+    CatalogNode:
+      type: object
+      required: [node, status, vmid, file, built_at, error]
+      properties:
+        node: { type: string, description: "Empty for shared disk storage" }
+        status: { type: string, description: "building, ready or failed" }
+        vmid: { type: integer, nullable: true }
+        file: { type: string }
+        built_at: { type: string, format: date-time, nullable: true }
+        error: { type: string }
+    CatalogLocationState:
+      type: object
+      required: [location_id, available, reason, state, nodes]
+      properties:
+        location_id: { type: integer, format: int64 }
+        available: { type: boolean }
+        reason: { type: string }
+        state: { type: string, description: "unavailable, off, building, ready, failed, partial or retired" }
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogNode" }
+    CatalogLocationResult:
+      type: object
+      required: [location]
+      properties:
+        location: { $ref: "#/components/schemas/CatalogLocationState" }
+    CatalogEntry:
+      type: object
+      required: [key, description, os_flavor, os_version, retired, locations]
+      properties:
+        key: { type: string }
+        description: { type: string }
+        os_flavor: { type: string }
+        os_version: { type: string }
+        retired: { type: boolean }
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogLocationState" }
     Image:
       type: object
       required: [id, name, description, os_flavor, os_version, locations]

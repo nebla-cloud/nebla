@@ -255,6 +255,46 @@ type ApiToken struct {
 	Permission TokenPermission `json:"permission"`
 }
 
+// CatalogEntry defines model for CatalogEntry.
+type CatalogEntry struct {
+	Description string                 `json:"description"`
+	Key         string                 `json:"key"`
+	Locations   []CatalogLocationState `json:"locations"`
+	OsFlavor    string                 `json:"os_flavor"`
+	OsVersion   string                 `json:"os_version"`
+	Retired     bool                   `json:"retired"`
+}
+
+// CatalogLocationResult defines model for CatalogLocationResult.
+type CatalogLocationResult struct {
+	Location CatalogLocationState `json:"location"`
+}
+
+// CatalogLocationState defines model for CatalogLocationState.
+type CatalogLocationState struct {
+	Available  bool          `json:"available"`
+	LocationId int64         `json:"location_id"`
+	Nodes      []CatalogNode `json:"nodes"`
+	Reason     string        `json:"reason"`
+
+	// State unavailable, off, building, ready, failed, partial or retired
+	State string `json:"state"`
+}
+
+// CatalogNode defines model for CatalogNode.
+type CatalogNode struct {
+	BuiltAt *time.Time `json:"built_at"`
+	Error   string     `json:"error"`
+	File    string     `json:"file"`
+
+	// Node Empty for shared disk storage
+	Node string `json:"node"`
+
+	// Status building, ready or failed
+	Status string `json:"status"`
+	Vmid   *int   `json:"vmid"`
+}
+
 // ChangeTypeInput defines model for ChangeTypeInput.
 type ChangeTypeInput struct {
 	// ServerType Server type id or name
@@ -636,6 +676,12 @@ type User struct {
 	TotpEnabled bool   `json:"totp_enabled"`
 }
 
+// CatalogKey defines model for CatalogKey.
+type CatalogKey = string
+
+// CatalogLocationID defines model for CatalogLocationID.
+type CatalogLocationID = int64
+
 // ID defines model for ID.
 type ID = int64
 
@@ -918,6 +964,18 @@ type ServerInterface interface {
 	// GetAction Get an action
 	// (GET /actions/{id})
 	GetAction(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminCatalog List built-in OS image entries with per-location build state
+	// (GET /admin/catalog)
+	GetAdminCatalog(w http.ResponseWriter, r *http.Request)
+	// PostAdminCatalogDisable Remove an entry from a location
+	// (POST /admin/catalog/{key}/locations/{location_id}/disable)
+	PostAdminCatalogDisable(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID)
+	// PostAdminCatalogEnable Enable an entry in a location, or retry its failed builds
+	// (POST /admin/catalog/{key}/locations/{location_id}/enable)
+	PostAdminCatalogEnable(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID)
+	// PostAdminCatalogRefresh Rebuild an entry's templates in a location
+	// (POST /admin/catalog/{key}/locations/{location_id}/refresh)
+	PostAdminCatalogRefresh(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID)
 	// GetAdminImages List images with their templates
 	// (GET /admin/images)
 	GetAdminImages(w http.ResponseWriter, r *http.Request, params GetAdminImagesParams)
@@ -1173,6 +1231,30 @@ func (_ Unimplemented) GetActions(w http.ResponseWriter, r *http.Request, params
 // GetAction Get an action
 // (GET /actions/{id})
 func (_ Unimplemented) GetAction(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminCatalog List built-in OS image entries with per-location build state
+// (GET /admin/catalog)
+func (_ Unimplemented) GetAdminCatalog(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminCatalogDisable Remove an entry from a location
+// (POST /admin/catalog/{key}/locations/{location_id}/disable)
+func (_ Unimplemented) PostAdminCatalogDisable(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminCatalogEnable Enable an entry in a location, or retry its failed builds
+// (POST /admin/catalog/{key}/locations/{location_id}/enable)
+func (_ Unimplemented) PostAdminCatalogEnable(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminCatalogRefresh Rebuild an entry's templates in a location
+// (POST /admin/catalog/{key}/locations/{location_id}/refresh)
+func (_ Unimplemented) PostAdminCatalogRefresh(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1754,6 +1836,125 @@ func (siw *ServerInterfaceWrapper) GetAction(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAction(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminCatalog operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminCatalog(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminCatalog(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminCatalogDisable operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminCatalogDisable(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key CatalogKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", chi.URLParam(r, "key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "location_id" -------------
+	var locationId CatalogLocationID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "location_id", chi.URLParam(r, "location_id"), &locationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminCatalogDisable(w, r, key, locationId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminCatalogEnable operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminCatalogEnable(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key CatalogKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", chi.URLParam(r, "key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "location_id" -------------
+	var locationId CatalogLocationID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "location_id", chi.URLParam(r, "location_id"), &locationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminCatalogEnable(w, r, key, locationId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminCatalogRefresh operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminCatalogRefresh(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key CatalogKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", chi.URLParam(r, "key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "location_id" -------------
+	var locationId CatalogLocationID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "location_id", chi.URLParam(r, "location_id"), &locationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminCatalogRefresh(w, r, key, locationId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4275,6 +4476,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/admin/images/{id}", wrapper.PutAdminImage)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/catalog", wrapper.GetAdminCatalog)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/catalog/{key}/locations/{location_id}/enable", wrapper.PostAdminCatalogEnable)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/catalog/{key}/locations/{location_id}/refresh", wrapper.PostAdminCatalogRefresh)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/catalog/{key}/locations/{location_id}/disable", wrapper.PostAdminCatalogDisable)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/admin/ip_pools", wrapper.GetAdminIpPools)
 	})
 	r.Group(func(r chi.Router) {
@@ -4523,6 +4736,446 @@ type GetActiondefaultJSONResponse struct {
 }
 
 func (response GetActiondefaultJSONResponse) VisitGetActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCatalogRequestObject struct {
+}
+
+type GetAdminCatalogResponseObject interface {
+	VisitGetAdminCatalogResponse(w http.ResponseWriter) error
+}
+
+type GetAdminCatalog200JSONResponse struct {
+	Catalog []CatalogEntry `json:"catalog"`
+}
+
+func (response GetAdminCatalog200JSONResponse) VisitGetAdminCatalogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCatalog401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminCatalog401JSONResponse) VisitGetAdminCatalogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCatalog403JSONResponse Error
+
+func (response GetAdminCatalog403JSONResponse) VisitGetAdminCatalogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCatalogdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminCatalogdefaultJSONResponse) VisitGetAdminCatalogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisableRequestObject struct {
+	Key        CatalogKey        `json:"key"`
+	LocationId CatalogLocationID `json:"location_id"`
+}
+
+type PostAdminCatalogDisableResponseObject interface {
+	VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error
+}
+
+type PostAdminCatalogDisable200JSONResponse CatalogLocationResult
+
+func (response PostAdminCatalogDisable200JSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisable401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminCatalogDisable401JSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisable403JSONResponse Error
+
+func (response PostAdminCatalogDisable403JSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisable404JSONResponse Error
+
+func (response PostAdminCatalogDisable404JSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisable409JSONResponse Error
+
+func (response PostAdminCatalogDisable409JSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisable422JSONResponse Error
+
+func (response PostAdminCatalogDisable422JSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisable503JSONResponse Error
+
+func (response PostAdminCatalogDisable503JSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogDisabledefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminCatalogDisabledefaultJSONResponse) VisitPostAdminCatalogDisableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnableRequestObject struct {
+	Key        CatalogKey        `json:"key"`
+	LocationId CatalogLocationID `json:"location_id"`
+}
+
+type PostAdminCatalogEnableResponseObject interface {
+	VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error
+}
+
+type PostAdminCatalogEnable200JSONResponse CatalogLocationResult
+
+func (response PostAdminCatalogEnable200JSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnable401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminCatalogEnable401JSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnable403JSONResponse Error
+
+func (response PostAdminCatalogEnable403JSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnable404JSONResponse Error
+
+func (response PostAdminCatalogEnable404JSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnable409JSONResponse Error
+
+func (response PostAdminCatalogEnable409JSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnable422JSONResponse Error
+
+func (response PostAdminCatalogEnable422JSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnable503JSONResponse Error
+
+func (response PostAdminCatalogEnable503JSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogEnabledefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminCatalogEnabledefaultJSONResponse) VisitPostAdminCatalogEnableResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefreshRequestObject struct {
+	Key        CatalogKey        `json:"key"`
+	LocationId CatalogLocationID `json:"location_id"`
+}
+
+type PostAdminCatalogRefreshResponseObject interface {
+	VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error
+}
+
+type PostAdminCatalogRefresh200JSONResponse CatalogLocationResult
+
+func (response PostAdminCatalogRefresh200JSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefresh401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminCatalogRefresh401JSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefresh403JSONResponse Error
+
+func (response PostAdminCatalogRefresh403JSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefresh404JSONResponse Error
+
+func (response PostAdminCatalogRefresh404JSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefresh409JSONResponse Error
+
+func (response PostAdminCatalogRefresh409JSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefresh422JSONResponse Error
+
+func (response PostAdminCatalogRefresh422JSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefresh503JSONResponse Error
+
+func (response PostAdminCatalogRefresh503JSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminCatalogRefreshdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminCatalogRefreshdefaultJSONResponse) VisitPostAdminCatalogRefreshResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -11375,6 +12028,18 @@ type StrictServerInterface interface {
 	// GetAction Get an action
 	// (GET /actions/{id})
 	GetAction(ctx context.Context, request GetActionRequestObject) (GetActionResponseObject, error)
+	// GetAdminCatalog List built-in OS image entries with per-location build state
+	// (GET /admin/catalog)
+	GetAdminCatalog(ctx context.Context, request GetAdminCatalogRequestObject) (GetAdminCatalogResponseObject, error)
+	// PostAdminCatalogDisable Remove an entry from a location
+	// (POST /admin/catalog/{key}/locations/{location_id}/disable)
+	PostAdminCatalogDisable(ctx context.Context, request PostAdminCatalogDisableRequestObject) (PostAdminCatalogDisableResponseObject, error)
+	// PostAdminCatalogEnable Enable an entry in a location, or retry its failed builds
+	// (POST /admin/catalog/{key}/locations/{location_id}/enable)
+	PostAdminCatalogEnable(ctx context.Context, request PostAdminCatalogEnableRequestObject) (PostAdminCatalogEnableResponseObject, error)
+	// PostAdminCatalogRefresh Rebuild an entry's templates in a location
+	// (POST /admin/catalog/{key}/locations/{location_id}/refresh)
+	PostAdminCatalogRefresh(ctx context.Context, request PostAdminCatalogRefreshRequestObject) (PostAdminCatalogRefreshResponseObject, error)
 	// GetAdminImages List images with their templates
 	// (GET /admin/images)
 	GetAdminImages(ctx context.Context, request GetAdminImagesRequestObject) (GetAdminImagesResponseObject, error)
@@ -11701,6 +12366,111 @@ func (sh *strictHandler) GetAction(w http.ResponseWriter, r *http.Request, id ID
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetActionResponseObject); ok {
 		if err := validResponse.VisitGetActionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminCatalog operation middleware
+func (sh *strictHandler) GetAdminCatalog(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminCatalogRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminCatalog(ctx, request.(GetAdminCatalogRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminCatalog")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminCatalogResponseObject); ok {
+		if err := validResponse.VisitGetAdminCatalogResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminCatalogDisable operation middleware
+func (sh *strictHandler) PostAdminCatalogDisable(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID) {
+	var request PostAdminCatalogDisableRequestObject
+
+	request.Key = key
+	request.LocationId = locationId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminCatalogDisable(ctx, request.(PostAdminCatalogDisableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminCatalogDisable")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminCatalogDisableResponseObject); ok {
+		if err := validResponse.VisitPostAdminCatalogDisableResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminCatalogEnable operation middleware
+func (sh *strictHandler) PostAdminCatalogEnable(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID) {
+	var request PostAdminCatalogEnableRequestObject
+
+	request.Key = key
+	request.LocationId = locationId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminCatalogEnable(ctx, request.(PostAdminCatalogEnableRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminCatalogEnable")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminCatalogEnableResponseObject); ok {
+		if err := validResponse.VisitPostAdminCatalogEnableResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminCatalogRefresh operation middleware
+func (sh *strictHandler) PostAdminCatalogRefresh(w http.ResponseWriter, r *http.Request, key CatalogKey, locationId CatalogLocationID) {
+	var request PostAdminCatalogRefreshRequestObject
+
+	request.Key = key
+	request.LocationId = locationId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminCatalogRefresh(ctx, request.(PostAdminCatalogRefreshRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminCatalogRefresh")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminCatalogRefreshResponseObject); ok {
+		if err := validResponse.VisitPostAdminCatalogRefreshResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

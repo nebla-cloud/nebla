@@ -22,6 +22,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/Hexeption/nebla/internal/httpapi"
 	"github.com/Hexeption/nebla/internal/jobs"
+	"github.com/Hexeption/nebla/internal/osimages"
 	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -68,17 +69,23 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 	if deps.Catalog == nil {
 		deps.Catalog = catalog.New(sqlDB, client, CatalogOptions(deps.CatalogHooks))
 	}
+	if deps.OSImages == nil {
+		deps.OSImages = osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: deps.Catalog,
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	}
 	if deps.Bus == nil {
 		deps.Bus = ext.NewBus(deps.Ext.WithDefaults(nil).BillingSink)
 		t.Cleanup(deps.Bus.Close)
 	}
 	if deps.Jobs == nil {
 		workers := river.NewWorkers()
+		osimages.Register(workers, deps.OSImages)
 		if setup != nil {
 			setup(workers, &deps, pve)
 		}
 		deps.Jobs = StartJobs(t, pool, sqlDB, workers)
 	}
+	deps.OSImages.SetJobs(deps.Jobs)
 	srv := httptest.NewUnstartedServer(nil)
 	if deps.Config.BaseURL == "" {
 		deps.Config.BaseURL = "http://" + srv.Listener.Addr().String()

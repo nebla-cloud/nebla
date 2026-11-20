@@ -17,6 +17,7 @@ import (
 	"github.com/Hexeption/nebla/internal/httpapi"
 	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/mail"
+	"github.com/Hexeption/nebla/internal/osimages"
 	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/reconcile"
 	"github.com/Hexeption/nebla/internal/servers"
@@ -60,7 +61,9 @@ func run() error {
 	bus := ext.NewBus(exts.BillingSink)
 	projectHooks, catalogHooks := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
 	cat := catalog.New(sqlDB, client, catalog.Options{SecretKey: cfg.SecretKey, Hooks: catalogHooks})
+	osi := osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log})
 	workers := river.NewWorkers()
+	osimages.Register(workers, osi)
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log})
 	reconcile.Register(workers, rec)
@@ -69,6 +72,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	osi.SetJobs(runner)
 	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
 	if err := rec.RescueAll(ctx); err != nil {
 		return err
@@ -88,7 +92,7 @@ func run() error {
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: httpapi.New(httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: cfg, Logger: log, Mail: sender, Jobs: runner,
-			Ext: exts, Bus: bus, Catalog: cat, CatalogHooks: catalogHooks, ProjectHooks: projectHooks}),
+			Ext: exts, Bus: bus, Catalog: cat, OSImages: osi, CatalogHooks: catalogHooks, ProjectHooks: projectHooks}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,

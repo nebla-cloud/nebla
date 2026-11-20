@@ -64,6 +64,10 @@ var adminOps = map[string]bool{
 	"GetAdminIpPool":             true,
 	"PutAdminIpPool":             true,
 	"DeleteAdminIpPool":          true,
+	"GetAdminCatalog":            true,
+	"PostAdminCatalogEnable":     true,
+	"PostAdminCatalogRefresh":    true,
+	"PostAdminCatalogDisable":    true,
 }
 
 // UserFrom returns the authenticated user set by RequireUser or a session scope.
