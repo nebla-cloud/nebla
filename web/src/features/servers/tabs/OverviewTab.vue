@@ -12,6 +12,8 @@ import type { Action, Server } from '@/api/types'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import { formatDate, typeSpec } from '@/lib/format'
 import { useCurrentProject } from '@/lib/project'
+import LabelChips from '../LabelChips.vue'
+import LabelEditor from '../LabelEditor.vue'
 import { serverBusyKey } from '../shell'
 
 const NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
@@ -50,6 +52,7 @@ async function copy(value: string) {
   }
 }
 
+const editingLabels = ref(false)
 const renaming = ref(false)
 const newName = ref('')
 const renameError = ref<string | null>(null)
@@ -157,7 +160,28 @@ async function confirmDelete() {
           </UButton>
         </dd>
       </template>
+      <dt class="text-muted">Labels</dt>
+      <dd class="flex flex-wrap items-center gap-2">
+        <template v-if="!editingLabels">
+          <LabelChips :labels="server.labels" :max="64" />
+          <UButton
+            color="neutral"
+            variant="link"
+            size="xs"
+            icon="i-lucide-tag"
+            @click="editingLabels = true"
+          >
+            Edit labels
+          </UButton>
+        </template>
+      </dd>
     </dl>
+    <LabelEditor
+      v-if="editingLabels"
+      :server="server"
+      @saved="editingLabels = false"
+      @cancel="editingLabels = false"
+    />
 
     <UAlert v-if="deleteError" color="error" variant="subtle" :description="deleteError" />
     <div

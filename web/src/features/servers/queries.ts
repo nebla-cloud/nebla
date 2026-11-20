@@ -8,12 +8,15 @@ import { isTransitional } from '@/lib/status'
 
 const POLL_MS = 3000
 
-export function useServers() {
+export function useServers(selector?: Ref<string>) {
   const { projectId } = useCurrentProject()
   return useQuery({
-    queryKey: computed(() => ['servers', projectId.value]),
-    queryFn: async (): Promise<Server[]> =>
-      unwrap(await api.GET('/servers', { params: { query: { per_page: 50 } } })).servers,
+    queryKey: computed(() => ['servers', projectId.value, selector?.value ?? '']),
+    queryFn: async (): Promise<Server[]> => {
+      const label_selector = selector?.value.trim()
+      const query = label_selector ? { per_page: 50, label_selector } : { per_page: 50 }
+      return unwrap(await api.GET('/servers', { params: { query } })).servers
+    },
     enabled: computed(() => projectId.value > 0),
     refetchInterval: (q) => (q.state.data?.some((s) => isTransitional(s.status)) ? POLL_MS : false),
   })
