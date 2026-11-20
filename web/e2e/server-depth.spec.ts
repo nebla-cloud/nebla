@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { createServer, expectNoLeaks, login, serverHeader } from './helpers'
+import { adminPage, createServer, expectNoLeaks, serverHeader } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -18,8 +18,7 @@ async function openServer() {
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(240_000)
-  page = await browser.newPage()
-  await login(page)
+  page = await adminPage(browser)
 
   await page.goto('/admin/os-images')
   await page.getByRole('button', { name: 'Enable Ubuntu 24.04 in home' }).click()
@@ -45,7 +44,7 @@ test.beforeAll(async ({ browser }) => {
 })
 
 test.afterAll(async () => {
-  await page?.close()
+  await page?.context().close()
 })
 
 test('labels and filter', async () => {

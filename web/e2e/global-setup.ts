@@ -92,5 +92,6 @@ export default async function globalSetup() {
   const harness = JSON.parse(readFileSync(out, 'utf8')) as { url: string }
   process.env.NEBLA_E2E_BASE_URL = harness.url
   process.env.NEBLA_E2E_HARNESS = JSON.stringify(harness)
+  process.env.NEBLA_E2E_ADMIN_STATE = join(dir, 'admin.json')
   return teardown
 }

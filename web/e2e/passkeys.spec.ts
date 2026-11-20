@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page, type Response } from '@playwright/test'
-import { addVirtualAuthenticator, login, totpCode } from './helpers'
+import { addVirtualAuthenticator, adminPage, login, totpCode } from './helpers'
 
 const PASSWORD = 'correct-horse-battery'
 
@@ -7,9 +7,8 @@ const USERS = ['pk-login', 'pk-totp', 'pk-rename', 'pk-autofill'].map((n) => `${
 
 // Each spec gets its own user so the per-account login limiter never starves them.
 test.beforeAll(async ({ browser }) => {
-  const admin = await (await browser.newContext()).newPage()
+  const admin = await adminPage(browser)
   try {
-    await login(admin)
     for (const email of USERS) {
       const made = await admin.request.post('/v1/admin/users', {
         data: { email, password: PASSWORD, name: email.split('@')[0] },

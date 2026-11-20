@@ -1,14 +1,12 @@
 import { expect, test } from '@playwright/test'
+import { adminState } from './helpers'
 
 const harness = JSON.parse(process.env.NEBLA_E2E_HARNESS ?? '{}') as { fail_checksum: string }
 
-test('failed build can be retried', async ({ page, request }) => {
-  await page.goto('/login')
-  await page.locator('input[name=email]').fill('admin@example.test')
-  await page.locator('input[name=password]').fill('correct-horse-battery')
-  await page.getByRole('button', { name: 'Log in', exact: true }).click()
-  await expect(page).not.toHaveURL(/\/login/)
+// eslint-disable-next-line no-empty-pattern -- Playwright fixtures must destructure their first argument.
+test.use({ storageState: async ({}, use) => use(adminState()) })
 
+test('failed build can be retried', async ({ page, request }) => {
   await page.goto('/admin/os-images')
   const cell = (state: string) =>
     page.getByRole('button', { name: `Debian 13 in home: ${state}. Show details` })

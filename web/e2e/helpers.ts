@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import { expect, type CDPSession, type Page } from '@playwright/test'
+import { expect, type Browser, type CDPSession, type Page } from '@playwright/test'
 
 // Infrastructure words that must never reach a project page.
 export const LEAKS = /vmid|local-lvm|vmbr|pve1|pve2|ceph|\bimp\b|proxmox/i
@@ -14,6 +14,17 @@ export async function login(page: Page, email = 'admin@example.test') {
   await page.locator('input[name=password]').fill('correct-horse-battery')
   await page.getByRole('button', { name: 'Log in', exact: true }).click()
   await expect(page).not.toHaveURL(/\/login/)
+}
+
+// The admin session the admin-session project saves, so the suite logs the admin in once.
+export function adminState(): string {
+  const path = process.env.NEBLA_E2E_ADMIN_STATE
+  if (!path) throw new Error('NEBLA_E2E_ADMIN_STATE is not set; run through global setup')
+  return path
+}
+
+export async function adminPage(browser: Browser): Promise<Page> {
+  return (await browser.newContext({ storageState: adminState() })).newPage()
 }
 
 export function serverHeader(page: Page) {

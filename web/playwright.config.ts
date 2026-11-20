@@ -17,7 +17,13 @@ export default defineConfig({
   },
   projects: [
     { name: 'first-run', testMatch: /first-run\.spec\.ts/ },
-    { name: 'catalog', testMatch: /catalog\.spec\.ts/, dependencies: ['first-run'] },
+    // One admin password login for the suite; the per-email login limiter allows ten.
+    {
+      name: 'admin-session',
+      testMatch: /admin-session\.setup\.ts/,
+      dependencies: ['first-run'],
+    },
+    { name: 'catalog', testMatch: /catalog\.spec\.ts/, dependencies: ['admin-session'] },
     {
       name: 'server-depth',
       testMatch: /server-depth\.spec\.ts/,

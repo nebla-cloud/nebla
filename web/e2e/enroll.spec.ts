@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import { login } from './helpers'
+import { adminState } from './helpers'
 
 const harness = JSON.parse(process.env.NEBLA_E2E_HARNESS ?? '{}') as {
   pve: { url: string; ca_fingerprint: string }
   add_token: string
 }
 
+// eslint-disable-next-line no-empty-pattern -- Playwright fixtures must destructure their first argument.
+test.use({ storageState: async ({}, use) => use(adminState()) })
+
 test('enroll paste-back connects a location', async ({ page, request }) => {
-  await login(page)
   await page.goto('/admin/locations')
   await page.getByRole('button', { name: 'Connect a location' }).first().click()
   await page.locator('input[name=name]').fill('lab')

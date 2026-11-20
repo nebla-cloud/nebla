@@ -1,5 +1,5 @@
-import { expect, test, type Browser, type Page } from '@playwright/test'
-import { expectNoLeaks, login, totpCode } from './helpers'
+import { expect, test, type Page } from '@playwright/test'
+import { adminPage, expectNoLeaks, totpCode } from './helpers'
 
 const PASSWORD = 'correct-horse-battery'
 
@@ -14,12 +14,6 @@ async function logOut(page: Page) {
   await page.getByRole('button', { name: /@example\.test/ }).click()
   await page.getByRole('button', { name: 'Log out' }).click()
   await expect(page).toHaveURL(/\/login/)
-}
-
-async function adminPage(browser: Browser): Promise<Page> {
-  const page = await (await browser.newContext()).newPage()
-  await login(page)
-  return page
 }
 
 test('tokens: create, use and revoke', async ({ browser, request: api }) => {

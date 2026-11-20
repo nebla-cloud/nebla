@@ -1,23 +1,8 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test'
-import { expectNoLeaks, login, totpCode } from './helpers'
+import { expect, test, type Page } from '@playwright/test'
+import { adminPage, expectNoLeaks, login, totpCode } from './helpers'
 
 const harness = JSON.parse(process.env.NEBLA_E2E_HARNESS ?? '{}') as { fail_next: string }
 const PASSWORD = 'correct-horse-battery'
-
-type State = Awaited<ReturnType<BrowserContext['storageState']>>
-let adminState: State
-
-// One admin login for the file: the login limiter allows ten per email before throttling.
-test.beforeAll(async ({ browser }) => {
-  const ctx = await browser.newContext()
-  await login(await ctx.newPage())
-  adminState = await ctx.storageState()
-  await ctx.close()
-})
-
-async function adminPage(browser: Browser): Promise<Page> {
-  return (await browser.newContext({ storageState: adminState })).newPage()
-}
 
 async function logOut(page: Page) {
   await page.getByRole('button', { name: /@example\.test/ }).click()
