@@ -38,6 +38,27 @@ func (e ActionStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminActionStatus.
+const (
+	AdminActionStatusError   AdminActionStatus = "error"
+	AdminActionStatusRunning AdminActionStatus = "running"
+	AdminActionStatusSuccess AdminActionStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the AdminActionStatus enum.
+func (e AdminActionStatus) Valid() bool {
+	switch e {
+	case AdminActionStatusError:
+		return true
+	case AdminActionStatusRunning:
+		return true
+	case AdminActionStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IpPoolFamily.
 const (
 	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
@@ -189,7 +210,10 @@ func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		Code    string `json:"code"`
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone or orphaned
+		Code string `json:"code"`
+
+		// Message Plain text safe to show members
 		Message string `json:"message"`
 	} `json:"error"`
 	Finished  *time.Time `json:"finished"`
@@ -205,6 +229,31 @@ type Action struct {
 
 // ActionStatus defines model for Action.Status.
 type ActionStatus string
+
+// AdminAction defines model for AdminAction.
+type AdminAction struct {
+	Command string `json:"command"`
+	Error   *struct {
+		Code string `json:"code"`
+
+		// Detail Technical cause (VMID, node, Proxmox message); admins only
+		Detail  string `json:"detail"`
+		Message string `json:"message"`
+	} `json:"error"`
+	Finished  *time.Time `json:"finished"`
+	Id        int64      `json:"id"`
+	Progress  int        `json:"progress"`
+	ProjectId int64      `json:"project_id"`
+	Resources []struct {
+		Id   int64  `json:"id"`
+		Type string `json:"type"`
+	} `json:"resources"`
+	Started time.Time         `json:"started"`
+	Status  AdminActionStatus `json:"status"`
+}
+
+// AdminActionStatus defines model for AdminAction.Status.
+type AdminActionStatus string
 
 // AdminImage defines model for AdminImage.
 type AdminImage struct {
@@ -736,6 +785,21 @@ type GetActionsParams struct {
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
+// GetAdminActionsParams defines parameters for GetAdminActions.
+type GetAdminActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// ProjectId Only this project's actions
+	ProjectId *int64 `form:"project_id,omitempty" json:"project_id,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetAdminImagesParams defines parameters for GetAdminImages.
 type GetAdminImagesParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -989,6 +1053,12 @@ type ServerInterface interface {
 	// GetAction Get an action
 	// (GET /actions/{id})
 	GetAction(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminActions List actions across projects, with technical error detail
+	// (GET /admin/actions)
+	GetAdminActions(w http.ResponseWriter, r *http.Request, params GetAdminActionsParams)
+	// GetAdminAction Get any action, with technical error detail
+	// (GET /admin/actions/{id})
+	GetAdminAction(w http.ResponseWriter, r *http.Request, id ID)
 	// GetAdminCatalog List built-in OS image entries with per-location build state
 	// (GET /admin/catalog)
 	GetAdminCatalog(w http.ResponseWriter, r *http.Request)
@@ -1256,6 +1326,18 @@ func (_ Unimplemented) GetActions(w http.ResponseWriter, r *http.Request, params
 // GetAction Get an action
 // (GET /actions/{id})
 func (_ Unimplemented) GetAction(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminActions List actions across projects, with technical error detail
+// (GET /admin/actions)
+func (_ Unimplemented) GetAdminActions(w http.ResponseWriter, r *http.Request, params GetAdminActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminAction Get any action, with technical error detail
+// (GET /admin/actions/{id})
+func (_ Unimplemented) GetAdminAction(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1861,6 +1943,117 @@ func (siw *ServerInterfaceWrapper) GetAction(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAction(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminActions operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "project_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "project_id", r.URL.Query(), &params.ProjectId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "project_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "project_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminActions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminAction operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminAction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminAction(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4567,6 +4760,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/actions/{id}", wrapper.GetAction)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/actions", wrapper.GetAdminActions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/actions/{id}", wrapper.GetAdminAction)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/servers", wrapper.GetServers)
 	})
 	r.Group(func(r chi.Router) {
@@ -4761,6 +4960,171 @@ type GetActiondefaultJSONResponse struct {
 }
 
 func (response GetActiondefaultJSONResponse) VisitGetActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActionsRequestObject struct {
+	Params GetAdminActionsParams
+}
+
+type GetAdminActionsResponseObject interface {
+	VisitGetAdminActionsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminActions200JSONResponse struct {
+	Actions []AdminAction `json:"actions"`
+	Meta    Meta          `json:"meta"`
+}
+
+func (response GetAdminActions200JSONResponse) VisitGetAdminActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminActions401JSONResponse) VisitGetAdminActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActions403JSONResponse Error
+
+func (response GetAdminActions403JSONResponse) VisitGetAdminActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActions422JSONResponse Error
+
+func (response GetAdminActions422JSONResponse) VisitGetAdminActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminActionsdefaultJSONResponse) VisitGetAdminActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActionRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetAdminActionResponseObject interface {
+	VisitGetAdminActionResponse(w http.ResponseWriter) error
+}
+
+type GetAdminAction200JSONResponse AdminAction
+
+func (response GetAdminAction200JSONResponse) VisitGetAdminActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAction401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminAction401JSONResponse) VisitGetAdminActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAction403JSONResponse Error
+
+func (response GetAdminAction403JSONResponse) VisitGetAdminActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminAction404JSONResponse Error
+
+func (response GetAdminAction404JSONResponse) VisitGetAdminActionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActiondefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminActiondefaultJSONResponse) VisitGetAdminActionResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -12053,6 +12417,12 @@ type StrictServerInterface interface {
 	// GetAction Get an action
 	// (GET /actions/{id})
 	GetAction(ctx context.Context, request GetActionRequestObject) (GetActionResponseObject, error)
+	// GetAdminActions List actions across projects, with technical error detail
+	// (GET /admin/actions)
+	GetAdminActions(ctx context.Context, request GetAdminActionsRequestObject) (GetAdminActionsResponseObject, error)
+	// GetAdminAction Get any action, with technical error detail
+	// (GET /admin/actions/{id})
+	GetAdminAction(ctx context.Context, request GetAdminActionRequestObject) (GetAdminActionResponseObject, error)
 	// GetAdminCatalog List built-in OS image entries with per-location build state
 	// (GET /admin/catalog)
 	GetAdminCatalog(ctx context.Context, request GetAdminCatalogRequestObject) (GetAdminCatalogResponseObject, error)
@@ -12391,6 +12761,58 @@ func (sh *strictHandler) GetAction(w http.ResponseWriter, r *http.Request, id ID
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetActionResponseObject); ok {
 		if err := validResponse.VisitGetActionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminActions operation middleware
+func (sh *strictHandler) GetAdminActions(w http.ResponseWriter, r *http.Request, params GetAdminActionsParams) {
+	var request GetAdminActionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminActions(ctx, request.(GetAdminActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminActionsResponseObject); ok {
+		if err := validResponse.VisitGetAdminActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminAction operation middleware
+func (sh *strictHandler) GetAdminAction(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetAdminActionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminAction(ctx, request.(GetAdminActionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminAction")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminActionResponseObject); ok {
+		if err := validResponse.VisitGetAdminActionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
