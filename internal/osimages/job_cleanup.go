@@ -25,7 +25,17 @@ type CleanupWorker struct {
 func (*CleanupWorker) Timeout(*river.Job[CleanupArgs]) time.Duration { return cleanupTimeout }
 
 func (w *CleanupWorker) Work(ctx context.Context, job *river.Job[CleanupArgs]) error {
-	a := job.Args
+	err := w.work(ctx, job.Args)
+	var snooze *river.JobSnoozeError
+	if err != nil && job.Attempt >= job.MaxAttempts && !errors.As(err, &snooze) {
+		w.s.o.Logger.Error("catalog cleanup discarded, VM or volume may be left behind", "build_id", job.Args.BuildID,
+			"location_id", job.Args.LocationID, "node", job.Args.Node, "vmid", job.Args.VMID, "volume", job.Args.Volume,
+			"attempt", job.Attempt, "err", err)
+	}
+	return err
+}
+
+func (w *CleanupWorker) work(ctx context.Context, a CleanupArgs) error {
 	var busy bool
 	if err := w.s.o.SQL.QueryRowContext(ctx, rowBuilding, a.BuildID).Scan(&busy); err != nil {
 		return err
