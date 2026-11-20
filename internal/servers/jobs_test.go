@@ -813,6 +813,31 @@ func TestCreateAndRebuildReplaceTemplateCloudinitDrives(t *testing.T) {
 	require.Equal(t, *row.IsoVolid+",media=cdrom", vm.Config["ide2"])
 }
 
+func TestCreateKeepsTemplateAgent(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t, nil)
+	e.App.PVE.AddTemplate("pve1", 9001, "ceph")
+	e.App.PVE.SetVMConfig(9001, "agent", "0")
+	e.Admin.CreateImage("debian", e.Location, 9001)
+
+	withAgent := e.CreateServer("web", map[string]any{"image": "debian"})
+	waitOK(t, e, withAgent.ActionID)
+	row, err := e.App.Ent.Server.Get(ctx, withAgent.ServerID)
+	require.NoError(t, err)
+	vm, ok := e.App.PVE.VM(*row.Vmid)
+	require.True(t, ok)
+	require.Equal(t, "0", vm.Config["agent"])
+
+	// The seeded template 9000 has no agent key, so the VM must not get one either.
+	plain := e.CreateServer("db", nil)
+	waitOK(t, e, plain.ActionID)
+	row, err = e.App.Ent.Server.Get(ctx, plain.ServerID)
+	require.NoError(t, err)
+	vm, ok = e.App.PVE.VM(*row.Vmid)
+	require.True(t, ok)
+	require.NotContains(t, vm.Config, "agent")
+}
+
 func TestCloudinitDrives(t *testing.T) {
 	cfg := map[string]string{
 		"ide2":  "local-lvm:vm-9000-cloudinit,media=cdrom",

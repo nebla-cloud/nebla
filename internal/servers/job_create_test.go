@@ -128,7 +128,7 @@ func TestCreateServerHappyPath(t *testing.T) {
 	require.Equal(t, "web", vm.Name)
 	require.Equal(t, "2", vm.Config["cores"])
 	require.Equal(t, "2048", vm.Config["memory"])
-	require.Equal(t, "1", vm.Config["agent"])
+	require.NotContains(t, vm.Config, "agent")
 	require.Equal(t, "virtio="+row.MAC+",bridge=vmbr0,firewall=1", vm.Config["net0"])
 	require.Equal(t, isoVolid(s.ServerID)+",media=cdrom", vm.Config["ide2"])
 	require.Contains(t, vm.Config["scsi0"], "size=20G")
