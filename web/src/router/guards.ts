@@ -1,6 +1,6 @@
 import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router'
 import { ApiError } from '@/api/errors'
-import type { User } from '@/api/types'
+import type { Project, User } from '@/api/types'
 import { panelReady } from '@/features/admin/getready/checklist'
 import { projectQuery, projectsQuery } from '@/features/projects/queries'
 import { parseProjectId, readLastProject } from '@/lib/project'
@@ -31,12 +31,11 @@ export async function resolveRoot(me: User): Promise<RouteLocationRaw> {
   return pick ? { path: `/p/${pick.id}/servers` } : { name: 'projects' }
 }
 
-async function projectExists(id: number): Promise<boolean> {
+async function projectFor(id: number): Promise<Project | null> {
   try {
-    await queryClient.fetchQuery({ ...projectQuery(id), staleTime: 30_000 })
-    return true
+    return await queryClient.fetchQuery({ ...projectQuery(id), staleTime: 30_000 })
   } catch (e) {
-    if (e instanceof ApiError && (e.status === 404 || e.status === 403)) return false
+    if (e instanceof ApiError && (e.status === 404 || e.status === 403)) return null
     throw e
   }
 }
@@ -49,6 +48,8 @@ export function installGuards(router: Router): void {
     if (manifest.value?.setup_required) return to.name === 'setup' ? true : { name: 'setup' }
     if (to.name === 'setup') return { name: 'root' }
 
+    if (to.meta.guestOnly && me.value) return { name: 'root' }
+
     if (to.meta.public) {
       if (to.name === 'login' && me.value) return safeNext(to.query.next) ?? { name: 'root' }
       return true
@@ -60,7 +61,9 @@ export function installGuards(router: Router): void {
 
     if ('projectId' in to.params) {
       const id = parseProjectId(to.params.projectId)
-      if (id === null || !(await projectExists(id))) return notFound(to)
+      const project = id === null ? null : await projectFor(id)
+      if (!project) return notFound(to)
+      if (to.meta.roles && !to.meta.roles.includes(project.role)) return notFound(to)
     }
     return true
   })

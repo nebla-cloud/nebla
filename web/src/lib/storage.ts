@@ -13,3 +13,11 @@ export function writeStorage(key: string, value: string): void {
     // storage can be disabled or full; the value is only a convenience
   }
 }
+
+export function removeStorage(key: string): void {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // nothing to clear when storage is unavailable
+  }
+}

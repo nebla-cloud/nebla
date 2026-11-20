@@ -37,7 +37,23 @@ export function redirectingToLogin(): boolean {
   return loginRedirect
 }
 
-const quiet401 = new Set(['/auth/login', '/auth/logout', '/me'])
+// Paths where a 401 is an answer for the page, not an expired session.
+const quiet401 = new Set<string>([
+  '/auth/login',
+  '/auth/logout',
+  '/me',
+  '/auth/totp/enroll',
+  '/auth/totp/verify',
+  '/auth/totp/disable',
+  '/me/password',
+  '/invites/{token}',
+  '/invites/{token}/accept',
+])
+
+// Pages call this when a quiet path answers with code unauthorized.
+export function reportUnauthorized(): void {
+  unauthorized?.()
+}
 
 const middleware: Middleware = {
   onRequest({ request }) {

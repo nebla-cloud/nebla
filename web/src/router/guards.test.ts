@@ -225,6 +225,45 @@ describe('router guards', () => {
     expect(router.currentRoute.value.fullPath).toBe('/p/2/servers')
   })
 
+  it('role-gated route is not found for read_only', async () => {
+    api_({ projects: [{ ...project(2), role: 'read_only' }] })
+    const router = appRouter()
+    router.addRoute('project', {
+      path: 'tokens',
+      name: 'tokens',
+      component: Stub,
+      meta: { side: 'project', roles: ['owner', 'admin'] },
+    })
+    await router.push('/p/2/tokens')
+    expect(router.currentRoute.value.name).toBe('not-found')
+  })
+
+  it('role-gated route opens for an admin', async () => {
+    api_({ projects: [{ ...project(2), role: 'admin' }] })
+    const router = appRouter()
+    router.addRoute('project', {
+      path: 'tokens',
+      name: 'tokens',
+      component: Stub,
+      meta: { side: 'project', roles: ['owner', 'admin'] },
+    })
+    await router.push('/p/2/tokens')
+    expect(router.currentRoute.value.name).toBe('tokens')
+  })
+
+  it('guestOnly redirects a logged-in user to root', async () => {
+    api_({ projects: [project(2)] })
+    const router = appRouter()
+    router.addRoute({
+      path: '/signup',
+      name: 'signup-test',
+      component: Stub,
+      meta: { side: 'root', public: true, guestOnly: true },
+    })
+    await router.push('/signup')
+    expect(router.currentRoute.value.fullPath).toBe('/p/2/servers')
+  })
+
   it('unknown project id shows not found', async () => {
     api_({ projects: [project(2)] })
     const router = appRouter()
