@@ -369,8 +369,12 @@ func member(ctx context.Context, db *ent.Client, projectID, memberID int64, lock
 }
 
 // changeMember locks the project and applies fn to the target member, guarding owner rules.
-func (s *Service) changeMember(ctx context.Context, userID, projectID, memberID int64, newRole string, fn func(tx *ent.Client, m Member) error) (Member, error) {
-	callerRole, err := s.require(ctx, userID, projectID, managers...)
+func (s *Service) changeMember(ctx context.Context, userID, projectID, memberID int64, newRole string, allowSelf bool, fn func(tx *ent.Client, m Member) error) (Member, error) {
+	allowed := managers
+	if allowSelf && userID == memberID {
+		allowed = roles
+	}
+	callerRole, err := s.require(ctx, userID, projectID, allowed...)
 	if err != nil {
 		return Member{}, err
 	}
@@ -410,7 +414,7 @@ func (s *Service) SetRole(ctx context.Context, userID, projectID, memberID int64
 	if err := validRole(role); err != nil {
 		return Member{}, err
 	}
-	return s.changeMember(ctx, userID, projectID, memberID, role, func(tx *ent.Client, m Member) error {
+	return s.changeMember(ctx, userID, projectID, memberID, role, false, func(tx *ent.Client, m Member) error {
 		_, err := tx.ProjectMember.Update().
 			Where(projectmember.ProjectID(projectID), projectmember.UserID(memberID)).SetRole(role).Save(ctx)
 		if err != nil {
@@ -428,8 +432,9 @@ func (s *Service) SetRole(ctx context.Context, userID, projectID, memberID int64
 	})
 }
 
+// RemoveMember removes memberID; any member may remove themselves, others need a manager.
 func (s *Service) RemoveMember(ctx context.Context, userID, projectID, memberID int64) error {
-	_, err := s.changeMember(ctx, userID, projectID, memberID, "", func(tx *ent.Client, _ Member) error {
+	_, err := s.changeMember(ctx, userID, projectID, memberID, "", true, func(tx *ent.Client, _ Member) error {
 		_, err := tx.ProjectMember.Delete().
 			Where(projectmember.ProjectID(projectID), projectmember.UserID(memberID)).Exec(ctx)
 		if err != nil {
@@ -580,10 +585,8 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, u *auth.User, 
 		if err != nil {
 			return err
 		}
-		// The creator must still manage the project (and own it, for owner invites).
-		if r, err := roleIn(ctx, tx, inv.CreatedBy, inv.ProjectID); err != nil || !slices.Contains(managers, r) ||
-			(inv.Role == RoleOwner && r != RoleOwner) {
-			return errNotFound
+		if err := usableInvite(ctx, tx, inv); err != nil {
+			return err
 		}
 		if _, err := roleIn(ctx, tx, uid, inv.ProjectID); err == nil {
 			return apierr.New(http.StatusConflict, "already_member", "you are already a member of this project")
@@ -610,6 +613,53 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, u *auth.User, 
 		}
 	}
 	return out, nil
+}
+
+// usableInvite checks the creator still manages the project (and owns it, for owner invites).
+func usableInvite(ctx context.Context, db *ent.Client, inv *ent.Invite) error {
+	r, err := roleIn(ctx, db, inv.CreatedBy, inv.ProjectID)
+	if err != nil || !slices.Contains(managers, r) || (inv.Role == RoleOwner && r != RoleOwner) {
+		return errNotFound
+	}
+	return nil
+}
+
+// InvitePreview describes a live invite to someone holding its token.
+type InvitePreview struct {
+	ProjectName, Email, Role, InviterName string
+	ExpiresAt                             time.Time
+	AccountExists, CanCreateAccount       bool
+}
+
+// PreviewInvite applies AcceptInvite's validity rule without accepting.
+func (s *Service) PreviewInvite(ctx context.Context, token string, selfSignup bool) (InvitePreview, error) {
+	inv, err := s.liveInvite(ctx, s.db, auth.HashSecret(token), false)
+	if err != nil {
+		return InvitePreview{}, err
+	}
+	if err := usableInvite(ctx, s.db, inv); err != nil {
+		return InvitePreview{}, err
+	}
+	p, err := s.db.Project.Get(ctx, inv.ProjectID)
+	if err != nil {
+		return InvitePreview{}, notFound(err)
+	}
+	creator, err := s.db.User.Get(ctx, inv.CreatedBy)
+	if err != nil {
+		return InvitePreview{}, notFound(err)
+	}
+	exists, err := s.db.User.Query().Where(user.Email(inv.Email)).Exist(ctx)
+	if err != nil {
+		return InvitePreview{}, err
+	}
+	name := creator.Name
+	if strings.TrimSpace(name) == "" {
+		name = creator.Email
+	}
+	return InvitePreview{
+		ProjectName: p.Name, Email: inv.Email, Role: inv.Role, InviterName: name, ExpiresAt: inv.ExpiresAt,
+		AccountExists: exists, CanCreateAccount: selfSignup || creator.IsAdmin,
+	}, nil
 }
 
 func (s *Service) liveInvite(ctx context.Context, db *ent.Client, hash []byte, lock bool) (*ent.Invite, error) {

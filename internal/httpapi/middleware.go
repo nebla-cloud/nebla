@@ -31,6 +31,7 @@ var publicOps = map[string]bool{
 	"PostAuthLogin":    true,
 	"PostSignup":       true,
 	"PostInviteAccept": true,
+	"GetInvite":        true,
 }
 
 // adminOps need a panel admin; TestAdminOpsMatchSpec keeps it equal to the spec's /admin/ paths.

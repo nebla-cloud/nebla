@@ -411,6 +411,17 @@ type Invite struct {
 	Role      Role      `json:"role"`
 }
 
+// InvitePreview defines model for InvitePreview.
+type InvitePreview struct {
+	AccountExists    bool      `json:"account_exists"`
+	CanCreateAccount bool      `json:"can_create_account"`
+	Email            string    `json:"email"`
+	Expires          time.Time `json:"expires"`
+	InviterName      string    `json:"inviter_name"`
+	ProjectName      string    `json:"project_name"`
+	Role             Role      `json:"role"`
+}
+
 // IpPool defines model for IpPool.
 type IpPool struct {
 	Allocated  int          `json:"allocated"`
@@ -481,6 +492,11 @@ type LocationRef struct {
 	Name        string `json:"name"`
 }
 
+// MeInput defines model for MeInput.
+type MeInput struct {
+	Name string `json:"name"`
+}
+
 // Member defines model for Member.
 type Member struct {
 	Email  string `json:"email"`
@@ -536,6 +552,12 @@ type NodeInput struct {
 	// DiskStorageOverride Empty clears the override
 	DiskStorageOverride *string `json:"disk_storage_override,omitempty"`
 	Enabled             *bool   `json:"enabled,omitempty"`
+}
+
+// PasswordChange defines model for PasswordChange.
+type PasswordChange struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 // Project defines model for Project.
@@ -1005,6 +1027,12 @@ type PostAuthTotpVerifyJSONRequestBody = TotpCode
 
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
+
+// PutMeJSONRequestBody defines body for PutMe for application/json ContentType.
+type PutMeJSONRequestBody = MeInput
+
+// PostMePasswordJSONRequestBody defines body for PostMePassword for application/json ContentType.
+type PostMePasswordJSONRequestBody = PasswordChange
 
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody = ProjectInput
@@ -1483,6 +1511,11 @@ type ClientInterface interface {
 	// Corresponds with GET /images/{id} (the `GetImage` operationId).
 	GetImage(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetInvite Preview an invite
+	//
+	// Corresponds with GET /invites/{token} (the `GetInvite` operationId).
+	GetInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostInviteAcceptWithBody Accept an invite
 	//
 	// Logged in, the caller joins the project. Not logged in, an account is created only when self-signup is on or a panel admin created the invite; otherwise 401 login_required.
@@ -1515,6 +1548,34 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /me (the `GetMe` operationId).
 	GetMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutMeWithBody Update the current user's name
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /me (the `PutMe` operationId).
+	PutMeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutMe Update the current user's name
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /me (the `PutMe` operationId).
+	PutMe(ctx context.Context, body PutMeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostMePasswordWithBody Change the current user's password and sign out other sessions
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /me/password (the `PostMePassword` operationId).
+	PostMePasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostMePassword Change the current user's password and sign out other sessions
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /me/password (the `PostMePassword` operationId).
+	PostMePassword(ctx context.Context, body PostMePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProjects List the caller's projects
 	//
@@ -1588,7 +1649,7 @@ type ClientInterface interface {
 	// Corresponds with GET /projects/{id}/members (the `GetProjectMembers` operationId).
 	GetProjectMembers(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteProjectMember Remove a member
+	// DeleteProjectMember Remove a member, or leave the project when user_id is you
 	//
 	// Corresponds with DELETE /projects/{id}/members/{user_id} (the `DeleteProjectMember` operationId).
 	DeleteProjectMember(ctx context.Context, id ProjectID, userId int64, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2800,6 +2861,21 @@ func (c *Client) GetImage(ctx context.Context, id ID, reqEditors ...RequestEdito
 	return c.Client.Do(req)
 }
 
+// GetInvite Preview an invite
+//
+// Corresponds with GET /invites/{token} (the `GetInvite` operationId).
+func (c *Client) GetInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInviteRequest(c.Server, token)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // PostInviteAcceptWithBody Accept an invite
 //
 // Logged in, the caller joins the project. Not logged in, an account is created only when self-signup is on or a panel admin created the invite; otherwise 401 login_required.
@@ -2873,6 +2949,74 @@ func (c *Client) GetLocation(ctx context.Context, id ID, reqEditors ...RequestEd
 // Corresponds with GET /me (the `GetMe` operationId).
 func (c *Client) GetMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetMeRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutMeWithBody Update the current user's name
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /me (the `PutMe` operationId).
+func (c *Client) PutMeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMeRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutMe Update the current user's name
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /me (the `PutMe` operationId).
+func (c *Client) PutMe(ctx context.Context, body PutMeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMeRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostMePasswordWithBody Change the current user's password and sign out other sessions
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /me/password (the `PostMePassword` operationId).
+func (c *Client) PostMePasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostMePasswordRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostMePassword Change the current user's password and sign out other sessions
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /me/password (the `PostMePassword` operationId).
+func (c *Client) PostMePassword(ctx context.Context, body PostMePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostMePasswordRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3075,7 +3219,7 @@ func (c *Client) GetProjectMembers(ctx context.Context, id ProjectID, reqEditors
 	return c.Client.Do(req)
 }
 
-// DeleteProjectMember Remove a member
+// DeleteProjectMember Remove a member, or leave the project when user_id is you
 //
 // Corresponds with DELETE /projects/{id}/members/{user_id} (the `DeleteProjectMember` operationId).
 func (c *Client) DeleteProjectMember(ctx context.Context, id ProjectID, userId int64, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -5738,6 +5882,40 @@ func NewGetImageRequest(server string, id ID) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetInviteRequest constructs an http.Request for the GetInvite method
+func NewGetInviteRequest(server string, token string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/invites/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPostInviteAcceptRequest calls the generic PostInviteAccept builder with application/json body
 func NewPostInviteAcceptRequest(server string, token string, body PostInviteAcceptJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -5908,6 +6086,86 @@ func NewGetMeRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewPutMeRequest calls the generic PutMe builder with application/json body
+func NewPutMeRequest(server string, body PutMeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutMeRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPutMeRequestWithBody constructs an http.Request for the PutMe method, with any body, and a specified content type
+func NewPutMeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/me")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostMePasswordRequest calls the generic PostMePassword builder with application/json body
+func NewPostMePasswordRequest(server string, body PostMePasswordJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostMePasswordRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostMePasswordRequestWithBody constructs an http.Request for the PostMePassword method, with any body, and a specified content type
+func NewPostMePasswordRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/me/password")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -8125,6 +8383,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /images/{id} (the `GetImage` operationId).
 	GetImageWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetImageResponse, error)
 
+	// GetInviteWithResponse Preview an invite
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /invites/{token} (the `GetInvite` operationId).
+	GetInviteWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*GetInviteResponse, error)
+
 	// PostInviteAcceptWithBodyWithResponse Accept an invite
 	//
 	// Logged in, the caller joins the project. Not logged in, an account is created only when self-signup is on or a panel admin created the invite; otherwise 401 login_required.
@@ -8163,6 +8428,34 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /me (the `GetMe` operationId).
 	GetMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMeResponse, error)
+
+	// PutMeWithBodyWithResponse Update the current user's name
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /me (the `PutMe` operationId).
+	PutMeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMeResponse, error)
+
+	// PutMeWithResponse Update the current user's name
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /me (the `PutMe` operationId).
+	PutMeWithResponse(ctx context.Context, body PutMeJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMeResponse, error)
+
+	// PostMePasswordWithBodyWithResponse Change the current user's password and sign out other sessions
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /me/password (the `PostMePassword` operationId).
+	PostMePasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostMePasswordResponse, error)
+
+	// PostMePasswordWithResponse Change the current user's password and sign out other sessions
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /me/password (the `PostMePassword` operationId).
+	PostMePasswordWithResponse(ctx context.Context, body PostMePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMePasswordResponse, error)
 
 	// GetProjectsWithResponse List the caller's projects
 	//
@@ -8248,7 +8541,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /projects/{id}/members (the `GetProjectMembers` operationId).
 	GetProjectMembersWithResponse(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*GetProjectMembersResponse, error)
 
-	// DeleteProjectMemberWithResponse Remove a member
+	// DeleteProjectMemberWithResponse Remove a member, or leave the project when user_id is you
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -11668,6 +11961,68 @@ func (r GetImageResponse) ContentType() string {
 	return ""
 }
 
+type GetInviteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *InvitePreview
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetInviteResponse) GetJSON200() *InvitePreview {
+	return r.JSON200
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetInviteResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetInviteResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetInviteResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetInviteResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetInviteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetInviteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetInviteResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // PostInviteAcceptResponse200Headers the declared response headers of an HTTP 200 response for PostInviteAccept
 type PostInviteAcceptResponse200Headers struct {
 	SetCookie *string
@@ -11937,6 +12292,130 @@ func (r GetMeResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetMeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutMeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *User
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutMeResponse) GetJSON200() *User {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutMeResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutMeResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutMeResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutMeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutMeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutMeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutMeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostMePasswordResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostMePasswordResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostMePasswordResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r PostMePasswordResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostMePasswordResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostMePasswordResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostMePasswordResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostMePasswordResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostMePasswordResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15677,6 +16156,19 @@ func (c *ClientWithResponses) GetImageWithResponse(ctx context.Context, id ID, r
 	return ParseGetImageResponse(rsp)
 }
 
+// GetInviteWithResponse Preview an invite
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /invites/{token} (the `GetInvite` operationId).
+func (c *ClientWithResponses) GetInviteWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*GetInviteResponse, error) {
+	rsp, err := c.GetInvite(ctx, token, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetInviteResponse(rsp)
+}
+
 // PostInviteAcceptWithBodyWithResponse Accept an invite
 //
 // Logged in, the caller joins the project. Not logged in, an account is created only when self-signup is on or a panel admin created the invite; otherwise 401 login_required.
@@ -15744,6 +16236,58 @@ func (c *ClientWithResponses) GetMeWithResponse(ctx context.Context, reqEditors 
 		return nil, err
 	}
 	return ParseGetMeResponse(rsp)
+}
+
+// PutMeWithBodyWithResponse Update the current user's name
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /me (the `PutMe` operationId).
+func (c *ClientWithResponses) PutMeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMeResponse, error) {
+	rsp, err := c.PutMeWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMeResponse(rsp)
+}
+
+// PutMeWithResponse Update the current user's name
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /me (the `PutMe` operationId).
+func (c *ClientWithResponses) PutMeWithResponse(ctx context.Context, body PutMeJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMeResponse, error) {
+	rsp, err := c.PutMe(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMeResponse(rsp)
+}
+
+// PostMePasswordWithBodyWithResponse Change the current user's password and sign out other sessions
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /me/password (the `PostMePassword` operationId).
+func (c *ClientWithResponses) PostMePasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostMePasswordResponse, error) {
+	rsp, err := c.PostMePasswordWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostMePasswordResponse(rsp)
+}
+
+// PostMePasswordWithResponse Change the current user's password and sign out other sessions
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /me/password (the `PostMePassword` operationId).
+func (c *ClientWithResponses) PostMePasswordWithResponse(ctx context.Context, body PostMePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMePasswordResponse, error) {
+	rsp, err := c.PostMePassword(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostMePasswordResponse(rsp)
 }
 
 // GetProjectsWithResponse List the caller's projects
@@ -15902,7 +16446,7 @@ func (c *ClientWithResponses) GetProjectMembersWithResponse(ctx context.Context,
 	return ParseGetProjectMembersResponse(rsp)
 }
 
-// DeleteProjectMemberWithResponse Remove a member
+// DeleteProjectMemberWithResponse Remove a member, or leave the project when user_id is you
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -18907,6 +19451,53 @@ func ParseGetImageResponse(rsp *http.Response) (*GetImageResponse, error) {
 	return response, nil
 }
 
+// ParseGetInviteResponse parses an HTTP response from a GetInviteWithResponse call
+func ParseGetInviteResponse(rsp *http.Response) (*GetInviteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetInviteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest InvitePreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePostInviteAcceptResponse parses an HTTP response from a PostInviteAcceptWithResponse call
 func ParsePostInviteAcceptResponse(rsp *http.Response) (*PostInviteAcceptResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19112,6 +19703,103 @@ func ParseGetMeResponse(rsp *http.Response) (*GetMeResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutMeResponse parses an HTTP response from a PutMeWithResponse call
+func ParsePutMeResponse(rsp *http.Response) (*PutMeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutMeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest User
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostMePasswordResponse parses an HTTP response from a PostMePasswordWithResponse call
+func ParsePostMePasswordResponse(rsp *http.Response) (*PostMePasswordResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostMePasswordResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error

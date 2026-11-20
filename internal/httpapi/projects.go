@@ -137,6 +137,17 @@ func (s *server) DeleteProjectInvite(ctx context.Context, req apigen.DeleteProje
 	return apigen.DeleteProjectInvite204Response{}, nil
 }
 
+func (s *server) GetInvite(ctx context.Context, req apigen.GetInviteRequestObject) (apigen.GetInviteResponseObject, error) {
+	pv, err := s.projects.PreviewInvite(ctx, req.Token, s.deps.Ext.SelfSignupEnabled(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return apigen.GetInvite200JSONResponse{
+		ProjectName: pv.ProjectName, Email: pv.Email, Role: apigen.Role(pv.Role), InviterName: pv.InviterName,
+		Expires: pv.ExpiresAt, AccountExists: pv.AccountExists, CanCreateAccount: pv.CanCreateAccount,
+	}, nil
+}
+
 func (s *server) PostInviteAccept(ctx context.Context, req apigen.PostInviteAcceptRequestObject) (apigen.PostInviteAcceptResponseObject, error) {
 	var me *auth.User
 	if r := requestFrom(ctx); r != nil {

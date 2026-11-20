@@ -114,6 +114,26 @@ func (s *server) GetMe(ctx context.Context, _ apigen.GetMeRequestObject) (apigen
 	return apigen.GetMe200JSONResponse(apiUser(u)), nil
 }
 
+func (s *server) PutMe(ctx context.Context, req apigen.PutMeRequestObject) (apigen.PutMeResponseObject, error) {
+	u, _ := UserFrom(ctx)
+	out, err := s.auth.SetName(ctx, u.ID, req.Body.Name)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PutMe200JSONResponse(apiUser(out)), nil
+}
+
+func (s *server) PostMePassword(ctx context.Context, req apigen.PostMePasswordRequestObject) (apigen.PostMePasswordResponseObject, error) {
+	u, _ := UserFrom(ctx)
+	if err := s.limitPassword(ctx, u.Email); err != nil {
+		return nil, err
+	}
+	if err := s.auth.ChangePassword(ctx, u.ID, req.Body.CurrentPassword, req.Body.NewPassword, sessionToken(ctx)); err != nil {
+		return nil, err
+	}
+	return apigen.PostMePassword204Response{}, nil
+}
+
 func (s *server) PostAuthTotpEnroll(ctx context.Context, req apigen.PostAuthTotpEnrollRequestObject) (apigen.PostAuthTotpEnrollResponseObject, error) {
 	u, _ := UserFrom(ctx)
 	if err := s.limitPassword(ctx, u.Email); err != nil {

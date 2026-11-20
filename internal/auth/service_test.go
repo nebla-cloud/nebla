@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,4 +101,42 @@ func TestLoginRequiresTOTPWhenEnabled(t *testing.T) {
 	require.NoError(t, s.DisableTOTP(ctx, u.ID, code, pw, ""))
 	_, err = s.Login(ctx, "a@example.com", pw, "")
 	require.NoError(t, err)
+}
+
+func TestSetName(t *testing.T) {
+	s := newSvc(t)
+	ctx := context.Background()
+	u, err := s.Setup(ctx, "a@example.com", pw, "A")
+	require.NoError(t, err)
+	got, err := s.SetName(ctx, u.ID, "  New Name ")
+	require.NoError(t, err)
+	require.Equal(t, "New Name", got.Name)
+	_, err = s.SetName(ctx, u.ID, "  ")
+	requireCode(t, err, http.StatusUnprocessableEntity, "invalid_input")
+	_, err = s.SetName(ctx, u.ID, strings.Repeat("x", 101))
+	requireCode(t, err, http.StatusUnprocessableEntity, "invalid_input")
+}
+
+func TestChangePassword(t *testing.T) {
+	s := newSvc(t)
+	ctx := context.Background()
+	u, err := s.Setup(ctx, "a@example.com", pw, "A")
+	require.NoError(t, err)
+	keep, err := s.Login(ctx, "a@example.com", pw, "")
+	require.NoError(t, err)
+	other, err := s.Login(ctx, "a@example.com", pw, "")
+	require.NoError(t, err)
+
+	requireCode(t, s.ChangePassword(ctx, u.ID, "wrong-password", "another-long-password", keep), http.StatusUnauthorized, "invalid_credentials")
+	requireCode(t, s.ChangePassword(ctx, u.ID, pw, "123456789", keep), http.StatusUnprocessableEntity, "invalid_input")
+
+	require.NoError(t, s.ChangePassword(ctx, u.ID, pw, "another-long-password", keep))
+	_, err = s.Login(ctx, "a@example.com", pw, "")
+	requireCode(t, err, http.StatusUnauthorized, "invalid_credentials")
+	_, err = s.Login(ctx, "a@example.com", "another-long-password", "")
+	require.NoError(t, err)
+	_, err = s.UserFromSession(ctx, keep)
+	require.NoError(t, err)
+	_, err = s.UserFromSession(ctx, other)
+	requireCode(t, err, http.StatusUnauthorized, "unauthorized")
 }

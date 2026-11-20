@@ -14,6 +14,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/auth"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/testutil"
@@ -231,4 +232,138 @@ func TestProjectCapConcurrentCreate(t *testing.T) {
 	list, err := svc.List(ctx, u.ID)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
+}
+
+func requireErr(t *testing.T, err error, status int, code string) {
+	t.Helper()
+	var e apierr.E
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, status, e.Status)
+	require.Equal(t, code, e.Code)
+}
+
+func TestPreviewInviteStates(t *testing.T) {
+	ctx := context.Background()
+	svc, client, _, owner := setup(t, projects.Options{})
+	au := auth.New(client, ext.Defaults(nil).Registration)
+	p, err := svc.Create(ctx, owner.ID, false, "Homelab")
+	require.NoError(t, err)
+	link, err := svc.Invite(ctx, owner.ID, p.ID, "new@example.com", projects.RoleMember)
+	require.NoError(t, err)
+	tok := inviteToken(t, link)
+
+	pv, err := svc.PreviewInvite(ctx, tok, false)
+	require.NoError(t, err)
+	require.Equal(t, "Homelab", pv.ProjectName)
+	require.Equal(t, "new@example.com", pv.Email)
+	require.Equal(t, projects.RoleMember, pv.Role)
+	require.Equal(t, "Owner", pv.InviterName)
+	require.False(t, pv.AccountExists)
+	require.False(t, pv.CanCreateAccount)
+
+	pv, err = svc.PreviewInvite(ctx, tok, true)
+	require.NoError(t, err)
+	require.True(t, pv.CanCreateAccount)
+
+	_, err = au.CreateUser(ctx, "new@example.com", testutil.Password, "New", false)
+	require.NoError(t, err)
+	pv, err = svc.PreviewInvite(ctx, tok, false)
+	require.NoError(t, err)
+	require.True(t, pv.AccountExists)
+
+	_, err = svc.PreviewInvite(ctx, "no-such-token", false)
+	requireErr(t, err, 404, "not_found")
+
+	adm, err := au.CreateUser(ctx, "adm@example.com", testutil.Password, "Adm", true)
+	require.NoError(t, err)
+	ap, err := svc.Create(ctx, adm.ID, true, "Admin P")
+	require.NoError(t, err)
+	alink, err := svc.Invite(ctx, adm.ID, ap.ID, "x@example.com", projects.RoleMember)
+	require.NoError(t, err)
+	pv, err = svc.PreviewInvite(ctx, inviteToken(t, alink), false)
+	require.NoError(t, err)
+	require.True(t, pv.CanCreateAccount)
+
+	invs, err := svc.Invites(ctx, owner.ID, p.ID)
+	require.NoError(t, err)
+	require.NoError(t, svc.RevokeInvite(ctx, owner.ID, p.ID, invs[0].ID))
+	_, err = svc.PreviewInvite(ctx, tok, false)
+	requireErr(t, err, 404, "not_found")
+}
+
+func TestPreviewInviteExpiredAcceptedAndDemoted(t *testing.T) {
+	ctx := context.Background()
+	svc, client, sqlDB, owner := setup(t, projects.Options{})
+	au := auth.New(client, ext.Defaults(nil).Registration)
+	p, err := svc.Create(ctx, owner.ID, false, "Web")
+	require.NoError(t, err)
+
+	expired, err := svc.Invite(ctx, owner.ID, p.ID, "e@example.com", projects.RoleMember)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, "update invites set expires_at = now() - interval '1 hour'")
+	require.NoError(t, err)
+	_, err = svc.PreviewInvite(ctx, inviteToken(t, expired), false)
+	requireErr(t, err, 404, "not_found")
+
+	u, err := au.CreateUser(ctx, "acc@example.com", testutil.Password, "Acc", false)
+	require.NoError(t, err)
+	acc, err := svc.Invite(ctx, owner.ID, p.ID, "acc@example.com", projects.RoleMember)
+	require.NoError(t, err)
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, acc), &u, "", "", false)
+	require.NoError(t, err)
+	_, err = svc.PreviewInvite(ctx, inviteToken(t, acc), false)
+	requireErr(t, err, 404, "not_found")
+
+	adm, err := au.CreateUser(ctx, "adm@example.com", testutil.Password, "Adm", false)
+	require.NoError(t, err)
+	al, err := svc.Invite(ctx, owner.ID, p.ID, "adm@example.com", projects.RoleAdmin)
+	require.NoError(t, err)
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, al), &adm, "", "", false)
+	require.NoError(t, err)
+	link, err := svc.Invite(ctx, adm.ID, p.ID, "z@example.com", projects.RoleMember)
+	require.NoError(t, err)
+	_, err = svc.PreviewInvite(ctx, inviteToken(t, link), false)
+	require.NoError(t, err)
+	_, err = client.ProjectMember.Update().Where(projectmember.UserID(adm.ID)).SetRole(projects.RoleMember).Save(ctx)
+	require.NoError(t, err)
+	_, err = svc.PreviewInvite(ctx, inviteToken(t, link), false)
+	requireErr(t, err, 404, "not_found")
+}
+
+func TestSelfLeave(t *testing.T) {
+	ctx := context.Background()
+	svc, client, _, owner := setup(t, projects.Options{})
+	au := auth.New(client, ext.Defaults(nil).Registration)
+	p, err := svc.Create(ctx, owner.ID, false, "Web")
+	require.NoError(t, err)
+	join := func(email, role string) auth.User {
+		u, err := au.CreateUser(ctx, email, testutil.Password, email, false)
+		require.NoError(t, err)
+		l, err := svc.Invite(ctx, owner.ID, p.ID, email, role)
+		require.NoError(t, err)
+		_, err = svc.AcceptInvite(ctx, inviteToken(t, l), &u, "", "", false)
+		require.NoError(t, err)
+		return u
+	}
+	mem := join("m@example.com", projects.RoleMember)
+	ro := join("r@example.com", projects.RoleReadOnly)
+	other := join("o@example.com", projects.RoleMember)
+
+	requireErr(t, svc.RemoveMember(ctx, mem.ID, p.ID, other.ID), 403, "forbidden")
+	require.NoError(t, svc.RemoveMember(ctx, mem.ID, p.ID, mem.ID))
+	require.NoError(t, svc.RemoveMember(ctx, ro.ID, p.ID, ro.ID))
+
+	requireErr(t, svc.RemoveMember(ctx, owner.ID, p.ID, owner.ID), 409, "last_owner")
+	o2 := join("o2@example.com", projects.RoleOwner)
+	require.NoError(t, svc.RemoveMember(ctx, o2.ID, p.ID, o2.ID))
+	_, err = svc.Role(ctx, o2.ID, p.ID)
+	requireErr(t, err, 404, "not_found")
+
+	adm := join("a@example.com", projects.RoleAdmin)
+	_, err = svc.Invite(ctx, adm.ID, p.ID, "pending@example.com", projects.RoleMember)
+	require.NoError(t, err)
+	require.NoError(t, svc.RemoveMember(ctx, adm.ID, p.ID, adm.ID))
+	invs, err := svc.Invites(ctx, owner.ID, p.ID)
+	require.NoError(t, err)
+	require.Empty(t, invs)
 }
