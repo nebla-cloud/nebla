@@ -21,6 +21,7 @@ import (
 
 	"github.com/Hexeption/nebla/internal/catalog"
 	"github.com/Hexeption/nebla/internal/httpapi"
+	"github.com/Hexeption/nebla/internal/osimages"
 	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/Hexeption/nebla/internal/servers"
@@ -40,6 +41,7 @@ type target struct {
 	node, cidr, gateway, bridge       string
 	rangeStart, rangeEnd              string
 	diskStorage, isoStorage           string
+	importStorage                     string
 }
 
 func loadTarget(t *testing.T) target {
@@ -59,6 +61,7 @@ func loadTarget(t *testing.T) target {
 		fingerprint: os.Getenv("E2E_PVE_FINGERPRINT"), insecure: os.Getenv("E2E_PVE_INSECURE") == "1",
 		node: need("E2E_NODE"), cidr: need("E2E_POOL_CIDR"), gateway: need("E2E_GATEWAY"), bridge: need("E2E_BRIDGE"),
 		diskStorage: envOr("E2E_DISK_STORAGE", "local-lvm"), isoStorage: envOr("E2E_ISO_STORAGE", "local"),
+		importStorage: envOr("E2E_IMPORT_STORAGE", "local"),
 	}
 	if tg.fingerprint == "" && !tg.insecure {
 		t.Fatal("E2E_PVE_FINGERPRINT is required (pvenode cert info); set E2E_PVE_INSECURE=1 to skip TLS verification")
@@ -314,4 +317,240 @@ func cleanupServer(t *testing.T, app *testutil.App, c *testutil.Client, sid int6
 		time.Sleep(10 * time.Second)
 	}
 	t.Errorf("cleanup: server %d was not deleted within %s", sid, actionTimeout)
+}
+
+const (
+	buildTimeout  = 20 * time.Minute
+	guestBootWait = 60 * time.Second
+)
+
+type catalogLoc struct {
+	State string `json:"state"`
+	Nodes []struct {
+		Node   string `json:"node"`
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	} `json:"nodes"`
+}
+
+func catalogState(t *testing.T, app *testutil.App, c *testutil.Client, key string, loc int64) catalogLoc {
+	t.Helper()
+	var out struct {
+		Catalog []struct {
+			Key       string `json:"key"`
+			Locations []struct {
+				LocationID int64 `json:"location_id"`
+				catalogLoc
+			} `json:"locations"`
+		} `json:"catalog"`
+	}
+	call(t, app, c, http.MethodGet, "/v1/admin/catalog", nil, http.StatusOK, &out)
+	for _, e := range out.Catalog {
+		for _, l := range e.Locations {
+			if e.Key == key && l.LocationID == loc {
+				return l.catalogLoc
+			}
+		}
+	}
+	t.Fatalf("catalog entry %s has no state for location %d", key, loc)
+	return catalogLoc{}
+}
+
+func waitCatalogReady(t *testing.T, app *testutil.App, c *testutil.Client, key string, loc int64) {
+	t.Helper()
+	deadline := time.Now().Add(buildTimeout)
+	for {
+		st := catalogState(t, app, c, key, loc)
+		switch st.State {
+		case "ready":
+			return
+		case "failed", "partial", "unavailable":
+			t.Fatalf("catalog %s state %s: %+v", key, st.State, st.Nodes)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("catalog %s still %s after %s: %+v", key, st.State, buildTimeout, st.Nodes)
+		}
+		time.Sleep(5 * time.Second)
+	}
+}
+
+// templateVMs lists VMs carrying the catalog template tag, minus the ids in skip.
+func templateVMs(t *testing.T, pc pve.Client, skip map[int]bool) []pve.VM {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	vms, err := pc.VMs(ctx)
+	require.NoError(t, err)
+	return slices.DeleteFunc(vms, func(v pve.VM) bool {
+		tags := strings.FieldsFunc(v.Tags, func(r rune) bool { return r == ';' || r == ',' || r == ' ' })
+		return skip[v.VMID] || !slices.Contains(tags, osimages.TagTemplate)
+	})
+}
+
+func waitNoTemplateVMs(t *testing.T, pc pve.Client, skip map[int]bool) {
+	t.Helper()
+	deadline := time.Now().Add(buildTimeout)
+	for {
+		left := templateVMs(t, pc, skip)
+		if len(left) == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Errorf("VMs tagged %s left on the target: %+v", osimages.TagTemplate, left)
+			return
+		}
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func TestCatalogTemplate(t *testing.T) {
+	tg := loadTarget(t)
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	workers := func(w *river.Workers, d *httpapi.Deps, _ *fake.Server) {
+		servers.RegisterWorkers(w, servers.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
+			PollInterval: time.Second})
+	}
+	app := testutil.NewAppWithWorkers(t, workers, func(d *httpapi.Deps) {
+		d.Logger = log
+		d.ProjectHooks, d.CatalogHooks = httpapi.ServerHooks(d.ProjectHooks, d.CatalogHooks)
+		d.Catalog = catalog.New(d.SQL, d.Ent, catalog.Options{SecretKey: []byte(testutil.SecretKey), PollInterval: time.Second,
+			Hooks: d.CatalogHooks})
+		d.OSImages = osimages.New(osimages.Options{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Logger: log})
+	})
+	pc := pve.New(tg.conn())
+	preexisting := map[int]bool{}
+	for _, v := range templateVMs(t, pc, nil) {
+		preexisting[v.VMID] = true
+	}
+
+	const email = "e2e-catalog@example.com"
+	res := app.PostJSON("/v1/setup", map[string]string{"email": email, "password": testutil.Password, "name": "e2e"})
+	require.Equal(t, http.StatusCreated, res.StatusCode, app.Body(res))
+	res.Body.Close()
+	admin := app.Login(email)
+
+	var id struct {
+		ID int64 `json:"id"`
+	}
+	call(t, app, admin, http.MethodPost, "/v1/admin/locations", map[string]any{
+		"name": "e2e-catalog", "disk_storage": tg.diskStorage, "iso_storage": tg.isoStorage, "import_storage": tg.importStorage,
+		"pve": map[string]any{"url": tg.url, "token_id": tg.tokenID, "token_secret": tg.secret,
+			"ca_fingerprint": tg.fingerprint, "insecure_tls": tg.insecure && tg.fingerprint == ""},
+	}, http.StatusCreated, &id)
+	loc := id.ID
+	var poolID int64
+	t.Cleanup(func() {
+		if poolID != 0 {
+			admin.Send(http.MethodDelete, fmt.Sprintf("/v1/admin/ip_pools/%d", poolID), nil)
+		}
+		for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(5 * time.Second) {
+			res := admin.Send(http.MethodDelete, fmt.Sprintf("/v1/admin/locations/%d", loc), nil)
+			b := app.Body(res)
+			if res.StatusCode == http.StatusNoContent || res.StatusCode == http.StatusNotFound {
+				return
+			}
+			t.Logf("cleanup delete location: %d %s; retrying", res.StatusCode, b)
+		}
+		t.Errorf("cleanup: location %d was not deleted", loc)
+	})
+
+	// Registered after the location cleanup, so it runs first and the retire guard can pass.
+	disabled := false
+	disable := func() {
+		call(t, app, admin, http.MethodPost, fmt.Sprintf("/v1/admin/catalog/debian-13/locations/%d/disable", loc), nil,
+			http.StatusOK, nil)
+		disabled = true
+	}
+	t.Cleanup(func() {
+		if !disabled {
+			for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(10 * time.Second) {
+				res := admin.Send(http.MethodPost, fmt.Sprintf("/v1/admin/catalog/debian-13/locations/%d/disable", loc), nil)
+				b := app.Body(res)
+				if res.StatusCode == http.StatusOK {
+					break
+				}
+				t.Logf("cleanup disable: %d %s; retrying", res.StatusCode, b)
+			}
+		}
+		waitNoTemplateVMs(t, pc, preexisting)
+	})
+
+	call(t, app, admin, http.MethodPost, "/v1/admin/server_types",
+		map[string]any{"name": "e2e-small", "cores": 1, "memory_mb": 1024, "disk_gb": 10}, http.StatusCreated, nil)
+	family, pubNet := "ipv4", map[string]bool{"ipv4": true, "ipv6": false}
+	if p, err := netip.ParsePrefix(tg.cidr); err == nil && p.Addr().Is6() {
+		family, pubNet = "ipv6", map[string]bool{"ipv4": false, "ipv6": true}
+	}
+	var pool struct {
+		ID int64 `json:"id"`
+	}
+	call(t, app, admin, http.MethodPost, "/v1/admin/ip_pools", map[string]any{"location_id": loc, "family": family,
+		"bridge": tg.bridge, "cidr": tg.cidr, "gateway": tg.gateway, "dns": []string{tg.gateway},
+		"range_start": tg.rangeStart, "range_end": tg.rangeEnd}, http.StatusCreated, &pool)
+	poolID = pool.ID
+
+	start := time.Now()
+	call(t, app, admin, http.MethodPost, fmt.Sprintf("/v1/admin/catalog/debian-13/locations/%d/enable", loc), nil,
+		http.StatusOK, nil)
+	waitCatalogReady(t, app, admin, "debian-13", loc)
+	t.Logf("debian-13 built in %s", time.Since(start).Round(time.Second))
+
+	proj := admin.CreateProject("e2e")
+	c := admin.WithProject(proj)
+	call(t, app, c, http.MethodPost, "/v1/ssh_keys", map[string]string{"name": "e2e", "public_key": sshKey(t)},
+		http.StatusCreated, nil)
+	var created struct {
+		Server struct {
+			ID int64 `json:"id"`
+		} `json:"server"`
+		Action action `json:"action"`
+	}
+	name := fmt.Sprintf("nebla-e2e-%d", time.Now().Unix())
+	call(t, app, c, http.MethodPost, "/v1/servers", map[string]any{"name": name, "server_type": "e2e-small",
+		"image": "debian-13", "location": "e2e-catalog", "ssh_keys": []string{"e2e"}, "public_net": pubNet},
+		http.StatusCreated, &created)
+	sid := created.Server.ID
+	deleted := false
+	t.Cleanup(func() {
+		if !deleted {
+			cleanupServer(t, app, c, sid)
+		}
+		if left := taggedVMs(t, pc, sid); len(left) > 0 {
+			t.Errorf("VMs tagged %s left on the target: %+v", servers.ServerTag(sid), left)
+		}
+	})
+	waitAction(t, app, c, created.Action.ID)
+	waitStatus(t, app, c, sid, "running")
+
+	// Wait for guest boot: a first-boot guest drops the ACPI power button.
+	time.Sleep(guestBootWait)
+	// Without the guest agent the clone shuts down over ACPI.
+	var a actionBody
+	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/shutdown", sid), nil, http.StatusCreated, &a)
+	waitAction(t, app, c, a.Action.ID)
+	deadline := time.Now().Add(3 * time.Minute)
+	for st := serverStatus(t, app, c, sid); st != "off"; st = serverStatus(t, app, c, sid) {
+		if time.Now().After(deadline) {
+			t.Fatalf("server %d is %s 3m after shutdown, want off", sid, st)
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/rebuild", sid), map[string]string{"image": "debian-13"},
+		http.StatusCreated, &a)
+	waitAction(t, app, c, a.Action.ID)
+	require.Len(t, taggedVMs(t, pc, sid), 1)
+
+	call(t, app, c, http.MethodDelete, fmt.Sprintf("/v1/servers/%d", sid), nil, http.StatusOK, &a)
+	waitAction(t, app, c, a.Action.ID)
+	deleted = true
+	require.Empty(t, taggedVMs(t, pc, sid))
+
+	// The upstream checksum is unchanged, so this is normally a no-op build that ends ready; a swap is fine too.
+	call(t, app, admin, http.MethodPost, fmt.Sprintf("/v1/admin/catalog/debian-13/locations/%d/refresh", loc), nil,
+		http.StatusOK, nil)
+	waitCatalogReady(t, app, admin, "debian-13", loc)
+
+	disable()
+	waitNoTemplateVMs(t, pc, preexisting)
 }

@@ -128,7 +128,7 @@ Template requirements:
 
 Notes:
 
-- Nebla sets cores, memory, the network card, tags and `agent=1` on every clone, and grows the disk to the server type's
+- Nebla sets cores, memory, the network card and tags on every clone, and grows the disk to the server type's
   size. Keep the template disk no larger than your smallest server type, because disks never shrink.
 - Nebla tags its VMs `nebla` and `nb-srv-<id>`. It never touches VMs without the `nebla` tag.
 - Run one Nebla install per Proxmox cluster. Before reinstalling Nebla with a fresh database, remove the VMs tagged
@@ -155,3 +155,49 @@ using addresses it wasn't given; they don't block traffic to or from its own add
 Enable the firewall at the datacenter level (Datacenter > Firewall > Options), otherwise the VM firewall and its filters
 don't apply. Datacenter rules govern traffic to the Proxmox hosts, not to the VMs. Before enabling it, make sure those
 rules still allow your own access to the hosts (SSH and the web UI on port 8006).
+
+## 8. Built-in OS images
+
+Nebla can build its own cloud-init templates from official cloud images, so you don't have to run step 5 by hand. An
+admin enables an image such as `debian-13` for a location, and Nebla downloads it to the nodes and builds the templates.
+Hand-registered images (step 6) keep working on every Proxmox version.
+
+Requirements:
+
+- **PVE 8.4 or later** on every node that should build templates. The build downloads the image into an `import`
+  storage, which older versions don't support. Nebla checks this per node.
+- **An import storage.** Set the location's `import_storage` to a file storage whose content types include `import`.
+  To add it to an existing directory storage, for example `local`:
+
+  ```sh
+  pvesm set local --content iso,vztmpl,backup,import
+  ```
+
+  Keep the content types the storage already had in that list. Leaving `import_storage` empty turns built-in images off
+  for the location.
+- **`Sys.AccessNetwork` and `VM.Config.HWType`** for the token's user. `Sys.AccessNetwork` lets Proxmox start a
+  download from a URL; Proxmox versions without this privilege need `Sys.Modify` on `/` instead. `VM.Config.HWType`
+  lets Nebla set the guest OS type and SCSI controller when it creates the template VM. The simplest option is to add
+  both to the existing role:
+
+  ```sh
+  pveum role modify Nebla --append 1 --privs "Sys.AccessNetwork VM.Config.HWType"
+  ```
+
+  If you grant `Sys.AccessNetwork` on `/nodes` through a separate role instead, include `Sys.Audit` in that role as well. An ACL on
+  `/nodes` replaces the privileges the user inherits from `/` at `/nodes/*`. Without `Sys.Audit` there, Proxmox stops
+  reporting node CPU and memory, which Nebla reads.
+- **`NeblaISO` on the import storage.** Nebla downloads the image, builds the template from it, then deletes the
+  downloaded file. Deleting needs `Datastore.Allocate` on the storage:
+
+  ```sh
+  pveum aclmod /storage/<import_storage> --users nebla@pve --roles NeblaISO
+  ```
+
+  If the import storage is also the ISO storage, step 2 already covers it.
+- **Outbound internet.** Each node that builds a template must reach the image's download site over HTTPS. The panel
+  needs outbound HTTPS too, to look up the newest image and its checksum.
+
+Catalog templates are tagged `nebla-tpl`, never `nebla`, and Nebla only touches templates it built. Servers created from
+them run with the QEMU guest agent disabled, because the images don't ship it. Power actions use ACPI, and metrics work
+without it.
