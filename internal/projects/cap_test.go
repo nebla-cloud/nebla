@@ -62,6 +62,8 @@ func TestCapCountsLegacyOwnedProjects(t *testing.T) {
 	p, err := client.Project.Create().SetName("legacy").Save(ctx)
 	require.NoError(t, err)
 	require.NoError(t, client.ProjectMember.Create().SetProjectID(p.ID).SetUserID(a.ID).SetRole(projects.RoleOwner).Exec(ctx))
+	_, err = projects.BackfillCreatedBy(ctx, client)
+	require.NoError(t, err)
 
 	_, err = svc.Create(ctx, a.ID, false, "new")
 	requireCapReached(t, err)
@@ -77,4 +79,21 @@ func TestDeletingCreatorKeepsProject(t *testing.T) {
 	row, err := client.Project.Get(ctx, p.ID)
 	require.NoError(t, err)
 	require.Nil(t, row.CreatedBy)
+}
+
+func TestCapIgnoresProjectsOfDeletedCreator(t *testing.T) {
+	ctx := context.Background()
+	svc, client, _, a := setup(t, projects.Options{MaxOwnedProjects: 1})
+	b, err := auth.New(client, ext.Defaults(nil).Registration).CreateUser(ctx, "b@example.test", testutil.Password, "B", false)
+	require.NoError(t, err)
+	p, err := svc.Create(ctx, a.ID, false, "P")
+	require.NoError(t, err)
+	l, err := svc.Invite(ctx, a.ID, p.ID, "b@example.test", projects.RoleOwner)
+	require.NoError(t, err)
+	_, err = svc.AcceptInvite(ctx, inviteToken(t, l), &b, "", "", true)
+	require.NoError(t, err)
+	require.NoError(t, client.User.DeleteOneID(a.ID).Exec(ctx))
+
+	_, err = svc.Create(ctx, b.ID, false, "B's own")
+	require.NoError(t, err)
 }

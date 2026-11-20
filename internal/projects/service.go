@@ -203,10 +203,7 @@ func (s *Service) Create(ctx context.Context, userID int64, isAdmin bool, name s
 				if _, err := tx.User.Query().Where(user.ID(userID)).ForUpdate().Only(ctx); err != nil {
 					return err
 				}
-				n, err := tx.Project.Query().Where(project.Or(
-					project.CreatedBy(userID),
-					project.And(project.CreatedByIsNil(), project.HasMembersWith(projectmember.UserID(userID), projectmember.Role(RoleOwner))),
-				)).Count(ctx)
+				n, err := tx.Project.Query().Where(project.CreatedBy(userID)).Count(ctx)
 				if err != nil {
 					return err
 				}

@@ -40,3 +40,39 @@ func BackfillDefaultQuota(ctx context.Context, db *ent.Client, q Quota) (int, er
 	})
 	return n, err
 }
+
+const createdByKey = "projects.created_by_backfilled"
+
+// BackfillCreatedBy sets created_by, once per install, to each older project's earliest owner.
+func BackfillCreatedBy(ctx context.Context, db *ent.Client) (int, error) {
+	n := 0
+	err := withTx(ctx, db, func(tx *ent.Client) error {
+		_, err := tx.Setting.Create().SetID(createdByKey).SetValue("true").
+			OnConflictColumns(setting.FieldID).DoNothing().ID(ctx)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		ps, err := tx.Project.Query().Where(project.CreatedByIsNil()).
+			WithMembers(func(q *ent.ProjectMemberQuery) {
+				q.Where(projectmember.Role(RoleOwner)).
+					Order(ent.Asc(projectmember.FieldCreatedAt), ent.Asc(projectmember.FieldID))
+			}).All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, p := range ps {
+			if len(p.Edges.Members) == 0 {
+				continue
+			}
+			if err := tx.Project.UpdateOneID(p.ID).SetCreatedBy(p.Edges.Members[0].UserID).Exec(ctx); err != nil {
+				return err
+			}
+			n++
+		}
+		return nil
+	})
+	return n, err
+}

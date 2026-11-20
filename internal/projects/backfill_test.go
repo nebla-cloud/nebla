@@ -79,3 +79,43 @@ func TestBackfillSkipsZeroDefault(t *testing.T) {
 	require.Equal(t, 1, n)
 	require.Equal(t, backfillQ, quotaOf(t, c, id))
 }
+
+func TestBackfillCreatedByUsesFirstOwner(t *testing.T) {
+	ctx := context.Background()
+	svc, c, _, a := setup(t, projects.Options{MaxOwnedProjects: 1})
+	b, err := auth.New(c, ext.Defaults(nil).Registration).CreateUser(ctx, "b@example.test", testutil.Password, "B", false)
+	require.NoError(t, err)
+	id := legacyProject(t, c, a.ID, projects.Quota{})
+	require.NoError(t, c.ProjectMember.Create().SetProjectID(id).SetUserID(b.ID).SetRole(projects.RoleOwner).Exec(ctx))
+
+	n, err := projects.BackfillCreatedBy(ctx, c)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	p, err := c.Project.Get(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, a.ID, *p.CreatedBy)
+
+	_, err = svc.Create(ctx, a.ID, false, "a2")
+	requireCapReached(t, err)
+	_, err = svc.Create(ctx, b.ID, false, "b1")
+	require.NoError(t, err)
+}
+
+func TestBackfillCreatedByRunsOnce(t *testing.T) {
+	ctx := context.Background()
+	_, c, _, a := setup(t, projects.Options{})
+	b, err := auth.New(c, ext.Defaults(nil).Registration).CreateUser(ctx, "b@example.test", testutil.Password, "B", false)
+	require.NoError(t, err)
+	id := legacyProject(t, c, a.ID, projects.Quota{})
+	require.NoError(t, c.ProjectMember.Create().SetProjectID(id).SetUserID(b.ID).SetRole(projects.RoleOwner).Exec(ctx))
+	_, err = projects.BackfillCreatedBy(ctx, c)
+	require.NoError(t, err)
+	require.NoError(t, c.User.DeleteOneID(a.ID).Exec(ctx))
+
+	n, err := projects.BackfillCreatedBy(ctx, c)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	p, err := c.Project.Get(ctx, id)
+	require.NoError(t, err)
+	require.Nil(t, p.CreatedBy)
+}
