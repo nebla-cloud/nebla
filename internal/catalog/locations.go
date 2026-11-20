@@ -226,11 +226,6 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 	return s.GetLocation(ctx, id)
 }
 
-// normFP matches the fingerprint normalisation used when pinning certificates.
-func normFP(s string) string {
-	return strings.ToUpper(strings.NewReplacer(":", "", " ", "").Replace(s))
-}
-
 // UpdateLocation re-verifies Proxmox when connection or storage settings change.
 func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput) (Location, error) {
 	if s.boxErr != nil {
@@ -246,7 +241,7 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 	}
 	newSecret := in.PVE.TokenSecret != nil && *in.PVE.TokenSecret != ""
 	if !newSecret && (conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID ||
-		normFP(conn.CAFingerprint) != normFP(cur.CaFingerprint) || conn.InsecureTLS != cur.InsecureTLS) {
+		pve.NormFP(conn.CAFingerprint) != pve.NormFP(cur.CaFingerprint) || conn.InsecureTLS != cur.InsecureTLS) {
 		return Location{}, invalid("pve.token_secret is required when url, token_id, ca_fingerprint or insecure_tls changes")
 	}
 	if newSecret {
