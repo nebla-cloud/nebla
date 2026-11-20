@@ -78,6 +78,7 @@ type Server struct {
 	srv     *httptest.Server
 	tokenID string
 	secret  string
+	extra   map[string]string // additional accepted tokens by id
 
 	mu      sync.Mutex
 	nodes   map[string]*node
@@ -111,6 +112,16 @@ func New(t *testing.T) *Server {
 	s.srv = httptest.NewTLSServer(s.wrap(mux))
 	t.Cleanup(s.srv.Close)
 	return s
+}
+
+// AddToken makes the fake accept the token id and secret as well as its default.
+func (s *Server) AddToken(id, secret string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.extra == nil {
+		s.extra = map[string]string{}
+	}
+	s.extra[id] = secret
 }
 
 // Conn returns connection settings that pin the fake's certificate.
@@ -368,12 +379,16 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		s.calls = append(s.calls, r.Method+" "+p)
 		s.sweep()
 		down := s.down
+		ok := r.Header.Get("Authorization") == "PVEAPIToken="+s.tokenID+"="+s.secret
+		for id, sec := range s.extra {
+			ok = ok || r.Header.Get("Authorization") == "PVEAPIToken="+id+"="+sec
+		}
 		s.mu.Unlock()
 		if down {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"data": nil, "message": "proxmox down"})
 			return
 		}
-		if r.Header.Get("Authorization") != "PVEAPIToken="+s.tokenID+"="+s.secret {
+		if !ok {
 			writeJSON(w, 401, map[string]any{"data": nil, "message": "no ticket"})
 			return
 		}
