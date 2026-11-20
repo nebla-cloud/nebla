@@ -213,7 +213,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 		if n >= MaxFirewalls {
 			return limitExceeded(fmt.Sprintf("a project can have at most %d firewalls", MaxFirewalls))
 		}
-		if err := ownServers(ctx, etx, projectID, res); err != nil {
+		if err := ownServers(ctx, etx, projectID, res, true); err != nil {
 			return err
 		}
 		acts, err = s.change(ctx, tx, etx, projectID, true, func() (int64, error) {
@@ -272,7 +272,7 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 
 // Delete removes the firewall from every server and queues their applies.
 func (s *Service) Delete(ctx context.Context, projectID, id int64) ([]actions.Action, error) {
-	return s.locked(ctx, projectID, id, false, nil, func(etx *ent.Client) error {
+	return s.locked(ctx, projectID, id, false, false, nil, func(etx *ent.Client) error {
 		return etx.Firewall.DeleteOneID(id).Exec(ctx)
 	})
 }
@@ -283,7 +283,7 @@ func (s *Service) SetRules(ctx context.Context, projectID, id int64, in []RuleIn
 	if err != nil {
 		return nil, err
 	}
-	return s.locked(ctx, projectID, id, false, nil, func(etx *ent.Client) error {
+	return s.locked(ctx, projectID, id, false, false, nil, func(etx *ent.Client) error {
 		if _, err := etx.FirewallRule.Delete().Where(firewallrule.FirewallID(id)).Exec(ctx); err != nil {
 			return err
 		}
@@ -297,7 +297,7 @@ func (s *Service) ApplyTo(ctx context.Context, projectID, id int64, in []Resourc
 	if err != nil {
 		return nil, err
 	}
-	return s.locked(ctx, projectID, id, true, res, func(etx *ent.Client) error {
+	return s.locked(ctx, projectID, id, true, true, res, func(etx *ent.Client) error {
 		cur, err := etx.FirewallResource.Query().Where(firewallresource.FirewallID(id)).All(ctx)
 		if err != nil {
 			return err
@@ -315,7 +315,7 @@ func (s *Service) RemoveFrom(ctx context.Context, projectID, id int64, in []Reso
 	if err != nil {
 		return nil, err
 	}
-	return s.locked(ctx, projectID, id, true, res, func(etx *ent.Client) error {
+	return s.locked(ctx, projectID, id, true, false, res, func(etx *ent.Client) error {
 		cur, err := etx.FirewallResource.Query().Where(firewallresource.FirewallID(id)).All(ctx)
 		if err != nil {
 			return err
@@ -346,8 +346,8 @@ func lockFirewall(ctx context.Context, etx *ent.Client, projectID, id int64) err
 	return notFound(err)
 }
 
-// ownServers refuses server resources outside the project with not_found.
-func ownServers(ctx context.Context, etx *ent.Client, projectID int64, res []ResourceInput) error {
+// ownServers refuses server resources outside the project with not_found, and deleting ones with locked when attaching.
+func ownServers(ctx context.Context, etx *ent.Client, projectID int64, res []ResourceInput, attach bool) error {
 	var ids []int64
 	for _, r := range res {
 		if r.ServerID != nil {
@@ -357,25 +357,28 @@ func ownServers(ctx context.Context, etx *ent.Client, projectID int64, res []Res
 	if len(ids) == 0 {
 		return nil
 	}
-	n, err := etx.Server.Query().Where(server.IDIn(ids...), server.ProjectID(projectID)).Count(ctx)
+	rows, err := etx.Server.Query().Where(server.IDIn(ids...), server.ProjectID(projectID)).All(ctx)
 	if err != nil {
 		return err
 	}
-	if n != len(ids) {
+	if len(rows) != len(ids) {
 		return errNotFound
+	}
+	if attach && slices.ContainsFunc(rows, func(r *ent.Server) bool { return r.Status == server.StatusDeleting }) {
+		return errDeleting
 	}
 	return nil
 }
 
 // locked runs mutate under the firewall's row lock and fans out to the servers it affects.
-func (s *Service) locked(ctx context.Context, projectID, id int64, onlyChanged bool, res []ResourceInput,
+func (s *Service) locked(ctx context.Context, projectID, id int64, onlyChanged, attach bool, res []ResourceInput,
 	mutate func(etx *ent.Client) error) ([]actions.Action, error) {
 	var acts []actions.Action
 	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		if err := lockFirewall(ctx, etx, projectID, id); err != nil {
 			return err
 		}
-		if err := ownServers(ctx, etx, projectID, res); err != nil {
+		if err := ownServers(ctx, etx, projectID, res, attach); err != nil {
 			return err
 		}
 		var err error

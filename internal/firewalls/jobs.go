@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"slices"
 
+	entsql "entgo.io/ent/dialect/sql"
+
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
@@ -40,8 +42,11 @@ func Bump(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, projec
 	if j == nil {
 		return nil, errNoJobs
 	}
-	rows, err := etx.Server.Query().Where(server.IDIn(ids...), server.ProjectID(projectID), server.StatusNEQ(server.StatusDeleting)).
-		Order(server.ByID()).ForUpdate().All(ctx)
+	q := etx.Server.Query().Where(server.IDIn(ids...), server.ProjectID(projectID), server.StatusNEQ(server.StatusDeleting)).
+		Order(server.ByID()).Unique(false)
+	// NO KEY UPDATE leaves the FK key-share locks of concurrent resource inserts compatible.
+	q.Modify(func(s *entsql.Selector) { s.For(entsql.LockNoKeyUpdate) })
+	rows, err := q.All(ctx)
 	if err != nil {
 		return nil, err
 	}

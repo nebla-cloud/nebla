@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -377,6 +378,46 @@ func TestService(t *testing.T) {
 		}, eff)
 		_, err = firewalls.Effective(ctx, e.ent, 1<<40)
 		requireAPI(t, err, 404, "not_found")
+	})
+
+	t.Run("concurrent direct applies to one server", func(t *testing.T) {
+		p := e.project("race")
+		for round := range 5 {
+			srv := e.server(p, fmt.Sprintf("s%d", round), nil)
+			fws := make([]int64, 2)
+			for i := range fws {
+				fw, _ := e.create(p, fmt.Sprintf("r%d-%d", round, i), firewalls.CreateInput{})
+				fws[i] = fw.ID
+			}
+			start := make(chan struct{})
+			errs := make([]error, len(fws))
+			var wg sync.WaitGroup
+			for i, id := range fws {
+				wg.Go(func() {
+					<-start
+					_, errs[i] = e.svc.ApplyTo(ctx, p, id, []firewalls.ResourceInput{onServer(srv)})
+				})
+			}
+			close(start)
+			wg.Wait()
+			for _, err := range errs {
+				require.NoError(t, err)
+			}
+			require.EqualValues(t, 2, e.gen(srv))
+		}
+	})
+
+	t.Run("apply to a deleting server", func(t *testing.T) {
+		p := e.project("dying")
+		srv := e.server(p, "s", nil)
+		e.ent.Server.UpdateOneID(srv).SetStatus("deleting").ExecX(ctx)
+		fw, _ := e.create(p, "fw", firewalls.CreateInput{})
+		_, err := e.svc.ApplyTo(ctx, p, fw.ID, []firewalls.ResourceInput{onServer(srv)})
+		ae := requireAPI(t, err, 409, "locked")
+		require.Equal(t, "server is being deleted", ae.Msg)
+		_, _, err = e.svc.Create(ctx, p, firewalls.CreateInput{Name: "fw2", ApplyTo: []firewalls.ResourceInput{onServer(srv)}})
+		requireAPI(t, err, 409, "locked")
+		require.Zero(t, e.ent.FirewallResource.Query().Where(firewallresource.FirewallID(fw.ID)).CountX(ctx))
 	})
 
 	t.Run("deleting a server cascades its resources", func(t *testing.T) {

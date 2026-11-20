@@ -32,6 +32,7 @@ var (
 	errNotFound  = apierr.New(http.StatusNotFound, "not_found", "not found")
 	errNameTaken = apierr.New(http.StatusConflict, "name_taken", "firewall name is already taken")
 	errNoJobs    = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
+	errDeleting  = apierr.New(http.StatusConflict, "locked", "server is being deleted")
 )
 
 // RuleInput is one rule as submitted; IPs are the sources of an in rule or the destinations of an out rule.
