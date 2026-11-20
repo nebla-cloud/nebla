@@ -1,4 +1,4 @@
-.PHONY: generate migrate-diff migrate-hash migrate-validate test build web
+.PHONY: generate migrate-diff migrate-hash migrate-validate test build web release-snapshot
 
 MIGRATIONS_DIR := file://internal/db/migrations?format=goose
 ATLAS_DEV_URL := docker://postgres/17/dev?search_path=public
@@ -30,3 +30,7 @@ test:
 build:
 	go build -o bin/nebla-server ./cmd/nebla-server
 	go build -ldflags "-X github.com/nebla-cloud/nebla/internal/cli.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o bin/nebla ./cmd/nebla
+
+# Local dry run of the CLI release; writes dist/.
+release-snapshot:
+	goreleaser release --snapshot --clean
