@@ -110,7 +110,7 @@ describe('LocationForm', () => {
     await fillCreate(wrapper)
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(wrapper.text()).toContain("Proxmox didn't respond")
+    expect(wrapper.text()).toContain("The server's host didn't respond")
   })
 
   it('marks the OS image catalog stale once a location is saved', async () => {

@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { defineComponent, h, ref } from 'vue'
+import { mount } from '@vue/test-utils'
+import { VueQueryPlugin } from '@tanstack/vue-query'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
-import { withSetup } from '@/test/mount'
+import { testQueryClient, testRouter, withSetup } from '@/test/mount'
 import { useActionPoll } from './useActionPoll'
 
 const action = (status: string, progress: number, error: object | null = null) => ({
@@ -28,13 +30,30 @@ function sequence(steps: object[]) {
   return () => calls
 }
 
+async function inProject<T>(fn: () => T) {
+  const router = testRouter([
+    { path: '/p/:projectId/servers/:serverId', component: { render: () => null } },
+  ])
+  await router.push('/p/3/servers/12')
+  const queryClient = testQueryClient()
+  let result!: T
+  const C = defineComponent({
+    setup() {
+      result = fn()
+      return () => h('div')
+    },
+  })
+  mount(C, { global: { plugins: [router, [VueQueryPlugin, { queryClient }]] } })
+  return { result, queryClient }
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 describe('useActionPoll', () => {
   it('polls until success', async () => {
     const calls = sequence([action('running', 10), action('running', 60), action('success', 100)])
     const onDone = vi.fn()
-    const { result, queryClient } = withSetup(() =>
+    const { result, queryClient } = await inProject(() =>
       useActionPoll(ref(5), { onDone, intervalMs: 10 }),
     )
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -44,8 +63,8 @@ describe('useActionPoll', () => {
     expect(result.action.value?.status).toBe('success')
     expect(onDone).toHaveBeenCalledOnce()
     expect(calls()).toBe(3)
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['servers'] })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['server', 12] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['servers', 3] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['server', 3, 12] })
   })
 
   it('stops and surfaces error', async () => {

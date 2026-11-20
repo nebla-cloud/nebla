@@ -61,7 +61,7 @@ describe('api client', () => {
 
   it('errorMessage maps pve_unreachable', () => {
     expect(errorMessage(new ApiError(502, 'pve_unreachable', 'dial tcp'))).toBe(
-      "Proxmox didn't respond. Try again in a moment.",
+      "The server's host didn't respond. Try again in a moment.",
     )
     expect(errorMessage(new ApiError(503, 'service_unavailable', 'x'))).toBe(
       "Nebla's background jobs aren't running. Check the server logs.",

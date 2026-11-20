@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api } from '@/api/client'
 import { ApiError, errorMessage, unwrap } from '@/api/errors'
 import type { Action } from '@/api/types'
+import { useCurrentProject } from './project'
 
 export function useActionPoll(
   actionId: Ref<number | null>,
@@ -13,6 +14,7 @@ export function useActionPoll(
   error: ComputedRef<string | null>
 } {
   const qc = useQueryClient()
+  const { projectId } = useCurrentProject()
   const interval = opts.intervalMs ?? 1000
   const query = useQuery(
     computed(() => ({
@@ -49,8 +51,8 @@ export function useActionPoll(
       const invalidations = a.resources
         .filter((r) => r.type === 'server')
         .flatMap((r) => [
-          qc.invalidateQueries({ queryKey: ['servers'] }),
-          qc.invalidateQueries({ queryKey: ['server', r.id] }),
+          qc.invalidateQueries({ queryKey: ['server', projectId.value, r.id] }),
+          qc.invalidateQueries({ queryKey: ['servers', projectId.value] }),
         ])
       await Promise.all(invalidations)
       opts.onDone?.(a)

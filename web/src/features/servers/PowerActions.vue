@@ -32,6 +32,8 @@ const showRunning = computed(
   () => props.server.status === 'running' || isTransitional(props.server.status),
 )
 const showOff = computed(() => props.server.status === 'off')
+const showError = computed(() => props.server.status === 'error')
+const missing = computed(() => props.server.status === 'missing')
 
 async function run(kind: Power) {
   pending.value = true
@@ -83,6 +85,23 @@ const overflow = computed(() => [
       variant="outline"
       :disabled="locked"
       @click="run('poweron')"
+    >
+      Power on
+    </UButton>
+    <template v-else-if="showError">
+      <UButton color="neutral" variant="outline" :disabled="locked" @click="run('poweron')">
+        Power on
+      </UButton>
+      <UButton color="neutral" variant="outline" :disabled="locked" @click="run('poweroff')">
+        Power off
+      </UButton>
+    </template>
+    <UButton
+      v-else-if="missing"
+      color="neutral"
+      variant="outline"
+      disabled
+      title="Nebla can't find this server right now"
     >
       Power on
     </UButton>

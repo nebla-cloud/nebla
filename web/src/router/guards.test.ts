@@ -318,7 +318,7 @@ describe('load errors', () => {
     mountApp(App, { router, queryClient })
     await router.push('/').catch(() => {})
     await flushPromises()
-    expect(document.body.textContent).toContain("Proxmox didn't respond.")
+    expect(document.body.textContent).toContain("The server's host didn't respond.")
     expect(tryAgain()).toBeDefined()
   })
 

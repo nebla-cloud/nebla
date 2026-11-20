@@ -7,7 +7,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import { createAppRouter } from '@/router'
 import type { Action } from '@/api/types'
 import { makeServer } from '@/features/servers/fixtures'
-import ServerDetailPage from '@/features/servers/ServerDetailPage.vue'
+import serverRoutes from '@/features/servers/routes'
 import CreateServerPage from './CreateServerPage.vue'
 
 const meta = (n: number) => ({ pagination: { page: 1, per_page: 50, total_entries: n } })
@@ -103,9 +103,14 @@ async function settle() {
 
 async function mountCreate() {
   const router = testRouter([
-    { path: '/p/:projectId/servers/new', name: 'server-new', component: CreateServerPage },
-    { path: '/p/:projectId/servers', name: 'servers', component: CreateServerPage },
-    { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerDetailPage },
+    {
+      path: '/p/:projectId',
+      component: RouterView,
+      children: [
+        { path: 'servers/new', name: 'server-new', component: CreateServerPage },
+        ...serverRoutes,
+      ],
+    },
   ])
   await router.push('/p/1/servers/new')
   const res = mountApp(RouterView, { router })

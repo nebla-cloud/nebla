@@ -22,7 +22,7 @@ export function useServers() {
 export function useServer(id: Ref<number>) {
   const { projectId } = useCurrentProject()
   return useQuery({
-    queryKey: computed(() => ['server', id.value]),
+    queryKey: computed(() => ['server', projectId.value, id.value]),
     queryFn: async (): Promise<Server> =>
       unwrap(await api.GET('/servers/{id}', { params: { path: { id: id.value } } })),
     enabled: computed(() => projectId.value > 0 && id.value > 0),
