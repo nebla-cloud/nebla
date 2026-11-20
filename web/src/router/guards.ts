@@ -25,7 +25,7 @@ export function notFound(to: RouteLocationNormalized): RouteLocationRaw {
 }
 
 export async function resolveRoot(me: User): Promise<RouteLocationRaw> {
-  if (me.is_admin && !(await panelReady(queryClient))) return { name: 'admin-get-ready' }
+  if (me.is_admin && (await panelReady(queryClient)) === false) return { name: 'admin-get-ready' }
   const projects = await queryClient.fetchQuery(projectsQuery())
   const last = readLastProject()
   const pick = projects.find((p) => p.id === last) ?? projects[0]

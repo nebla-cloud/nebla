@@ -55,7 +55,7 @@ function locationNames(ids: number[]): string {
       title="Connect a location first"
       body="Nebla builds OS images inside a location. Add one, then come back here to turn images on."
     >
-      <UButton to="/admin/locations" color="neutral">Add a location</UButton>
+      <UButton :to="{ name: 'admin-locations' }" color="neutral">Add a location</UButton>
     </EmptyState>
 
     <template v-else>

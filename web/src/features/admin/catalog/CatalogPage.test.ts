@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
-import { mountApp } from '@/test/mount'
+import { mountApp, testRouter } from '@/test/mount'
 import type { CatalogEntry, CatalogLocationState } from './queries'
 import CatalogPage from './CatalogPage.vue'
+
+const router = testRouter([
+  { path: '/admin/locations', name: 'admin-locations', component: { render: () => null } },
+])
 
 const location = (id: number, name: string) => ({
   id,
@@ -69,7 +73,7 @@ afterEach(() => {
 describe('CatalogPage', () => {
   it('grid has one column per location and one row per entry', async () => {
     serve()
-    const { wrapper } = mountApp(CatalogPage)
+    const { wrapper } = mountApp(CatalogPage, { router })
     await flushPromises()
     const heads = wrapper.findAll('thead th').map((th) => th.text())
     expect(heads).toEqual(['Image', 'home', 'rack-2'])
@@ -87,7 +91,7 @@ describe('CatalogPage', () => {
         entry('ubuntu-24.04', 'Ubuntu 24.04'),
       ],
     })
-    const { wrapper } = mountApp(CatalogPage)
+    const { wrapper } = mountApp(CatalogPage, { router })
     await flushPromises()
     const titles = wrapper.findAll('tbody tr th').map((th) => th.text())
     expect(titles[0]).toContain('Debian 13')
@@ -101,7 +105,7 @@ describe('CatalogPage', () => {
     const calls = serve({
       catalog: () => [entry('debian-13', 'Debian 13', false, building ? 'building' : 'ready')],
     })
-    mountApp(CatalogPage)
+    mountApp(CatalogPage, { router })
     await vi.waitFor(() => expect(calls()).toBe(1))
     await vi.advanceTimersByTimeAsync(3000)
     await vi.waitFor(() => expect(calls()).toBe(2))
@@ -144,7 +148,7 @@ describe('CatalogPage', () => {
         }),
       ),
     )
-    const { wrapper } = mountApp(CatalogPage)
+    const { wrapper } = mountApp(CatalogPage, { router })
     await flushPromises()
     const own = wrapper.find('[data-own-images]')
     expect(own.text()).toContain('Your own images')
@@ -156,7 +160,7 @@ describe('CatalogPage', () => {
 
   it('asks for a location first when there are none', async () => {
     serve({ locations: [] })
-    const { wrapper } = mountApp(CatalogPage)
+    const { wrapper } = mountApp(CatalogPage, { router })
     await flushPromises()
     expect(wrapper.text()).toContain('Connect a location first')
     expect(wrapper.find('a[href="/admin/locations"]').exists()).toBe(true)
