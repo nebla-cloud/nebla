@@ -110,6 +110,9 @@ func resolveTarget(env Env, cfg *Config, contextFlag string) (Target, error) {
 			if err != nil {
 				return Target{}, err
 			}
+			if tok, err = requireToken(tok); err != nil {
+				return Target{}, fmt.Errorf("NEBLA_TOKEN: %w", err)
+			}
 			return Target{Endpoint: ep, Token: tok, Source: "env"}, nil
 		}
 		if ep != "" {

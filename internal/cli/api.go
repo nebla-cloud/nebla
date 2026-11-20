@@ -15,6 +15,7 @@ import (
 var (
 	retryBaseDelay = 500 * time.Millisecond
 	retryMaxDelay  = 5 * time.Second
+	retryAfterMax  = time.Minute
 	requestTimeout = 30 * time.Second
 )
 
@@ -98,7 +99,7 @@ func retryable(res *http.Response, err error) bool {
 func backoff(attempt int, res *http.Response) time.Duration {
 	if res != nil {
 		if s, err := strconv.Atoi(res.Header.Get("Retry-After")); err == nil && s >= 0 {
-			return time.Duration(s) * time.Second
+			return min(time.Duration(s)*time.Second, retryAfterMax)
 		}
 	}
 	d := retryBaseDelay << attempt
@@ -140,15 +141,13 @@ func apiErr(status int, body []byte) error {
 	return &APIError{Status: status, Code: e.Error.Code, Message: e.Error.Message}
 }
 
-type response interface{ StatusCode() int }
-
 // result returns v for a 2xx response and an APIError otherwise.
 func result[T any](status int, body []byte, v *T) (*T, error) {
 	if status < 200 || status > 299 {
 		return nil, apiErr(status, body)
 	}
 	if v == nil {
-		return nil, fmt.Errorf("unexpected response (status %d)", status)
+		return nil, fmt.Errorf("unexpected response (status %d); is the endpoint a Nebla panel?", status)
 	}
 	return v, nil
 }
@@ -254,19 +253,22 @@ func (a *API) Locations(ctx context.Context) ([]apiclient.Location, error) {
 }
 
 // resolve tries ref as an id when it is a positive integer, then as a name.
-func resolve[T any](ref, kind string, byID func(int64) (*T, response, []byte, error), byName func(string) (*T, error)) (T, error) {
+func resolve[T any](ref, kind string, byID func(int64) (*T, *http.Response, []byte, error), byName func(string) (*T, error)) (T, error) {
 	var zero T
 	if id, err := strconv.ParseInt(ref, 10, 64); err == nil && id > 0 {
 		v, res, b, err := byID(id)
 		if err != nil {
 			return zero, err
 		}
-		switch res.StatusCode() {
+		switch res.StatusCode {
 		case http.StatusOK:
+			if v == nil {
+				return zero, fmt.Errorf("unexpected response from %s; is the endpoint a Nebla panel?", res.Request.URL)
+			}
 			return *v, nil
 		case http.StatusNotFound:
 		default:
-			return zero, apiErr(res.StatusCode(), b)
+			return zero, apiErr(res.StatusCode, b)
 		}
 	}
 	v, err := byName(ref)
@@ -290,12 +292,12 @@ func named[T any](items []T, name func(T) string, ref string) *T {
 
 // Server finds a server by id or name.
 func (a *API) Server(ctx context.Context, ref string) (apiclient.Server, error) {
-	return resolve(ref, "server", func(id int64) (*apiclient.Server, response, []byte, error) {
+	return resolve(ref, "server", func(id int64) (*apiclient.Server, *http.Response, []byte, error) {
 		res, err := a.C.GetServerWithResponse(ctx, id)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		return res.JSON200, res, res.Body, nil
+		return res.JSON200, res.HTTPResponse, res.Body, nil
 	}, func(name string) (*apiclient.Server, error) {
 		list, err := a.Servers(ctx, apiclient.GetServersParams{Name: &name})
 		if err != nil {
@@ -307,12 +309,12 @@ func (a *API) Server(ctx context.Context, ref string) (apiclient.Server, error) 
 
 // SSHKey finds an SSH key by id or name.
 func (a *API) SSHKey(ctx context.Context, ref string) (apiclient.SshKey, error) {
-	return resolve(ref, "SSH key", func(id int64) (*apiclient.SshKey, response, []byte, error) {
+	return resolve(ref, "SSH key", func(id int64) (*apiclient.SshKey, *http.Response, []byte, error) {
 		res, err := a.C.GetSshKeyWithResponse(ctx, id)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		return res.JSON200, res, res.Body, nil
+		return res.JSON200, res.HTTPResponse, res.Body, nil
 	}, func(name string) (*apiclient.SshKey, error) {
 		list, err := a.SSHKeys(ctx)
 		if err != nil {
@@ -324,12 +326,12 @@ func (a *API) SSHKey(ctx context.Context, ref string) (apiclient.SshKey, error) 
 
 // Image finds an image by id or name.
 func (a *API) Image(ctx context.Context, ref string) (apiclient.Image, error) {
-	return resolve(ref, "image", func(id int64) (*apiclient.Image, response, []byte, error) {
+	return resolve(ref, "image", func(id int64) (*apiclient.Image, *http.Response, []byte, error) {
 		res, err := a.C.GetImageWithResponse(ctx, id)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		return res.JSON200, res, res.Body, nil
+		return res.JSON200, res.HTTPResponse, res.Body, nil
 	}, func(name string) (*apiclient.Image, error) {
 		list, err := a.Images(ctx, "")
 		if err != nil {
@@ -341,12 +343,12 @@ func (a *API) Image(ctx context.Context, ref string) (apiclient.Image, error) {
 
 // ServerType finds a server type by id or name.
 func (a *API) ServerType(ctx context.Context, ref string) (apiclient.ServerType, error) {
-	return resolve(ref, "server type", func(id int64) (*apiclient.ServerType, response, []byte, error) {
+	return resolve(ref, "server type", func(id int64) (*apiclient.ServerType, *http.Response, []byte, error) {
 		res, err := a.C.GetServerTypeWithResponse(ctx, id)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		return res.JSON200, res, res.Body, nil
+		return res.JSON200, res.HTTPResponse, res.Body, nil
 	}, func(name string) (*apiclient.ServerType, error) {
 		list, err := a.ServerTypes(ctx)
 		if err != nil {
@@ -358,12 +360,12 @@ func (a *API) ServerType(ctx context.Context, ref string) (apiclient.ServerType,
 
 // Location finds a location by id or name.
 func (a *API) Location(ctx context.Context, ref string) (apiclient.Location, error) {
-	return resolve(ref, "location", func(id int64) (*apiclient.Location, response, []byte, error) {
+	return resolve(ref, "location", func(id int64) (*apiclient.Location, *http.Response, []byte, error) {
 		res, err := a.C.GetLocationWithResponse(ctx, id)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		return res.JSON200, res, res.Body, nil
+		return res.JSON200, res.HTTPResponse, res.Body, nil
 	}, func(name string) (*apiclient.Location, error) {
 		list, err := a.Locations(ctx)
 		if err != nil {
