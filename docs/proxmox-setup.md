@@ -1,10 +1,82 @@
 # Proxmox VE setup
 
-Nebla talks only to the Proxmox VE API. It never uses SSH and installs nothing on the host. Each Nebla location points at
-one Proxmox cluster (or standalone node) through an API token. The steps below run once per cluster, in a root shell on
-any node.
+Nebla talks only to the Proxmox VE API. It never uses SSH. Nebla installs nothing on the host; the optional setup script is
+one-shot and leaves only the roles, user, ACLs and token Proxmox stores. Each Nebla location points at one Proxmox
+cluster (or standalone node) through an API token. Setup runs once per cluster, in a root shell on any node.
 
 Nebla supports Proxmox VE 8 and 9.
+
+## Quick setup
+
+In the panel, open Locations, then Connect a location. Enter a name and choose Get setup command. The page shows one
+command:
+
+```sh
+curl -fsSL '<panel>/v1/enroll.sh' | NEBLA_TOKEN=nbe_... bash
+```
+
+Run it as root on any node of the cluster. The command is valid for 30 minutes and works once. Choose New command on the
+page to get another. You can read the script first at `<panel>/v1/enroll.sh`. It is plain text.
+
+The script needs root and Proxmox VE 8 or 9, and refuses anything else. It checks with the panel before it changes
+anything. Then it:
+
+- creates or resets the roles `Nebla` and `NeblaISO`. `Nebla` gets the privileges from step 1 for your PVE version, plus
+  `Sys.AccessNetwork` and `VM.Config.HWType` when this install knows them.
+- creates the user `nebla@pve` if it is missing.
+- grants `Nebla` on `/`, and `NeblaISO` on every storage whose content includes `iso` or `import`.
+- creates a new API token named `nebla@pve!nebla-<location>-<6 chars>`, with privilege separation off. It never removes
+  a token, and it refuses to run if that token already exists.
+- reports the token, the certificate fingerprint of every node (`pveproxy-ssl.pem`, else `pve-ssl.pem`), and the
+  cluster and storage list.
+
+It writes no files and leaves nothing running. The roles are reset to the exact privilege list each time, so privileges
+you added to `Nebla` or `NeblaISO` by hand are removed on a re-run.
+
+The report goes back to the enrollment page. Then pick the Proxmox URL (prefilled from the node's IP, port 8006), the disk
+storage (one with `images` content), the ISO storage, and optionally an import storage. Only storages that got
+`NeblaISO` are offered for ISO and import. The panel connects to the URL and checks that the certificate it sees is one
+the node reported. It pins that certificate.
+
+`NeblaISO` lets the token delete any volume on its storage (see step 1), so it is granted on every ISO and import
+storage. After you finish, the page lists optional cleanup commands for the ones you didn't choose:
+
+```sh
+pveum acl delete /storage/<id> --users nebla@pve --roles NeblaISO
+```
+
+### If the node can't reach the panel
+
+Open "The node can't reach this panel?" on the enrollment page. It gives an inline script that makes no network calls.
+Run it on the node. It prints one line starting with `nebla-enroll:v1:`. Paste that line into the page. The line
+contains the token secret, so clear your terminal scrollback afterwards. The online script prints the same line if it
+can't send its report.
+
+### Re-run setup
+
+Use Re-run setup on the location page to run the same flow again for an existing location, for example after a
+certificate renewal. The location switches to the new token and the refreshed fingerprints when you finish. Until then
+the old token keeps working. After a re-run the page shows the command that removes the old token:
+
+```sh
+pveum user token remove nebla@pve <old token>
+```
+
+### Removal
+
+To remove everything the script created:
+
+```sh
+pveum user delete nebla@pve
+pveum role delete Nebla
+pveum role delete NeblaISO
+```
+
+Deleting the user removes its tokens and ACLs.
+
+## Manual setup
+
+Steps 1 to 3 do by hand what the script does. Use them if you can't run the script.
 
 ## 1. Roles
 
@@ -68,7 +140,7 @@ pvenode cert info
 Use the `fingerprint` of the certificate that `pveproxy` serves. That's `pveproxy-ssl.pem` if you uploaded a custom
 certificate or use ACME, and `pve-ssl.pem` otherwise. Paste it, in colon-hex form, into the location's
 `ca_fingerprint`. Every node has its own certificate, so use the fingerprint of the node in the URL. If the certificate
-is renewed, update the location with the new fingerprint.
+is renewed, update the location with the new fingerprint, or use Re-run setup on the location page to refresh it.
 
 ## 4. Storages
 
