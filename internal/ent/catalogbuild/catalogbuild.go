@@ -35,6 +35,8 @@ const (
 	FieldNewNonce = "new_nonce"
 	// FieldUpid holds the string denoting the upid field in the database.
 	FieldUpid = "upid"
+	// FieldBuildNode holds the string denoting the build_node field in the database.
+	FieldBuildNode = "build_node"
 	// FieldFile holds the string denoting the file field in the database.
 	FieldFile = "file"
 	// FieldChecksum holds the string denoting the checksum field in the database.
@@ -81,6 +83,7 @@ var Columns = []string{
 	FieldNonce,
 	FieldNewNonce,
 	FieldUpid,
+	FieldBuildNode,
 	FieldFile,
 	FieldChecksum,
 	FieldNewFile,
@@ -199,6 +202,11 @@ func ByNewNonce(opts ...sql.OrderTermOption) OrderOption {
 // ByUpid orders the results by the upid field.
 func ByUpid(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpid, opts...).ToFunc()
+}
+
+// ByBuildNode orders the results by the build_node field.
+func ByBuildNode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBuildNode, opts...).ToFunc()
 }
 
 // ByFile orders the results by the file field.

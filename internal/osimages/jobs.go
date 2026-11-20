@@ -18,7 +18,7 @@ type BuildArgs struct {
 func (BuildArgs) Kind() string { return KindBuild }
 
 func (BuildArgs) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{Queue: jobs.QueueMaintenance, MaxAttempts: MaxAttempts}
+	return river.InsertOpts{Queue: jobs.QueueMaintenance, MaxAttempts: MaxAttempts + spareAttempts}
 }
 
 // RetireArgs destroys a catalog template VM once no server can still clone it.

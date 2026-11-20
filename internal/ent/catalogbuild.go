@@ -38,6 +38,8 @@ type CatalogBuild struct {
 	NewNonce *string `json:"new_nonce,omitempty"`
 	// Upid holds the value of the "upid" field.
 	Upid *string `json:"upid,omitempty"`
+	// BuildNode holds the value of the "build_node" field.
+	BuildNode *string `json:"build_node,omitempty"`
 	// File holds the value of the "file" field.
 	File *string `json:"file,omitempty"`
 	// Checksum holds the value of the "checksum" field.
@@ -91,7 +93,7 @@ func (*CatalogBuild) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case catalogbuild.FieldID, catalogbuild.FieldLocationID, catalogbuild.FieldStep, catalogbuild.FieldVmid, catalogbuild.FieldNewVmid, catalogbuild.FieldRiverJobID:
 			values[i] = new(sql.NullInt64)
-		case catalogbuild.FieldCatalogKey, catalogbuild.FieldNode, catalogbuild.FieldStatus, catalogbuild.FieldNonce, catalogbuild.FieldNewNonce, catalogbuild.FieldUpid, catalogbuild.FieldFile, catalogbuild.FieldChecksum, catalogbuild.FieldNewFile, catalogbuild.FieldNewChecksum, catalogbuild.FieldErrorCode, catalogbuild.FieldErrorMessage:
+		case catalogbuild.FieldCatalogKey, catalogbuild.FieldNode, catalogbuild.FieldStatus, catalogbuild.FieldNonce, catalogbuild.FieldNewNonce, catalogbuild.FieldUpid, catalogbuild.FieldBuildNode, catalogbuild.FieldFile, catalogbuild.FieldChecksum, catalogbuild.FieldNewFile, catalogbuild.FieldNewChecksum, catalogbuild.FieldErrorCode, catalogbuild.FieldErrorMessage:
 			values[i] = new(sql.NullString)
 		case catalogbuild.FieldBuiltAt, catalogbuild.FieldCreatedAt, catalogbuild.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -180,6 +182,13 @@ func (_m *CatalogBuild) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Upid = new(string)
 				*_m.Upid = value.String
+			}
+		case catalogbuild.FieldBuildNode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field build_node", values[i])
+			} else if value.Valid {
+				_m.BuildNode = new(string)
+				*_m.BuildNode = value.String
 			}
 		case catalogbuild.FieldFile:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -327,6 +336,11 @@ func (_m *CatalogBuild) String() string {
 	builder.WriteString(", ")
 	if v := _m.Upid; v != nil {
 		builder.WriteString("upid=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.BuildNode; v != nil {
+		builder.WriteString("build_node=")
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")
