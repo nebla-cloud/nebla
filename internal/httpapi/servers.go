@@ -10,7 +10,7 @@ import (
 )
 
 func apiServer(s servers.Server) apigen.Server {
-	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apiLocation(s.Location),
+	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apigen.LocationRef{Id: s.Location.ID, Name: s.Location.Name, Description: s.Location.Description},
 		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Created: s.CreatedAt}
 	if s.IPv4.IsValid() {
 		out.PublicNet.Ipv4 = &apigen.ServerIp{Ip: s.IPv4.String()}

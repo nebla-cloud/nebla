@@ -5,6 +5,7 @@ import (
 
 	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/Hexeption/nebla/internal/catalog"
+	"github.com/Hexeption/nebla/internal/ipam"
 )
 
 // pageParams applies the spec defaults (page 1, per_page 25, max 50).
@@ -48,8 +49,19 @@ func apiAdminLocation(l catalog.Location) apigen.AdminLocation {
 	return out
 }
 
-func apiLocation(l catalog.Location) apigen.Location {
-	return apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description}
+func apiLocation(l catalog.Location, ipv4, ipv6 bool) apigen.Location {
+	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description}
+	out.Networks.Ipv4, out.Networks.Ipv6 = ipv4, ipv6
+	return out
+}
+
+// locationWithNetworks maps a location with its live address availability.
+func (s *server) locationWithNetworks(ctx context.Context, l catalog.Location) (apigen.Location, error) {
+	v4, v6, err := ipam.Available(ctx, s.deps.Ent, l.ID)
+	if err != nil {
+		return apigen.Location{}, err
+	}
+	return apiLocation(l, v4, v6), nil
 }
 
 func locationInput(b *apigen.LocationInput) catalog.LocationInput {
@@ -263,7 +275,9 @@ func (s *server) GetLocations(ctx context.Context, req apigen.GetLocationsReques
 	}
 	out := apigen.GetLocations200JSONResponse{Locations: make([]apigen.Location, len(ls)), Meta: meta(page, perPage, total)}
 	for i, l := range ls {
-		out.Locations[i] = apiLocation(l)
+		if out.Locations[i], err = s.locationWithNetworks(ctx, l); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -276,7 +290,11 @@ func (s *server) GetLocation(ctx context.Context, req apigen.GetLocationRequestO
 	if err != nil {
 		return nil, err
 	}
-	return apigen.GetLocation200JSONResponse(apiLocation(l)), nil
+	out, err := s.locationWithNetworks(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.GetLocation200JSONResponse(out), nil
 }
 
 func (s *server) GetServerTypes(ctx context.Context, req apigen.GetServerTypesRequestObject) (apigen.GetServerTypesResponseObject, error) {

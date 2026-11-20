@@ -102,6 +102,12 @@ func (s *Service) Setup(ctx context.Context, email, pw, name string) (User, erro
 	return toUser(row), nil
 }
 
+// SetupRequired reports whether no user exists yet.
+func (s *Service) SetupRequired(ctx context.Context) (bool, error) {
+	n, err := s.db.User.Query().Count(ctx)
+	return n == 0, err
+}
+
 // CreateUser creates an account and fires the registration hook.
 func (s *Service) CreateUser(ctx context.Context, email, pw, name string, admin bool) (User, error) {
 	u, err := s.CreateUserTx(ctx, s.db, email, pw, name, admin)

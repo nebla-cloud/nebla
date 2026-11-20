@@ -362,6 +362,48 @@ func lowestFree(start, end, gateway netip.Addr, used []netip.Addr) (netip.Addr, 
 	return cand, cand.IsValid() && cand.Compare(end) <= 0
 }
 
+// freeAddr returns the lowest free address of a pool.
+func freeAddr(ctx context.Context, tx *ent.Client, p *ent.IPPool) (netip.Addr, bool, error) {
+	start, err1 := netip.ParseAddr(p.RangeStart)
+	end, err2 := netip.ParseAddr(p.RangeEnd)
+	gw, err3 := netip.ParseAddr(p.Gateway)
+	if err := firstErr(err1, err2, err3); err != nil {
+		return netip.Addr{}, false, fmt.Errorf("pool %d addresses: %w", p.ID, err)
+	}
+	used, err := allocatedAddrs(ctx, tx, p.ID)
+	if err != nil {
+		return netip.Addr{}, false, err
+	}
+	ip, ok := lowestFree(start, end, gw, used)
+	return ip, ok, nil
+}
+
+// Available reports per family whether a pool in the location has a free address; it takes no locks.
+func Available(ctx context.Context, c *ent.Client, locationID int64) (ipv4, ipv6 bool, err error) {
+	pools, err := c.IPPool.Query().Where(ippool.LocationID(locationID)).Order(ent.Asc(ippool.FieldID)).All(ctx)
+	if err != nil {
+		return false, false, err
+	}
+	for _, p := range pools {
+		if (p.Family == FamilyIPv4 && ipv4) || (p.Family == FamilyIPv6 && ipv6) {
+			continue
+		}
+		_, ok, err := freeAddr(ctx, c, p)
+		if err != nil {
+			return false, false, err
+		}
+		if !ok {
+			continue
+		}
+		if p.Family == FamilyIPv4 {
+			ipv4 = true
+		} else {
+			ipv6 = true
+		}
+	}
+	return ipv4, ipv6, nil
+}
+
 // Allocate takes the lowest free address of the family, locking pools in id order; call it inside a transaction.
 func Allocate(ctx context.Context, tx *ent.Client, locationID int64, family string, serverID int64) (Assignment, error) {
 	pools, err := tx.IPPool.Query().Where(ippool.LocationID(locationID), ippool.Family(family)).
@@ -370,17 +412,10 @@ func Allocate(ctx context.Context, tx *ent.Client, locationID int64, family stri
 		return Assignment{}, err
 	}
 	for _, p := range pools {
-		start, err1 := netip.ParseAddr(p.RangeStart)
-		end, err2 := netip.ParseAddr(p.RangeEnd)
-		gw, err3 := netip.ParseAddr(p.Gateway)
-		if err := firstErr(err1, err2, err3); err != nil {
-			return Assignment{}, fmt.Errorf("pool %d addresses: %w", p.ID, err)
-		}
-		used, err := allocatedAddrs(ctx, tx, p.ID)
+		ip, ok, err := freeAddr(ctx, tx, p)
 		if err != nil {
 			return Assignment{}, err
 		}
-		ip, ok := lowestFree(start, end, gw, used)
 		if !ok {
 			continue
 		}

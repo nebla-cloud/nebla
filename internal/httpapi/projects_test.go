@@ -267,3 +267,27 @@ func TestInviteListRevokeAndMismatch(t *testing.T) {
 	require.Equal(t, 404, res.StatusCode)
 	res.Body.Close()
 }
+
+func TestProjectUsage(t *testing.T) {
+	app := testutil.NewApp(t, testutil.QueueOnlyJobs(t))
+	env := testutil.NewServerEnv(app)
+	env.CreateServer("web1", nil)
+	res := env.C.Get("/v1/projects/" + strconv.FormatInt(env.Project, 10))
+	require.Equal(t, 200, res.StatusCode)
+	var got struct {
+		Usage struct {
+			Servers  int `json:"servers"`
+			VCPU     int `json:"vcpu"`
+			MemoryMB int `json:"memory_mb"`
+			DiskGB   int `json:"disk_gb"`
+			IPs      int `json:"ips"`
+		} `json:"usage"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(app.Body(res)), &got))
+	require.Equal(t, 1, got.Usage.Servers)
+	// env.Type is "small": 2 cores, 2048 MB, 20 GB.
+	require.Equal(t, 2, got.Usage.VCPU)
+	require.Equal(t, 2048, got.Usage.MemoryMB)
+	require.Equal(t, 20, got.Usage.DiskGB)
+	require.Equal(t, 1, got.Usage.IPs)
+}
