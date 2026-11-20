@@ -23,6 +23,13 @@
   --color-mint-deep: #2FC795;
   --color-sky-deep: #4C9BEA;
   --color-rose-deep: #EE6F95;
+
+  --animate-nb-dash: nb-dash 1.2s linear infinite;
+  @keyframes nb-dash {
+    to {
+      stroke-dashoffset: -18;
+    }
+  }
 }
 
 :root {

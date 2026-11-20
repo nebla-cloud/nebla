@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Server } from '@/api/types'
-import { serverStatus } from '@/lib/status'
+import { serverStatus, type StatusTone } from '@/lib/status'
 
 const props = withDefaults(defineProps<{ status: Server['status']; size?: number }>(), {
   size: 22,
 })
 const s = computed(() => serverStatus(props.status))
-const stroke = {
+const stroke: Record<StatusTone, string> = {
   success: 'var(--nb-run)',
   busy: 'var(--nb-busy)',
   neutral: 'var(--nb-off)',
@@ -33,15 +33,7 @@ const stroke = {
       stroke-linecap="round"
       stroke-linejoin="round"
       :stroke-dasharray="s.tone === 'busy' ? '7 11' : undefined"
-      :class="s.tone === 'busy' && 'motion-safe:animate-[nb-dash_1.2s_linear_infinite]'"
+      :class="s.tone === 'busy' && 'motion-safe:animate-nb-dash'"
     />
   </svg>
 </template>
-
-<style scoped>
-@keyframes nb-dash {
-  to {
-    stroke-dashoffset: -18;
-  }
-}
-</style>

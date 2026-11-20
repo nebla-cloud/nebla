@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Server } from '@/api/types'
-import { serverStatus } from '@/lib/status'
+import { serverStatus, type StatusTone } from '@/lib/status'
 
 const props = defineProps<{ status: Server['status'] }>()
 const s = computed(() => serverStatus(props.status))
-const tone = {
+const tone: Record<StatusTone, string> = {
   success: 'bg-[var(--nb-run)]',
   busy: 'bg-[var(--nb-busy)]',
   neutral: 'bg-[var(--nb-off)]',
