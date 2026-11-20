@@ -3,7 +3,13 @@ import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { testRouter } from '@/test/mount'
 import { parseProjectId } from '@/lib/project'
-import { api, onUnauthorized, redirectOnUnauthorized, setProjectSource } from './client'
+import {
+  api,
+  onUnauthorized,
+  redirectOnUnauthorized,
+  reportUnauthorized,
+  setProjectSource,
+} from './client'
 import { ApiError, errorMessage, unwrap } from './errors'
 
 describe('api client', () => {
@@ -41,6 +47,34 @@ describe('api client', () => {
     await api.GET('/me')
     expect(fn).not.toHaveBeenCalled()
     await api.GET('/servers')
+    expect(fn).toHaveBeenCalledOnce()
+  })
+
+  it("quiet paths don't redirect", async () => {
+    const fn = vi.fn()
+    onUnauthorized(fn)
+    const body = { error: { code: 'unauthorized', message: 'no' } }
+    server.use(
+      http.put('*/v1/me/password', () => json(401, body)),
+      http.post('*/v1/invites/:token/accept', () => json(401, body)),
+      http.get('*/v1/servers', () => json(401, body)),
+    )
+    // Paths from the parallel OpenAPI change aren't typed here yet.
+    const loose = api as unknown as {
+      PUT: (p: string, o: object) => Promise<unknown>
+      POST: (p: string, o: object) => Promise<unknown>
+    }
+    await loose.PUT('/me/password', { body: {} })
+    await loose.POST('/invites/{token}/accept', { params: { path: { token: 't' } }, body: {} })
+    expect(fn).not.toHaveBeenCalled()
+    await api.GET('/servers')
+    expect(fn).toHaveBeenCalledOnce()
+  })
+
+  it('reportUnauthorized calls the handler', () => {
+    const fn = vi.fn()
+    onUnauthorized(fn)
+    reportUnauthorized()
     expect(fn).toHaveBeenCalledOnce()
   })
 
