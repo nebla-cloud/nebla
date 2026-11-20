@@ -78,6 +78,7 @@ func newRootCmd(env Env) *cobra.Command {
 	f.StringVar(&g.config, "config", "", "path to the config file")
 	f.StringVarP(&g.output, "output", "o", "table", "output format: table, json or yaml")
 
+	root.AddCommand(newContextCmd(env, g))
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print the nebla version",
