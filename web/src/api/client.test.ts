@@ -85,6 +85,50 @@ describe('api client', () => {
     onForbidden(() => {})
   })
 
+  it('a project get 403 does not loop with a Project-ID header', async () => {
+    const fn = vi.fn()
+    onForbidden(fn)
+    server.use(
+      http.get('*/v1/projects/5', () =>
+        json(403, { error: { code: 'forbidden', message: 'no' } }),
+      ),
+    )
+    setProjectSource(() => 5)
+    await api.GET('/projects/{id}', { params: { path: { id: 5 } } })
+    setProjectSource(null)
+    expect(fn).not.toHaveBeenCalled()
+    onForbidden(() => {})
+  })
+
+  it('a server-scoped 403 refreshes the role', async () => {
+    const fn = vi.fn()
+    onForbidden(fn)
+    server.use(
+      http.get('*/v1/servers/3', () =>
+        json(403, { error: { code: 'forbidden', message: 'no' } }),
+      ),
+    )
+    setProjectSource(() => 7)
+    await api.GET('/servers/{id}', { params: { path: { id: 3 } } })
+    setProjectSource(null)
+    expect(fn).toHaveBeenCalledWith(7)
+    onForbidden(() => {})
+  })
+
+  it('passkey paths keep a 401 quiet', async () => {
+    const fn = vi.fn()
+    onUnauthorized(fn)
+    const body = { error: { code: 'unauthorized', message: 'no' } }
+    server.use(
+      http.post('*/v1/auth/passkey/finish', () => json(401, body)),
+      http.post('*/v1/me/passkeys/begin', () => json(401, body)),
+    )
+    const loose = api as unknown as { POST: (path: string) => Promise<unknown> }
+    await loose.POST('/auth/passkey/finish')
+    await loose.POST('/me/passkeys/begin')
+    expect(fn).not.toHaveBeenCalled()
+  })
+
   it('reportUnauthorized calls the handler', () => {
     const fn = vi.fn()
     onUnauthorized(fn)

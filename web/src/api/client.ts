@@ -1,6 +1,6 @@
 import createClient, { type Client, type Middleware } from 'openapi-fetch'
 import type { Router } from 'vue-router'
-import { parseProjectId } from '@/lib/project'
+import { parseProjectId } from '@/lib/projectId'
 import type { paths } from './schema'
 
 let projectSource: (() => number | null) | null = null
@@ -52,6 +52,8 @@ const quiet401 = new Set<string>([
   '/auth/totp/verify',
   '/auth/totp/disable',
   '/me/password',
+  '/auth/passkey/finish',
+  '/me/passkeys/begin',
   '/invites/{token}',
   '/invites/{token}/accept',
 ])
@@ -69,10 +71,14 @@ const middleware: Middleware = {
   },
   onResponse({ request, response, schemaPath }) {
     if (response.status === 401 && !quiet401.has(schemaPath)) unauthorized?.()
-    // The project query itself answers 403 for a lost project; refetching it would loop.
-    if (response.status === 403 && schemaPath.startsWith('/projects/{id}')) {
+    if (response.status === 403) {
+      const header = parseProjectId(request.headers.get('Project-ID'))
+      // The project query itself answers 403 for a lost project; refetching it would loop.
       const isProjectGet = schemaPath === '/projects/{id}' && request.method === 'GET'
-      const id = parseProjectId(new URL(request.url).pathname.match(/\/projects\/(\d+)/)?.[1])
+      const pathId = schemaPath.startsWith('/projects/{id}')
+        ? parseProjectId(new URL(request.url).pathname.match(/\/projects\/(\d+)/)?.[1])
+        : null
+      const id = pathId ?? header
       if (!isProjectGet && id !== null) forbidden?.(id)
     }
     return response

@@ -4,15 +4,12 @@ import { useQuery, type QueryClient } from '@tanstack/vue-query'
 import { onForbidden } from '@/api/client'
 import type { Project } from '@/api/types'
 import { projectQuery } from '@/features/projects/queries'
+import { parseProjectId } from './projectId'
 import { readStorage, removeStorage, writeStorage } from './storage'
 
-const LAST_PROJECT = 'nebla.lastProject'
+export { parseProjectId }
 
-export function parseProjectId(v: unknown): number | null {
-  if (typeof v !== 'string' || !/^[1-9]\d*$/.test(v)) return null
-  const n = Number(v)
-  return Number.isSafeInteger(n) ? n : null
-}
+const LAST_PROJECT = 'nebla.lastProject'
 
 export function readLastProject(): number | null {
   return parseProjectId(readStorage(LAST_PROJECT))
