@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import type { LocationEnrollment } from '@/api/types'
+import { useAdminLocations } from '@/lib/adminQueries'
 import { useFinishEnrollment, type EnrollmentFinish, type EnrollmentFinished } from './queries'
 
 const props = defineProps<{ enrollment: LocationEnrollment }>()
@@ -15,10 +16,11 @@ const id = computed(() => props.enrollment.id)
 const report = computed(() => props.enrollment.report!)
 const rerun = computed(() => props.enrollment.location_id !== null)
 const finish = useFinishEnrollment(id)
+const { data: locations, isPending: locationsPending } = useAdminLocations()
+const current = computed(() => locations.value?.find((l) => l.id === props.enrollment.location_id))
 
-const nodeUrl = (ip: string) => `https://${ip}:8006`
+const nodeUrl = (ip: string) => `https://${ip.includes(':') ? `[${ip}]` : ip}:8006`
 const own = computed(() => report.value.nodes.find((n) => n.name === report.value.node))
-const others = computed(() => report.value.nodes.filter((n) => n.name !== report.value.node))
 const disks = computed(() => report.value.storages.filter((s) => s.content.includes('images')))
 const isos = computed(() =>
   report.value.storages.filter((s) => s.nebla_iso && s.content.includes('iso')),
@@ -27,12 +29,31 @@ const imports = computed(() =>
   report.value.storages.filter((s) => s.nebla_iso && s.content.includes('import')),
 )
 
-const form = reactive({
-  url: own.value ? nodeUrl(own.value.ip) : '',
-  disk: disks.value[0]?.id ?? '',
-  iso: isos.value[0]?.id ?? '',
-  imp: '',
-})
+const form = reactive({ url: '', disk: '', iso: '', imp: '' })
+const initialUrl = ref('')
+const ready = ref(false)
+// Offline members may have no ip; the start URL is already in the input.
+const others = computed(() =>
+  report.value.nodes.filter((n) => n.ip && nodeUrl(n.ip) !== initialUrl.value),
+)
+
+// A Re-run keeps the location's current settings where the report still allows them.
+watch(
+  [rerun, locationsPending, current],
+  () => {
+    if (ready.value || (rerun.value && locationsPending.value)) return
+    const loc = rerun.value ? current.value : undefined
+    const pick = (list: { id: string }[], want: string | undefined, fallback: string) =>
+      want && list.some((s) => s.id === want) ? want : fallback
+    form.url = loc?.pve.url ?? (own.value?.ip ? nodeUrl(own.value.ip) : '')
+    form.disk = pick(disks.value, loc?.disk_storage, disks.value[0]?.id ?? '')
+    form.iso = pick(isos.value, loc?.iso_storage, isos.value[0]?.id ?? '')
+    form.imp = pick(imports.value, loc?.import_storage, '')
+    initialUrl.value = form.url
+    ready.value = true
+  },
+  { immediate: true },
+)
 const formError = ref<string | null>(null)
 
 const selectClass =
@@ -55,7 +76,9 @@ async function submit() {
 </script>
 
 <template>
+  <p v-if="!ready" class="text-muted">Loading location</p>
   <form
+    v-else
     class="flex max-w-2xl flex-col gap-5"
     novalidate
     data-testid="enroll-finish"
@@ -115,7 +138,7 @@ async function submit() {
       <tbody>
         <tr v-for="n in report.nodes" :key="n.name" class="border-t border-default align-top">
           <td class="py-1 pr-3 text-highlighted">{{ n.name }}</td>
-          <td class="py-1 pr-3">{{ n.ip }}</td>
+          <td class="py-1 pr-3">{{ n.ip || '—' }}</td>
           <td class="py-1 font-mono text-xs break-all">{{ n.fingerprint }}</td>
         </tr>
       </tbody>
