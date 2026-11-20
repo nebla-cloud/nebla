@@ -67,10 +67,104 @@ afterEach(() => {
 })
 
 describe('ServerDetailShell', () => {
+  it('starting a rebuild returns to Overview with progress', async () => {
+    serve(makeServer({ id: 5 }))
+    server.use(
+      http.get('*/v1/images', () =>
+        json(200, {
+          images: [makeServer().image],
+          meta: { pagination: { page: 1, per_page: 50, total_entries: 1 } },
+        }),
+      ),
+      http.post('*/v1/servers/5/actions/rebuild', () =>
+        json(201, { action: action({ id: 8, command: 'rebuild_server' }) }),
+      ),
+      http.get('*/v1/actions/8', () =>
+        json(200, action({ id: 8, command: 'rebuild_server', status: 'success', progress: 100 })),
+      ),
+    )
+    const { wrapper, router } = await mountDetail('/p/1/servers/5/rebuild')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Debian 13'))
+    const rebuild = () =>
+      Array.from(document.body.querySelectorAll('button')).filter(
+        (b) => b.textContent?.trim() === 'Rebuild',
+      )
+    rebuild()[0]!.click()
+    await vi.waitFor(() =>
+      expect(document.body.querySelector('input[name=confirm_name]')).toBeTruthy(),
+    )
+    const input = document.body.querySelector('input[name=confirm_name]') as HTMLInputElement
+    input.value = 'web1'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(rebuild().at(-1)!.disabled).toBe(false))
+    rebuild().at(-1)!.click()
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Rebuilding'))
+  })
+
+  it('resize form enables once shutdown completes', async () => {
+    let off = false
+    server.use(
+      http.get('*/v1/projects/1', () =>
+        json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
+      ),
+      http.get('*/v1/servers/5', () => {
+        return json(200, makeServer({ id: 5, status: off ? 'off' : 'running' }))
+      }),
+      http.get('*/v1/servers', () => json(200, emptyList)),
+      http.get('*/v1/server_types', () =>
+        json(200, {
+          server_types: [
+            makeServer().server_type,
+            { ...makeServer().server_type, id: 4, name: 'big', cores: 4, disk_gb: 80 },
+          ],
+          meta: { pagination: { page: 1, per_page: 50, total_entries: 2 } },
+        }),
+      ),
+      http.post('*/v1/servers/5/actions/shutdown', () =>
+        json(201, {
+          action: action({
+            id: 6,
+            command: 'shutdown_server',
+            resources: [{ id: 5, type: 'server' }],
+          }),
+        }),
+      ),
+      http.get('*/v1/actions/6', () => {
+        off = true
+        return json(
+          200,
+          action({
+            id: 6,
+            command: 'shutdown_server',
+            resources: [{ id: 5, type: 'server' }],
+            status: 'success',
+            progress: 100,
+            finished: '2026-11-20T10:01:00Z',
+          }),
+        )
+      }),
+    )
+    const { wrapper } = await mountDetail('/p/1/servers/5/resize')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('big'))
+    const root = wrapper.element as Element
+    const resize = () =>
+      Array.from(root.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Resize')!
+    expect(resize().disabled).toBe(true)
+    Array.from(root.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Shut down')!
+      .click()
+    await vi.waitFor(() =>
+      expect(wrapper.text()).not.toContain('Shut the server down to resize it'),
+    )
+    root.querySelectorAll<HTMLInputElement>('input[type=radio]')[1]!.click()
+    await vi.waitFor(() => expect(resize().disabled).toBe(false))
+  })
+
   it('child route renders its tab', async () => {
     serve(makeServer({ id: 5 }))
     const { wrapper } = await mountDetail('/p/1/servers/5/rebuild')
-    expect(wrapper.text()).toContain('Coming soon')
+    expect(wrapper.text()).toContain('Rebuilding erases the disk')
     const current = wrapper.find('nav[aria-label="Server sections"] a[aria-current="page"]')
     expect(current.text()).toBe('Rebuild')
   })
