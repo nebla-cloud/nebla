@@ -18,11 +18,13 @@ require (
 	github.com/riverqueue/river/riverdriver/riverdatabasesql v0.51.2
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.2
 	github.com/riverqueue/river/rivertype v0.51.2
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
 	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/crypto v0.59.0
+	golang.org/x/term v0.48.0
 	golang.org/x/time v0.16.0
 )
 
@@ -100,7 +102,6 @@ require (
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/speakeasy-api/jsonpath v0.6.3 // indirect; pinned for oapi-codegen v2.8.2
 	github.com/speakeasy-api/openapi v1.24.0 // indirect; pinned for oapi-codegen v2.8.2
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/tidwall/gjson v1.20.4 // indirect
 	github.com/tidwall/match v1.2.0 // indirect

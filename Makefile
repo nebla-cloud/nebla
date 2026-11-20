@@ -5,7 +5,7 @@ ATLAS_DEV_URL := docker://postgres/17/dev?search_path=public
 
 generate:
 	go generate ./internal/ent
-	@if [ -f api/openapi.yaml ]; then go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml; fi
+	@if [ -f api/openapi.yaml ]; then go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml; go tool oapi-codegen -config api/oapi-codegen-client.yaml api/openapi.yaml; fi
 	@if command -v pnpm >/dev/null 2>&1; then cd web && pnpm gen; fi
 
 web:
@@ -29,3 +29,4 @@ test:
 
 build:
 	go build -o bin/nebla-server ./cmd/nebla-server
+	go build -o bin/nebla ./cmd/nebla
