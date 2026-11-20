@@ -18,6 +18,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
@@ -356,6 +357,33 @@ func (f TraverseLocation) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.LocationQuery", q)
 }
 
+// The LocationEnrollmentFunc type is an adapter to allow the use of ordinary function as a Querier.
+type LocationEnrollmentFunc func(context.Context, *ent.LocationEnrollmentQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f LocationEnrollmentFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.LocationEnrollmentQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.LocationEnrollmentQuery", q)
+}
+
+// The TraverseLocationEnrollment type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseLocationEnrollment func(context.Context, *ent.LocationEnrollmentQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseLocationEnrollment) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseLocationEnrollment) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.LocationEnrollmentQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.LocationEnrollmentQuery", q)
+}
+
 // The NodeFunc type is an adapter to allow the use of ordinary function as a Querier.
 type NodeFunc func(context.Context, *ent.NodeQuery) (ent.Value, error)
 
@@ -622,6 +650,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.InviteQuery, predicate.Invite, invite.OrderOption]{typ: ent.TypeInvite, tq: q}, nil
 	case *ent.LocationQuery:
 		return &query[*ent.LocationQuery, predicate.Location, location.OrderOption]{typ: ent.TypeLocation, tq: q}, nil
+	case *ent.LocationEnrollmentQuery:
+		return &query[*ent.LocationEnrollmentQuery, predicate.LocationEnrollment, locationenrollment.OrderOption]{typ: ent.TypeLocationEnrollment, tq: q}, nil
 	case *ent.NodeQuery:
 		return &query[*ent.NodeQuery, predicate.Node, node.OrderOption]{typ: ent.TypeNode, tq: q}, nil
 	case *ent.ProjectQuery:

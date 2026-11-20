@@ -386,6 +386,67 @@ var (
 			},
 		},
 	}
+	// LocationEnrollmentsColumns holds the columns for the "location_enrollments" table.
+	LocationEnrollmentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "token_name", Type: field.TypeString, Size: 2147483647},
+		{Name: "token_hash", Type: field.TypeBytes},
+		{Name: "state", Type: field.TypeEnum, Enums: []string{"waiting", "reported"}, Default: "waiting"},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "token_id", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "token_secret", Type: field.TypeBytes, Nullable: true},
+		{Name: "report", Type: field.TypeBytes, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "location_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "created_by", Type: field.TypeInt64},
+	}
+	// LocationEnrollmentsTable holds the schema information for the "location_enrollments" table.
+	LocationEnrollmentsTable = &schema.Table{
+		Name:       "location_enrollments",
+		Columns:    LocationEnrollmentsColumns,
+		PrimaryKey: []*schema.Column{LocationEnrollmentsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "location_enrollments_locations_location",
+				Columns:    []*schema.Column{LocationEnrollmentsColumns[11]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "location_enrollments_users_creator",
+				Columns:    []*schema.Column{LocationEnrollmentsColumns[12]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "location_enrollments_token_hash_key",
+				Unique:  true,
+				Columns: []*schema.Column{LocationEnrollmentsColumns[4]},
+			},
+			{
+				Name:    "location_enrollments_location_id_key",
+				Unique:  true,
+				Columns: []*schema.Column{LocationEnrollmentsColumns[11]},
+			},
+			{
+				Name:    "location_enrollments_new_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{LocationEnrollmentsColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "location_id IS NULL",
+				},
+			},
+			{
+				Name:    "location_enrollments_expires_at_idx",
+				Unique:  false,
+				Columns: []*schema.Column{LocationEnrollmentsColumns[6]},
+			},
+		},
+	}
 	// NodesColumns holds the columns for the "nodes" table.
 	NodesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -737,6 +798,7 @@ var (
 		ImageTemplatesTable,
 		InvitesTable,
 		LocationsTable,
+		LocationEnrollmentsTable,
 		NodesTable,
 		ProjectsTable,
 		ProjectMembersTable,
@@ -764,6 +826,8 @@ func init() {
 	ImageTemplatesTable.ForeignKeys[1].RefTable = LocationsTable
 	InvitesTable.ForeignKeys[0].RefTable = ProjectsTable
 	InvitesTable.ForeignKeys[1].RefTable = UsersTable
+	LocationEnrollmentsTable.ForeignKeys[0].RefTable = LocationsTable
+	LocationEnrollmentsTable.ForeignKeys[1].RefTable = UsersTable
 	NodesTable.ForeignKeys[0].RefTable = LocationsTable
 	ProjectsTable.ForeignKeys[0].RefTable = UsersTable
 	ProjectMembersTable.ForeignKeys[0].RefTable = ProjectsTable

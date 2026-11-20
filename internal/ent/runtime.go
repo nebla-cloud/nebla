@@ -15,6 +15,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
@@ -150,6 +151,20 @@ func init() {
 	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
 	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	location.UpdateDefaultUpdatedAt = locationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	locationenrollmentFields := schema.LocationEnrollment{}.Fields()
+	_ = locationenrollmentFields
+	// locationenrollmentDescDescription is the schema descriptor for description field.
+	locationenrollmentDescDescription := locationenrollmentFields[2].Descriptor()
+	// locationenrollment.DefaultDescription holds the default value on creation for the description field.
+	locationenrollment.DefaultDescription = locationenrollmentDescDescription.Default.(string)
+	// locationenrollmentDescTokenID is the schema descriptor for token_id field.
+	locationenrollmentDescTokenID := locationenrollmentFields[8].Descriptor()
+	// locationenrollment.DefaultTokenID holds the default value on creation for the token_id field.
+	locationenrollment.DefaultTokenID = locationenrollmentDescTokenID.Default.(string)
+	// locationenrollmentDescCreatedAt is the schema descriptor for created_at field.
+	locationenrollmentDescCreatedAt := locationenrollmentFields[12].Descriptor()
+	// locationenrollment.DefaultCreatedAt holds the default value on creation for the created_at field.
+	locationenrollment.DefaultCreatedAt = locationenrollmentDescCreatedAt.Default.(func() time.Time)
 	nodeFields := schema.Node{}.Fields()
 	_ = nodeFields
 	// nodeDescEnabled is the schema descriptor for enabled field.

@@ -22,6 +22,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
@@ -91,25 +92,26 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			apitoken.Table:      apitoken.ValidColumn,
-			action.Table:        action.ValidColumn,
-			catalogbuild.Table:  catalogbuild.ValidColumn,
-			consoletoken.Table:  consoletoken.ValidColumn,
-			ipallocation.Table:  ipallocation.ValidColumn,
-			ippool.Table:        ippool.ValidColumn,
-			image.Table:         image.ValidColumn,
-			imagetemplate.Table: imagetemplate.ValidColumn,
-			invite.Table:        invite.ValidColumn,
-			location.Table:      location.ValidColumn,
-			node.Table:          node.ValidColumn,
-			project.Table:       project.ValidColumn,
-			projectmember.Table: projectmember.ValidColumn,
-			sshkey.Table:        sshkey.ValidColumn,
-			server.Table:        server.ValidColumn,
-			servertype.Table:    servertype.ValidColumn,
-			session.Table:       session.ValidColumn,
-			setting.Table:       setting.ValidColumn,
-			user.Table:          user.ValidColumn,
+			apitoken.Table:           apitoken.ValidColumn,
+			action.Table:             action.ValidColumn,
+			catalogbuild.Table:       catalogbuild.ValidColumn,
+			consoletoken.Table:       consoletoken.ValidColumn,
+			ipallocation.Table:       ipallocation.ValidColumn,
+			ippool.Table:             ippool.ValidColumn,
+			image.Table:              image.ValidColumn,
+			imagetemplate.Table:      imagetemplate.ValidColumn,
+			invite.Table:             invite.ValidColumn,
+			location.Table:           location.ValidColumn,
+			locationenrollment.Table: locationenrollment.ValidColumn,
+			node.Table:               node.ValidColumn,
+			project.Table:            project.ValidColumn,
+			projectmember.Table:      projectmember.ValidColumn,
+			sshkey.Table:             sshkey.ValidColumn,
+			server.Table:             server.ValidColumn,
+			servertype.Table:         servertype.ValidColumn,
+			session.Table:            session.ValidColumn,
+			setting.Table:            setting.ValidColumn,
+			user.Table:               user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

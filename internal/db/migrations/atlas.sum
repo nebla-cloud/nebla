@@ -1,4 +1,4 @@
-h1:b9pEr6ZlX2e6+f8CGKbvv0IQahnS9v3dXZ5rZhiOgmg=
+h1:yJBBr1CBfW3jLmflV1Mh0/209uy1sxZSrO+DWBUxISo=
 20261119105548_init.sql h1:EL0wlRJaIZf26vclFT/BsRYrEFStJzVJhaltQ0wTkz4=
 20261119110230_projects.sql h1:FWVokMkt36i6NSMVGFL2FScgdnpsAMivd1GnRyMlz8o=
 20261119111342_invite_created_by.sql h1:Sp/jQJ0Ph3MBWu6cAp6yetOszMZefiSu3lyEFfFp728=
@@ -15,3 +15,4 @@ h1:b9pEr6ZlX2e6+f8CGKbvv0IQahnS9v3dXZ5rZhiOgmg=
 20261120005909_os_templates.sql h1:TESHNZK7TNDiFVSVytkBAWEnL2qZoq1S1I7BJ4ivA3Y=
 20261120014524_catalog_build_node.sql h1:5xJzA156p5TjMc0Pabb5JsZTsvELs/LNo3QHskkKfvU=
 20261120035114_project_created_by.sql h1:KV3b3UGmSy9/urzvLRh6QP+MxjTUnEW/XMpBm6KXPx4=
+20261120064248_location_enrollments.sql h1:o5roHtRwFolYdAu3YqAEhIyDvwi2nCcH5shHZbpZlXE=

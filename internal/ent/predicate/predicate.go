@@ -36,6 +36,9 @@ type Invite func(*sql.Selector)
 // Location is the predicate function for location builders.
 type Location func(*sql.Selector)
 
+// LocationEnrollment is the predicate function for locationenrollment builders.
+type LocationEnrollment func(*sql.Selector)
+
 // Node is the predicate function for node builders.
 type Node func(*sql.Selector)
 
