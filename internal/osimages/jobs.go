@@ -6,6 +6,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 )
 
 const (
@@ -57,9 +58,13 @@ func (CleanupArgs) InsertOpts() river.InsertOpts {
 
 // TemplatesPending is the catalog.Hooks.TemplatesPending implementation; retryable counts as live here.
 func TemplatesPending(ctx context.Context, c *ent.Client, locationID int64) (bool, error) {
+	states := []string{string(rivertype.JobStateRetryable)}
+	for _, st := range jobs.LiveStates {
+		states = append(states, string(st))
+	}
 	rows, err := c.QueryContext(ctx, `select exists (select 1 from river_job where kind in ($1, $2)
-		and (args->>'location_id')::bigint = $3 and state in ('available', 'pending', 'running', 'scheduled', 'retryable'))`,
-		KindRetire, KindCleanup, locationID)
+		and (args->>'location_id')::bigint = $3 and state::text = any($4))`,
+		KindRetire, KindCleanup, locationID, states)
 	if err != nil {
 		return false, err
 	}

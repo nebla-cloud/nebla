@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -628,4 +630,23 @@ func (e *env) insertJob(args river.JobArgs) {
 	_, err = e.jobs.InsertTx(context.Background(), tx, args, nil)
 	require.NoError(e.t, err)
 	require.NoError(e.t, tx.Commit())
+}
+
+func TestTemplatesPendingStates(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "local-lvm", "imp")
+	e.insertJob(osimages.CleanupArgs{BuildID: 1, LocationID: loc, VMID: 7000, Tag: "nebla-tpl-1-aa"})
+	live := append(slices.Clone(jobs.LiveStates), rivertype.JobStateRetryable)
+	for _, st := range append(live, rivertype.JobStateCompleted, rivertype.JobStateDiscarded, rivertype.JobStateCancelled) {
+		fin := "null"
+		if !slices.Contains(live, st) {
+			fin = "now()"
+		}
+		_, err := e.sql.Exec(`update river_job set state = $1, finalized_at = `+fin+` where kind = $2`, st, osimages.KindCleanup)
+		require.NoError(t, err)
+		pending, err := osimages.TemplatesPending(ctx, e.ent, loc)
+		require.NoError(t, err)
+		require.Equal(t, slices.Contains(live, st), pending, st)
+	}
 }
