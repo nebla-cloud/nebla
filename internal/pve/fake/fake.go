@@ -177,6 +177,13 @@ func (s *Server) AddStorage(nodeName, id string, content []string, shared bool) 
 	s.nodes[nodeName].storages[id] = &storage{content: content, shared: shared, availMB: 500_000}
 }
 
+// SetStorageAvail sets the free space a node's storage reports.
+func (s *Server) SetStorageAvail(nodeName, id string, availMB int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nodes[nodeName].storages[id].availMB = availMB
+}
+
 // AddTemplate adds a template VM with a scsi0 boot disk on storageID (created if missing).
 func (s *Server) AddTemplate(nodeName string, vmid int, storageID string) {
 	s.mu.Lock()

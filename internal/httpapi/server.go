@@ -33,6 +33,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/settings"
 	"github.com/nebla-cloud/nebla/internal/sshkeys"
+	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/nebla-cloud/nebla/web"
 	"golang.org/x/time/rate"
 )
@@ -226,7 +227,7 @@ func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hoo
 		p.HasServers = servers.HasServers
 	}
 	if p.Usage == nil {
-		p.Usage = servers.Usage
+		p.Usage = volumes.UsageWith(servers.Usage)
 	}
 	if c.LocationInUse == nil {
 		c.LocationInUse = servers.LocationInUse

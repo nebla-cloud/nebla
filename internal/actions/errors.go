@@ -25,6 +25,11 @@ var verbs = map[string]string{
 	"reboot_server":      "reboot the server",
 	"reset_server":       "reset the server",
 	"apply_firewalls":    "apply the firewall rules",
+	"create_volume":      "create the volume",
+	"attach_volume":      "attach the volume",
+	"detach_volume":      "detach the volume",
+	"resize_volume":      "resize the volume",
+	"delete_volume":      "delete the volume",
 }
 
 var templates = map[string]string{

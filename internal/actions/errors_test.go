@@ -15,7 +15,8 @@ var codes = []string{actions.CodeFailed, actions.CodeTimedOut, actions.CodeUnrea
 
 func TestMessageTable(t *testing.T) {
 	commands := []string{"create_server", "delete_server", "rebuild_server", "change_server_type", "start_server",
-		"stop_server", "shutdown_server", "reboot_server", "reset_server", "something_new"}
+		"stop_server", "shutdown_server", "reboot_server", "reset_server", "create_volume", "attach_volume", "detach_volume", "resize_volume", "delete_volume",
+		"something_new"}
 	digit := regexp.MustCompile(`\d`)
 	banned := []string{"vm", "vmid", "node", "storage", "proxmox", "pve", "template", "iso"}
 	for _, cmd := range commands {
@@ -30,6 +31,7 @@ func TestMessageTable(t *testing.T) {
 	}
 	require.Equal(t, "Couldn't reboot the server. Try again, or contact your admin.", actions.Message("reboot_server", "failed"))
 	require.Equal(t, "The server no longer exists.", actions.Message("create_server", "server_gone"))
+	require.Equal(t, "Couldn't attach the volume. Try again, or contact your admin.", actions.Message("attach_volume", "failed"))
 	require.Equal(t, "Couldn't complete the action. Try again, or contact your admin.", actions.Message("x", "failed"))
 	require.Equal(t, actions.Message("delete_server", "failed"), actions.Message("delete_server", "pve_error"))
 }
