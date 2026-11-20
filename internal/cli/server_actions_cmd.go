@@ -25,12 +25,10 @@ func runServerAction(a *app, cmd *cobra.Command, wo *waitOpts, ref string, call 
 	}
 	act := v.Action
 	if !wo.NoWait {
+		api.Timeout = wo.Timeout
 		fin, err := api.Wait(cmd.Context(), a.env.Stderr, a.stderrTTY(), act.Id)
 		if err != nil {
 			return err
-		}
-		if len(fin) == 0 {
-			return fmt.Errorf("no result for action %s", id64(act.Id))
 		}
 		act = fin[0]
 	}

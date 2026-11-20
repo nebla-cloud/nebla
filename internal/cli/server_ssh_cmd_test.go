@@ -94,3 +94,11 @@ func TestServerSSHBadPort(t *testing.T) {
 		}
 	}
 }
+
+func TestServerSSHRejectsRemoteCommand(t *testing.T) {
+	h := runningServer(t)
+	got, errOut, code := runSSH(h, "server", "ssh", "web1", "--", "uptime")
+	if code != 1 || got != nil || !strings.Contains(errOut, "arguments after -- are ssh options") {
+		t.Fatalf("got %v %d %q", got, code, errOut)
+	}
+}

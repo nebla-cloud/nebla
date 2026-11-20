@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/cli/apiclient"
@@ -47,14 +46,18 @@ func newContextCmd(a *app) *cobra.Command {
 			in := bufio.NewReader(env.Stdin)
 			if endpoint == "" {
 				fmt.Fprint(env.Stderr, "Endpoint: ")
-				line, _ := in.ReadString('\n')
+				line, err := readLine(cmd.Context(), in)
+				if err != nil {
+					fmt.Fprintln(env.Stderr)
+					return err
+				}
 				endpoint = strings.TrimSpace(line)
 			}
 			ep, err := normalizeEndpoint(endpoint)
 			if err != nil {
 				return err
 			}
-			token, err := readToken(env, in)
+			token, err := readToken(cmd.Context(), env, in)
 			if err != nil {
 				return err
 			}
@@ -68,6 +71,9 @@ func newContextCmd(a *app) *cobra.Command {
 			if err := cfg.Save(); err != nil {
 				return err
 			}
+			if a.flags.output != "table" {
+				return a.printer().Object(contextView{Name: name, Endpoint: ep, Active: cfg.ActiveContext == name})
+			}
 			fmt.Fprintf(env.Stdout, "Context %s created\n", name)
 			return nil
 		},
@@ -75,6 +81,7 @@ func newContextCmd(a *app) *cobra.Command {
 	create.Flags().StringVar(&endpoint, "endpoint", "", "panel base URL")
 	create.Flags().BoolVar(&activate, "activate", false, "make the new context active")
 
+	var noHeader bool
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List contexts",
@@ -84,18 +91,27 @@ func newContextCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			w := tabwriter.NewWriter(env.Stdout, 0, 8, 2, ' ', 0)
-			fmt.Fprintln(w, "NAME\tENDPOINT\tACTIVE")
+			views := make([]contextView, 0, len(cfg.Contexts))
+			rows := make([][]string, 0, len(cfg.Contexts))
 			for _, c := range cfg.Contexts {
+				active := c.Name == cfg.ActiveContext
+				views = append(views, contextView{Name: c.Name, Endpoint: c.Endpoint, Active: active})
 				mark := ""
-				if c.Name == cfg.ActiveContext {
+				if active {
 					mark = "*"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\n", c.Name, c.Endpoint, mark)
+				rows = append(rows, []string{c.Name, c.Endpoint, mark})
 			}
-			return w.Flush()
+			p := a.printer()
+			if a.flags.output != "table" {
+				return p.Object(views)
+			}
+			p.NoHeader = noHeader
+			p.Table([]string{"NAME", "ENDPOINT", "ACTIVE"}, rows)
+			return nil
 		},
 	}
+	list.Flags().BoolVar(&noHeader, "no-header", false, "omit the table header")
 
 	use := &cobra.Command{
 		Use:   "use <name>",
@@ -143,21 +159,66 @@ func newContextCmd(a *app) *cobra.Command {
 	return cmd
 }
 
+// contextView is a context without its token.
+type contextView struct {
+	Name     string `json:"name"`
+	Endpoint string `json:"endpoint"`
+	Active   bool   `json:"active"`
+}
+
+// readLine reads one line from in, giving up with ErrInterrupted when ctx ends first.
+func readLine(ctx context.Context, in *bufio.Reader) (string, error) {
+	ch := make(chan string, 1)
+	go func() {
+		s, _ := in.ReadString('\n')
+		ch <- s
+	}()
+	select {
+	case s := <-ch:
+		return s, nil
+	case <-ctx.Done():
+		return "", ErrInterrupted
+	}
+}
+
 // readToken reads the token from a hidden prompt, NEBLA_TOKEN, or one line of stdin.
-func readToken(env Env, in *bufio.Reader) (string, error) {
+func readToken(ctx context.Context, env Env, in *bufio.Reader) (string, error) {
 	if f, ok := env.Stdin.(*os.File); ok && env.IsTerminal != nil && env.IsTerminal(int(f.Fd())) {
+		fd := int(f.Fd())
 		fmt.Fprint(env.Stderr, "Token: ")
-		b, err := term.ReadPassword(int(f.Fd()))
-		fmt.Fprintln(env.Stderr)
+		state, err := term.GetState(fd)
 		if err != nil {
 			return "", err
 		}
-		return requireToken(string(b))
+		type pw struct {
+			b   []byte
+			err error
+		}
+		ch := make(chan pw, 1)
+		go func() {
+			b, err := term.ReadPassword(fd)
+			ch <- pw{b, err}
+		}()
+		select {
+		case r := <-ch:
+			fmt.Fprintln(env.Stderr)
+			if r.err != nil {
+				return "", r.err
+			}
+			return requireToken(string(r.b))
+		case <-ctx.Done():
+			_ = term.Restore(fd, state)
+			fmt.Fprintln(env.Stderr)
+			return "", ErrInterrupted
+		}
 	}
 	if t := env.Getenv("NEBLA_TOKEN"); t != "" {
 		return requireToken(t)
 	}
-	line, _ := in.ReadString('\n')
+	line, err := readLine(ctx, in)
+	if err != nil {
+		return "", err
+	}
 	return requireToken(line)
 }
 

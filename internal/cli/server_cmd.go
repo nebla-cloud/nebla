@@ -122,6 +122,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 		after := func(err error) error {
 			return fmt.Errorf("server %s was created, but: %w", id64(created.Server.Id), err)
 		}
+		api.Timeout = wo.Timeout
 		done, err := api.Wait(cmd.Context(), a.env.Stderr, a.stderrTTY(), ids...)
 		if err != nil {
 			return after(err)
@@ -251,6 +252,7 @@ func serverDeleteCmd(a *app) *cobra.Command {
 		}
 		act := v.Action
 		if !wo.NoWait {
+			api.Timeout = wo.Timeout
 			done, err := api.Wait(cmd.Context(), a.env.Stderr, a.stderrTTY(), act.Id)
 			if err != nil {
 				return err

@@ -65,3 +65,15 @@ func TestExitCodeChildStatus(t *testing.T) {
 		t.Fatalf("got %d %q", c, b.String())
 	}
 }
+
+func TestUnauthorizedNamesContext(t *testing.T) {
+	h := newHarness(t)
+	cfg := &Config{ActiveContext: "home", Contexts: []Context{{Name: "home", Endpoint: h.URL, Token: "bad"}}, path: h.configFile()}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	_, errOut, code := h.run("server", "list")
+	if code != 1 || !strings.Contains(errOut, "(context home, "+h.URL+")") {
+		t.Fatalf("code=%d stderr=%q", code, errOut)
+	}
+}

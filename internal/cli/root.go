@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -34,13 +33,13 @@ type globalFlags struct {
 	context string
 	config  string
 	output  string
-	timeout time.Duration
 }
 
 // app is what every command closes over.
 type app struct {
-	env   Env
-	flags *globalFlags
+	env    Env
+	flags  *globalFlags
+	target Target
 }
 
 // api loads the config, resolves the target and builds the API for it.
@@ -57,11 +56,11 @@ func (a *app) api() (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.target = t
 	api, err := newAPI(a.env, t)
 	if err != nil {
 		return nil, err
 	}
-	api.Timeout = a.flags.timeout
 	return api, nil
 }
 
@@ -90,9 +89,18 @@ func DefaultEnv() Env {
 
 // Run executes the CLI and returns the exit code.
 func Run(ctx context.Context, args []string, env Env) int {
-	root := newRootCmd(env)
+	root, a := newRoot(env)
 	root.SetArgs(args)
-	return exitCode(env.Stderr, root.ExecuteContext(ctx))
+	return exitCode(env.Stderr, a.annotate(root.ExecuteContext(ctx)))
+}
+
+// annotate names the context behind a 401 so the user knows which one to recreate.
+func (a *app) annotate(err error) error {
+	var ae *APIError
+	if errors.As(err, &ae) && ae.Status == http.StatusUnauthorized && a.target.Source != "" {
+		return fmt.Errorf("%w (%s, %s)", err, a.target.Source, a.target.Endpoint)
+	}
+	return err
 }
 
 // exitStatus is a child process exit code to pass on without printing.
@@ -117,6 +125,11 @@ func exitCode(stderr io.Writer, err error) int {
 }
 
 func newRootCmd(env Env) *cobra.Command {
+	root, _ := newRoot(env)
+	return root
+}
+
+func newRoot(env Env) (*cobra.Command, *app) {
 	g := &globalFlags{}
 	a := &app{env: env, flags: g}
 	root := &cobra.Command{
@@ -139,7 +152,6 @@ func newRootCmd(env Env) *cobra.Command {
 	f.StringVar(&g.context, "context", "", "context to use")
 	f.StringVar(&g.config, "config", "", "path to the config file")
 	f.StringVarP(&g.output, "output", "o", "table", "output format: table, json or yaml")
-	f.DurationVar(&g.timeout, "timeout", 0, "stop waiting for actions after this long (0 waits forever)")
 
 	root.AddCommand(newContextCmd(a))
 	root.AddCommand(newSSHKeyCmd(a), newImageCmd(a), newServerTypeCmd(a), newLocationCmd(a), newServerCmd(a))
@@ -151,5 +163,5 @@ func newRootCmd(env Env) *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "nebla %s\n", Version)
 		},
 	})
-	return root
+	return root, a
 }

@@ -29,4 +29,4 @@ test:
 
 build:
 	go build -o bin/nebla-server ./cmd/nebla-server
-	go build -o bin/nebla ./cmd/nebla
+	go build -ldflags "-X github.com/Hexeption/nebla/internal/cli.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo dev)" -o bin/nebla ./cmd/nebla

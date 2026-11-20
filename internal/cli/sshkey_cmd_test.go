@@ -65,3 +65,15 @@ func TestSSHKeyListJSON(t *testing.T) {
 		t.Fatalf("json: %d %q", code, out)
 	}
 }
+
+func TestSSHKeyDeleteJSON(t *testing.T) {
+	h := newHarness(t)
+	if _, e, code := h.run("ssh-key", "create", "--name", "laptop", "--public-key", strings.TrimSpace(testPubKey)); code != 0 {
+		t.Fatal(e)
+	}
+	out, errOut, code := h.run("-o", "json", "ssh-key", "delete", "laptop")
+	var k apiclient.SshKey
+	if code != 0 || json.Unmarshal([]byte(out), &k) != nil || k.Name != "laptop" {
+		t.Fatalf("delete json: %d %q %q", code, out, errOut)
+	}
+}

@@ -132,3 +132,22 @@ func TestWaitErrorWithoutCode(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestWaitTTYNewlineOnFailure(t *testing.T) {
+	calls := 0
+	a, _ := stubAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		calls++
+		if calls == 1 {
+			fmt.Fprint(w, `{"id":9,"command":"start_server","status":"running","progress":60,"started":"2026-11-20T00:00:00Z","resources":[],"error":null}`)
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":{"code":"unauthorized","message":"invalid token"}}`)
+	})
+	var stderr bytes.Buffer
+	_, err := a.Wait(context.Background(), &stderr, true, 9)
+	if err == nil || !strings.HasSuffix(stderr.String(), "60%\n") {
+		t.Fatalf("err=%v stderr=%q", err, stderr.String())
+	}
+}

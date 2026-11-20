@@ -31,9 +31,9 @@ func TestCatalogLists(t *testing.T) {
 
 func TestImageListUnknownLocation(t *testing.T) {
 	h := newHarness(t)
-	out, _, code := h.run("image", "list", "--location", "nowhere")
-	if code == 0 && strings.Contains(out, "ubuntu") {
-		t.Fatalf("unknown location listed ubuntu: %q", out)
+	out, errOut, code := h.run("image", "list", "--location", "nowhere")
+	if code != 1 || out != "" || !strings.Contains(errOut, "not found (not_found)") {
+		t.Fatalf("got %d %q %q", code, out, errOut)
 	}
 }
 
