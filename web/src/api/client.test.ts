@@ -89,9 +89,7 @@ describe('api client', () => {
     const fn = vi.fn()
     onForbidden(fn)
     server.use(
-      http.get('*/v1/projects/5', () =>
-        json(403, { error: { code: 'forbidden', message: 'no' } }),
-      ),
+      http.get('*/v1/projects/5', () => json(403, { error: { code: 'forbidden', message: 'no' } })),
     )
     setProjectSource(() => 5)
     await api.GET('/projects/{id}', { params: { path: { id: 5 } } })
@@ -104,9 +102,7 @@ describe('api client', () => {
     const fn = vi.fn()
     onForbidden(fn)
     server.use(
-      http.get('*/v1/servers/3', () =>
-        json(403, { error: { code: 'forbidden', message: 'no' } }),
-      ),
+      http.get('*/v1/servers/3', () => json(403, { error: { code: 'forbidden', message: 'no' } })),
     )
     setProjectSource(() => 7)
     await api.GET('/servers/{id}', { params: { path: { id: 3 } } })
@@ -123,9 +119,8 @@ describe('api client', () => {
       http.post('*/v1/auth/passkey/finish', () => json(401, body)),
       http.post('*/v1/me/passkeys/begin', () => json(401, body)),
     )
-    const loose = api as unknown as { POST: (path: string) => Promise<unknown> }
-    await loose.POST('/auth/passkey/finish')
-    await loose.POST('/me/passkeys/begin')
+    await api.POST('/auth/passkey/finish', { body: { challenge_id: 'c1', credential: {} } })
+    await api.POST('/me/passkeys/begin', { body: { password: 'pw' } })
     expect(fn).not.toHaveBeenCalled()
   })
 

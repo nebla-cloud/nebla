@@ -29,57 +29,103 @@ const error = ref<string | null>(null)
 const totpInput = useTemplateRef<{ inputRef?: HTMLInputElement }>('totpInput')
 
 const passkeys = computed(() => passkeysUsable(manifest.value?.passkey_origin))
+const failedText = "That passkey didn't work. Try again, or log in with your password."
+// Challenges live 5 minutes; refresh the autofill one after 4.
+const STALE_MS = 4 * 60 * 1000
 let active = true
+let autofill = false
+let condGen = 0
+let condIssuedAt = 0
 
 async function finishLogin(user: Parameters<typeof setMe>[0]) {
   setMe(user)
   await router.replace(safeNext(route.query.next) ?? '/')
 }
 
-async function passkeyLogin(conditional: boolean) {
-  if (!conditional) {
-    if (busy.value) return
-    busy.value = true
-    error.value = null
+async function verify(challengeId: string, credential: unknown) {
+  const user = unwrap(
+    await api.POST('/auth/passkey/finish', {
+      body: {
+        challenge_id: challengeId,
+        credential: credential as Record<string, unknown>,
+      },
+    }),
+  )
+  if (!active) return false
+  await finishLogin(user)
+  return true
+}
+
+function armAutofill() {
+  if (!active || busy.value || !autofill) return
+  condIssuedAt = 0
+  void conditionalLogin(++condGen)
+}
+
+async function conditionalLogin(gen: number) {
+  const current = () => active && gen === condGen && !busy.value
+  try {
+    const begin = unwrap(await api.POST('/auth/passkey/begin'))
+    if (!current()) return
+    condIssuedAt = Date.now()
+    const optionsJSON = begin.options as unknown as PublicKeyCredentialRequestOptionsJSON
+    const credential = await startAuthentication({ optionsJSON, useBrowserAutofill: true })
+    if (!active) return
+    await verify(begin.challenge_id, credential)
+  } catch (e) {
+    if (!current()) return
+    if (isCancel(e)) {
+      armAutofill()
+    } else if (e instanceof ApiError && e.code === 'passkey_failed') {
+      error.value = failedText
+      armAutofill()
+    }
   }
+}
+
+async function buttonLogin() {
+  if (busy.value) return
+  busy.value = true
+  error.value = null
+  let done = false
   try {
     const begin = unwrap(await api.POST('/auth/passkey/begin'))
     if (!active) return
     const optionsJSON = begin.options as unknown as PublicKeyCredentialRequestOptionsJSON
-    const credential = await startAuthentication(
-      conditional ? { optionsJSON, useBrowserAutofill: true } : { optionsJSON },
-    )
+    const credential = await startAuthentication({ optionsJSON })
     if (!active) return
-    const user = unwrap(
-      await api.POST('/auth/passkey/finish', {
-        body: {
-          challenge_id: begin.challenge_id,
-          credential: credential as unknown as Record<string, unknown>,
-        },
-      }),
-    )
-    if (!active) return
-    await finishLogin(user)
+    done = await verify(begin.challenge_id, credential)
   } catch (e) {
     if (isCancel(e) || !active) return
     if (e instanceof ApiError && e.code === 'passkey_failed') {
-      error.value = "That passkey didn't work. Try again, or log in with your password."
-    } else if (!conditional) {
+      error.value = failedText
+    } else {
       error.value = errorMessage(e)
     }
   } finally {
-    if (!conditional) busy.value = false
+    busy.value = false
+    if (!done) armAutofill()
   }
 }
 
+function refreshIfStale() {
+  if (document.visibilityState === 'hidden' || !active || busy.value || !autofill) return
+  if (!condIssuedAt || Date.now() - condIssuedAt <= STALE_MS) return
+  WebAuthnAbortService.cancelCeremony()
+  armAutofill()
+}
+
 onMounted(async () => {
-  if (passkeys.value && (await browserSupportsWebAuthnAutofill()) && active) {
-    void passkeyLogin(true)
-  }
+  document.addEventListener('visibilitychange', refreshIfStale)
+  window.addEventListener('focus', refreshIfStale)
+  autofill = passkeys.value && (await browserSupportsWebAuthnAutofill())
+  armAutofill()
 })
 
 onBeforeUnmount(() => {
   active = false
+  document.removeEventListener('visibilitychange', refreshIfStale)
+  window.removeEventListener('focus', refreshIfStale)
   WebAuthnAbortService.cancelCeremony()
 })
 
@@ -164,7 +210,7 @@ async function submit() {
           variant="outline"
           icon="i-lucide-key-round"
           :disabled="busy"
-          @click="passkeyLogin(false)"
+          @click="buttonLogin"
           >Log in with a passkey</UButton
         >
       </template>

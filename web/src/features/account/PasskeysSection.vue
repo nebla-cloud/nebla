@@ -9,7 +9,7 @@ import UInput from '@nuxt/ui/components/Input.vue'
 import UModal from '@nuxt/ui/components/Modal.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { api } from '@/api/client'
-import { unwrap } from '@/api/errors'
+import { ApiError, unwrap } from '@/api/errors'
 import type { Passkey } from '@/api/types'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { passkeyOriginElsewhere, passkeysUsable } from '@/features/auth/passkey'
@@ -28,12 +28,23 @@ const origin = computed(() => manifest.value?.passkey_origin ?? null)
 const usable = computed(() => passkeysUsable(origin.value))
 const elsewhere = computed(() => passkeyOriginElsewhere(origin.value))
 
-const { data } = useQuery({
+const {
+  data,
+  error: listError,
+  refetch: retry,
+  isFetching,
+} = useQuery({
   queryKey: ['me', 'passkeys'],
   queryFn: async () => unwrap(await api.GET('/me/passkeys')).passkeys,
   enabled: usable,
 })
 const passkeys = computed(() => data.value ?? [])
+const loadFailed = computed(
+  () =>
+    !data.value &&
+    !!listError.value &&
+    !(listError.value instanceof ApiError && listError.value.status === 401),
+)
 const atLimit = computed(() => passkeys.value.length >= MAX_PASSKEYS)
 
 const adding = ref(false)
@@ -149,6 +160,18 @@ function dates(p: Passkey): string {
         Log in with your fingerprint, face or device PIN instead of your password. You won't need a
         two-factor code.
       </p>
+      <div v-if="loadFailed" class="flex flex-wrap items-center gap-3">
+        <p class="text-sm text-toned">Couldn't load your passkeys. Try again.</p>
+        <UButton
+          color="neutral"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-rotate-cw"
+          :loading="isFetching"
+          @click="retry()"
+          >Retry</UButton
+        >
+      </div>
       <p v-if="data && passkeys.length === 0" class="text-sm text-toned">
         You haven't added a passkey.
       </p>

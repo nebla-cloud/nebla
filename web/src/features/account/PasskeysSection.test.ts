@@ -234,22 +234,62 @@ describe('PasskeysSection', () => {
   })
 
   it.each([
-    ['post', '/me/passkeys/begin', 401, 'invalid_credentials', 'Wrong password.'],
     [
-      'post',
+      '/me/passkeys/begin',
+      401,
+      'invalid_credentials',
+      'invalid email or password',
+      "That password isn't right.",
+    ],
+    [
+      '/me/passkeys/begin',
+      401,
+      'totp_required',
+      'a TOTP code is required',
+      'Enter the code from your authenticator app.',
+    ],
+    [
+      '/me/passkeys/begin',
+      401,
+      'invalid_code',
+      'invalid verification code',
+      "That code isn't right.",
+    ],
+    [
+      '/me/passkeys/begin',
+      409,
+      'passkey_limit',
+      'you can have at most 10 passkeys',
+      "You've added the most passkeys allowed (10).",
+    ],
+    [
       '/me/passkeys/finish',
       409,
       'passkey_exists',
+      'that passkey is already added',
       'This passkey is already on your account.',
     ],
-    ['post', '/me/passkeys/finish', 422, 'passkey_invalid', 'That request expired.'],
-  ] as const)('add error %s %s %s', async (_m, path, status, code, message) => {
+    [
+      '/me/passkeys/finish',
+      422,
+      'passkey_invalid',
+      'that request expired, try again',
+      "That didn't work. Try adding the passkey again.",
+    ],
+    [
+      '/me/passkeys/finish',
+      422,
+      'passkey_invalid',
+      "that passkey couldn't be verified, try again",
+      "That didn't work. Try adding the passkey again.",
+    ],
+  ] as const)('add error %s %s %s', async (path, status, code, raw, shown) => {
     server.use(
       path === '/me/passkeys/begin'
-        ? record('post', path, status, { error: { code, message } })
+        ? record('post', path, status, { error: { code, message: raw } })
         : record('post', '/me/passkeys/begin', 200, begun),
       path === '/me/passkeys/finish'
-        ? record('post', path, status, { error: { code, message } })
+        ? record('post', path, status, { error: { code, message: raw } })
         : record('post', '/me/passkeys/finish', 201, pk(3, 'Passkey')),
     )
     vi.mocked(startRegistration).mockResolvedValue({ id: 'cred' } as never)
@@ -257,8 +297,73 @@ describe('PasskeysSection', () => {
     await openAdd()
     await fill('password', 'pw')
     await submit()
-    expect(document.body.textContent).toContain(message)
+    expect(document.body.textContent).toContain(shown)
+    expect(document.body.textContent).not.toContain(raw)
     expect(document.body.querySelector('input[name="password"]')).not.toBeNull()
+  })
+
+  it('add error other codes show the server message', async () => {
+    server.use(
+      record('post', '/me/passkeys/begin', 429, {
+        error: { code: 'rate_limited', message: 'Too many attempts.' },
+      }),
+    )
+    await mountSection()
+    await openAdd()
+    await fill('password', 'pw')
+    await submit()
+    expect(document.body.textContent).toContain('Too many attempts.')
+  })
+
+  it('authenticator already registered', async () => {
+    server.use(record('post', '/me/passkeys/begin', 200, begun))
+    vi.mocked(startRegistration).mockRejectedValue(
+      Object.assign(new Error('The authenticator was previously registered'), {
+        name: 'InvalidStateError',
+        code: 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED',
+      }),
+    )
+    await mountSection()
+    await openAdd()
+    await fill('password', 'pw')
+    await submit()
+    expect(document.body.textContent).toContain('This passkey is already on your account.')
+    expect(document.body.textContent).not.toContain('previously registered')
+    expect(calls.some((c) => c.path === '/me/passkeys/finish')).toBe(false)
+    expect(document.body.querySelector('input[name="password"]')).not.toBeNull()
+  })
+
+  it('list error offers retry', async () => {
+    let fail = true
+    server.use(
+      http.get('*/v1/ui/manifest', () =>
+        json(200, {
+          passkey_origin: location.origin,
+          setup_required: false,
+          signup_enabled: false,
+          branding: { product_name: 'Nebla' },
+        }),
+      ),
+      http.get('*/v1/me', () => json(200, user)),
+      http.get('*/v1/me/passkeys', () => {
+        calls.push({ method: 'get', path: '/me/passkeys', body: null })
+        return fail
+          ? json(500, { error: { code: 'internal', message: 'boom' } })
+          : json(200, { passkeys: [pk(1, 'MacBook')] })
+      }),
+    )
+    await ensureSession()
+    mounted = mountApp(PasskeysSection).wrapper
+    await settle()
+    expect(document.body.textContent).toContain("Couldn't load your passkeys. Try again.")
+    expect(document.body.textContent).not.toContain('boom')
+    expect(hasButton('Add a passkey')).toBe(false)
+    fail = false
+    button('Retry').click()
+    await settle()
+    expect(calls.filter((c) => c.path === '/me/passkeys')).toHaveLength(2)
+    expect(document.body.textContent).not.toContain("Couldn't load your passkeys.")
+    expect(document.body.textContent).toContain('MacBook')
   })
 
   it('unauthorized reports the lost session', async () => {

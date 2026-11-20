@@ -309,42 +309,50 @@ func (p *Passkeys) FinishLogin(ctx context.Context, challengeID string, credenti
 	if err != nil {
 		return User{}, "", errPasskeyFailed
 	}
-	var (
-		owner *ent.User
-		row   *ent.WebauthnCredential
-		dbErr error
-	)
-	handler := func(rawID, handle []byte) (webauthn.User, error) {
-		u, err := p.db.User.Query().Where(user.WebauthnHandle(handle)).Only(ctx)
-		if err == nil {
-			row, err = p.db.WebauthnCredential.Query().
-				Where(webauthncredential.CredentialID(rawID), webauthncredential.UserID(u.ID)).Only(ctx)
-		}
-		if err != nil {
-			if !ent.IsNotFound(err) {
-				dbErr = err
-			}
-			return nil, err
-		}
-		owner = u
-		return &waUser{u: u, creds: []webauthn.Credential{row.Data}}, nil
-	}
 	// The display name isn't checked at finish.
 	wa, err := p.webauthn("")
 	if err != nil {
 		return User{}, "", err
 	}
-	_, cred, err := wa.ValidatePasskeyLogin(handler, *session, parsed)
-	if dbErr != nil {
-		return User{}, "", dbErr
-	}
-	if err != nil || cred.Authenticator.CloneWarning {
-		return User{}, "", errPasskeyFailed
-	}
-	if err := p.db.WebauthnCredential.UpdateOneID(row.ID).SetData(*cred).SetLastUsedAt(time.Now()).Exec(ctx); err != nil {
-		return User{}, "", err
-	}
-	tok, err := p.svc.NewSession(ctx, owner.ID)
+	var (
+		owner *ent.User
+		tok   string
+	)
+	// The credential row stays locked until the session exists, so Remove and other logins wait.
+	err = p.svc.inTx(ctx, func(tx *ent.Client) error {
+		var (
+			row   *ent.WebauthnCredential
+			dbErr error
+		)
+		handler := func(rawID, handle []byte) (webauthn.User, error) {
+			u, err := tx.User.Query().Where(user.WebauthnHandle(handle)).Only(ctx)
+			if err == nil {
+				row, err = tx.WebauthnCredential.Query().
+					Where(webauthncredential.CredentialID(rawID), webauthncredential.UserID(u.ID)).
+					ForUpdate().Only(ctx)
+			}
+			if err != nil {
+				if !ent.IsNotFound(err) {
+					dbErr = err
+				}
+				return nil, err
+			}
+			owner = u
+			return &waUser{u: u, creds: []webauthn.Credential{row.Data}}, nil
+		}
+		_, cred, err := wa.ValidatePasskeyLogin(handler, *session, parsed)
+		if dbErr != nil {
+			return dbErr
+		}
+		if err != nil || cred.Authenticator.CloneWarning {
+			return errPasskeyFailed
+		}
+		if err := tx.WebauthnCredential.UpdateOneID(row.ID).SetData(*cred).SetLastUsedAt(time.Now()).Exec(ctx); err != nil {
+			return err
+		}
+		tok, err = createSession(ctx, tx, owner.ID)
+		return err
+	})
 	if err != nil {
 		return User{}, "", err
 	}

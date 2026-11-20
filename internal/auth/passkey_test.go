@@ -443,6 +443,63 @@ func TestPasskeyLoginFailures(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestPasskeyLoginCredentialDeleted(t *testing.T) {
+	e := newPKEnv(t, pkOrigin)
+	ctx := context.Background()
+	u := e.user(t, "a@example.com")
+	a := testutil.NewAuthenticator(pkOrigin, icloudAAGUID)
+	p := e.register(t, u.ID, a)
+	id, opts, err := e.pk.BeginLogin(ctx, rpName)
+	require.NoError(t, err)
+	resp := a.Assert(opts)
+	require.NoError(t, e.pk.Remove(ctx, u.ID, p.ID, ""))
+	_, _, err = e.pk.FinishLogin(ctx, id, resp)
+	requireCode(t, err, http.StatusUnauthorized, "passkey_failed")
+	n, err := e.db.Session.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+}
+
+func TestPasskeyLoginConcurrentKeepsSignCount(t *testing.T) {
+	e := newPKEnv(t, pkOrigin)
+	ctx := context.Background()
+	u := e.user(t, "a@example.com")
+	a := testutil.NewAuthenticator(pkOrigin, icloudAAGUID)
+	p := e.register(t, u.ID, a)
+	type attempt struct {
+		id   string
+		resp json.RawMessage
+	}
+	var attempts []attempt
+	for range 2 {
+		id, opts, err := e.pk.BeginLogin(ctx, rpName)
+		require.NoError(t, err)
+		attempts = append(attempts, attempt{id, a.Assert(opts)})
+	}
+	errs := make(chan error, len(attempts))
+	for i := len(attempts) - 1; i >= 0; i-- {
+		go func(at attempt) {
+			_, _, err := e.pk.FinishLogin(ctx, at.id, at.resp)
+			errs <- err
+		}(attempts[i])
+	}
+	ok := 0
+	for range attempts {
+		if err := <-errs; err == nil {
+			ok++
+		} else {
+			requireCode(t, err, http.StatusUnauthorized, "passkey_failed")
+		}
+	}
+	require.GreaterOrEqual(t, ok, 1)
+	row, err := e.db.WebauthnCredential.Get(ctx, p.ID)
+	require.NoError(t, err)
+	require.Equal(t, uint32(3), row.Data.Authenticator.SignCount)
+	n, err := e.db.Session.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, ok, n)
+}
+
 func TestPasskeyLoginCloneWarning(t *testing.T) {
 	e := newPKEnv(t, pkOrigin)
 	ctx := context.Background()

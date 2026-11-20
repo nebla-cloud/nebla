@@ -209,11 +209,114 @@ describe('LoginPage', () => {
 
     it('conditional passkey_failed shows the alert', async () => {
       await loadSession()
-      passkeyHandlers(401)
+      const calls = passkeyHandlers(401)
       wa.autofill.mockReturnValue(Promise.resolve(true))
-      wa.startAuthentication.mockResolvedValue(credential)
+      wa.startAuthentication
+        .mockResolvedValueOnce(credential)
+        .mockReturnValue(new Promise(() => {}))
       const { wrapper } = await mountLogin()
       await vi.waitFor(() => expect(wrapper.text()).toContain(failedText))
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(2))
+      expect(calls.begin).toBe(2)
+      expect(wa.startAuthentication).toHaveBeenLastCalledWith({
+        optionsJSON,
+        useBrowserAutofill: true,
+      })
+      wrapper.unmount()
+    })
+
+    it('button cancel re-arms autofill', async () => {
+      await loadSession()
+      const calls = passkeyHandlers()
+      wa.autofill.mockReturnValue(Promise.resolve(true))
+      wa.startAuthentication.mockImplementation((opts: { useBrowserAutofill?: boolean }) =>
+        opts.useBrowserAutofill
+          ? new Promise(() => {})
+          : Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })),
+      )
+      const { wrapper } = await mountLogin()
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(1))
+      await passkeyButton(wrapper)!.trigger('click')
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(3))
+      const modes = wa.startAuthentication.mock.calls.map(
+        ([o]) => (o as { useBrowserAutofill?: boolean }).useBrowserAutofill === true,
+      )
+      expect(modes).toEqual([true, false, true])
+      expect(calls.begin).toBe(3)
+      expect(wrapper.text()).not.toContain('NotAllowedError')
+      wrapper.unmount()
+    })
+
+    it('stale challenge re-arms on focus', async () => {
+      await loadSession()
+      const calls = passkeyHandlers()
+      wa.autofill.mockReturnValue(Promise.resolve(true))
+      wa.startAuthentication.mockReturnValue(new Promise(() => {}))
+      const { wrapper } = await mountLogin()
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(1))
+      window.dispatchEvent(new Event('focus'))
+      document.dispatchEvent(new Event('visibilitychange'))
+      await new Promise((r) => setTimeout(r, 50))
+      await flushPromises()
+      expect(calls.begin).toBe(1)
+
+      const now = Date.now()
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 4 * 60 * 1000 + 1000)
+      window.dispatchEvent(new Event('focus'))
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(2))
+      expect(calls.begin).toBe(2)
+      expect(wa.cancelCeremony).toHaveBeenCalledTimes(1)
+
+      clock.mockReturnValue(now + 9 * 60 * 1000)
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(3))
+      expect(calls.begin).toBe(3)
+      clock.mockRestore()
+      wrapper.unmount()
+    })
+
+    it('no re-arm after unmount', async () => {
+      await loadSession()
+      const calls = passkeyHandlers()
+      wa.autofill.mockReturnValue(Promise.resolve(true))
+      let reject!: (e: unknown) => void
+      wa.startAuthentication.mockReturnValue(new Promise((_, r) => (reject = r)))
+      const { wrapper } = await mountLogin()
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(1))
+      wrapper.unmount()
+      reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000)
+      window.dispatchEvent(new Event('focus'))
+      document.dispatchEvent(new Event('visibilitychange'))
+      await new Promise((r) => setTimeout(r, 50))
+      await flushPromises()
+      clock.mockRestore()
+      expect(calls.begin).toBe(1)
+      expect(wa.startAuthentication).toHaveBeenCalledTimes(1)
+    })
+
+    it('slow conditional begin leaves the button sheet alone', async () => {
+      await loadSession()
+      let release!: () => void
+      const gate = new Promise<void>((r) => (release = r))
+      let begins = 0
+      server.use(
+        http.post('*/v1/auth/passkey/begin', async () => {
+          if (++begins === 1) await gate
+          return json(200, { challenge_id: `ch${begins}`, options: optionsJSON })
+        }),
+      )
+      wa.autofill.mockReturnValue(Promise.resolve(true))
+      wa.startAuthentication.mockReturnValue(new Promise(() => {}))
+      const { wrapper } = await mountLogin()
+      await vi.waitFor(() => expect(begins).toBe(1))
+      await passkeyButton(wrapper)!.trigger('click')
+      await vi.waitFor(() => expect(wa.startAuthentication).toHaveBeenCalledTimes(1))
+      release()
+      await new Promise((r) => setTimeout(r, 50))
+      await flushPromises()
+      expect(wa.startAuthentication).toHaveBeenCalledTimes(1)
+      expect(wa.startAuthentication).toHaveBeenCalledWith({ optionsJSON })
       wrapper.unmount()
     })
 
