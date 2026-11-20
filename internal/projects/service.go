@@ -188,7 +188,7 @@ func (s *Service) require(ctx context.Context, userID, projectID int64, allowed 
 	return r, nil
 }
 
-// Create makes a project owned by userID; non-admins get DefaultQuota and the owned-project cap.
+// Create makes a project owned by userID; non-admins get DefaultQuota and a cap on projects they created.
 func (s *Service) Create(ctx context.Context, userID int64, isAdmin bool, name string) (Project, error) {
 	name, err := validName(name)
 	if err != nil {
@@ -196,14 +196,17 @@ func (s *Service) Create(ctx context.Context, userID int64, isAdmin bool, name s
 	}
 	var p *ent.Project
 	err = withTx(ctx, s.db, func(tx *ent.Client) error {
-		c := tx.Project.Create().SetName(name)
+		c := tx.Project.Create().SetName(name).SetCreatedBy(userID)
 		if !isAdmin {
 			if s.opts.MaxOwnedProjects > 0 {
 				// Lock the user row so concurrent creates cannot pass the cap together.
 				if _, err := tx.User.Query().Where(user.ID(userID)).ForUpdate().Only(ctx); err != nil {
 					return err
 				}
-				n, err := tx.ProjectMember.Query().Where(projectmember.UserID(userID), projectmember.Role(RoleOwner)).Count(ctx)
+				n, err := tx.Project.Query().Where(project.Or(
+					project.CreatedBy(userID),
+					project.And(project.CreatedByIsNil(), project.HasMembersWith(projectmember.UserID(userID), projectmember.Role(RoleOwner))),
+				)).Count(ctx)
 				if err != nil {
 					return err
 				}

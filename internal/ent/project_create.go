@@ -12,6 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
 // ProjectCreate is the builder for creating a Project entity.
@@ -98,6 +100,20 @@ func (_c *ProjectCreate) SetNillableMaxIps(v *int) *ProjectCreate {
 	return _c
 }
 
+// SetCreatedBy sets the "created_by" field.
+func (_c *ProjectCreate) SetCreatedBy(v int64) *ProjectCreate {
+	_c.mutation.SetCreatedBy(v)
+	return _c
+}
+
+// SetNillableCreatedBy sets the "created_by" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableCreatedBy(v *int64) *ProjectCreate {
+	if v != nil {
+		_c.SetCreatedBy(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ProjectCreate) SetCreatedAt(v time.Time) *ProjectCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -116,6 +132,40 @@ func (_c *ProjectCreate) SetNillableCreatedAt(v *time.Time) *ProjectCreate {
 func (_c *ProjectCreate) SetID(v int64) *ProjectCreate {
 	_c.mutation.SetID(v)
 	return _c
+}
+
+// SetCreatorID sets the "creator" edge to the User entity by ID.
+func (_c *ProjectCreate) SetCreatorID(id int64) *ProjectCreate {
+	_c.mutation.SetCreatorID(id)
+	return _c
+}
+
+// SetNillableCreatorID sets the "creator" edge to the User entity by ID if the given value is not nil.
+func (_c *ProjectCreate) SetNillableCreatorID(id *int64) *ProjectCreate {
+	if id != nil {
+		_c = _c.SetCreatorID(*id)
+	}
+	return _c
+}
+
+// SetCreator sets the "creator" edge to the User entity.
+func (_c *ProjectCreate) SetCreator(v *User) *ProjectCreate {
+	return _c.SetCreatorID(v.ID)
+}
+
+// AddMemberIDs adds the "members" edge to the ProjectMember entity by IDs.
+func (_c *ProjectCreate) AddMemberIDs(ids ...int64) *ProjectCreate {
+	_c.mutation.AddMemberIDs(ids...)
+	return _c
+}
+
+// AddMembers adds the "members" edges to the ProjectMember entity.
+func (_c *ProjectCreate) AddMembers(v ...*ProjectMember) *ProjectCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddMemberIDs(ids...)
 }
 
 // Mutation returns the ProjectMutation object of the builder.
@@ -259,6 +309,39 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(project.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if nodes := _c.mutation.CreatorIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   project.CreatorTable,
+			Columns: []string{project.CreatorColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.CreatedBy = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MembersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   project.MembersTable,
+			Columns: []string{project.MembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmember.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }
@@ -411,6 +494,24 @@ func (u *ProjectUpsert) UpdateMaxIps() *ProjectUpsert {
 // AddMaxIps adds v to the "max_ips" field.
 func (u *ProjectUpsert) AddMaxIps(v int) *ProjectUpsert {
 	u.Add(project.FieldMaxIps, v)
+	return u
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (u *ProjectUpsert) SetCreatedBy(v int64) *ProjectUpsert {
+	u.Set(project.FieldCreatedBy, v)
+	return u
+}
+
+// UpdateCreatedBy sets the "created_by" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateCreatedBy() *ProjectUpsert {
+	u.SetExcluded(project.FieldCreatedBy)
+	return u
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (u *ProjectUpsert) ClearCreatedBy() *ProjectUpsert {
+	u.SetNull(project.FieldCreatedBy)
 	return u
 }
 
@@ -581,6 +682,27 @@ func (u *ProjectUpsertOne) AddMaxIps(v int) *ProjectUpsertOne {
 func (u *ProjectUpsertOne) UpdateMaxIps() *ProjectUpsertOne {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxIps()
+	})
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (u *ProjectUpsertOne) SetCreatedBy(v int64) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetCreatedBy(v)
+	})
+}
+
+// UpdateCreatedBy sets the "created_by" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateCreatedBy() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateCreatedBy()
+	})
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (u *ProjectUpsertOne) ClearCreatedBy() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.ClearCreatedBy()
 	})
 }
 
@@ -917,6 +1039,27 @@ func (u *ProjectUpsertBulk) AddMaxIps(v int) *ProjectUpsertBulk {
 func (u *ProjectUpsertBulk) UpdateMaxIps() *ProjectUpsertBulk {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxIps()
+	})
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (u *ProjectUpsertBulk) SetCreatedBy(v int64) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetCreatedBy(v)
+	})
+}
+
+// UpdateCreatedBy sets the "created_by" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateCreatedBy() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateCreatedBy()
+	})
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (u *ProjectUpsertBulk) ClearCreatedBy() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.ClearCreatedBy()
 	})
 }
 
