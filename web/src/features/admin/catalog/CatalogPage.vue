@@ -1,16 +1,40 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
+import UModal from '@nuxt/ui/components/Modal.vue'
+import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
 import CatalogCell from './CatalogCell.vue'
-import { useAdminImages, useCatalog, type CatalogEntry, type CatalogLocationState } from './queries'
+import ImageForm from './ImageForm.vue'
+import {
+  useAdminImages,
+  useCatalog,
+  useDeleteImage,
+  type AdminImage,
+  type CatalogEntry,
+  type CatalogLocationState,
+} from './queries'
 
+const toast = useToast()
 const locations = useAdminLocations()
 const catalog = useCatalog()
 const images = useAdminImages()
+const del = useDeleteImage()
+
+const formOpen = ref(false)
+const editing = ref<AdminImage | undefined>()
+const removing = ref<AdminImage | null>(null)
+const removeError = ref<string | null>(null)
+const removeOpen = computed({
+  get: () => removing.value !== null,
+  set: (v) => {
+    if (!v) removing.value = null
+  },
+})
 
 const columns = computed(() => locations.data.value ?? [])
 const rows = computed(() =>
@@ -19,6 +43,36 @@ const rows = computed(() =>
 const ownImages = computed(() => (images.data.value ?? []).filter((i) => !i.catalog_key))
 const loadError = computed(() => locations.error.value ?? catalog.error.value)
 const pending = computed(() => locations.isPending.value || catalog.isPending.value)
+
+function openForm(i?: AdminImage) {
+  editing.value = i
+  formOpen.value = true
+}
+
+function ask(i: AdminImage) {
+  removeError.value = null
+  removing.value = i
+}
+
+function saved() {
+  formOpen.value = false
+  toast.add({ title: 'Image saved', color: 'success' })
+}
+
+async function remove() {
+  if (!removing.value) return
+  removeError.value = null
+  try {
+    await del.mutateAsync(removing.value.id)
+    toast.add({
+      title: `Deleted ${removing.value.description || removing.value.name}`,
+      color: 'success',
+    })
+    removing.value = null
+  } catch (e) {
+    removeError.value = errorMessage(e)
+  }
+}
 
 function cellFor(e: CatalogEntry, locationId: number): CatalogLocationState | undefined {
   return e.locations.find((l) => l.location_id === locationId)
@@ -101,29 +155,83 @@ function locationNames(ids: number[]): string {
       </div>
       <p v-if="!rows.length" class="text-muted">The catalog is empty.</p>
 
-      <section v-if="ownImages.length" data-own-images class="flex flex-col gap-3">
-        <div class="flex flex-col gap-1">
-          <h2 class="text-base font-bold text-highlighted">Your own images</h2>
-          <p class="text-muted">Images registered by hand from your own templates.</p>
+      <section data-own-images class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex flex-col gap-1">
+            <h2 class="text-base font-bold text-highlighted">Your own images</h2>
+            <p class="text-muted">Images registered by hand from your own templates.</p>
+          </div>
+          <UButton icon="i-lucide-plus" color="neutral" variant="subtle" @click="openForm()">
+            Add image
+          </UButton>
         </div>
-        <ul class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+        <p v-if="!ownImages.length" class="text-muted">
+          Register a template you made in Proxmox so people can pick it.
+        </p>
+        <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
           <li
             v-for="i in ownImages"
             :key="i.id"
-            class="flex flex-col gap-0.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+            class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
           >
             <span class="min-w-0">
               <span class="block truncate font-semibold text-highlighted">{{
                 i.description || i.name
               }}</span>
               <span class="block truncate text-xs text-muted">{{ i.name }}</span>
+              <span class="block text-sm text-muted">{{
+                locationNames(i.templates.map((t) => t.location_id))
+              }}</span>
             </span>
-            <span class="text-sm text-muted">{{
-              locationNames(i.templates.map((t) => t.location_id))
-            }}</span>
+            <span class="flex gap-1">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                :aria-label="`Edit ${i.description || i.name}`"
+                @click="openForm(i)"
+              >
+                Edit
+              </UButton>
+              <UButton
+                color="error"
+                variant="ghost"
+                :aria-label="`Delete ${i.description || i.name}`"
+                @click="ask(i)"
+              >
+                Delete
+              </UButton>
+            </span>
           </li>
         </ul>
       </section>
     </template>
+
+    <UModal
+      v-model:open="formOpen"
+      :title="editing ? `Edit ${editing.description || editing.name}` : 'Add image'"
+      description="Point Nebla at a template you made in Proxmox."
+    >
+      <template #body>
+        <ImageForm
+          :key="editing?.id ?? 'new'"
+          :item="editing"
+          @done="saved"
+          @cancel="formOpen = false"
+        />
+      </template>
+    </UModal>
+
+    <ConfirmDialog
+      v-model:open="removeOpen"
+      title="Delete this image?"
+      :body="
+        removeError ??
+        'People will no longer be able to pick it. The template in Proxmox is left alone.'
+      "
+      confirm-label="Delete image"
+      danger
+      :loading="del.isPending.value"
+      @confirm="remove"
+    />
   </div>
 </template>

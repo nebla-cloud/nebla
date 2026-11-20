@@ -8,6 +8,7 @@ export type CatalogEntry = S['CatalogEntry']
 export type CatalogLocationState = S['CatalogLocationState']
 export type CatalogNode = S['CatalogNode']
 export type AdminImage = S['AdminImage']
+export type ImageInput = S['ImageInput']
 export type CatalogAction = 'enable' | 'refresh' | 'disable'
 
 export const catalogKey = ['admin', 'catalog'] as const
@@ -27,9 +28,33 @@ export function useCatalog() {
 
 export function useAdminImages() {
   return useQuery({
-    queryKey: ['admin', 'images'],
+    queryKey: imagesKey,
     queryFn: async (): Promise<AdminImage[]> =>
       unwrap(await api.GET('/admin/images', { params: { query: { per_page: 50 } } })).images,
+  })
+}
+
+const imagesKey = ['admin', 'images']
+
+export function useSaveImage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (v: { id?: number; body: ImageInput }): Promise<AdminImage> =>
+      v.id === undefined
+        ? unwrap(await api.POST('/admin/images', { body: v.body }))
+        : unwrap(
+            await api.PUT('/admin/images/{id}', { params: { path: { id: v.id } }, body: v.body }),
+          ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: imagesKey }),
+  })
+}
+
+export function useDeleteImage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) =>
+      unwrap(await api.DELETE('/admin/images/{id}', { params: { path: { id } } })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: imagesKey }),
   })
 }
 
@@ -66,7 +91,7 @@ export function useCatalogAction() {
     onSettled: (_d, _e, { action }) =>
       Promise.all([
         qc.invalidateQueries({ queryKey: catalogKey }),
-        action === 'disable' ? qc.invalidateQueries({ queryKey: ['admin', 'images'] }) : null,
+        action === 'disable' ? qc.invalidateQueries({ queryKey: imagesKey }) : null,
       ]),
   })
 }
