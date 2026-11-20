@@ -319,3 +319,22 @@ func TestAssignmentsMatchAllocate(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, got)
 }
+
+func TestAvailable(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	check := func(want4, want6 bool) {
+		t.Helper()
+		v4ok, v6ok, err := ipam.Available(ctx, e.ent, e.loc)
+		require.NoError(t, err)
+		require.Equal(t, want4, v4ok)
+		require.Equal(t, want6, v6ok)
+	}
+	check(false, false)
+	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.10"))
+	require.NoError(t, err)
+	check(true, false)
+	_, err = e.allocate(ctx, "ipv4", 1)
+	require.NoError(t, err)
+	check(false, false)
+}

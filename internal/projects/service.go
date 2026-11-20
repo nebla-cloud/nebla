@@ -98,6 +98,7 @@ type Project struct {
 	Name      string
 	Role      string
 	Quota     Quota
+	Usage     Usage
 	CreatedAt time.Time
 }
 
@@ -273,6 +274,9 @@ func (s *Service) List(ctx context.Context, userID int64) ([]Project, error) {
 	out := make([]Project, len(ms))
 	for i, m := range ms {
 		out[i] = toProject(m.Edges.Project, m.Role)
+		if out[i].Usage, err = s.opts.Usage(ctx, s.db, m.ProjectID); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -286,7 +290,11 @@ func (s *Service) Get(ctx context.Context, userID, projectID int64) (Project, er
 	if err != nil {
 		return Project{}, notFound(err)
 	}
-	return toProject(p, r), nil
+	out := toProject(p, r)
+	if out.Usage, err = s.opts.Usage(ctx, s.db, projectID); err != nil {
+		return Project{}, err
+	}
+	return out, nil
 }
 
 func (s *Service) Rename(ctx context.Context, userID, projectID int64, name string) (Project, error) {

@@ -13,7 +13,9 @@ func apiQuota(q projects.Quota) apigen.Quota {
 }
 
 func apiProject(p projects.Project) apigen.Project {
-	return apigen.Project{Id: p.ID, Name: p.Name, Role: apigen.Role(p.Role), Quota: apiQuota(p.Quota), Created: p.CreatedAt}
+	u := p.Usage
+	return apigen.Project{Id: p.ID, Name: p.Name, Role: apigen.Role(p.Role), Quota: apiQuota(p.Quota), Created: p.CreatedAt,
+		Usage: apigen.ProjectUsage{Servers: u.Servers, Vcpu: u.VCPU, MemoryMb: u.MemoryMB, DiskGb: u.DiskGB, Ips: u.IPs}}
 }
 
 func apiMember(m projects.Member) apigen.Member {

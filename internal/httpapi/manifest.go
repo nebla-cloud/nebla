@@ -13,6 +13,12 @@ func (s *server) GetUiManifest(ctx context.Context, _ apigen.GetUiManifestReques
 		Path  string `json:"path"`
 		Title string `json:"title"`
 	}{}}
+	setup, err := s.auth.SetupRequired(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out.SetupRequired = setup
+	out.SignupEnabled = s.deps.Ext.SelfSignupEnabled(ctx)
 	out.Branding.ProductName = b.ProductName
 	out.Branding.LogoUrl = b.LogoURL
 	out.Branding.PrimaryColor = b.PrimaryColor

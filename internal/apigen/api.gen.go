@@ -405,6 +405,12 @@ type Location struct {
 	Description string `json:"description"`
 	Id          int64  `json:"id"`
 	Name        string `json:"name"`
+
+	// Networks Whether the location has a free address of each family
+	Networks struct {
+		Ipv4 bool `json:"ipv4"`
+		Ipv6 bool `json:"ipv6"`
+	} `json:"networks"`
 }
 
 // LocationInput defines model for LocationInput.
@@ -417,6 +423,13 @@ type LocationInput struct {
 	IsoStorage    string             `json:"iso_storage"`
 	Name          string             `json:"name"`
 	Pve           PveConnectionInput `json:"pve"`
+}
+
+// LocationRef defines model for LocationRef.
+type LocationRef struct {
+	Description string `json:"description"`
+	Id          int64  `json:"id"`
+	Name        string `json:"name"`
 }
 
 // Member defines model for Member.
@@ -478,16 +491,26 @@ type NodeInput struct {
 
 // Project defines model for Project.
 type Project struct {
-	Created time.Time `json:"created"`
-	Id      int64     `json:"id"`
-	Name    string    `json:"name"`
-	Quota   Quota     `json:"quota"`
-	Role    Role      `json:"role"`
+	Created time.Time    `json:"created"`
+	Id      int64        `json:"id"`
+	Name    string       `json:"name"`
+	Quota   Quota        `json:"quota"`
+	Role    Role         `json:"role"`
+	Usage   ProjectUsage `json:"usage"`
 }
 
 // ProjectInput defines model for ProjectInput.
 type ProjectInput struct {
 	Name string `json:"name"`
+}
+
+// ProjectUsage defines model for ProjectUsage.
+type ProjectUsage struct {
+	DiskGb   int `json:"disk_gb"`
+	Ips      int `json:"ips"`
+	MemoryMb int `json:"memory_mb"`
+	Servers  int `json:"servers"`
+	Vcpu     int `json:"vcpu"`
 }
 
 // PveConnection defines model for PveConnection.
@@ -539,9 +562,9 @@ type Server struct {
 	Image   Image     `json:"image"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels    Labels   `json:"labels"`
-	Location  Location `json:"location"`
-	Name      string   `json:"name"`
+	Labels    Labels      `json:"labels"`
+	Location  LocationRef `json:"location"`
+	Name      string      `json:"name"`
 	PublicNet struct {
 		Ipv4 *ServerIp `json:"ipv4"`
 		Ipv6 *ServerIp `json:"ipv6"`
@@ -665,6 +688,8 @@ type UiManifest struct {
 		PrimaryColor string `json:"primary_color"`
 		ProductName  string `json:"product_name"`
 	} `json:"branding"`
+	SetupRequired bool `json:"setup_required"`
+	SignupEnabled bool `json:"signup_enabled"`
 }
 
 // User defines model for User.
