@@ -33,7 +33,8 @@ anything. Then it:
 It writes no files and leaves nothing running. The roles are reset to the exact privilege list each time, so privileges
 you added to `Nebla` or `NeblaISO` by hand are removed on a re-run.
 
-The report goes back to the enrollment page. Then pick the Proxmox URL (prefilled from the node's IP, port 8006), the disk
+The report goes back to the enrollment page. You have 24 hours after the node reports to finish there; after that,
+cancel and run setup again. Then pick the Proxmox URL (prefilled from the node's IP, port 8006), the disk
 storage (one with `images` content), the ISO storage, and optionally an import storage. Only storages that got
 `NeblaISO` are offered for ISO and import. The panel connects to the URL and checks that the certificate it sees is one
 the node reported. It pins that certificate.
@@ -56,7 +57,8 @@ can't send its report.
 
 Use Re-run setup on the location page to run the same flow again for an existing location, for example after a
 certificate renewal. The location switches to the new token and the refreshed fingerprints when you finish. Until then
-the old token keeps working. After a re-run the page shows the command that removes the old token:
+the old token keeps working. The finish form starts from the location's current URL and storages. If a re-run is
+already in progress, Re-run setup opens it instead of starting another. After a re-run the page shows the command that removes the old token:
 
 ```sh
 pveum user token remove nebla@pve <old token>
