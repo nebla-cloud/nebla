@@ -1,4 +1,4 @@
-.PHONY: generate migrate-diff migrate-hash migrate-validate test build
+.PHONY: generate migrate-diff migrate-hash migrate-validate test build web
 
 MIGRATIONS_DIR := file://internal/db/migrations?format=goose
 ATLAS_DEV_URL := docker://postgres/17/dev?search_path=public
@@ -6,6 +6,10 @@ ATLAS_DEV_URL := docker://postgres/17/dev?search_path=public
 generate:
 	go generate ./internal/ent
 	@if [ -f api/openapi.yaml ]; then go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml; fi
+	@if command -v pnpm >/dev/null 2>&1; then cd web && pnpm gen; fi
+
+web:
+	cd web && pnpm install --frozen-lockfile && pnpm build
 
 # Writes a goose-format migration from the ent schema; needs the atlas CLI and Docker.
 migrate-diff:
