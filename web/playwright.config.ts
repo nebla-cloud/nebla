@@ -23,5 +23,7 @@ export default defineConfig({
       testMatch: /server-depth\.spec\.ts/,
       dependencies: ['catalog'],
     },
+    // Needs the Home lab project that first-run creates; runs last so it can't disturb server specs.
+    { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['server-depth'] },
   ],
 })

@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { expect, type Page } from '@playwright/test'
 
 // Infrastructure words that must never reach a project page.
@@ -33,4 +34,28 @@ export async function createServer(page: Page): Promise<string> {
     timeout: 60_000,
   })
   return (await page.getByRole('heading', { level: 1 }).textContent())!.trim()
+}
+
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+
+function base32Decode(s: string): Buffer {
+  let bits = ''
+  for (const ch of s.replace(/[\s=]/g, '').toUpperCase()) {
+    const v = B32.indexOf(ch)
+    if (v < 0) throw new Error(`bad base32 character ${ch}`)
+    bits += v.toString(2).padStart(5, '0')
+  }
+  const bytes: number[] = []
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2))
+  return Buffer.from(bytes)
+}
+
+// RFC 6238 TOTP: SHA-1, 30 s step, 6 digits. `at` is in milliseconds.
+export function totpCode(secret: string, at: number = Date.now()): string {
+  const counter = Buffer.alloc(8)
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 1000 / 30)))
+  const mac = createHmac('sha1', base32Decode(secret)).update(counter).digest()
+  const off = mac[mac.length - 1]! & 0xf
+  const n = (mac.readUInt32BE(off) & 0x7fffffff) % 1_000_000
+  return String(n).padStart(6, '0')
 }
