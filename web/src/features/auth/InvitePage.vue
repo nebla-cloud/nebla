@@ -62,7 +62,10 @@ async function accept(body?: { name: string; password: string }) {
   } catch (e) {
     if (e instanceof ApiError && e.code === 'already_member') {
       await router.replace('/')
-    } else if (e instanceof ApiError && e.code === 'unauthorized') {
+    } else if (
+      e instanceof ApiError &&
+      (e.code === 'unauthorized' || e.code === 'login_required')
+    ) {
       reportUnauthorized()
     } else {
       error.value = errorMessage(e)
@@ -72,8 +75,14 @@ async function accept(body?: { name: string; password: string }) {
   }
 }
 
-function article(r: InvitePreview['role']): string {
-  return r === 'owner' || r === 'admin' ? 'an' : 'a'
+function roleCopy(r: InvitePreview['role']): string {
+  if (r === 'read_only') return 'with read-only access'
+  return `as ${r === 'owner' || r === 'admin' ? 'an' : 'a'} ${roleLabel(r).toLowerCase()}`
+}
+
+async function logOut() {
+  await logout()
+  qc.clear()
 }
 
 function create() {
@@ -103,13 +112,13 @@ function create() {
     title="Wrong account"
     :description="`This invite is for ${invite.email}. You're logged in as ${me.email}.`"
   >
-    <UButton block color="neutral" variant="outline" @click="logout()">Log out</UButton>
+    <UButton block color="neutral" variant="outline" @click="logOut">Log out</UButton>
   </AuthLayout>
 
   <AuthLayout
     v-else
     :title="`Join ${invite.project_name}`"
-    :description="`${invite.inviter_name} invited you as ${article(invite.role)} ${roleLabel(invite.role).toLowerCase()}.`"
+    :description="`${invite.inviter_name} invited you ${roleCopy(invite.role)}.`"
   >
     <div class="flex flex-col gap-4">
       <UAlert v-if="error" color="error" variant="subtle" :description="error" />

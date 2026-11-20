@@ -1,20 +1,8 @@
-import { computed } from 'vue'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import { api } from '@/api/client'
 import { unwrap } from '@/api/errors'
-import type { Member, Project } from '@/api/types'
+import type { Project } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
-
-export function useMembers() {
-  const { projectId } = useCurrentProject()
-  return useQuery({
-    queryKey: computed(() => ['members', projectId.value]),
-    queryFn: async (): Promise<Member[]> =>
-      unwrap(await api.GET('/projects/{id}/members', { params: { path: { id: projectId.value } } }))
-        .members,
-    enabled: computed(() => projectId.value > 0),
-  })
-}
 
 export function useRenameProject() {
   const qc = useQueryClient()

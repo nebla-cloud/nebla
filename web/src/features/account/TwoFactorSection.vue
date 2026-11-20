@@ -132,7 +132,7 @@ function disable() {
         6-digit code it shows.
       </p>
       <QrCode :value="enrollment.otpauth_url" />
-      <CopyField label="Key" :value="grouped" mono />
+      <CopyField label="Key" :value="grouped" :copy-value="enrollment.secret" mono />
       <form class="flex flex-col gap-4" novalidate @submit.prevent="verify">
         <UFormField label="Authentication code" name="code">
           <UInput
@@ -153,8 +153,7 @@ function disable() {
 
     <template v-else>
       <p class="text-sm text-muted">
-        Ask for a code from an authenticator app each time you log in. Enter your password to
-        start.
+        Ask for a code from an authenticator app each time you log in. Enter your password to start.
       </p>
       <form class="flex flex-col gap-4" novalidate @submit.prevent="enroll">
         <UFormField label="Password" name="password">

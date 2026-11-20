@@ -5,6 +5,7 @@ import { testRouter } from '@/test/mount'
 import { parseProjectId } from '@/lib/project'
 import {
   api,
+  onForbidden,
   onUnauthorized,
   redirectOnUnauthorized,
   reportUnauthorized,
@@ -55,20 +56,33 @@ describe('api client', () => {
     onUnauthorized(fn)
     const body = { error: { code: 'unauthorized', message: 'no' } }
     server.use(
-      http.put('*/v1/me/password', () => json(401, body)),
+      http.post('*/v1/me/password', () => json(401, body)),
       http.post('*/v1/invites/:token/accept', () => json(401, body)),
       http.get('*/v1/servers', () => json(401, body)),
     )
-    // Paths from the parallel OpenAPI change aren't typed here yet.
-    const loose = api as unknown as {
-      PUT: (p: string, o: object) => Promise<unknown>
-      POST: (p: string, o: object) => Promise<unknown>
-    }
-    await loose.PUT('/me/password', { body: {} })
-    await loose.POST('/invites/{token}/accept', { params: { path: { token: 't' } }, body: {} })
+    await api.POST('/me/password', { body: { current_password: 'a', new_password: 'b' } })
+    await api.POST('/invites/{token}/accept', { params: { path: { token: 't' } }, body: {} })
     expect(fn).not.toHaveBeenCalled()
     await api.GET('/servers')
     expect(fn).toHaveBeenCalledOnce()
+  })
+
+  it('a 403 under a project calls the forbidden handler with its id', async () => {
+    const fn = vi.fn()
+    onForbidden(fn)
+    const body = { error: { code: 'forbidden', message: 'no' } }
+    server.use(
+      http.get('*/v1/projects/5/tokens', () => json(403, body)),
+      http.get('*/v1/projects/5', () => json(403, body)),
+      http.get('*/v1/servers', () => json(403, body)),
+    )
+    await api.GET('/projects/{id}/tokens', { params: { path: { id: 5 } } })
+    expect(fn).toHaveBeenCalledWith(5)
+    fn.mockClear()
+    await api.GET('/projects/{id}', { params: { path: { id: 5 } } })
+    await api.GET('/servers')
+    expect(fn).not.toHaveBeenCalled()
+    onForbidden(() => {})
   })
 
   it('reportUnauthorized calls the handler', () => {

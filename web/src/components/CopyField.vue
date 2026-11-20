@@ -4,7 +4,7 @@ import UButton from '@nuxt/ui/components/Button.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
 import { useCopy } from '@/lib/useCopy'
 
-const props = defineProps<{ value: string; label?: string; mono?: boolean }>()
+const props = defineProps<{ value: string; copyValue?: string; label?: string; mono?: boolean }>()
 const emit = defineEmits<{ copied: [] }>()
 
 const { copied, copy } = useCopy()
@@ -13,7 +13,7 @@ const manual = ref(false)
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 
 async function onCopy() {
-  const ok = await copy(props.value, input.value)
+  const ok = await copy(props.copyValue ?? props.value, input.value)
   manual.value = !ok
   if (ok) emit('copied')
 }

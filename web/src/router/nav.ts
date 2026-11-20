@@ -38,6 +38,6 @@ export function navItems(router: Router, side: Exclude<Side, 'root'>, role?: Rol
 
 export function useNav(side: Exclude<Side, 'root'>): ComputedRef<NavItem[]> {
   const router = useRouter()
-  const { project } = useCurrentProject()
-  return computed(() => navItems(router, side, project.value?.role))
+  const project = side === 'project' ? useCurrentProject().project : undefined
+  return computed(() => navItems(router, side, project?.value?.role))
 }

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
@@ -6,11 +6,6 @@ import { mountApp, testQueryClient, testRouter } from '@/test/mount'
 import { projectQuery } from '@/features/projects/queries'
 import * as project from '@/lib/project'
 import TokensPage from './TokensPage.vue'
-
-vi.mock('@/lib/project', async (orig) => {
-  const actual = await orig<typeof import('@/lib/project')>()
-  return { ...actual, recheckAccess: vi.fn(actual.recheckAccess) }
-})
 
 let mounted: { unmount: () => void } | null = null
 let tokens: unknown[]
@@ -55,7 +50,6 @@ beforeEach(() => {
       last_used: null,
     },
   ]
-  vi.mocked(project.recheckAccess).mockClear()
   server.use(
     http.get('*/v1/projects/:id', () =>
       json(200, { id: 7, name: 'Home lab', role, usage: { servers: 0 } }),
@@ -132,6 +126,7 @@ describe('TokensPage', () => {
       const p = await qc.fetchQuery({ ...projectQuery(7), staleTime: 0 })
       return to.meta.roles.includes(p.role) ? true : { name: 'not-found' }
     })
+    project.refreshOnForbidden(router, qc)
     role = 'owner'
     await router.push('/p/7/tokens')
     guarded = true
@@ -139,7 +134,6 @@ describe('TokensPage', () => {
     const m = mountApp(TokensPage, { router, queryClient: qc })
     mounted = m.wrapper
     await settle()
-    expect(project.recheckAccess).toHaveBeenCalled()
     expect(router.currentRoute.value.name).toBe('not-found')
   })
 })

@@ -1,9 +1,11 @@
 import createClient, { type Client, type Middleware } from 'openapi-fetch'
 import type { Router } from 'vue-router'
+import { parseProjectId } from '@/lib/project'
 import type { paths } from './schema'
 
 let projectSource: (() => number | null) | null = null
 let unauthorized: (() => void) | null = null
+let forbidden: ((projectId: number) => void) | null = null
 let loginRedirect = false
 
 // Read on every request so the header always matches the page you're on.
@@ -13,6 +15,10 @@ export function setProjectSource(fn: (() => number | null) | null): void {
 
 export function onUnauthorized(fn: () => void): void {
   unauthorized = fn
+}
+
+export function onForbidden(fn: (projectId: number) => void): void {
+  forbidden = fn
 }
 
 // Sends the first 401 to login with the current path; later ones are ignored until you leave login.
@@ -61,8 +67,14 @@ const middleware: Middleware = {
     if (projectId !== null) request.headers.set('Project-ID', String(projectId))
     return request
   },
-  onResponse({ response, schemaPath }) {
+  onResponse({ request, response, schemaPath }) {
     if (response.status === 401 && !quiet401.has(schemaPath)) unauthorized?.()
+    // The project query itself answers 403 for a lost project; refetching it would loop.
+    if (response.status === 403 && schemaPath.startsWith('/projects/{id}')) {
+      const isProjectGet = schemaPath === '/projects/{id}' && request.method === 'GET'
+      const id = parseProjectId(new URL(request.url).pathname.match(/\/projects\/(\d+)/)?.[1])
+      if (!isProjectGet && id !== null) forbidden?.(id)
+    }
     return response
   },
 }

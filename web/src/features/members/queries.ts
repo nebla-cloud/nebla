@@ -44,7 +44,10 @@ export function useSetRole(
       ),
     onSuccess: async (_d, v) => {
       const id = toValue(projectId)
-      const keys = [['members', id]]
+      const keys = [
+        ['members', id],
+        ['invites', id],
+      ]
       if (v.userId === toValue(myId)) keys.push(['project', id])
       await Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })))
     },
@@ -66,7 +69,10 @@ export function useRemoveMember(
     },
     onSuccess: async (_d, userId) => {
       const id = toValue(projectId)
-      const keys = [['members', id]]
+      const keys = [
+        ['members', id],
+        ['invites', id],
+      ]
       if (userId === toValue(myId)) keys.push(['project', id])
       await Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })))
     },

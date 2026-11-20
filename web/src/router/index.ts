@@ -8,7 +8,7 @@ import {
 } from 'vue-router'
 import { redirectOnUnauthorized, setProjectSource } from '@/api/client'
 import { panelReady } from '@/features/admin/getready/checklist'
-import { parseProjectId } from '@/lib/project'
+import { parseProjectId, refreshOnForbidden } from '@/lib/project'
 import { queryClient } from '@/lib/queryClient'
 import { setMe } from '@/lib/session'
 import { installGuards } from './guards'
@@ -78,6 +78,7 @@ export function createAppRouter(
   setProjectSource(() => parseProjectId(router.currentRoute.value.params.projectId))
   handleLoadErrors(router, reload)
   installGuards(router)
+  refreshOnForbidden(router, queryClient)
   redirectOnUnauthorized(router, () => {
     setMe(null)
     queryClient.clear()

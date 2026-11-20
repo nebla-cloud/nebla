@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
-import { mountApp, testRouter } from '@/test/mount'
+import { mountApp, testQueryClient, testRouter } from '@/test/mount'
 import { setMe } from '@/lib/session'
 import type { Role } from '@/api/types'
+import { refreshOnForbidden } from '@/lib/project'
 import MembersPage from './MembersPage.vue'
 
 let mounted: { unmount: () => void } | null = null
@@ -29,9 +30,17 @@ async function settle() {
 async function mountPage(role: Role, meId = 2) {
   myRole = role
   setMe({ id: meId, email: 'me@x.io', name: 'Me Self', is_admin: false } as never)
-  const router = testRouter([{ path: '/p/:projectId/members', component: MembersPage }])
+  const router = testRouter([
+    {
+      path: '/p/:projectId/members',
+      component: MembersPage,
+      meta: { roles: ['owner', 'admin', 'member', 'read_only'] },
+    },
+  ])
+  const queryClient = testQueryClient()
+  refreshOnForbidden(router, queryClient)
   await router.push('/p/7/members')
-  const m = mountApp(MembersPage, { router })
+  const m = mountApp(MembersPage, { router, queryClient })
   mounted = m.wrapper
   await settle()
   return m
@@ -87,6 +96,8 @@ beforeEach(() => {
     }),
     http.put('*/v1/projects/:id/members/:uid', async ({ request }) => {
       calls.push({ method: 'PUT', url: request.url, body: await request.json() })
+      if (putStatus === 403)
+        return json(403, { error: { code: 'forbidden', message: 'Not allowed.' } })
       if (putStatus === 409)
         return json(409, { error: { code: 'last_owner', message: 'A project needs an owner.' } })
       return json(200, members[2])
@@ -206,7 +217,7 @@ describe('MembersPage', () => {
   })
 
   it('demoting confirms with the token note and promoting does not', async () => {
-    await mountPage('owner')
+    await mountPage('owner', 1)
     const adminSel = selects().find((s) => s.value === 'admin')!
     await choose(adminSel, 'read_only')
     expect(body().textContent).toContain('API tokens they made keep working')
@@ -218,6 +229,50 @@ describe('MembersPage', () => {
     calls = []
     const memberSel = selects().find((s) => s.value === 'member')!
     await choose(memberSel, 'admin')
+    expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(1)
+  })
+
+  it('a 403 on a role change refetches the project and drops the controls', async () => {
+    await mountPage('admin')
+    expect(selects().length).toBeGreaterThan(0)
+    const before = projectGets
+    putStatus = 403
+    myRole = 'member'
+    await choose(
+      selects().find((s) => s.value === 'member')!,
+      'admin',
+    )
+    expect(projectGets).toBeGreaterThan(before)
+    expect(selects()).toHaveLength(0)
+  })
+
+  it('removing a member and changing a role refetch the invites', async () => {
+    await mountPage('owner')
+    const invitesGets = () => calls.filter((c) => c.method === 'GET').length
+    let before = invitesGets()
+    labelled('Remove Sam Reed').click()
+    await settle()
+    dialogButton('Remove').click()
+    await settle()
+    expect(invitesGets()).toBeGreaterThan(before)
+    before = invitesGets()
+    await choose(
+      selects().find((s) => s.value === 'member')!,
+      'admin',
+    )
+    expect(invitesGets()).toBeGreaterThan(before)
+  })
+
+  it('owner demoting themselves to admin confirms with the self copy', async () => {
+    await mountPage('owner', 1)
+    const mine = selects().find((s) => s.getAttribute('aria-label')?.includes('Olive Owner'))!
+    await choose(mine, 'admin')
+    expect(body().textContent).toContain(
+      "You'll lose some access. API tokens you made keep working.",
+    )
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+    button('Change role').click()
+    await settle()
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(1)
   })
 
