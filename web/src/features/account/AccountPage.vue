@@ -1,0 +1,177 @@
+<script setup lang="ts">
+import { computed, reactive, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { useQuery } from '@tanstack/vue-query'
+import UAlert from '@nuxt/ui/components/Alert.vue'
+import UButton from '@nuxt/ui/components/Button.vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
+import UFormField from '@nuxt/ui/components/FormField.vue'
+import UInput from '@nuxt/ui/components/Input.vue'
+import { useToast } from '@nuxt/ui/composables/useToast'
+import { api } from '@/api/client'
+import { unwrap } from '@/api/errors'
+import AccountMenu from '@/components/AccountMenu.vue'
+import BrandMark from '@/components/BrandMark.vue'
+import { projectQuery } from '@/features/projects/queries'
+import { readLastProject } from '@/lib/project'
+import { setMe, useSession } from '@/lib/session'
+import { inlineError } from './authError'
+import TwoFactorSection from './TwoFactorSection.vue'
+
+const toast = useToast()
+const { manifest, me } = useSession()
+const product = computed(() => manifest.value?.branding.product_name || 'Nebla')
+
+const lastId = readLastProject()
+const { data: lastProject } = useQuery(
+  computed(() => ({ ...projectQuery(lastId ?? 0), enabled: lastId !== null })),
+)
+
+const name = ref(me.value?.name ?? '')
+watch(
+  () => me.value?.name,
+  (n) => {
+    if (n !== undefined) name.value = n
+  },
+)
+const profileBusy = ref(false)
+const profileError = ref<string | null>(null)
+
+async function saveName() {
+  if (profileBusy.value) return
+  profileBusy.value = true
+  profileError.value = null
+  try {
+    setMe(unwrap(await api.PUT('/me', { body: { name: name.value.trim() } })))
+    toast.add({ title: 'Name saved', color: 'success' })
+  } catch (e) {
+    profileError.value = inlineError(e)
+  } finally {
+    profileBusy.value = false
+  }
+}
+
+const pw = reactive({ current: '', next: '', confirm: '' })
+const pwBusy = ref(false)
+const pwError = ref<string | null>(null)
+
+async function changePassword() {
+  if (pwBusy.value) return
+  pwError.value = null
+  if (pw.next !== pw.confirm) {
+    pwError.value = "Passwords don't match."
+    return
+  }
+  pwBusy.value = true
+  try {
+    unwrap(
+      await api.POST('/me/password', {
+        body: { current_password: pw.current, new_password: pw.next },
+      }),
+    )
+    pw.current = pw.next = pw.confirm = ''
+    toast.add({
+      title: 'Password changed. Your other sessions were signed out.',
+      color: 'success',
+    })
+  } catch (e) {
+    pwError.value = inlineError(e)
+  } finally {
+    pwBusy.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="min-h-dvh">
+    <header
+      class="flex h-14 items-center justify-between gap-3 border-b border-default px-4 sm:px-8"
+    >
+      <div class="flex items-center gap-2.5">
+        <BrandMark :size="22" />
+        <span class="font-extrabold tracking-tight text-highlighted">{{ product }}</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <UButton v-if="me?.is_admin" to="/admin" color="neutral" variant="ghost">Admin</UButton>
+        <div class="w-44 sm:w-56"><AccountMenu /></div>
+      </div>
+    </header>
+
+    <main class="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-8">
+      <RouterLink
+        v-if="lastProject"
+        :to="`/p/${lastProject.id}/servers`"
+        class="inline-flex w-fit items-center gap-1.5 text-sm text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+      >
+        <UIcon name="i-lucide-arrow-left" class="size-4" />
+        Back to {{ lastProject.name }}
+      </RouterLink>
+      <RouterLink
+        v-else
+        to="/projects"
+        class="inline-flex w-fit items-center gap-1.5 text-sm text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+      >
+        <UIcon name="i-lucide-arrow-left" class="size-4" />
+        Go to projects
+      </RouterLink>
+
+      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Account settings</h1>
+
+      <section class="flex flex-col gap-3">
+        <h2 class="text-base font-bold text-highlighted">Profile</h2>
+        <UAlert v-if="profileError" color="error" variant="subtle" :description="profileError" />
+        <form class="flex flex-col gap-4" novalidate @submit.prevent="saveName">
+          <UFormField label="Name" name="name">
+            <UInput v-model="name" name="name" autocomplete="name" class="w-full" />
+          </UFormField>
+          <div>
+            <p class="text-sm font-medium text-highlighted">Email</p>
+            <p class="text-sm text-toned">{{ me?.email }}</p>
+          </div>
+          <div>
+            <UButton type="submit" :loading="profileBusy">Save</UButton>
+          </div>
+        </form>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <h2 class="text-base font-bold text-highlighted">Password</h2>
+        <UAlert v-if="pwError" color="error" variant="subtle" :description="pwError" />
+        <form class="flex flex-col gap-4" novalidate @submit.prevent="changePassword">
+          <UFormField label="Current password" name="current_password">
+            <UInput
+              v-model="pw.current"
+              name="current_password"
+              type="password"
+              autocomplete="current-password"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField label="New password" name="new_password">
+            <UInput
+              v-model="pw.next"
+              name="new_password"
+              type="password"
+              autocomplete="new-password"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField label="Confirm new password" name="confirm_password">
+            <UInput
+              v-model="pw.confirm"
+              name="confirm_password"
+              type="password"
+              autocomplete="new-password"
+              class="w-full"
+            />
+          </UFormField>
+          <div>
+            <UButton type="submit" :loading="pwBusy">Change password</UButton>
+          </div>
+        </form>
+      </section>
+
+      <TwoFactorSection />
+    </main>
+  </div>
+</template>
