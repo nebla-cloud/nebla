@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test'
+import { createServer, expectNoLeaks, serverHeader } from './helpers'
 
 const harness = JSON.parse(process.env.NEBLA_E2E_HARNESS ?? '{}') as {
   pve: { url: string; token_id: string; token_secret: string; ca_fingerprint: string }
 }
 const SSH_KEY =
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKhCY6tff8uCIx8bJ18sUvMxanQaGQMcbCJCwbZXX8o6 e2e@nebla'
-const LEAKS = /vmid|local-lvm|vmbr|pve1|pve2/i
 
 test('first run to first server', async ({ page }) => {
   const step = (title: string) => page.locator('[data-step]').filter({ hasText: title })
   const nav = page.getByRole('navigation')
-  const snapshot = async () => expect(await page.content()).not.toMatch(LEAKS)
+  const snapshot = () => expectNoLeaks(page)
 
   await page.goto('/')
   await expect(page).toHaveURL(/\/setup$/)
@@ -89,18 +89,8 @@ test('first run to first server', async ({ page }) => {
   await expect(page.getByText('e2e@nebla', { exact: true })).toBeVisible()
   await snapshot()
 
-  await nav.getByRole('link', { name: 'Servers' }).click()
-  await page.getByRole('link', { name: 'Create server' }).click()
-  await expect(page.getByRole('heading', { name: 'Create server' })).toBeVisible()
-  const create = page.getByRole('button', { name: 'Create server' })
-  await expect(create).toBeEnabled()
-  await snapshot()
-  await create.click()
-
-  await expect(page).toHaveURL(/\/p\/\d+\/servers\/\d+$/)
-  const header = page.locator('header').filter({ has: page.getByRole('heading', { level: 1 }) })
-  await expect(header.getByText('Running', { exact: true })).toBeVisible({ timeout: 60_000 })
-  const serverName = (await page.getByRole('heading', { level: 1 }).textContent())!.trim()
+  const serverName = await createServer(page)
+  const header = serverHeader(page)
   await snapshot()
 
   await page.getByRole('button', { name: 'Reboot' }).click()

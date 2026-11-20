@@ -40,6 +40,7 @@ func TestUIHarness(t *testing.T) {
 		t.Skip("set NEBLA_UI_HARNESS_OUT and NEBLA_UI_HARNESS_STOP")
 	}
 	sum := strings.Repeat("ab12", 32)
+	sum256 := strings.Repeat("cd34", 16)
 	var failNext atomic.Int32
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -52,6 +53,8 @@ func TestUIHarness(t *testing.T) {
 				return
 			}
 			fmt.Fprintf(w, "%s  debian.qcow2\n", sum)
+		case r.URL.Path == "/ubuntu/SHA256SUMS":
+			fmt.Fprintf(w, "%s  ubuntu.qcow2\n", sum256)
 		default:
 			http.NotFound(w, r)
 		}
@@ -59,7 +62,10 @@ func TestUIHarness(t *testing.T) {
 	t.Cleanup(up.Close)
 	entries := []osimages.Entry{{Key: "debian-13", Description: "Debian 13", OSFlavor: "debian", OSVersion: "13",
 		Dirs: []string{up.URL + "/debian/"}, ChecksumName: "SHA512SUMS", File: regexp.MustCompile(`^debian\.qcow2$`),
-		Algorithm: "sha512", Format: "qcow2"}}
+		Algorithm: "sha512", Format: "qcow2"},
+		{Key: "ubuntu-24.04", Description: "Ubuntu 24.04", OSFlavor: "ubuntu", OSVersion: "24.04",
+			Dirs: []string{up.URL + "/ubuntu/"}, ChecksumName: "SHA256SUMS", File: regexp.MustCompile(`^ubuntu\.qcow2$`),
+			Algorithm: "sha256", Format: "qcow2"}}
 	app := testutil.NewAppWithWorkers(t, testutil.ServerWorkers, testutil.WithOSImages(entries, up.Client()))
 	app.SeedPVE()
 	for _, n := range []string{"pve1", "pve2"} {

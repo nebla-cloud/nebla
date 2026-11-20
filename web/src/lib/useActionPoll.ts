@@ -5,6 +5,8 @@ import { ApiError, errorMessage, unwrap } from '@/api/errors'
 import type { Action } from '@/api/types'
 import { useCurrentProject } from './project'
 
+const limited = (e: unknown) => e instanceof ApiError && e.status === 429
+
 export function useActionPoll(
   actionId: Ref<number | null>,
   opts: { onDone?: (a: Action) => void; intervalMs?: number } = {},
@@ -27,6 +29,8 @@ export function useActionPoll(
       retry: false,
       refetchInterval: (q: { state: { data?: Action; error: unknown } }) => {
         const e = q.state.error
+        // A rate limit is transient, so back off and keep going.
+        if (limited(e)) return interval * 5
         if (e instanceof ApiError && e.status >= 400 && e.status < 500) return false
         return q.state.data?.status === 'running' ? interval : false
       },
@@ -65,7 +69,8 @@ export function useActionPoll(
     error: computed(() => {
       if (action.value?.status === 'error')
         return action.value.error?.message ?? 'The action failed.'
-      return query.error.value ? errorMessage(query.error.value) : null
+      const e = query.error.value
+      return e && !limited(e) ? errorMessage(e) : null
     }),
   }
 }
