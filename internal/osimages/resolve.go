@@ -92,25 +92,35 @@ func checksumName(ctx context.Context, hc *http.Client, e Entry, dir string) (st
 }
 
 func pick(e Entry, sums map[string]string) (name, sum string, ok bool) {
+	want := map[string]int{"sha256": 64, "sha512": 128}[e.Algorithm]
 	var names []string
-	for n := range sums {
-		if e.File.MatchString(n) {
+	for n, h := range sums {
+		if e.File.MatchString(n) && len(h) == want {
 			names = append(names, n)
 		}
 	}
 	if len(names) == 0 {
 		return "", "", false
 	}
-	// Prefer concrete names over latest aliases, then the lexically greatest.
-	sort.Slice(names, func(i, j int) bool {
-		li, lj := strings.Contains(names[i], "latest"), strings.Contains(names[j], "latest")
-		if li != lj {
-			return li
+	sort.Strings(names)
+	latest := ""
+	for _, n := range names {
+		if strings.Contains(n, "latest") {
+			latest = n
 		}
-		return names[i] < names[j]
-	})
-	n := names[len(names)-1]
-	return n, sums[n], true
+	}
+	if latest == "" {
+		n := names[len(names)-1]
+		return n, sums[n], true
+	}
+	// Pin the newest dated name that shares the latest alias's hash.
+	pinned := latest
+	for _, n := range names {
+		if !strings.Contains(n, "latest") && sums[n] == sums[latest] {
+			pinned = n
+		}
+	}
+	return pinned, sums[pinned], true
 }
 
 // Resolve picks the concrete image file and hash from the first dir that serves it.
