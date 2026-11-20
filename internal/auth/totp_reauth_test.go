@@ -2,10 +2,16 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/Hexeption/nebla/internal/auth"
+	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/hook"
+	"github.com/Hexeption/nebla/internal/ext"
+	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 )
@@ -66,4 +72,52 @@ func TestDisableRequiresPassword(t *testing.T) {
 	requireCode(t, err, http.StatusUnauthorized, "invalid_credentials")
 	_, err = s.Login(ctx, "a@example.com", pw, "")
 	requireCode(t, err, http.StatusUnauthorized, "totp_required")
+}
+
+func failSessionDeletes(c *ent.Client) {
+	c.Session.Use(func(next ent.Mutator) ent.Mutator {
+		return hook.SessionFunc(func(ctx context.Context, m *ent.SessionMutation) (ent.Value, error) {
+			if m.Op().Is(ent.OpDelete | ent.OpDeleteOne) {
+				return nil, errors.New("revoke failed")
+			}
+			return next.Mutate(ctx, m)
+		})
+	})
+}
+
+func TestVerifyTOTPRollsBackWhenRevokeFails(t *testing.T) {
+	c := testutil.NewEnt(t)
+	s := auth.New(c, ext.Defaults(nil).Registration)
+	ctx := context.Background()
+	u, err := s.Setup(ctx, "a@example.com", pw, "A")
+	require.NoError(t, err)
+	secret, _, err := s.EnrollTOTP(ctx, u.ID, pw)
+	require.NoError(t, err)
+	failSessionDeletes(c)
+	code, _ := totp.GenerateCode(secret, time.Now())
+	require.Error(t, s.VerifyTOTP(ctx, u.ID, code, ""))
+
+	row, err := c.User.Get(ctx, u.ID)
+	require.NoError(t, err)
+	require.False(t, row.TotpEnabled)
+	require.NotNil(t, row.TotpPendingSecret)
+}
+
+func TestDisableTOTPRollsBackWhenRevokeFails(t *testing.T) {
+	c := testutil.NewEnt(t)
+	s := auth.New(c, ext.Defaults(nil).Registration)
+	ctx := context.Background()
+	u, err := s.Setup(ctx, "a@example.com", pw, "A")
+	require.NoError(t, err)
+	secret, _, err := s.EnrollTOTP(ctx, u.ID, pw)
+	require.NoError(t, err)
+	code, _ := totp.GenerateCode(secret, time.Now())
+	require.NoError(t, s.VerifyTOTP(ctx, u.ID, code, ""))
+	failSessionDeletes(c)
+	require.Error(t, s.DisableTOTP(ctx, u.ID, code, pw, ""))
+
+	row, err := c.User.Get(ctx, u.ID)
+	require.NoError(t, err)
+	require.True(t, row.TotpEnabled)
+	require.NotNil(t, row.TotpSecret)
 }

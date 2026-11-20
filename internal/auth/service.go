@@ -253,28 +253,43 @@ func (s *Service) EnrollTOTP(ctx context.Context, userID int64, password string)
 
 // VerifyTOTP activates the pending secret when code is valid and revokes the user's other sessions.
 func (s *Service) VerifyTOTP(ctx context.Context, userID int64, code, keepToken string) error {
-	u, err := s.db.User.Get(ctx, userID)
+	return s.inTx(ctx, func(tx *ent.Client) error {
+		u, err := tx.User.Query().Where(user.ID(userID)).ForUpdate().Only(ctx)
+		if err != nil {
+			return err
+		}
+		if u.TotpPendingSecret == nil {
+			return apierr.New(http.StatusUnprocessableEntity, "totp_not_enrolled", "start enrollment first")
+		}
+		if !validTOTP(*u.TotpPendingSecret, code) {
+			return errInvalidCode
+		}
+		err = tx.User.UpdateOneID(userID).
+			Modify(func(u *entsql.UpdateBuilder) { u.Set(user.FieldTotpSecret, entsql.Expr(user.FieldTotpPendingSecret)) }).
+			ClearTotpPendingSecret().SetTotpEnabled(true).Exec(ctx)
+		if err != nil {
+			return err
+		}
+		return revokeOtherSessions(ctx, tx, userID, keepToken)
+	})
+}
+
+// inTx runs fn in a transaction, committing only when it returns nil.
+func (s *Service) inTx(ctx context.Context, fn func(tx *ent.Client) error) error {
+	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return err
 	}
-	if u.TotpPendingSecret == nil {
-		return apierr.New(http.StatusUnprocessableEntity, "totp_not_enrolled", "start enrollment first")
-	}
-	if !validTOTP(*u.TotpPendingSecret, code) {
-		return errInvalidCode
-	}
-	err = s.db.User.UpdateOneID(userID).
-		Modify(func(u *entsql.UpdateBuilder) { u.Set(user.FieldTotpSecret, entsql.Expr(user.FieldTotpPendingSecret)) }).
-		ClearTotpPendingSecret().SetTotpEnabled(true).Exec(ctx)
-	if err != nil {
+	defer tx.Rollback()
+	if err := fn(tx.Client()); err != nil {
 		return err
 	}
-	return s.revokeOtherSessions(ctx, userID, keepToken)
+	return tx.Commit()
 }
 
 // revokeOtherSessions deletes all of the user's sessions except the one for keepToken (none kept when empty).
-func (s *Service) revokeOtherSessions(ctx context.Context, userID int64, keepToken string) error {
-	del := s.db.Session.Delete().Where(session.UserID(userID))
+func revokeOtherSessions(ctx context.Context, db *ent.Client, userID int64, keepToken string) error {
+	del := db.Session.Delete().Where(session.UserID(userID))
 	if keepToken != "" {
 		del = del.Where(session.IDNEQ(hashToken(keepToken)))
 	}
@@ -284,19 +299,20 @@ func (s *Service) revokeOtherSessions(ctx context.Context, userID int64, keepTok
 
 // DisableTOTP turns TOTP off given the code and password, and revokes the user's other sessions.
 func (s *Service) DisableTOTP(ctx context.Context, userID int64, code, password, keepToken string) error {
-	u, err := s.db.User.Get(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if !VerifyPassword(ctx, u.PasswordHash, password) {
-		return errInvalidCreds
-	}
-	if !u.TotpEnabled || u.TotpSecret == nil || !validTOTP(*u.TotpSecret, code) {
-		return errInvalidCode
-	}
-	err = s.db.User.UpdateOneID(userID).ClearTotpSecret().ClearTotpPendingSecret().SetTotpEnabled(false).Exec(ctx)
-	if err != nil {
-		return err
-	}
-	return s.revokeOtherSessions(ctx, userID, keepToken)
+	return s.inTx(ctx, func(tx *ent.Client) error {
+		u, err := tx.User.Query().Where(user.ID(userID)).ForUpdate().Only(ctx)
+		if err != nil {
+			return err
+		}
+		if !VerifyPassword(ctx, u.PasswordHash, password) {
+			return errInvalidCreds
+		}
+		if !u.TotpEnabled || u.TotpSecret == nil || !validTOTP(*u.TotpSecret, code) {
+			return errInvalidCode
+		}
+		if err := tx.User.UpdateOneID(userID).ClearTotpSecret().ClearTotpPendingSecret().SetTotpEnabled(false).Exec(ctx); err != nil {
+			return err
+		}
+		return revokeOtherSessions(ctx, tx, userID, keepToken)
+	})
 }
