@@ -32,6 +32,9 @@ var publicOps = map[string]bool{
 	"PostSignup":       true,
 	"PostInviteAccept": true,
 	"GetInvite":        true,
+	"GetEnrollScript":  true,
+	"GetEnrollCheck":   true,
+	"PostEnrollReport": true,
 }
 
 // adminOps need a panel admin; TestAdminOpsMatchSpec keeps it equal to the spec's /admin/ paths.
@@ -71,6 +74,14 @@ var adminOps = map[string]bool{
 	"PostAdminCatalogEnable":     true,
 	"PostAdminCatalogRefresh":    true,
 	"PostAdminCatalogDisable":    true,
+
+	"GetAdminLocationEnrollments":       true,
+	"PostAdminLocationEnrollments":      true,
+	"GetAdminLocationEnrollment":        true,
+	"DeleteAdminLocationEnrollment":     true,
+	"PostAdminLocationEnrollmentToken":  true,
+	"PostAdminLocationEnrollmentReport": true,
+	"PostAdminLocationEnrollmentFinish": true,
 }
 
 // UserFrom returns the authenticated user set by RequireUser or a session scope.

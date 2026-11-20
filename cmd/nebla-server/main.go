@@ -13,6 +13,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/config"
 	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/enroll"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
@@ -67,8 +68,10 @@ func run() error {
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log})
 	reconcile.Register(workers, rec)
+	enr := enroll.New(sqlDB, client, enroll.Options{SecretKey: cfg.SecretKey, BaseURL: cfg.BaseURL, Catalog: cat, Logger: log})
+	enroll.Register(workers, enr)
 	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
-		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob()))
+		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), enroll.SweepPeriodicJob()))
 	if err != nil {
 		return err
 	}
@@ -102,7 +105,7 @@ func run() error {
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: httpapi.New(httpapi.Deps{Pool: pool, SQL: sqlDB, Ent: client, Config: cfg, Logger: log, Mail: sender, Jobs: runner,
-			Ext: exts, Bus: bus, Catalog: cat, OSImages: osi, CatalogHooks: catalogHooks, ProjectHooks: projectHooks}),
+			Ext: exts, Bus: bus, Catalog: cat, OSImages: osi, Enroll: enr, CatalogHooks: catalogHooks, ProjectHooks: projectHooks}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,

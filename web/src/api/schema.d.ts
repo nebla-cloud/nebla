@@ -399,6 +399,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/enroll.sh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The online Proxmox setup script, as plain text so a browser shows it */
+        get: operations["getEnrollScript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/enroll/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check an enrollment token before the setup script changes anything
+         * @description Needs the `Authorization: Enroll <token>` header.
+         */
+        get: operations["getEnrollCheck"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/enroll/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The setup script's report of the new token, nodes and storages
+         * @description Needs the `Authorization: Enroll <token>` header.
+         */
+        post: operations["postEnrollReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/invites/{token}/accept": {
         parameters: {
             query?: never;
@@ -531,6 +588,101 @@ export interface paths {
         /** Enable or disable a node or override its disk storage */
         put: operations["putAdminLocationNode"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/location_enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List enrollments the sweep has not removed yet */
+        get: operations["getAdminLocationEnrollments"];
+        put?: never;
+        /** Start enrolling a new location (name) or re-run an existing one (location_id) */
+        post: operations["postAdminLocationEnrollments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/location_enrollments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get an enrollment and, once reported, its report */
+        get: operations["getAdminLocationEnrollment"];
+        put?: never;
+        post?: never;
+        /** Cancel an enrollment and drop its sealed secret */
+        delete: operations["deleteAdminLocationEnrollment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/location_enrollments/{id}/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue a new token and command for a waiting enrollment */
+        post: operations["postAdminLocationEnrollmentToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/location_enrollments/{id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store the report line pasted back from the offline script */
+        post: operations["postAdminLocationEnrollmentReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/location_enrollments/{id}/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pin the node certificate and create or update the location */
+        post: operations["postAdminLocationEnrollmentFinish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1441,6 +1593,78 @@ export interface components {
             created: string;
             /** Format: date-time */
             updated: string;
+        };
+        EnrollCheck: {
+            token_name: string;
+            /** @description The location name */
+            location: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        EnrollmentReport: {
+            pve_version: string;
+            node: string;
+            token_id: string;
+            nodes: components["schemas"]["EnrollmentReportNode"][];
+            storages: components["schemas"]["EnrollmentReportStorage"][];
+        };
+        EnrollmentReportNode: {
+            name: string;
+            ip: string;
+            online: boolean;
+            fingerprint: string;
+        };
+        EnrollmentReportStorage: {
+            id: string;
+            type: string;
+            content: string[];
+            shared: boolean;
+            nebla_iso: boolean;
+        };
+        LocationEnrollment: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            description: string;
+            /**
+             * Format: int64
+             * @description Set for a re-run of an existing location
+             */
+            location_id: number | null;
+            token_name: string;
+            /** @enum {string} */
+            state: "waiting" | "reported";
+            expired: boolean;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            created: string;
+            report: components["schemas"]["EnrollmentReport"] | null;
+        };
+        /** @description Exactly one of name (a new location) or location_id (a re-run) */
+        LocationEnrollmentInput: {
+            name?: string;
+            description?: string;
+            /** Format: int64 */
+            location_id?: number;
+        };
+        /** @description The token, command and offline script are shown only in this response */
+        LocationEnrollmentCreated: {
+            enrollment: components["schemas"]["LocationEnrollment"];
+            token: string;
+            command: string;
+            offline_script: string;
+        };
+        LocationEnrollmentFinish: {
+            url: string;
+            disk_storage: string;
+            iso_storage: string;
+            import_storage?: string;
+        };
+        LocationEnrollmentFinished: {
+            location: components["schemas"]["AdminLocation"];
+            /** @description Optional pveum commands for the admin to run on the node */
+            cleanup: string[];
         };
         LocationRef: {
             /** Format: int64 */
@@ -2559,6 +2783,83 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    getEnrollScript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain; charset=utf-8": string;
+                };
+            };
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getEnrollCheck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollCheck"];
+                };
+            };
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postEnrollReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
     postInviteAccept: {
         parameters: {
             query?: never;
@@ -2880,6 +3181,206 @@ export interface operations {
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getAdminLocationEnrollments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enrollments: components["schemas"]["LocationEnrollment"][];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postAdminLocationEnrollments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationEnrollmentInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationEnrollmentCreated"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getAdminLocationEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationEnrollment"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteAdminLocationEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postAdminLocationEnrollmentToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationEnrollmentCreated"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postAdminLocationEnrollmentReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    blob: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationEnrollment"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            410: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postAdminLocationEnrollmentFinish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationEnrollmentFinish"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationEnrollmentFinished"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            410: components["responses"]["Error"];
             422: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };

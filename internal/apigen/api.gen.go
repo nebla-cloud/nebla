@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"time"
 
+	stdjson "encoding/json"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
 )
@@ -89,6 +91,24 @@ func (e IpPoolInputFamily) Valid() bool {
 	case IpPoolInputFamilyIpv4:
 		return true
 	case IpPoolInputFamilyIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LocationEnrollmentState.
+const (
+	Reported LocationEnrollmentState = "reported"
+	Waiting  LocationEnrollmentState = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the LocationEnrollmentState enum.
+func (e LocationEnrollmentState) Valid() bool {
+	switch e {
+	case Reported:
+		return true
+	case Waiting:
 		return true
 	default:
 		return false
@@ -366,6 +386,41 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
+// EnrollCheck defines model for EnrollCheck.
+type EnrollCheck struct {
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Location The location name
+	Location  string `json:"location"`
+	TokenName string `json:"token_name"`
+}
+
+// EnrollmentReport defines model for EnrollmentReport.
+type EnrollmentReport struct {
+	Node       string                    `json:"node"`
+	Nodes      []EnrollmentReportNode    `json:"nodes"`
+	PveVersion string                    `json:"pve_version"`
+	Storages   []EnrollmentReportStorage `json:"storages"`
+	TokenId    string                    `json:"token_id"`
+}
+
+// EnrollmentReportNode defines model for EnrollmentReportNode.
+type EnrollmentReportNode struct {
+	Fingerprint string `json:"fingerprint"`
+	Ip          string `json:"ip"`
+	Name        string `json:"name"`
+	Online      bool   `json:"online"`
+}
+
+// EnrollmentReportStorage defines model for EnrollmentReportStorage.
+type EnrollmentReportStorage struct {
+	Content  []string `json:"content"`
+	Id       string   `json:"id"`
+	NeblaIso bool     `json:"nebla_iso"`
+	Shared   bool     `json:"shared"`
+	Type     string   `json:"type"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Error struct {
@@ -471,6 +526,55 @@ type Location struct {
 		Ipv4 bool `json:"ipv4"`
 		Ipv6 bool `json:"ipv6"`
 	} `json:"networks"`
+}
+
+// LocationEnrollment defines model for LocationEnrollment.
+type LocationEnrollment struct {
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	Expired     bool      `json:"expired"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	Id          int64     `json:"id"`
+
+	// LocationId Set for a re-run of an existing location
+	LocationId *int64                  `json:"location_id"`
+	Name       string                  `json:"name"`
+	Report     *EnrollmentReport       `json:"report"`
+	State      LocationEnrollmentState `json:"state"`
+	TokenName  string                  `json:"token_name"`
+}
+
+// LocationEnrollmentState defines model for LocationEnrollment.State.
+type LocationEnrollmentState string
+
+// LocationEnrollmentCreated The token, command and offline script are shown only in this response
+type LocationEnrollmentCreated struct {
+	Command       string             `json:"command"`
+	Enrollment    LocationEnrollment `json:"enrollment"`
+	OfflineScript string             `json:"offline_script"`
+	Token         string             `json:"token"`
+}
+
+// LocationEnrollmentFinish defines model for LocationEnrollmentFinish.
+type LocationEnrollmentFinish struct {
+	DiskStorage   string  `json:"disk_storage"`
+	ImportStorage *string `json:"import_storage,omitempty"`
+	IsoStorage    string  `json:"iso_storage"`
+	Url           string  `json:"url"`
+}
+
+// LocationEnrollmentFinished defines model for LocationEnrollmentFinished.
+type LocationEnrollmentFinished struct {
+	// Cleanup Optional pveum commands for the admin to run on the node
+	Cleanup  []string      `json:"cleanup"`
+	Location AdminLocation `json:"location"`
+}
+
+// LocationEnrollmentInput Exactly one of name (a new location) or location_id (a re-run)
+type LocationEnrollmentInput struct {
+	Description *string `json:"description,omitempty"`
+	LocationId  *int64  `json:"location_id,omitempty"`
+	Name        *string `json:"name,omitempty"`
 }
 
 // LocationInput defines model for LocationInput.
@@ -835,6 +939,11 @@ type GetAdminIpPoolsParams struct {
 	LocationId *int64   `form:"location_id,omitempty" json:"location_id,omitempty"`
 }
 
+// PostAdminLocationEnrollmentReportJSONBody defines parameters for PostAdminLocationEnrollmentReport.
+type PostAdminLocationEnrollmentReportJSONBody struct {
+	Blob string `json:"blob"`
+}
+
 // GetAdminLocationsParams defines parameters for GetAdminLocations.
 type GetAdminLocationsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -873,6 +982,9 @@ type PostAuthLoginJSONBody struct {
 	Password string  `json:"password"`
 	TotpCode *string `json:"totp_code,omitempty"`
 }
+
+// PostEnrollReportJSONBody defines parameters for PostEnrollReport.
+type PostEnrollReportJSONBody = stdjson.RawMessage
 
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
@@ -989,6 +1101,15 @@ type PostAdminIpPoolsJSONRequestBody = IpPoolInput
 // PutAdminIpPoolJSONRequestBody defines body for PutAdminIpPool for application/json ContentType.
 type PutAdminIpPoolJSONRequestBody = IpPoolInput
 
+// PostAdminLocationEnrollmentsJSONRequestBody defines body for PostAdminLocationEnrollments for application/json ContentType.
+type PostAdminLocationEnrollmentsJSONRequestBody = LocationEnrollmentInput
+
+// PostAdminLocationEnrollmentFinishJSONRequestBody defines body for PostAdminLocationEnrollmentFinish for application/json ContentType.
+type PostAdminLocationEnrollmentFinishJSONRequestBody = LocationEnrollmentFinish
+
+// PostAdminLocationEnrollmentReportJSONRequestBody defines body for PostAdminLocationEnrollmentReport for application/json ContentType.
+type PostAdminLocationEnrollmentReportJSONRequestBody PostAdminLocationEnrollmentReportJSONBody
+
 // PostAdminLocationsJSONRequestBody defines body for PostAdminLocations for application/json ContentType.
 type PostAdminLocationsJSONRequestBody = LocationInput
 
@@ -1024,6 +1145,9 @@ type PostAuthTotpEnrollJSONRequestBody = TotpEnroll
 
 // PostAuthTotpVerifyJSONRequestBody defines body for PostAuthTotpVerify for application/json ContentType.
 type PostAuthTotpVerifyJSONRequestBody = TotpCode
+
+// PostEnrollReportJSONRequestBody defines body for PostEnrollReport for application/json ContentType.
+type PostEnrollReportJSONRequestBody = PostEnrollReportJSONBody
 
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
@@ -1129,6 +1253,27 @@ type ServerInterface interface {
 	// PutAdminIpPool Update an IP pool; its location cannot change
 	// (PUT /admin/ip_pools/{id})
 	PutAdminIpPool(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminLocationEnrollments List enrollments the sweep has not removed yet
+	// (GET /admin/location_enrollments)
+	GetAdminLocationEnrollments(w http.ResponseWriter, r *http.Request)
+	// PostAdminLocationEnrollments Start enrolling a new location (name) or re-run an existing one (location_id)
+	// (POST /admin/location_enrollments)
+	PostAdminLocationEnrollments(w http.ResponseWriter, r *http.Request)
+	// DeleteAdminLocationEnrollment Cancel an enrollment and drop its sealed secret
+	// (DELETE /admin/location_enrollments/{id})
+	DeleteAdminLocationEnrollment(w http.ResponseWriter, r *http.Request, id ID)
+	// GetAdminLocationEnrollment Get an enrollment and, once reported, its report
+	// (GET /admin/location_enrollments/{id})
+	GetAdminLocationEnrollment(w http.ResponseWriter, r *http.Request, id ID)
+	// PostAdminLocationEnrollmentFinish Pin the node certificate and create or update the location
+	// (POST /admin/location_enrollments/{id}/finish)
+	PostAdminLocationEnrollmentFinish(w http.ResponseWriter, r *http.Request, id ID)
+	// PostAdminLocationEnrollmentReport Store the report line pasted back from the offline script
+	// (POST /admin/location_enrollments/{id}/report)
+	PostAdminLocationEnrollmentReport(w http.ResponseWriter, r *http.Request, id ID)
+	// PostAdminLocationEnrollmentToken Issue a new token and command for a waiting enrollment
+	// (POST /admin/location_enrollments/{id}/token)
+	PostAdminLocationEnrollmentToken(w http.ResponseWriter, r *http.Request, id ID)
 	// GetAdminLocations List locations with their Proxmox connection and nodes
 	// (GET /admin/locations)
 	GetAdminLocations(w http.ResponseWriter, r *http.Request, params GetAdminLocationsParams)
@@ -1198,6 +1343,15 @@ type ServerInterface interface {
 	// PostAuthTotpVerify Confirm enrollment and enable TOTP
 	// (POST /auth/totp/verify)
 	PostAuthTotpVerify(w http.ResponseWriter, r *http.Request)
+	// GetEnrollScript The online Proxmox setup script, as plain text so a browser shows it
+	// (GET /enroll.sh)
+	GetEnrollScript(w http.ResponseWriter, r *http.Request)
+	// GetEnrollCheck Check an enrollment token before the setup script changes anything
+	// (GET /enroll/check)
+	GetEnrollCheck(w http.ResponseWriter, r *http.Request)
+	// PostEnrollReport The setup script's report of the new token, nodes and storages
+	// (POST /enroll/report)
+	PostEnrollReport(w http.ResponseWriter, r *http.Request)
 	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
@@ -1462,6 +1616,48 @@ func (_ Unimplemented) PutAdminIpPool(w http.ResponseWriter, r *http.Request, id
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetAdminLocationEnrollments List enrollments the sweep has not removed yet
+// (GET /admin/location_enrollments)
+func (_ Unimplemented) GetAdminLocationEnrollments(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminLocationEnrollments Start enrolling a new location (name) or re-run an existing one (location_id)
+// (POST /admin/location_enrollments)
+func (_ Unimplemented) PostAdminLocationEnrollments(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminLocationEnrollment Cancel an enrollment and drop its sealed secret
+// (DELETE /admin/location_enrollments/{id})
+func (_ Unimplemented) DeleteAdminLocationEnrollment(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminLocationEnrollment Get an enrollment and, once reported, its report
+// (GET /admin/location_enrollments/{id})
+func (_ Unimplemented) GetAdminLocationEnrollment(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminLocationEnrollmentFinish Pin the node certificate and create or update the location
+// (POST /admin/location_enrollments/{id}/finish)
+func (_ Unimplemented) PostAdminLocationEnrollmentFinish(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminLocationEnrollmentReport Store the report line pasted back from the offline script
+// (POST /admin/location_enrollments/{id}/report)
+func (_ Unimplemented) PostAdminLocationEnrollmentReport(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminLocationEnrollmentToken Issue a new token and command for a waiting enrollment
+// (POST /admin/location_enrollments/{id}/token)
+func (_ Unimplemented) PostAdminLocationEnrollmentToken(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetAdminLocations List locations with their Proxmox connection and nodes
 // (GET /admin/locations)
 func (_ Unimplemented) GetAdminLocations(w http.ResponseWriter, r *http.Request, params GetAdminLocationsParams) {
@@ -1597,6 +1793,24 @@ func (_ Unimplemented) PostAuthTotpEnroll(w http.ResponseWriter, r *http.Request
 // PostAuthTotpVerify Confirm enrollment and enable TOTP
 // (POST /auth/totp/verify)
 func (_ Unimplemented) PostAuthTotpVerify(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetEnrollScript The online Proxmox setup script, as plain text so a browser shows it
+// (GET /enroll.sh)
+func (_ Unimplemented) GetEnrollScript(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetEnrollCheck Check an enrollment token before the setup script changes anything
+// (GET /enroll/check)
+func (_ Unimplemented) GetEnrollCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostEnrollReport The setup script's report of the new token, nodes and storages
+// (POST /enroll/report)
+func (_ Unimplemented) PostEnrollReport(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2526,6 +2740,164 @@ func (siw *ServerInterfaceWrapper) PutAdminIpPool(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetAdminLocationEnrollments operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminLocationEnrollments(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminLocationEnrollments(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminLocationEnrollments operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminLocationEnrollments(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminLocationEnrollments(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminLocationEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminLocationEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminLocationEnrollment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminLocationEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminLocationEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminLocationEnrollment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminLocationEnrollmentFinish operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminLocationEnrollmentFinish(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminLocationEnrollmentFinish(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminLocationEnrollmentReport operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminLocationEnrollmentReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminLocationEnrollmentReport(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminLocationEnrollmentToken operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminLocationEnrollmentToken(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminLocationEnrollmentToken(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAdminLocations operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminLocations(w http.ResponseWriter, r *http.Request) {
 
@@ -3084,6 +3456,48 @@ func (siw *ServerInterfaceWrapper) PostAuthTotpVerify(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthTotpVerify(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetEnrollScript operation middleware
+func (siw *ServerInterfaceWrapper) GetEnrollScript(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEnrollScript(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetEnrollCheck operation middleware
+func (siw *ServerInterfaceWrapper) GetEnrollCheck(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEnrollCheck(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostEnrollReport operation middleware
+func (siw *ServerInterfaceWrapper) PostEnrollReport(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostEnrollReport(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4749,6 +5163,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/invites/{token}", wrapper.GetInvite)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/enroll.sh", wrapper.GetEnrollScript)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/enroll/check", wrapper.GetEnrollCheck)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/enroll/report", wrapper.PostEnrollReport)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/invites/{token}/accept", wrapper.PostInviteAccept)
 	})
 	r.Group(func(r chi.Router) {
@@ -4780,6 +5203,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/admin/locations/{id}/nodes/{node_id}", wrapper.PutAdminLocationNode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/location_enrollments", wrapper.GetAdminLocationEnrollments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/location_enrollments", wrapper.PostAdminLocationEnrollments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/location_enrollments/{id}", wrapper.DeleteAdminLocationEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/location_enrollments/{id}", wrapper.GetAdminLocationEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/location_enrollments/{id}/token", wrapper.PostAdminLocationEnrollmentToken)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/location_enrollments/{id}/report", wrapper.PostAdminLocationEnrollmentReport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/location_enrollments/{id}/finish", wrapper.PostAdminLocationEnrollmentFinish)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/admin/server_types", wrapper.GetAdminServerTypes)
@@ -6573,6 +7017,682 @@ type PutAdminIpPooldefaultJSONResponse struct {
 }
 
 func (response PutAdminIpPooldefaultJSONResponse) VisitPutAdminIpPoolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollmentsRequestObject struct {
+}
+
+type GetAdminLocationEnrollmentsResponseObject interface {
+	VisitGetAdminLocationEnrollmentsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminLocationEnrollments200JSONResponse struct {
+	Enrollments []LocationEnrollment `json:"enrollments"`
+}
+
+func (response GetAdminLocationEnrollments200JSONResponse) VisitGetAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollments401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminLocationEnrollments401JSONResponse) VisitGetAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollments403JSONResponse Error
+
+func (response GetAdminLocationEnrollments403JSONResponse) VisitGetAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollmentsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminLocationEnrollmentsdefaultJSONResponse) VisitGetAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentsRequestObject struct {
+	Body *PostAdminLocationEnrollmentsJSONRequestBody
+}
+
+type PostAdminLocationEnrollmentsResponseObject interface {
+	VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error
+}
+
+type PostAdminLocationEnrollments201JSONResponse LocationEnrollmentCreated
+
+func (response PostAdminLocationEnrollments201JSONResponse) VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollments401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminLocationEnrollments401JSONResponse) VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollments403JSONResponse Error
+
+func (response PostAdminLocationEnrollments403JSONResponse) VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollments404JSONResponse Error
+
+func (response PostAdminLocationEnrollments404JSONResponse) VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollments409JSONResponse Error
+
+func (response PostAdminLocationEnrollments409JSONResponse) VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollments422JSONResponse Error
+
+func (response PostAdminLocationEnrollments422JSONResponse) VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminLocationEnrollmentsdefaultJSONResponse) VisitPostAdminLocationEnrollmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocationEnrollmentRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteAdminLocationEnrollmentResponseObject interface {
+	VisitDeleteAdminLocationEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminLocationEnrollment204Response struct {
+}
+
+func (response DeleteAdminLocationEnrollment204Response) VisitDeleteAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminLocationEnrollment401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminLocationEnrollment401JSONResponse) VisitDeleteAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocationEnrollment403JSONResponse Error
+
+func (response DeleteAdminLocationEnrollment403JSONResponse) VisitDeleteAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocationEnrollment404JSONResponse Error
+
+func (response DeleteAdminLocationEnrollment404JSONResponse) VisitDeleteAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminLocationEnrollmentdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminLocationEnrollmentdefaultJSONResponse) VisitDeleteAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollmentRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetAdminLocationEnrollmentResponseObject interface {
+	VisitGetAdminLocationEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type GetAdminLocationEnrollment200JSONResponse LocationEnrollment
+
+func (response GetAdminLocationEnrollment200JSONResponse) VisitGetAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollment401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminLocationEnrollment401JSONResponse) VisitGetAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollment403JSONResponse Error
+
+func (response GetAdminLocationEnrollment403JSONResponse) VisitGetAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollment404JSONResponse Error
+
+func (response GetAdminLocationEnrollment404JSONResponse) VisitGetAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminLocationEnrollmentdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminLocationEnrollmentdefaultJSONResponse) VisitGetAdminLocationEnrollmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinishRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PostAdminLocationEnrollmentFinishJSONRequestBody
+}
+
+type PostAdminLocationEnrollmentFinishResponseObject interface {
+	VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error
+}
+
+type PostAdminLocationEnrollmentFinish200JSONResponse LocationEnrollmentFinished
+
+func (response PostAdminLocationEnrollmentFinish200JSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinish401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminLocationEnrollmentFinish401JSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinish403JSONResponse Error
+
+func (response PostAdminLocationEnrollmentFinish403JSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinish404JSONResponse Error
+
+func (response PostAdminLocationEnrollmentFinish404JSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinish409JSONResponse Error
+
+func (response PostAdminLocationEnrollmentFinish409JSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinish410JSONResponse Error
+
+func (response PostAdminLocationEnrollmentFinish410JSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(410)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinish422JSONResponse Error
+
+func (response PostAdminLocationEnrollmentFinish422JSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentFinishdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminLocationEnrollmentFinishdefaultJSONResponse) VisitPostAdminLocationEnrollmentFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReportRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PostAdminLocationEnrollmentReportJSONRequestBody
+}
+
+type PostAdminLocationEnrollmentReportResponseObject interface {
+	VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error
+}
+
+type PostAdminLocationEnrollmentReport200JSONResponse LocationEnrollment
+
+func (response PostAdminLocationEnrollmentReport200JSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReport400JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminLocationEnrollmentReport400JSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReport401JSONResponse Error
+
+func (response PostAdminLocationEnrollmentReport401JSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReport403JSONResponse Error
+
+func (response PostAdminLocationEnrollmentReport403JSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReport404JSONResponse Error
+
+func (response PostAdminLocationEnrollmentReport404JSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReport409JSONResponse Error
+
+func (response PostAdminLocationEnrollmentReport409JSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReport410JSONResponse Error
+
+func (response PostAdminLocationEnrollmentReport410JSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(410)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentReportdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminLocationEnrollmentReportdefaultJSONResponse) VisitPostAdminLocationEnrollmentReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentTokenRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type PostAdminLocationEnrollmentTokenResponseObject interface {
+	VisitPostAdminLocationEnrollmentTokenResponse(w http.ResponseWriter) error
+}
+
+type PostAdminLocationEnrollmentToken200JSONResponse LocationEnrollmentCreated
+
+func (response PostAdminLocationEnrollmentToken200JSONResponse) VisitPostAdminLocationEnrollmentTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentToken401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminLocationEnrollmentToken401JSONResponse) VisitPostAdminLocationEnrollmentTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentToken403JSONResponse Error
+
+func (response PostAdminLocationEnrollmentToken403JSONResponse) VisitPostAdminLocationEnrollmentTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentToken404JSONResponse Error
+
+func (response PostAdminLocationEnrollmentToken404JSONResponse) VisitPostAdminLocationEnrollmentTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentToken409JSONResponse Error
+
+func (response PostAdminLocationEnrollmentToken409JSONResponse) VisitPostAdminLocationEnrollmentTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminLocationEnrollmentTokendefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminLocationEnrollmentTokendefaultJSONResponse) VisitPostAdminLocationEnrollmentTokenResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -8439,6 +9559,261 @@ type PostAuthTotpVerifydefaultJSONResponse struct {
 }
 
 func (response PostAuthTotpVerifydefaultJSONResponse) VisitPostAuthTotpVerifyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollScriptRequestObject struct {
+}
+
+type GetEnrollScriptResponseObject interface {
+	VisitGetEnrollScriptResponse(w http.ResponseWriter) error
+}
+
+type GetEnrollScript200TextplainCharsetUtf8Response struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetEnrollScript200TextplainCharsetUtf8Response) VisitGetEnrollScriptResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetEnrollScript429JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetEnrollScript429JSONResponse) VisitGetEnrollScriptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollScriptdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetEnrollScriptdefaultJSONResponse) VisitGetEnrollScriptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollCheckRequestObject struct {
+}
+
+type GetEnrollCheckResponseObject interface {
+	VisitGetEnrollCheckResponse(w http.ResponseWriter) error
+}
+
+type GetEnrollCheck200JSONResponse EnrollCheck
+
+func (response GetEnrollCheck200JSONResponse) VisitGetEnrollCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollCheck401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetEnrollCheck401JSONResponse) VisitGetEnrollCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollCheck409JSONResponse Error
+
+func (response GetEnrollCheck409JSONResponse) VisitGetEnrollCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollCheck410JSONResponse Error
+
+func (response GetEnrollCheck410JSONResponse) VisitGetEnrollCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(410)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollCheck429JSONResponse Error
+
+func (response GetEnrollCheck429JSONResponse) VisitGetEnrollCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetEnrollCheckdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetEnrollCheckdefaultJSONResponse) VisitGetEnrollCheckResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEnrollReportRequestObject struct {
+	Body *PostEnrollReportJSONRequestBody
+}
+
+type PostEnrollReportResponseObject interface {
+	VisitPostEnrollReportResponse(w http.ResponseWriter) error
+}
+
+type PostEnrollReport204Response struct {
+}
+
+func (response PostEnrollReport204Response) VisitPostEnrollReportResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostEnrollReport400JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostEnrollReport400JSONResponse) VisitPostEnrollReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEnrollReport401JSONResponse Error
+
+func (response PostEnrollReport401JSONResponse) VisitPostEnrollReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEnrollReport409JSONResponse Error
+
+func (response PostEnrollReport409JSONResponse) VisitPostEnrollReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEnrollReport410JSONResponse Error
+
+func (response PostEnrollReport410JSONResponse) VisitPostEnrollReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(410)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEnrollReport429JSONResponse Error
+
+func (response PostEnrollReport429JSONResponse) VisitPostEnrollReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostEnrollReportdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostEnrollReportdefaultJSONResponse) VisitPostEnrollReportResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -12792,6 +14167,27 @@ type StrictServerInterface interface {
 	// PutAdminIpPool Update an IP pool; its location cannot change
 	// (PUT /admin/ip_pools/{id})
 	PutAdminIpPool(ctx context.Context, request PutAdminIpPoolRequestObject) (PutAdminIpPoolResponseObject, error)
+	// GetAdminLocationEnrollments List enrollments the sweep has not removed yet
+	// (GET /admin/location_enrollments)
+	GetAdminLocationEnrollments(ctx context.Context, request GetAdminLocationEnrollmentsRequestObject) (GetAdminLocationEnrollmentsResponseObject, error)
+	// PostAdminLocationEnrollments Start enrolling a new location (name) or re-run an existing one (location_id)
+	// (POST /admin/location_enrollments)
+	PostAdminLocationEnrollments(ctx context.Context, request PostAdminLocationEnrollmentsRequestObject) (PostAdminLocationEnrollmentsResponseObject, error)
+	// DeleteAdminLocationEnrollment Cancel an enrollment and drop its sealed secret
+	// (DELETE /admin/location_enrollments/{id})
+	DeleteAdminLocationEnrollment(ctx context.Context, request DeleteAdminLocationEnrollmentRequestObject) (DeleteAdminLocationEnrollmentResponseObject, error)
+	// GetAdminLocationEnrollment Get an enrollment and, once reported, its report
+	// (GET /admin/location_enrollments/{id})
+	GetAdminLocationEnrollment(ctx context.Context, request GetAdminLocationEnrollmentRequestObject) (GetAdminLocationEnrollmentResponseObject, error)
+	// PostAdminLocationEnrollmentFinish Pin the node certificate and create or update the location
+	// (POST /admin/location_enrollments/{id}/finish)
+	PostAdminLocationEnrollmentFinish(ctx context.Context, request PostAdminLocationEnrollmentFinishRequestObject) (PostAdminLocationEnrollmentFinishResponseObject, error)
+	// PostAdminLocationEnrollmentReport Store the report line pasted back from the offline script
+	// (POST /admin/location_enrollments/{id}/report)
+	PostAdminLocationEnrollmentReport(ctx context.Context, request PostAdminLocationEnrollmentReportRequestObject) (PostAdminLocationEnrollmentReportResponseObject, error)
+	// PostAdminLocationEnrollmentToken Issue a new token and command for a waiting enrollment
+	// (POST /admin/location_enrollments/{id}/token)
+	PostAdminLocationEnrollmentToken(ctx context.Context, request PostAdminLocationEnrollmentTokenRequestObject) (PostAdminLocationEnrollmentTokenResponseObject, error)
 	// GetAdminLocations List locations with their Proxmox connection and nodes
 	// (GET /admin/locations)
 	GetAdminLocations(ctx context.Context, request GetAdminLocationsRequestObject) (GetAdminLocationsResponseObject, error)
@@ -12861,6 +14257,15 @@ type StrictServerInterface interface {
 	// PostAuthTotpVerify Confirm enrollment and enable TOTP
 	// (POST /auth/totp/verify)
 	PostAuthTotpVerify(ctx context.Context, request PostAuthTotpVerifyRequestObject) (PostAuthTotpVerifyResponseObject, error)
+	// GetEnrollScript The online Proxmox setup script, as plain text so a browser shows it
+	// (GET /enroll.sh)
+	GetEnrollScript(ctx context.Context, request GetEnrollScriptRequestObject) (GetEnrollScriptResponseObject, error)
+	// GetEnrollCheck Check an enrollment token before the setup script changes anything
+	// (GET /enroll/check)
+	GetEnrollCheck(ctx context.Context, request GetEnrollCheckRequestObject) (GetEnrollCheckResponseObject, error)
+	// PostEnrollReport The setup script's report of the new token, nodes and storages
+	// (POST /enroll/report)
+	PostEnrollReport(ctx context.Context, request PostEnrollReportRequestObject) (PostEnrollReportResponseObject, error)
 	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
@@ -13545,6 +14950,205 @@ func (sh *strictHandler) PutAdminIpPool(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// GetAdminLocationEnrollments operation middleware
+func (sh *strictHandler) GetAdminLocationEnrollments(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminLocationEnrollmentsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminLocationEnrollments(ctx, request.(GetAdminLocationEnrollmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminLocationEnrollments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminLocationEnrollmentsResponseObject); ok {
+		if err := validResponse.VisitGetAdminLocationEnrollmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminLocationEnrollments operation middleware
+func (sh *strictHandler) PostAdminLocationEnrollments(w http.ResponseWriter, r *http.Request) {
+	var request PostAdminLocationEnrollmentsRequestObject
+
+	var body PostAdminLocationEnrollmentsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminLocationEnrollments(ctx, request.(PostAdminLocationEnrollmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminLocationEnrollments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminLocationEnrollmentsResponseObject); ok {
+		if err := validResponse.VisitPostAdminLocationEnrollmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminLocationEnrollment operation middleware
+func (sh *strictHandler) DeleteAdminLocationEnrollment(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteAdminLocationEnrollmentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminLocationEnrollment(ctx, request.(DeleteAdminLocationEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminLocationEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminLocationEnrollmentResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminLocationEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminLocationEnrollment operation middleware
+func (sh *strictHandler) GetAdminLocationEnrollment(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetAdminLocationEnrollmentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminLocationEnrollment(ctx, request.(GetAdminLocationEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminLocationEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminLocationEnrollmentResponseObject); ok {
+		if err := validResponse.VisitGetAdminLocationEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminLocationEnrollmentFinish operation middleware
+func (sh *strictHandler) PostAdminLocationEnrollmentFinish(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PostAdminLocationEnrollmentFinishRequestObject
+
+	request.Id = id
+
+	var body PostAdminLocationEnrollmentFinishJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminLocationEnrollmentFinish(ctx, request.(PostAdminLocationEnrollmentFinishRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminLocationEnrollmentFinish")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminLocationEnrollmentFinishResponseObject); ok {
+		if err := validResponse.VisitPostAdminLocationEnrollmentFinishResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminLocationEnrollmentReport operation middleware
+func (sh *strictHandler) PostAdminLocationEnrollmentReport(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PostAdminLocationEnrollmentReportRequestObject
+
+	request.Id = id
+
+	var body PostAdminLocationEnrollmentReportJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminLocationEnrollmentReport(ctx, request.(PostAdminLocationEnrollmentReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminLocationEnrollmentReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminLocationEnrollmentReportResponseObject); ok {
+		if err := validResponse.VisitPostAdminLocationEnrollmentReportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminLocationEnrollmentToken operation middleware
+func (sh *strictHandler) PostAdminLocationEnrollmentToken(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PostAdminLocationEnrollmentTokenRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminLocationEnrollmentToken(ctx, request.(PostAdminLocationEnrollmentTokenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminLocationEnrollmentToken")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminLocationEnrollmentTokenResponseObject); ok {
+		if err := validResponse.VisitPostAdminLocationEnrollmentTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetAdminLocations operation middleware
 func (sh *strictHandler) GetAdminLocations(w http.ResponseWriter, r *http.Request, params GetAdminLocationsParams) {
 	var request GetAdminLocationsRequestObject
@@ -14201,6 +15805,85 @@ func (sh *strictHandler) PostAuthTotpVerify(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAuthTotpVerifyResponseObject); ok {
 		if err := validResponse.VisitPostAuthTotpVerifyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetEnrollScript operation middleware
+func (sh *strictHandler) GetEnrollScript(w http.ResponseWriter, r *http.Request) {
+	var request GetEnrollScriptRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetEnrollScript(ctx, request.(GetEnrollScriptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetEnrollScript")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetEnrollScriptResponseObject); ok {
+		if err := validResponse.VisitGetEnrollScriptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetEnrollCheck operation middleware
+func (sh *strictHandler) GetEnrollCheck(w http.ResponseWriter, r *http.Request) {
+	var request GetEnrollCheckRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetEnrollCheck(ctx, request.(GetEnrollCheckRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetEnrollCheck")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetEnrollCheckResponseObject); ok {
+		if err := validResponse.VisitGetEnrollCheckResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostEnrollReport operation middleware
+func (sh *strictHandler) PostEnrollReport(w http.ResponseWriter, r *http.Request) {
+	var request PostEnrollReportRequestObject
+
+	var body PostEnrollReportJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostEnrollReport(ctx, request.(PostEnrollReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostEnrollReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostEnrollReportResponseObject); ok {
+		if err := validResponse.VisitPostEnrollReportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

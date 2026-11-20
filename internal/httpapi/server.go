@@ -20,6 +20,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/config"
 	"github.com/nebla-cloud/nebla/internal/console"
+	"github.com/nebla-cloud/nebla/internal/enroll"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/ipam"
@@ -53,6 +54,8 @@ type Deps struct {
 	CatalogHooks catalog.Hooks
 	// OSImages serves the built-in OS image catalog; defaults to one over Catalog with no job runtime.
 	OSImages *osimages.Service
+	// Enroll defaults to a service over Catalog keyed by Config.SecretKey.
+	Enroll *enroll.Service
 	// Jobs enqueues background work; nil makes server create and delete return 503 service_unavailable.
 	Jobs *jobs.Jobs
 	// ScopedRoutes mounts extra non-strict routes under /v1 behind the project scope.
@@ -62,19 +65,21 @@ type Deps struct {
 }
 
 type server struct {
-	deps       Deps
-	log        *slog.Logger
-	auth       *auth.Service
-	projects   *projects.Service
-	settings   *settings.Store
-	catalog    *catalog.Service
-	osimages   *osimages.Service
-	ipam       *ipam.Service
-	sshkeys    *sshkeys.Service
-	servers    *servers.Service
-	console    *console.Service
-	loginLimit *ratelimit.Limiter
-	apiLimit   *ratelimit.Limiter
+	deps        Deps
+	log         *slog.Logger
+	auth        *auth.Service
+	projects    *projects.Service
+	settings    *settings.Store
+	catalog     *catalog.Service
+	osimages    *osimages.Service
+	ipam        *ipam.Service
+	sshkeys     *sshkeys.Service
+	servers     *servers.Service
+	console     *console.Service
+	enroll      *enroll.Service
+	loginLimit  *ratelimit.Limiter
+	apiLimit    *ratelimit.Limiter
+	enrollLimit *ratelimit.Limiter
 }
 
 const maxBodyBytes = 1 << 20
@@ -114,23 +119,29 @@ func New(deps Deps) http.Handler {
 	if deps.OSImages == nil {
 		deps.OSImages = osimages.New(osimages.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Jobs: deps.Jobs, Logger: log})
 	}
+	if deps.Enroll == nil {
+		deps.Enroll = enroll.New(deps.SQL, deps.Ent, enroll.Options{SecretKey: deps.Config.SecretKey, BaseURL: deps.Config.BaseURL,
+			Catalog: deps.Catalog, Logger: log})
+	}
 	proj := projects.New(deps.Ent, projects.Options{
 		Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
 		DefaultQuota: deps.Config.DefaultQuota, MaxOwnedProjects: deps.Config.MaxProjectsPerUser,
 	})
 	s := &server{
-		deps:       deps,
-		log:        log,
-		auth:       au,
-		projects:   proj,
-		settings:   st,
-		catalog:    deps.Catalog,
-		osimages:   deps.OSImages,
-		ipam:       ipam.New(deps.SQL, deps.Ent),
-		sshkeys:    sshkeys.New(deps.Ent),
-		servers:    servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
-		loginLimit: ratelimit.New(rate.Every(90*time.Second), 10),
-		apiLimit:   newAPILimiter(deps.APILimiter),
+		deps:        deps,
+		log:         log,
+		auth:        au,
+		projects:    proj,
+		settings:    st,
+		catalog:     deps.Catalog,
+		osimages:    deps.OSImages,
+		ipam:        ipam.New(deps.SQL, deps.Ent),
+		sshkeys:     sshkeys.New(deps.Ent),
+		servers:     servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
+		enroll:      deps.Enroll,
+		loginLimit:  ratelimit.New(rate.Every(90*time.Second), 10),
+		apiLimit:    newAPILimiter(deps.APILimiter),
+		enrollLimit: ratelimit.New(rate.Every(6*time.Second), 10),
 	}
 	s.console = console.New(console.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, BaseURL: deps.Config.BaseURL,
 		Logger: log, WriteError: func(w http.ResponseWriter, err error) { s.responseError(w, nil, err) }})
