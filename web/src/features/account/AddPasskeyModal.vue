@@ -8,13 +8,32 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import UModal from '@nuxt/ui/components/Modal.vue'
 import { api } from '@/api/client'
-import { unwrap } from '@/api/errors'
+import { ApiError, unwrap } from '@/api/errors'
 import { isCancel } from '@/features/auth/passkey'
 import { inlineError } from './authError'
 
 defineProps<{ totp: boolean }>()
 const emit = defineEmits<{ added: [] }>()
 const open = defineModel<boolean>('open', { default: false })
+
+const exists = 'This passkey is already on your account.'
+const copy: Record<string, string> = {
+  passkey_exists: exists,
+  invalid_credentials: "That password isn't right.",
+  totp_required: 'Enter the code from your authenticator app.',
+  invalid_code: "That code isn't right.",
+  passkey_invalid: "That didn't work. Try adding the passkey again.",
+  passkey_limit: "You've added the most passkeys allowed (10).",
+}
+
+function addError(e: unknown): string | null {
+  if (e instanceof ApiError) return copy[e.code] ?? inlineError(e)
+  const { name, code } = (e ?? {}) as { name?: unknown; code?: unknown }
+  if (name === 'InvalidStateError' || code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED') {
+    return exists
+  }
+  return inlineError(e)
+}
 
 const password = ref('')
 const code = ref('')
@@ -55,7 +74,7 @@ async function submit() {
     open.value = false
     emit('added')
   } catch (e) {
-    if (!isCancel(e)) error.value = inlineError(e)
+    if (!isCancel(e)) error.value = addError(e)
   } finally {
     busy.value = false
   }

@@ -219,11 +219,16 @@ func (s *Service) NewSession(ctx context.Context, userID int64) (string, error) 
 }
 
 func (s *Service) newSession(ctx context.Context, userID int64) (string, error) {
+	return createSession(ctx, s.db, userID)
+}
+
+// createSession inserts a session through db, which may be a transaction client.
+func createSession(ctx context.Context, db *ent.Client, userID int64) (string, error) {
 	tok, hash, err := newToken()
 	if err != nil {
 		return "", err
 	}
-	err = s.db.Session.Create().SetID(hash).SetUserID(userID).SetExpiresAt(time.Now().Add(SessionTTL)).Exec(ctx)
+	err = db.Session.Create().SetID(hash).SetUserID(userID).SetExpiresAt(time.Now().Add(SessionTTL)).Exec(ctx)
 	return tok, err
 }
 
