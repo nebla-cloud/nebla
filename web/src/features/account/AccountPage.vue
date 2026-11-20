@@ -16,6 +16,7 @@ import { projectQuery } from '@/features/projects/queries'
 import { readLastProject } from '@/lib/project'
 import { setMe, useSession } from '@/lib/session'
 import { inlineError } from './authError'
+import PasskeysSection from './PasskeysSection.vue'
 import TwoFactorSection from './TwoFactorSection.vue'
 
 const toast = useToast()
@@ -172,6 +173,7 @@ async function changePassword() {
       </section>
 
       <TwoFactorSection />
+      <PasskeysSection />
     </main>
   </div>
 </template>
