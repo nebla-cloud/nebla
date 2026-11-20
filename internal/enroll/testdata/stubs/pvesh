@@ -1,0 +1,16 @@
+#!/bin/bash
+{ printf 'pvesh'; printf '\t%s' "$@"; printf '\n'; } >>"$STUB_LOG"
+cluster='[{"id":"cluster","name":"homelab","nodes":2,"quorate":1,"type":"cluster","version":2},{"id":"node/pve1","ip":"10.0.0.1","level":"","local":1,"name":"pve1","nodeid":1,"online":1,"type":"node"},{"id":"node/pve2","ip":"10.0.0.2","level":"","local":0,"name":"pve2","nodeid":2,"online":0,"type":"node"}]'
+storage='[{"content":"iso,vztmpl,backup","digest":"abc","path":"/var/lib/vz","storage":"local","type":"dir"},{"content":"rootdir,images","digest":"abc","storage":"local-lvm","thinpool":"data","type":"lvmthin","vgname":"pve"},{"content":"images,import","digest":"abc","shared":1,"storage":"imp","type":"nfs"}]'
+case "$1 $2" in
+"get /cluster/status") printf '%s\n' "${STUB_CLUSTER:-$cluster}" ;;
+"get /storage") printf '%s\n' "${STUB_STORAGE:-$storage}" ;;
+"get /access/roles/Administrator")
+  out= sep=
+  for p in ${STUB_ADMIN_PRIVS:-Sys.Audit VM.Allocate}; do
+    out="$out$sep\"$p\":1"
+    sep=,
+  done
+  printf '{%s}\n' "$out" ;;
+*) exit 2 ;;
+esac

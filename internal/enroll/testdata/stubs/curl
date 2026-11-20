@@ -1,0 +1,36 @@
+#!/bin/bash
+{ printf 'curl'; printf '\t%s' "$@"; printf '\n'; } >>"$STUB_LOG"
+fail=0 w= url=
+while [ $# -gt 0 ]; do
+  case "$1" in
+  -w) w=$2; shift ;;
+  -H | --max-time | --data-binary) shift ;;
+  --*) ;;
+  -*) case "$1" in *f*) fail=1 ;; esac ;;
+  *) url=$1 ;;
+  esac
+  shift
+done
+case "$url" in
+*/v1/enroll/check)
+  code=${STUB_CHECK:-200}
+  body="{\"expires_at\":\"2026-11-20T12:30:00Z\",\"location\":\"home\",\"token_name\":\"${STUB_TOKEN_NAME:-nebla-home-ab12cd}\"}" ;;
+*/v1/enroll/report)
+  cat >"$STUB_BODY"
+  code=${STUB_REPORT:-204}
+  body= ;;
+*) exit 6 ;;
+esac
+if [ "$code" = 000 ]; then
+  echo "curl: (7) Failed to connect to panel.test port 443" >&2
+  exit 7
+fi
+if [ "$code" -ge 400 ]; then
+  body='{"error":{"code":"enrollment_used","message":"This enrollment was already used."}}'
+  if [ $fail = 1 ]; then
+    echo "curl: (22) The requested URL returned error: $code" >&2
+    exit 22
+  fi
+fi
+printf '%s' "$body"
+[ -z "$w" ] || printf '%b' "${w//%\{http_code\}/$code}"
