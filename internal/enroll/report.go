@@ -2,11 +2,13 @@
 package enroll
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/nebla-cloud/nebla/internal/apierr"
@@ -16,8 +18,9 @@ import (
 const blobPrefix = "nebla-enroll:v1:"
 
 const (
-	maxNodes    = 64
-	maxStorages = 512
+	maxNodes       = 64
+	maxStorages    = 512
+	maxReportBytes = 256 << 10
 )
 
 type Report struct {
@@ -49,8 +52,20 @@ var (
 	tokenIDRe = regexp.MustCompile(`^nebla@pve!nebla-[a-z0-9-]{1,32}-[a-z0-9]{6}$`)
 	nodeRe    = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
 	storageRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]{0,99}$`)
+	versionRe = regexp.MustCompile(`^[0-9]+\.[0-9][A-Za-z0-9.~+-]*$`)
+	tokenRe   = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 	fpRe      = regexp.MustCompile(`^[0-9A-F]{64}$`)
 )
+
+const maxFieldLen = 64
+
+// String redacts the token secret from %v and %+v.
+func (r Report) String() string {
+	return fmt.Sprintf("enroll.Report{Node:%q TokenID:%q TokenSecret:[redacted] Nodes:%d Storages:%d}", r.Node, r.TokenID, len(r.Nodes), len(r.Storages))
+}
+
+// GoString redacts the token secret from %#v.
+func (r Report) GoString() string { return r.String() }
 
 func bad(msg string) error { return apierr.New(http.StatusBadRequest, "invalid_report", msg) }
 
@@ -95,6 +110,9 @@ type wire struct {
 
 // ParseReport validates the script's JSON and returns the typed report.
 func ParseReport(raw []byte) (Report, error) {
+	if len(raw) > maxReportBytes {
+		return Report{}, bad("report too large")
+	}
 	var w wire
 	if err := json.Unmarshal(raw, &w); err != nil {
 		if e, ok := err.(apierr.E); ok {
@@ -105,8 +123,10 @@ func ParseReport(raw []byte) (Report, error) {
 	if w.V != 1 {
 		return Report{}, bad("unsupported report version")
 	}
-	major, _, _ := strings.Cut(w.PVEVersion, ".")
-	if n, err := strconv.Atoi(major); err != nil || (n != 8 && n != 9) {
+	if len(w.PVEVersion) > maxFieldLen || !versionRe.MatchString(w.PVEVersion) {
+		return Report{}, bad("invalid Proxmox VE version")
+	}
+	if major, _, _ := strings.Cut(w.PVEVersion, "."); major != "8" && major != "9" {
 		return Report{}, bad("unsupported Proxmox VE version")
 	}
 	if !uuidRe.MatchString(w.Token.Value) {
@@ -131,6 +151,12 @@ func ParseReport(raw []byte) (Report, error) {
 		if !fpRe.MatchString(f) {
 			return Report{}, bad("missing or invalid fingerprint for node " + c.Name)
 		}
+		if names[c.Name] {
+			return Report{}, bad("duplicate node " + c.Name)
+		}
+		if net.ParseIP(c.IP) == nil {
+			return Report{}, bad("invalid node ip for " + c.Name)
+		}
 		names[c.Name] = true
 		r.Nodes = append(r.Nodes, ReportNode{Name: c.Name, IP: c.IP, Online: bool(c.Online), Fingerprint: f})
 	}
@@ -152,9 +178,21 @@ func ParseReport(raw []byte) (Report, error) {
 		if !storageRe.MatchString(s.Storage) {
 			return Report{}, bad("invalid storage id")
 		}
+		if seen[s.Storage] {
+			return Report{}, bad("duplicate storage " + s.Storage)
+		}
+		if len(s.Type) > maxFieldLen || !tokenRe.MatchString(s.Type) {
+			return Report{}, bad("invalid storage type for " + s.Storage)
+		}
 		var content []string
-		if s.Content != "" {
-			content = strings.Split(s.Content, ",")
+		for _, c := range strings.Split(s.Content, ",") {
+			if c == "" {
+				continue
+			}
+			if len(c) > maxFieldLen || !tokenRe.MatchString(c) {
+				return Report{}, bad("invalid storage content for " + s.Storage)
+			}
+			content = append(content, c)
 		}
 		st := ReportStorage{ID: s.Storage, Type: s.Type, Content: content, Shared: bool(s.Shared), NeblaISO: iso[s.Storage]}
 		if st.NeblaISO {
@@ -184,6 +222,9 @@ func DecodeBlob(line string) (string, []byte, error) {
 	if !ok {
 		return "", nil, bad("not an enrollment blob")
 	}
+	if base64.RawURLEncoding.DecodedLen(len(enc)) > maxReportBytes {
+		return "", nil, bad("blob too large")
+	}
 	body, err := base64.RawURLEncoding.DecodeString(enc)
 	if err != nil {
 		return "", nil, bad("blob is not valid base64")
@@ -206,10 +247,14 @@ func DecodeBlob(line string) (string, []byte, error) {
 
 // EncodeBlob builds the paste-back line from a token and report JSON.
 func EncodeBlob(token string, raw []byte) string {
-	m := map[string]json.RawMessage{}
-	_ = json.Unmarshal(raw, &m)
-	t, _ := json.Marshal(token)
-	m["enroll_token"] = t
-	b, _ := json.Marshal(m)
-	return blobPrefix + base64.RawURLEncoding.EncodeToString(b)
+	body := bytes.TrimSpace(raw)
+	if len(body) > 1 && body[0] == '{' {
+		tok, _ := json.Marshal(token) // a string always marshals
+		sep := ","
+		if bytes.Equal(bytes.TrimSpace(body[1:]), []byte("}")) {
+			sep = ""
+		}
+		body = append([]byte(`{"enroll_token":`+string(tok)+sep), body[1:]...)
+	}
+	return blobPrefix + base64.RawURLEncoding.EncodeToString(body)
 }
