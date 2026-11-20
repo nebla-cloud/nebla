@@ -9,6 +9,7 @@ You need:
 
 - Go 1.27 (the version in `go.mod`)
 - Docker, because the tests start Postgres with Testcontainers
+- Node 24 and pnpm, for the web panel in `web/`
 - The Atlas CLI, only if you change the database schema
 
 ```sh
@@ -16,6 +17,10 @@ make generate   # ent and oapi-codegen output
 go vet ./...
 make test       # go test ./...
 make build      # bin/nebla-server
+
+cd web && pnpm install
+pnpm gen:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+pnpm e2e        # Playwright against a fake Proxmox
 ```
 
 The end-to-end smoke test in `internal/e2e` creates real VMs. Run it only against a disposable or nested Proxmox VE. The
@@ -34,7 +39,7 @@ README lists the variables it needs.
 
 - Use [conventional commits](https://www.conventionalcommits.org/), for example `feat: add server rename` or
   `fix: free the IP when a create fails`. The pull request title follows the same format.
-- Keep each pull request to one change. CI runs `go vet` and `go test` and must pass.
+- Keep each pull request to one change. CI runs the Go checks, the web checks and the Playwright tests, and all of them must pass.
 - Describe what changed and how you tested it.
 
 ## Contributor licence agreement
