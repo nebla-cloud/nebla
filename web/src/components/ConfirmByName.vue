@@ -47,9 +47,8 @@ function submit() {
       </form>
     </template>
     <template #footer>
-      <div class="flex w-full justify-end gap-2">
+      <div class="flex w-full flex-wrap justify-end gap-2">
         <UButton color="neutral" variant="ghost" @click="open = false">Cancel</UButton>
-        <slot name="actions" />
         <UButton
           type="submit"
           form="confirm-by-name"

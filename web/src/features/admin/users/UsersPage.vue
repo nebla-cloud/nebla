@@ -11,6 +11,7 @@ import AdminPager from '@/components/AdminPager.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useSession } from '@/lib/session'
+import { usePageClamp } from '@/lib/usePageClamp'
 import DeleteUserModal from './DeleteUserModal.vue'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import UserFormModal from './UserFormModal.vue'
@@ -31,6 +32,12 @@ const page = computed(() => Math.max(1, Number.parseInt(String(route.query.page 
 const { data, isPending, error: loadError } = useAdminUsers(page)
 const users = computed(() => data.value?.users ?? [])
 const total = computed(() => data.value?.meta.pagination.total_entries ?? 0)
+usePageClamp(
+  page,
+  computed(() => data.value?.users.length),
+  total,
+  PER_PAGE,
+)
 
 const disableTotp = useDisableTotp()
 const removePasskeys = useRemovePasskeys()
@@ -148,7 +155,7 @@ async function run(
           <tr
             v-for="u in users"
             :key="u.id"
-            class="relative flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:table-row sm:px-0 sm:py-0"
+            class="relative flex flex-wrap items-center gap-x-4 gap-y-1 py-3.5 ps-4 pe-12 sm:table-row sm:py-0 sm:ps-0 sm:pe-0"
           >
             <td class="min-w-0 font-semibold text-highlighted sm:table-cell sm:px-4 sm:py-3">
               {{ label(u) }}

@@ -99,4 +99,11 @@ describe('TechnicalDetails', () => {
     expect(queryClient.isFetching()).toBe(0)
     expect(calls).toBe(0)
   })
+
+  it('announces loading as a status', async () => {
+    server.use(http.get('*/v1/admin/actions/:id', () => new Promise<Response>(() => {})))
+    const { wrapper } = mount({ actionId: 9 })
+    await toggle(wrapper).trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('[role="status"]').text()).toBe('Loading details'))
+  })
 })

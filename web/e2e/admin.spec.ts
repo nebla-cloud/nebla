@@ -123,7 +123,20 @@ test('users: deleting a sole owner hands the project to the admin', async ({ bro
     await del.locator('input[name=confirm_name]').fill(email)
     await del.getByRole('button', { name: 'Delete user' }).click()
     await expect(del.getByText(/only owner of .*Orphan lab/)).toBeVisible()
-    await del.getByRole('button', { name: 'Make me the owner and delete' }).click()
+    await expect(del.getByRole('button', { name: 'Delete user' })).toHaveCount(0)
+    const takeOver = del.getByRole('button', { name: 'Make me the owner and delete' })
+    await admin.setViewportSize({ width: 360, height: 740 })
+    await expect(takeOver).toBeVisible()
+    const box = (await takeOver.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(360)
+    // One line of text: a squeezed footer wraps the label instead of clipping it.
+    expect(box.height).toBeLessThan(40)
+    const clipped = await takeOver.evaluate((el) =>
+      [el, ...el.querySelectorAll('*')].some((n) => n.scrollWidth > n.clientWidth),
+    )
+    expect(clipped).toBe(false)
+    await takeOver.click()
     await expect(admin.getByText(`Deleted ${email}`, { exact: true })).toBeVisible()
     await expect(userRow(admin, email)).toHaveCount(0)
 

@@ -69,7 +69,7 @@ function onCopy() {
           {{ copied ? 'Copied' : 'Copy' }}
         </UButton>
       </template>
-      <p v-else class="text-sm text-muted">Loading details</p>
+      <p v-else role="status" class="text-sm text-muted">Loading details</p>
     </div>
   </div>
 </template>

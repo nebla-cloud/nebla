@@ -6,6 +6,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import type { Action } from '@/api/types'
 import { setMe } from '@/lib/session'
 import { makeServer } from '@/features/servers/fixtures'
+import ActivityTab from '@/features/servers/tabs/ActivityTab.vue'
 import ActionList from './ActionList.vue'
 
 function act(over: Partial<Action> = {}): Action {
@@ -201,8 +202,22 @@ describe('ActionList', () => {
 
   it('the server activity tab shows details to admins too', async () => {
     asUser(true)
-    const { wrapper } = await mountList([failed()], false)
-    expect(detailsButtons(wrapper)).toHaveLength(1)
+    await mountList([], false)
+    server.use(
+      http.get('*/v1/servers/1/actions', () =>
+        json(200, {
+          actions: [failed()],
+          meta: { pagination: { page: 1, per_page: 25, total_entries: 1 } },
+        }),
+      ),
+    )
+    const router = testRouter([
+      { path: '/p/:projectId/servers/:serverId/activity', component: { render: () => null } },
+    ])
+    await router.push('/p/1/servers/1/activity')
+    const { wrapper } = mountApp(ActivityTab, { router, props: { server: makeServer({ id: 1 }) } })
+    wrappers.push(wrapper)
+    await vi.waitFor(() => expect(detailsButtons(wrapper)).toHaveLength(1))
     await detailsButtons(wrapper)[0]!.trigger('click')
     await vi.waitFor(() => expect(wrapper.text()).toContain('clone: VMID 4242 on pve1'))
   })

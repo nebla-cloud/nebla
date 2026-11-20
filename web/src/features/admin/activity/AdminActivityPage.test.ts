@@ -174,4 +174,11 @@ describe('AdminActivityPage', () => {
     await vi.advanceTimersByTimeAsync(POLL_MS * 3)
     expect(urls.length).toBe(3)
   })
+
+  it('an empty page past the end moves back to the last page', async () => {
+    serve(() => [], 1)
+    const { router } = await mount('/admin/activity?page=4&status=error')
+    await vi.waitFor(() => expect(router.currentRoute.value.query.page).toBeUndefined())
+    expect(router.currentRoute.value.query.status).toBe('error')
+  })
 })

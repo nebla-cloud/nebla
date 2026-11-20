@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { http } from 'msw'
 import type { VueWrapper } from '@vue/test-utils'
 import { json, server } from '@/test/server'
@@ -147,6 +148,9 @@ describe('user modals', () => {
     await pick(w, 'Cy', 'Edit')
     await vi.waitFor(() => expect(field('email')).not.toBeNull())
     expect(document.body.textContent).not.toContain('log in with the new email')
+    fill('email', ' CY@Example.com ')
+    await nextTick()
+    expect(document.body.textContent).not.toContain('log in with the new email')
     fill('email', 'cy2@example.com')
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain(
@@ -226,8 +230,11 @@ describe('user modals', () => {
         return new Response(null, { status: 204 })
       }),
     )
-    const w = await ready()
-    await pick(w, 'Cy', 'Delete')
+    const m = mountApp(UsersPage)
+    wrappers.push(m.wrapper)
+    await vi.waitFor(() => expect(m.wrapper.text()).toContain('bo@example.com'))
+    const invalidate = vi.spyOn(m.queryClient, 'invalidateQueries')
+    await pick(m.wrapper, 'Cy', 'Delete')
     await vi.waitFor(() => expect(field('confirm_name')).not.toBeNull())
     fill('confirm_name', 'cy@example.com')
     await vi.waitFor(() => expect(button('Delete user')!.disabled).toBe(false))
@@ -237,16 +244,24 @@ describe('user modals', () => {
     )
     expect(calls[0]!.query).toBe('')
     expect(field('confirm_name')).not.toBeNull()
+    expect(button('Delete user')).toBeUndefined()
+    fill('confirm_name', 'someone@example.com')
+    await vi.waitFor(() => expect(button('Make me the owner and delete')!.disabled).toBe(true))
+    fill('confirm_name', 'cy@example.com')
+    await vi.waitFor(() => expect(button('Make me the owner and delete')!.disabled).toBe(false))
     button('Make me the owner and delete')!.click()
     await vi.waitFor(() => expect(calls).toHaveLength(2))
     expect(calls[1]!.query).toBe('?take_over=true')
     await vi.waitFor(() => expect(field('confirm_name')).toBeNull())
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['admin', 'projects'] })
   })
 
   it('last_admin shows inline', async () => {
     serve(
       http.delete('*/v1/admin/users/3', () =>
-        json(409, { error: { code: 'last_admin', message: 'There must be at least one admin.' } }),
+        json(409, {
+          error: { code: 'last_admin', message: 'The panel needs at least one admin.' },
+        }),
       ),
     )
     const w = await ready()
@@ -256,7 +271,7 @@ describe('user modals', () => {
     await vi.waitFor(() => expect(button('Delete user')!.disabled).toBe(false))
     button('Delete user')!.click()
     await vi.waitFor(() =>
-      expect(document.body.textContent).toContain('There must be at least one admin.'),
+      expect(document.body.textContent).toContain('The panel needs at least one admin.'),
     )
     expect(button('Make me the owner and delete')).toBeUndefined()
   })
@@ -265,7 +280,10 @@ describe('user modals', () => {
     serve(
       http.put('*/v1/admin/users/3', () =>
         json(422, {
-          error: { code: 'self_admin_action', message: "You can't do that to yourself." },
+          error: {
+            code: 'self_admin_action',
+            message: 'Use your account page to change this for yourself.',
+          },
         }),
       ),
     )
@@ -274,7 +292,9 @@ describe('user modals', () => {
     await vi.waitFor(() => expect(field('name')).not.toBeNull())
     submit()
     await vi.waitFor(() =>
-      expect(document.body.textContent).toContain("You can't do that to yourself."),
+      expect(document.body.textContent).toContain(
+        'Use your account page to change this for yourself.',
+      ),
     )
   })
 })

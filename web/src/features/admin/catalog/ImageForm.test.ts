@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { mountApp } from '@/test/mount'
@@ -33,9 +33,15 @@ const catalogEntry = (key: string, flavor: string) => ({
 let posts: Record<string, unknown>[] = []
 let puts: Record<string, unknown>[] = []
 let failWith: { status: number; message: string } | null = null
+let wrappers: VueWrapper[] = []
+
+afterEach(() => {
+  wrappers.forEach((w) => w.unmount())
+  wrappers = []
+  document.body.innerHTML = ''
+})
 
 beforeEach(() => {
-  document.body.innerHTML = ''
   posts = []
   puts = []
   failWith = null
@@ -62,6 +68,7 @@ beforeEach(() => {
 
 async function open(item?: AdminImage) {
   const m = mountApp(ImageForm, { props: { item } })
+  wrappers.push(m.wrapper)
   await vi.waitFor(() => {
     const texts = m.wrapper.findAll('option').map((o) => o.text())
     expect(texts).toContain('ubuntu')
@@ -210,5 +217,28 @@ describe('ImageForm', () => {
     expect(wrapper.text()).toContain('Choose a location.')
     expect(wrapper.text()).toContain('Enter the VMID as a whole number.')
     expect(posts).toHaveLength(0)
+  })
+
+  it('a blank Other flavor shows its error on the Other field', async () => {
+    const { wrapper } = await open()
+    await wrapper.find('select[name="os_flavor"]').setValue('other')
+    await submit(wrapper)
+    let other: Element | null = wrapper.find('input[name="os_flavor_other"]').element
+    while (other && !other.querySelector('label')) other = other.parentElement
+    expect(other?.textContent).toContain('Enter the OS flavor.')
+    expect(wrapper.text()).not.toContain('Choose the OS flavor.')
+  })
+
+  it('removing a row takes its errors with it', async () => {
+    const { wrapper } = await open()
+    await fillBasics(wrapper)
+    await wrapper.find('button[data-add-template]').trigger('click')
+    await fillRow(wrapper, 0, '1', 'pve1', 'abc')
+    await fillRow(wrapper, 1, '2', 'edge1', '9101')
+    await submit(wrapper)
+    expect(wrapper.text()).toContain('Enter the VMID as a whole number.')
+    await wrapper.find('button[aria-label="Remove template 1"]').trigger('click')
+    expect(wrapper.findAll('select[name^="location-"]')).toHaveLength(1)
+    expect(wrapper.text()).not.toContain('Enter the VMID as a whole number.')
   })
 })
