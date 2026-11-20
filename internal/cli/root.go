@@ -13,8 +13,12 @@ import (
 	"golang.org/x/term"
 )
 
-// Version is set by ldflags.
-var Version = "dev"
+// Version, Commit and Date are set by ldflags.
+var (
+	Version = "dev"
+	Commit  = ""
+	Date    = ""
+)
 
 // Env carries the process dependencies so tests can replace them.
 type Env struct {
@@ -160,8 +164,18 @@ func newRoot(env Env) (*cobra.Command, *app) {
 		Short: "Print the nebla version",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), "nebla %s\n", Version)
+			fmt.Fprintln(cmd.OutOrStdout(), versionString())
 		},
 	})
 	return root, a
+}
+
+func versionString() string {
+	switch {
+	case Commit == "":
+		return "nebla " + Version
+	case Date == "":
+		return fmt.Sprintf("nebla %s (%s)", Version, Commit)
+	}
+	return fmt.Sprintf("nebla %s (%s, %s)", Version, Commit, Date)
 }
