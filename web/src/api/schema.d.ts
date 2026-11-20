@@ -333,6 +333,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a user's name, email and admin flag */
+        put: operations["putAdminUser"];
+        post?: never;
+        /** Delete a user */
+        delete: operations["deleteAdminUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a user's password and sign them out */
+        post: operations["postAdminUserPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{id}/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Turn off a user's two-factor and sign them out */
+        delete: operations["deleteAdminUserTotp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{id}/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove all of a user's passkeys and sign them out */
+        delete: operations["deleteAdminUserPasskeys"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/projects": {
         parameters: {
             query?: never;
@@ -345,6 +422,26 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ProjectID"];
+            };
+            cookie?: never;
+        };
+        /** Get any project with its members and usage */
+        get: operations["getAdminProject"];
+        put?: never;
+        post?: never;
+        /** Delete any project that has no servers */
+        delete: operations["deleteAdminProject"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1480,6 +1577,22 @@ export interface components {
             name: string;
             quota: components["schemas"]["Quota"];
             owner_email: string;
+            usage: components["schemas"]["ProjectUsage"];
+            member_count: number;
+            /** Format: date-time */
+            created: string;
+        };
+        AdminProjectDetail: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            quota: components["schemas"]["Quota"];
+            owner_email: string;
+            usage: components["schemas"]["ProjectUsage"];
+            member_count: number;
+            /** Format: date-time */
+            created: string;
+            members: components["schemas"]["Member"][];
         };
         Member: {
             /** Format: int64 */
@@ -1515,6 +1628,20 @@ export interface components {
             name: string;
             is_admin: boolean;
             totp_enabled: boolean;
+        };
+        AdminUser: {
+            /** Format: int64 */
+            id: number;
+            email: string;
+            name: string;
+            is_admin: boolean;
+            totp_enabled: boolean;
+            passkey_count: number;
+        };
+        AdminUserInput: {
+            name: string;
+            email: string;
+            is_admin: boolean;
         };
         Credentials: {
             email: string;
@@ -1631,6 +1758,7 @@ export interface components {
             id: number;
             /** Format: int64 */
             project_id: number;
+            project_name: string;
             command: string;
             /** @enum {string} */
             status: "running" | "success" | "error";
@@ -2643,7 +2771,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        users: components["schemas"]["User"][];
+                        users: components["schemas"]["AdminUser"][];
                         meta: components["schemas"]["Meta"];
                     };
                 };
@@ -2677,12 +2805,155 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["User"];
+                    "application/json": components["schemas"]["AdminUser"];
                 };
             };
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
             409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    putAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUser"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteAdminUser: {
+        parameters: {
+            query?: {
+                /** @description Make the caller owner of projects the user is the only owner of */
+                take_over?: boolean;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postAdminUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                    remove_passkeys: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteAdminUserTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteAdminUserPasskeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             422: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
@@ -2713,6 +2984,57 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ProjectID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProjectDetail"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteAdminProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ProjectID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

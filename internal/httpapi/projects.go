@@ -13,9 +13,8 @@ func apiQuota(q projects.Quota) apigen.Quota {
 }
 
 func apiProject(p projects.Project) apigen.Project {
-	u := p.Usage
 	return apigen.Project{Id: p.ID, Name: p.Name, Role: apigen.Role(p.Role), Quota: apiQuota(p.Quota), Created: p.CreatedAt,
-		Usage: apigen.ProjectUsage{Servers: u.Servers, Vcpu: u.VCPU, MemoryMb: u.MemoryMB, DiskGb: u.DiskGB, Ips: u.IPs}}
+		Usage: apiUsage(p.Usage)}
 }
 
 func apiMember(m projects.Member) apigen.Member {
@@ -213,13 +212,13 @@ func (s *server) DeleteProjectToken(ctx context.Context, req apigen.DeleteProjec
 
 func (s *server) GetAdminUsers(ctx context.Context, req apigen.GetAdminUsersRequestObject) (apigen.GetAdminUsersResponseObject, error) {
 	page, perPage := pageParams(req.Params.Page, req.Params.PerPage)
-	us, total, err := s.auth.ListUsers(ctx, page, perPage)
+	us, total, err := s.auth.ListAdminUsers(ctx, page, perPage)
 	if err != nil {
 		return nil, err
 	}
-	out := apigen.GetAdminUsers200JSONResponse{Users: make([]apigen.User, len(us))}
+	out := apigen.GetAdminUsers200JSONResponse{Users: make([]apigen.AdminUser, len(us))}
 	for i, u := range us {
-		out.Users[i] = apiUser(u)
+		out.Users[i] = apiAdminUser(u)
 	}
 	out.Meta = meta(page, perPage, total)
 	return out, nil
@@ -231,7 +230,50 @@ func (s *server) PostAdminUsers(ctx context.Context, req apigen.PostAdminUsersRe
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PostAdminUsers201JSONResponse(apiUser(u)), nil
+	return apigen.PostAdminUsers201JSONResponse(apiAdminUser(auth.AdminUser{User: u})), nil
+}
+
+func apiAdminUser(u auth.AdminUser) apigen.AdminUser {
+	return apigen.AdminUser{Id: u.ID, Email: u.Email, Name: u.Name, IsAdmin: u.IsAdmin, TotpEnabled: u.TOTPEnabled,
+		PasskeyCount: u.PasskeyCount}
+}
+
+func (s *server) PutAdminUser(ctx context.Context, req apigen.PutAdminUserRequestObject) (apigen.PutAdminUserResponseObject, error) {
+	b := req.Body
+	u, err := s.auth.AdminUpdateUser(ctx, userID(ctx), req.Id, b.Name, b.Email, b.IsAdmin, sessionToken(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PutAdminUser200JSONResponse(apiAdminUser(u)), nil
+}
+
+func (s *server) DeleteAdminUser(ctx context.Context, req apigen.DeleteAdminUserRequestObject) (apigen.DeleteAdminUserResponseObject, error) {
+	takeOver := req.Params.TakeOver != nil && *req.Params.TakeOver
+	if err := s.projects.DeleteUser(ctx, userID(ctx), req.Id, takeOver); err != nil {
+		return nil, err
+	}
+	return apigen.DeleteAdminUser204Response{}, nil
+}
+
+func (s *server) PostAdminUserPassword(ctx context.Context, req apigen.PostAdminUserPasswordRequestObject) (apigen.PostAdminUserPasswordResponseObject, error) {
+	if err := s.auth.AdminSetPassword(ctx, userID(ctx), req.Id, req.Body.Password, req.Body.RemovePasskeys); err != nil {
+		return nil, err
+	}
+	return apigen.PostAdminUserPassword204Response{}, nil
+}
+
+func (s *server) DeleteAdminUserTotp(ctx context.Context, req apigen.DeleteAdminUserTotpRequestObject) (apigen.DeleteAdminUserTotpResponseObject, error) {
+	if err := s.auth.AdminResetTOTP(ctx, userID(ctx), req.Id); err != nil {
+		return nil, err
+	}
+	return apigen.DeleteAdminUserTotp204Response{}, nil
+}
+
+func (s *server) DeleteAdminUserPasskeys(ctx context.Context, req apigen.DeleteAdminUserPasskeysRequestObject) (apigen.DeleteAdminUserPasskeysResponseObject, error) {
+	if err := s.auth.AdminRemovePasskeys(ctx, userID(ctx), req.Id); err != nil {
+		return nil, err
+	}
+	return apigen.DeleteAdminUserPasskeys204Response{}, nil
 }
 
 func (s *server) GetAdminProjects(ctx context.Context, req apigen.GetAdminProjectsRequestObject) (apigen.GetAdminProjectsResponseObject, error) {
@@ -242,10 +284,40 @@ func (s *server) GetAdminProjects(ctx context.Context, req apigen.GetAdminProjec
 	}
 	out := apigen.GetAdminProjects200JSONResponse{Projects: make([]apigen.AdminProject, len(ps))}
 	for i, p := range ps {
-		out.Projects[i] = apigen.AdminProject{Id: p.ID, Name: p.Name, Quota: apiQuota(p.Quota), OwnerEmail: p.OwnerEmail}
+		out.Projects[i] = apiAdminProject(p)
 	}
 	out.Meta = meta(page, perPage, total)
 	return out, nil
+}
+
+func apiUsage(u projects.Usage) apigen.ProjectUsage {
+	return apigen.ProjectUsage{Servers: u.Servers, Vcpu: u.VCPU, MemoryMb: u.MemoryMB, DiskGb: u.DiskGB, Ips: u.IPs}
+}
+
+func apiAdminProject(p projects.AdminProject) apigen.AdminProject {
+	return apigen.AdminProject{Id: p.ID, Name: p.Name, Quota: apiQuota(p.Quota), OwnerEmail: p.OwnerEmail,
+		Usage: apiUsage(p.Usage), MemberCount: p.MemberCount, Created: p.Created}
+}
+
+func (s *server) GetAdminProject(ctx context.Context, req apigen.GetAdminProjectRequestObject) (apigen.GetAdminProjectResponseObject, error) {
+	p, err := s.projects.AdminGet(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	a := apiAdminProject(p.AdminProject)
+	out := apigen.GetAdminProject200JSONResponse{Id: a.Id, Name: a.Name, Quota: a.Quota, OwnerEmail: a.OwnerEmail,
+		Usage: a.Usage, MemberCount: a.MemberCount, Created: a.Created, Members: make([]apigen.Member, len(p.Members))}
+	for i, m := range p.Members {
+		out.Members[i] = apiMember(m)
+	}
+	return out, nil
+}
+
+func (s *server) DeleteAdminProject(ctx context.Context, req apigen.DeleteAdminProjectRequestObject) (apigen.DeleteAdminProjectResponseObject, error) {
+	if err := s.projects.AdminDelete(ctx, req.Id); err != nil {
+		return nil, err
+	}
+	return apigen.DeleteAdminProject204Response{}, nil
 }
 
 func (s *server) PutAdminProjectQuota(ctx context.Context, req apigen.PutAdminProjectQuotaRequestObject) (apigen.PutAdminProjectQuotaResponseObject, error) {

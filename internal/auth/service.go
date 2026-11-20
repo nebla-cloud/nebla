@@ -51,17 +51,39 @@ var (
 func NormalizeEmail(e string) string { return strings.ToLower(strings.TrimSpace(e)) }
 
 func validate(email, pw, name string) (string, error) {
+	email, err := validEmail(email)
+	if err != nil {
+		return "", err
+	}
+	if err := validPassword(pw); err != nil {
+		return "", err
+	}
+	if err := validName(name); err != nil {
+		return "", err
+	}
+	return email, nil
+}
+
+func validEmail(email string) (string, error) {
 	email = NormalizeEmail(email)
 	if !strings.Contains(email, "@") || len(email) < 3 {
 		return "", apierr.New(http.StatusUnprocessableEntity, "invalid_input", "a valid email is required")
 	}
-	if len(pw) < MinPasswordLen {
-		return "", apierr.New(http.StatusUnprocessableEntity, "invalid_input", "password must be at least 10 characters")
-	}
-	if strings.TrimSpace(name) == "" {
-		return "", apierr.New(http.StatusUnprocessableEntity, "invalid_input", "name is required")
-	}
 	return email, nil
+}
+
+func validPassword(pw string) error {
+	if len(pw) < MinPasswordLen {
+		return apierr.New(http.StatusUnprocessableEntity, "invalid_input", "password must be at least 10 characters")
+	}
+	return nil
+}
+
+func validName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return apierr.New(http.StatusUnprocessableEntity, "invalid_input", "name is required")
+	}
+	return nil
 }
 
 // Setup creates the first admin; it fails with already_setup once any user exists.
@@ -322,6 +344,11 @@ func (s *Service) inTx(ctx context.Context, fn func(tx *ent.Client) error) error
 		return err
 	}
 	return tx.Commit()
+}
+
+// RevokeSessions deletes all of the user's sessions through db.
+func RevokeSessions(ctx context.Context, db *ent.Client, userID int64) error {
+	return revokeOtherSessions(ctx, db, userID, "")
 }
 
 // revokeOtherSessions deletes all of the user's sessions except the one for keepToken (none kept when empty).

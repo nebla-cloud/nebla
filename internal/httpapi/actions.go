@@ -92,7 +92,7 @@ func (s *server) GetAction(ctx context.Context, req apigen.GetActionRequestObjec
 
 func apiAdminAction(a actions.Action) apigen.AdminAction {
 	p := apiAction(a)
-	out := apigen.AdminAction{Id: p.Id, ProjectId: a.ProjectID, Command: p.Command, Status: apigen.AdminActionStatus(p.Status),
+	out := apigen.AdminAction{Id: p.Id, ProjectId: a.ProjectID, ProjectName: a.ProjectName, Command: p.Command, Status: apigen.AdminActionStatus(p.Status),
 		Progress: p.Progress, Resources: p.Resources, Started: p.Started, Finished: p.Finished}
 	if a.Error != nil {
 		out.Error = &struct {
