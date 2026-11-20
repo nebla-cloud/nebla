@@ -117,17 +117,20 @@ func serverCreateCmd(a *app) *cobra.Command {
 		for _, n := range created.NextActions {
 			ids = append(ids, n.Id)
 		}
+		after := func(err error) error {
+			return fmt.Errorf("server %s was created, but: %w", id64(created.Server.Id), err)
+		}
 		done, err := api.Wait(cmd.Context(), a.env.Stderr, a.stderrTTY(), ids...)
 		if err != nil {
-			return err
+			return after(err)
 		}
 		sres, err := api.C.GetServerWithResponse(cmd.Context(), created.Server.Id)
 		if err != nil {
-			return err
+			return after(err)
 		}
 		srv, err := result(sres.StatusCode(), sres.Body, sres.JSON200)
 		if err != nil {
-			return err
+			return after(err)
 		}
 		if a.flags.output != "table" {
 			return a.printer().Object(map[string]any{"server": srv, "action": done[0], "next_actions": done[1:]})
