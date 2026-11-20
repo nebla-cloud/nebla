@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/vue-query'
 import UPopover from '@nuxt/ui/components/Popover.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
-import { setProjectId } from '@/api/client'
 import { errorMessage } from '@/api/errors'
 import { useSession } from '@/lib/session'
 import ColorModeToggle from './ColorModeToggle.vue'
@@ -21,7 +20,6 @@ async function logOut() {
     toast.add({ title: "Couldn't log out", description: errorMessage(e), color: 'error' })
     return
   }
-  setProjectId(null)
   qc.clear()
   await router.replace({ name: 'login' })
 }

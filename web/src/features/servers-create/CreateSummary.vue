@@ -57,8 +57,8 @@ function amount(l: QuotaLine, v: number): string {
 }
 
 function quotaText(l: QuotaLine): string {
-  if (l.max <= 0) return `${l.label} ${amount(l, l.used)} → ${amount(l, l.after)}, no limit`
-  return `${l.label} ${amount(l, l.used)} of ${amount(l, l.max)} → ${amount(l, l.after)}`
+  if (l.max <= 0) return `${l.label}: ${amount(l, l.used)}, no limit`
+  return `${l.label}: ${amount(l, l.used)} of ${amount(l, l.max)}, ${amount(l, l.after)} after this`
 }
 
 const over = (l: QuotaLine) => l.max > 0 && l.after > l.used && l.after > l.max

@@ -2,11 +2,13 @@ import createClient, { type Client, type Middleware } from 'openapi-fetch'
 import type { Router } from 'vue-router'
 import type { paths } from './schema'
 
-let projectId: number | null = null
+let projectSource: (() => number | null) | null = null
 let unauthorized: (() => void) | null = null
+let loginRedirect = false
 
-export function setProjectId(id: number | null): void {
-  projectId = id
+// Read on every request so the header always matches the page you're on.
+export function setProjectSource(fn: (() => number | null) | null): void {
+  projectSource = fn
 }
 
 export function onUnauthorized(fn: () => void): void {
@@ -23,15 +25,23 @@ export function redirectOnUnauthorized(router: Router, onRedirect?: () => void):
     const current = router.currentRoute.value
     if (redirecting || current.name === 'login') return
     redirecting = true
+    loginRedirect = true
     onRedirect?.()
-    void router.replace({ name: 'login', query: { next: current.fullPath } })
+    void router
+      .replace({ name: 'login', query: { next: current.fullPath } })
+      .finally(() => (loginRedirect = false))
   })
+}
+
+export function redirectingToLogin(): boolean {
+  return loginRedirect
 }
 
 const quiet401 = new Set(['/auth/login', '/auth/logout', '/me'])
 
 const middleware: Middleware = {
   onRequest({ request }) {
+    const projectId = projectSource?.() ?? null
     if (projectId !== null) request.headers.set('Project-ID', String(projectId))
     return request
   },

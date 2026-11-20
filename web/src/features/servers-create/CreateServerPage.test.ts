@@ -172,7 +172,7 @@ describe('CreateServerPage', () => {
     await pick('input[name="ssh_key"][value="5"]')
     expect($('input[name="ipv4"]').checked).toBe(true)
     expect($('input[name="name"]').value).toBe('debian-13-small-2-1')
-    expect(summary().textContent).toContain('Servers 3 of 10 → 4')
+    expect(summary().textContent).toContain('Servers: 3 of 10, 4 after this')
     expect(createButton().disabled).toBe(false)
     createButton().click()
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
@@ -235,8 +235,36 @@ describe('CreateServerPage', () => {
     expect($('input[name="image"][value="3"]').checked).toBe(false)
     expect($('input[name="ipv4"]').disabled).toBe(true)
     expect($('input[name="ipv4"]').checked).toBe(false)
+    expect($('input[name="ipv6"]').checked).toBe(true)
     expect(document.body.textContent).toContain('No free IPv4 addresses in rack-2')
     expect(createButton().disabled).toBe(true)
+  })
+
+  it('blocks Create when the location has no free addresses', async () => {
+    serveCatalog([{ id: 1, name: 'home', description: '', networks: { ipv4: false, ipv6: false } }])
+    await mountCreate()
+    await pick('input[name="image"][value="3"]')
+    await pick('input[name="server_type"][value="2"]')
+    const msg = 'No free addresses in home. Ask your Nebla admin to add an IP pool.'
+    expect(document.body.querySelector('fieldset')?.parentElement?.textContent).toContain(msg)
+    expect(summary().textContent).toContain(msg)
+    expect(document.body.textContent).not.toContain('No free IPv4 addresses in home')
+    expect(createButton().disabled).toBe(true)
+  })
+
+  it('blocks Create when both address families are off', async () => {
+    serveCatalog()
+    await mountCreate()
+    await pick('input[name="image"][value="3"]')
+    await pick('input[name="server_type"][value="2"]')
+    expect(createButton().disabled).toBe(false)
+    await pick('input[name="ipv4"]')
+    const msg = 'Pick IPv4 or IPv6 so the server can be reached.'
+    expect(summary().textContent).toContain(msg)
+    expect(document.body.textContent).not.toContain("won't have a public address")
+    expect(createButton().disabled).toBe(true)
+    await pick('input[name="ipv6"]')
+    expect(createButton().disabled).toBe(false)
   })
 
   it('inline add key selects it', async () => {

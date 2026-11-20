@@ -18,11 +18,14 @@ import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
 import CreateSummary from './CreateSummary.vue'
 import {
   MAX_USER_DATA,
+  PICK_FAMILY,
   availableImages,
   availableTypes,
   createBlocker,
   defaultName,
   networkChoice,
+  noAddresses,
+  pickFamilies,
   quotaAfter,
   reconcile,
   userDataBytes,
@@ -98,6 +101,7 @@ watch(
       const loc = ctx.value.locations[0]
       if (!loc) return
       form.locationId = loc.id
+      Object.assign(form, pickFamilies({ ...form }, loc))
       form.imageId =
         availableImages(ctx.value.images, loc.id).find((o) => !o.disabledReason)?.image.id ?? null
       form.typeId =
@@ -113,6 +117,8 @@ watch(
   (id, old) => {
     if (old == null || id === old) return
     if (!ipTouched.value) form.ipv4 = true
+    const loc = ctx.value.locations.find((l) => l.id === id)
+    if (loc) Object.assign(form, pickFamilies({ ...form }, loc))
     submitError.value = null
     applyReconcile()
   },
@@ -333,13 +339,16 @@ const legend = 'mb-2 text-sm font-semibold text-highlighted'
               <span :class="chip">{{ fam === 'ipv4' ? 'IPv4' : 'IPv6' }}</span>
             </label>
           </div>
-          <ul v-if="nets.ipv4 || nets.ipv6" class="mt-2 text-xs text-muted">
-            <li v-if="nets.ipv4">{{ nets.ipv4 }}</li>
-            <li v-if="nets.ipv6">{{ nets.ipv6 }}</li>
-          </ul>
-          <p v-if="!form.ipv4 && !form.ipv6" class="mt-2 text-xs text-muted">
-            This server won't have a public address.
+          <p v-if="nets.ipv4 && nets.ipv6" class="mt-2 text-xs text-muted">
+            {{ noAddresses(location?.name ?? '') }}
           </p>
+          <template v-else>
+            <ul v-if="nets.ipv4 || nets.ipv6" class="mt-2 text-xs text-muted">
+              <li v-if="nets.ipv4">{{ nets.ipv4 }}</li>
+              <li v-if="nets.ipv6">{{ nets.ipv6 }}</li>
+            </ul>
+            <p v-if="!form.ipv4 && !form.ipv6" class="mt-2 text-xs text-muted">{{ PICK_FAMILY }}</p>
+          </template>
         </fieldset>
 
         <fieldset>

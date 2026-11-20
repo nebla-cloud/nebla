@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { http } from 'msw'
@@ -7,7 +7,8 @@ import { json, server } from '@/test/server'
 import { mountApp } from '@/test/mount'
 import { queryClient } from '@/lib/queryClient'
 import { resetSession, setMe } from '@/lib/session'
-import { api, setProjectId } from '@/api/client'
+import { api } from '@/api/client'
+import App from '@/App.vue'
 import { createAppRouter } from './index'
 import { safeNext } from './guards'
 
@@ -37,8 +38,8 @@ const project = (id: number) => ({
 
 const Stub = defineComponent({ render: () => h('div', 'stub') })
 
-function appRouter(): Router {
-  const router = createAppRouter(createMemoryHistory())
+function appRouter(reload?: (url: string) => void): Router {
+  const router = createAppRouter(createMemoryHistory(), reload)
   router.addRoute('project', { path: 'servers', name: 'servers', component: Stub })
   return router
 }
@@ -98,8 +99,8 @@ function adminLists(over: Record<string, unknown[]> = {}) {
 beforeEach(() => {
   resetSession()
   queryClient.clear()
-  setProjectId(null)
   localStorage.clear()
+  sessionStorage.clear()
 })
 afterEach(() => {
   document.body.innerHTML = ''
@@ -237,6 +238,205 @@ describe('router guards', () => {
     expect(wrapper.text()).toContain("We can't find that page")
     const link = wrapper.find('a[href="/projects"]')
     expect(link.exists()).toBe(true)
+  })
+})
+
+describe('project header', () => {
+  it('follows the final URL when project navigations overlap', async () => {
+    api_({ projects: [project(1), project(2), project(3)] })
+    const router = appRouter()
+    await router.push('/p/1/servers')
+
+    let release!: () => void
+    let reached!: () => void
+    const hit = new Promise<void>((r) => (reached = r))
+    const gate = new Promise<void>((r) => (release = r))
+    const seen: (string | null)[] = []
+    server.use(
+      http.get('*/v1/projects/2', async () => {
+        reached()
+        await gate
+        return json(200, project(2))
+      }),
+      http.get('*/v1/servers', ({ request }) => {
+        seen.push(request.headers.get('Project-ID'))
+        return json(200, { servers: [] })
+      }),
+      http.post('*/v1/servers', ({ request }) => {
+        seen.push(request.headers.get('Project-ID'))
+        return json(422, { error: { code: 'invalid_input', message: 'x' } })
+      }),
+    )
+
+    const slow = router.push('/p/2/servers')
+    await hit
+    await router.push('/p/3/servers')
+    release()
+    await slow
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/p/3/servers')
+    await api.GET('/servers')
+    await api.POST('/servers', { body: {} as never })
+    expect(seen).toEqual(['3', '3'])
+  })
+})
+
+describe('load errors', () => {
+  const tryAgain = () =>
+    Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Try again',
+    )
+
+  it('shows an error screen when the manifest fails, and Try again recovers', async () => {
+    server.use(
+      http.get('*/v1/ui/manifest', () =>
+        json(500, { error: { code: 'internal', message: 'database is down' } }),
+      ),
+    )
+    const router = appRouter()
+    mountApp(App, { router, queryClient })
+    await router.push('/p/1/servers').catch(() => {})
+    await flushPromises()
+    expect(document.body.textContent).toContain('database is down')
+    expect(tryAgain()).toBeDefined()
+
+    api_({ projects: [project(1)] })
+    tryAgain()!.click()
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/p/1/servers'))
+    await flushPromises()
+    expect(document.body.textContent).not.toContain('database is down')
+    expect(tryAgain()).toBeUndefined()
+  })
+
+  it('shows the error screen when /me fails on first load', async () => {
+    api_({})
+    server.use(
+      http.get('*/v1/me', () => json(502, { error: { code: 'pve_unreachable', message: 'x' } })),
+    )
+    const router = appRouter()
+    mountApp(App, { router, queryClient })
+    await router.push('/').catch(() => {})
+    await flushPromises()
+    expect(document.body.textContent).toContain("Proxmox didn't respond.")
+    expect(tryAgain()).toBeDefined()
+  })
+
+  it('reloads once on a chunk load failure, then shows the error screen', async () => {
+    api_({ projects: [project(1)] })
+    const broken = () =>
+      Promise.reject(new TypeError('Failed to fetch dynamically imported module: /assets/a.js'))
+    const reload = vi.fn()
+
+    const first = appRouter(reload)
+    first.addRoute('project', { path: 'broken', component: broken })
+    await first.push('/p/1/broken').catch(() => {})
+    expect(reload).toHaveBeenCalledOnce()
+    expect(reload).toHaveBeenCalledWith('/p/1/broken')
+
+    // The reloaded page fails the same way: no second reload.
+    const second = appRouter(reload)
+    second.addRoute('project', { path: 'broken', component: broken })
+    mountApp(App, { router: second, queryClient })
+    await second.push('/p/1/broken').catch(() => {})
+    await flushPromises()
+    expect(reload).toHaveBeenCalledOnce()
+    expect(document.body.textContent).toContain('Failed to fetch dynamically imported module')
+    expect(tryAgain()).toBeDefined()
+  })
+
+  it('a good navigation lets a later chunk failure reload again', async () => {
+    api_({ projects: [project(1)] })
+    sessionStorage.setItem('nebla.chunkReload', '1')
+    const reload = vi.fn()
+    const router = appRouter(reload)
+    router.addRoute('project', {
+      path: 'broken',
+      component: () => Promise.reject(new TypeError('error loading dynamically imported module')),
+    })
+    await router.push('/p/1/servers')
+    await router.push('/p/1/broken').catch(() => {})
+    expect(reload).toHaveBeenCalledOnce()
+  })
+})
+
+describe('load errors from superseded navigations', () => {
+  function slowRoute(router: Router, path: string, error: Error) {
+    let release!: () => void
+    let reached!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const hit = new Promise<void>((r) => (reached = r))
+    router.addRoute('project', {
+      path,
+      component: () => {
+        reached()
+        return gate.then(() => Promise.reject(error))
+      },
+    })
+    return { release, hit }
+  }
+
+  async function race(error: Error, reload = vi.fn()) {
+    api_({ projects: [project(1), project(2), project(3)] })
+    const router = appRouter(reload)
+    const slow = slowRoute(router, 'slow', error)
+    const { wrapper } = mountApp(App, { router, queryClient })
+    await router.push('/p/1/servers')
+    const pending = router.push('/p/2/slow').catch(() => {})
+    await slow.hit
+    await router.push('/p/3/servers')
+    slow.release()
+    await pending
+    await flushPromises()
+    return { router, wrapper, reload }
+  }
+
+  it('a failed superseded navigation leaves the newer page alone', async () => {
+    const { router, wrapper } = await race(new Error('boom'))
+    expect(router.currentRoute.value.fullPath).toBe('/p/3/servers')
+    expect(wrapper.text()).not.toContain('boom')
+    expect(wrapper.text()).not.toContain('Try again')
+    expect(wrapper.text()).toContain('stub')
+  })
+
+  it('a superseded chunk failure does not reload', async () => {
+    const { reload, wrapper } = await race(
+      new TypeError('Failed to fetch dynamically imported module: /assets/a.js'),
+    )
+    expect(reload).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('Try again')
+  })
+
+  it('the latest navigation failing still shows the screen', async () => {
+    api_({ projects: [project(1)] })
+    const router = appRouter()
+    const slow = slowRoute(router, 'slow', new Error('boom'))
+    const { wrapper } = mountApp(App, { router, queryClient })
+    await router.push('/p/1/servers')
+    const pending = router.push('/p/1/slow').catch(() => {})
+    await slow.hit
+    slow.release()
+    await pending
+    await flushPromises()
+    expect(wrapper.text()).toContain('boom')
+    expect(wrapper.text()).toContain('Try again')
+  })
+
+  it('a 401 during a navigation goes to login without the screen', async () => {
+    api_({ projects: [project(1)] })
+    const router = appRouter()
+    const { wrapper } = mountApp(App, { router, queryClient })
+    await router.push('/p/1/servers')
+    server.use(
+      http.get('*/v1/projects/2', () =>
+        json(401, { error: { code: 'unauthorized', message: 'expired' } }),
+      ),
+    )
+    await router.push('/p/2/servers').catch(() => {})
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('login'))
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Try again')
+    expect(wrapper.text()).not.toContain('expired')
   })
 })
 

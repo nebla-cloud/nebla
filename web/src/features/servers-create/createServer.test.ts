@@ -6,6 +6,7 @@ import {
   createBlocker,
   defaultName,
   networkChoice,
+  pickFamilies,
   quotaAfter,
   reconcile,
   type CreateForm,
@@ -167,6 +168,44 @@ describe('createServer', () => {
       ipv4: 'No free IPv4 addresses in rack-2',
       ipv6: 'No free IPv6 addresses in rack-2',
     })
+  })
+
+  it('createBlocker blocks a location with no free addresses', () => {
+    const c = { ...ctx, locations: [loc(1, 'home', false, false)] }
+    expect(createBlocker(form({ ipv4: true }), c, { quotaOk: true, existing: [] })).toBe(
+      'No free addresses in home. Ask your Nebla admin to add an IP pool.',
+    )
+  })
+
+  it('createBlocker asks for a family when both are off', () => {
+    const opts = { quotaOk: true, existing: [] as string[] }
+    expect(createBlocker(form({ ipv4: false, ipv6: false }), ctx, opts)).toBe(
+      'Pick IPv4 or IPv6 so the server can be reached.',
+    )
+    expect(createBlocker(form({ ipv4: false, ipv6: true }), ctx, opts)).toBeNull()
+  })
+
+  it('pickFamilies selects the only available family', () => {
+    expect(pickFamilies(form({ ipv4: true, ipv6: false }), loc(2, 'rack-2', false, true))).toEqual(
+      form({ ipv4: false, ipv6: true }),
+    )
+    expect(pickFamilies(form({ ipv4: false, ipv6: true }), loc(3, 'v4', true, false))).toEqual(
+      form({ ipv4: true, ipv6: false }),
+    )
+    const both = form({ ipv4: false, ipv6: true })
+    expect(pickFamilies(both, loc(1, 'home'))).toEqual(both)
+    const none = form({ ipv4: true, ipv6: false })
+    expect(pickFamilies(none, loc(4, 'empty', false, false))).toEqual(none)
+  })
+
+  it('reconcile keeps a family the user unticked', () => {
+    const c = { ...ctx, locations: [loc(2, 'rack-2', false, true)] }
+    const picked = pickFamilies(form({ locationId: 2, imageId: 4 }), c.locations[0]!)
+    const unticked = reconcile({ ...picked, ipv6: false }, c)
+    expect(unticked.ipv6).toBe(false)
+    expect(createBlocker(unticked, c, { quotaOk: true, existing: [] })).toBe(
+      'Pick IPv4 or IPv6 so the server can be reached.',
+    )
   })
 
   it('createBlocker checks name, quota and user data', () => {

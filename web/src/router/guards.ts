@@ -1,5 +1,4 @@
 import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router'
-import { setProjectId } from '@/api/client'
 import { ApiError } from '@/api/errors'
 import type { User } from '@/api/types'
 import { panelReady } from '@/features/admin/getready/checklist'
@@ -62,7 +61,6 @@ export function installGuards(router: Router): void {
     if ('projectId' in to.params) {
       const id = parseProjectId(to.params.projectId)
       if (id === null || !(await projectExists(id))) return notFound(to)
-      setProjectId(id)
     }
     return true
   })
