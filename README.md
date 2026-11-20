@@ -34,6 +34,7 @@ panel and the `nebla` CLI are in progress (see [Status](#status)). More at [nebl
 
 3. Create the first admin with `POST /v1/setup`, then add a location, server types, images and IP pools under
    `/v1/admin`. The API is described in [api/openapi.yaml](api/openapi.yaml).
+4. To use the panel from a terminal, see the [CLI guide](docs/cli.md).
 
 ## Configuration
 
