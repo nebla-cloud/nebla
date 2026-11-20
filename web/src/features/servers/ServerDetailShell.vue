@@ -13,6 +13,7 @@ import StatusDot from '@/components/StatusDot.vue'
 import { useCurrentProject, parseProjectId } from '@/lib/project'
 import { serverStatus } from '@/lib/status'
 import { useActionPoll } from '@/lib/useActionPoll'
+import LabelChips from './LabelChips.vue'
 import PowerActions from './PowerActions.vue'
 import { useServer } from './queries'
 import { serverBusyKey } from './shell'
@@ -133,6 +134,7 @@ const notFound = computed(
           <PowerActions :server="server" :busy="running" @started="started" />
         </div>
       </header>
+      <LabelChips v-if="Object.keys(server.labels).length" :labels="server.labels" :max="8" />
 
       <div v-if="action" class="rounded-lg border border-default bg-default p-3">
         <ActionProgress :action="action" />

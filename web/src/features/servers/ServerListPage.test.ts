@@ -99,4 +99,64 @@ describe('ServerListPage', () => {
     // Links by route name, so it resolves through the server-new route.
     expect(links[0]!.attributes('href')).toBe('/p/1/servers/new')
   })
+
+  it('filter is sent as label_selector and kept in URL', async () => {
+    const seen: (string | null)[] = []
+    server.use(
+      http.get('*/v1/servers', ({ request }) => {
+        seen.push(new URL(request.url).searchParams.get('label_selector'))
+        return json(200, { servers: [makeServer({ labels: { env: 'prod' } })], meta })
+      }),
+    )
+    const { wrapper, router } = await mountList()
+    const input = wrapper.find('input[name="labels"]')
+    await input.setValue('env=prod')
+    await input.trigger('keydown.enter')
+    await wrapper.find('form').trigger('submit')
+    await vi.waitFor(() => expect(seen).toContain('env=prod'))
+    expect(router.currentRoute.value.query.labels).toBe('env=prod')
+  })
+
+  it('prefills the filter from the URL', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [makeServer()], meta })))
+    const router = testRouter([
+      { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+      { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
+      { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
+    ])
+    await router.push('/p/1/servers?labels=env%3Dprod')
+    const { wrapper } = mountApp(ServerListPage, { router })
+    await vi.waitFor(() => expect(wrapper.text()).not.toContain('Loading servers'))
+    expect((wrapper.find('input[name="labels"]').element as HTMLInputElement).value).toBe(
+      'env=prod',
+    )
+  })
+
+  it('422 shows under the field', async () => {
+    server.use(
+      http.get('*/v1/servers', ({ request }) =>
+        new URL(request.url).searchParams.has('label_selector')
+          ? json(422, { error: { code: 'invalid_input', message: 'bad selector term' } })
+          : json(200, { servers: [makeServer()], meta }),
+      ),
+    )
+    const { wrapper } = await mountList()
+    await wrapper.find('input[name="labels"]').setValue('=')
+    await wrapper.find('form').trigger('submit')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('bad selector term'))
+    expect(wrapper.find('input[name="labels"]').exists()).toBe(true)
+  })
+
+  it('chips show three and +N', async () => {
+    const labels = { a: '1', b: '2', c: '3', d: '4', e: '5' }
+    server.use(
+      http.get('*/v1/servers', () => json(200, { servers: [makeServer({ labels })], meta })),
+    )
+    const { wrapper } = await mountList()
+    const text = wrapper.text()
+    expect(text).toContain('a=1')
+    expect(text).toContain('c=3')
+    expect(text).not.toContain('d=4')
+    expect(text).toContain('+2')
+  })
 })

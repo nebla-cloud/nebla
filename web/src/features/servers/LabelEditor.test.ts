@@ -1,0 +1,67 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { http } from 'msw'
+import { json, server } from '@/test/server'
+import { mountApp, testRouter } from '@/test/mount'
+import { makeServer } from './fixtures'
+import LabelEditor from './LabelEditor.vue'
+
+async function mountEditor(labels: Record<string, string>) {
+  const router = testRouter([
+    { path: '/p/:projectId/servers', name: 'servers', component: LabelEditor },
+  ])
+  await router.push('/p/1/servers')
+  return mountApp(LabelEditor, { router, props: { server: makeServer({ labels }) } })
+}
+
+beforeEach(() => {
+  document.body.innerHTML = ''
+  server.use(
+    http.get('*/v1/projects/1', () =>
+      json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
+    ),
+  )
+})
+
+const save = (w: Awaited<ReturnType<typeof mountEditor>>['wrapper']) =>
+  w.findAll('button').find((b) => b.text() === 'Save labels')!
+
+describe('LabelEditor', () => {
+  it('saves with PUT labels', async () => {
+    let body: unknown
+    server.use(
+      http.put('*/v1/servers/1', async ({ request }) => {
+        body = await request.json()
+        return json(200, makeServer({ labels: { env: 'prod' } }))
+      }),
+    )
+    const { wrapper } = await mountEditor({})
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Add label')!
+      .trigger('click')
+    await wrapper.find('input[name="key-0"]').setValue('env')
+    await wrapper.find('input[name="value-0"]').setValue('prod')
+    await save(wrapper).trigger('click')
+    await vi.waitFor(() => expect(body).toEqual({ labels: { env: 'prod' } }))
+  })
+
+  it('keeps rows on error', async () => {
+    server.use(
+      http.put('*/v1/servers/1', () =>
+        json(422, { error: { code: 'invalid_input', message: 'label rejected by the server' } }),
+      ),
+    )
+    const { wrapper } = await mountEditor({ env: 'prod' })
+    await save(wrapper).trigger('click')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('label rejected by the server'))
+    expect((wrapper.find('input[name="key-0"]').element as HTMLInputElement).value).toBe('env')
+  })
+
+  it('remove row', async () => {
+    const { wrapper } = await mountEditor({ env: 'prod', team: 'a' })
+    expect(wrapper.findAll('input[name^="key-"]')).toHaveLength(2)
+    await wrapper.find('button[aria-label="Remove label 1"]').trigger('click')
+    expect(wrapper.findAll('input[name^="key-"]')).toHaveLength(1)
+    expect((wrapper.find('input[name="key-0"]').element as HTMLInputElement).value).toBe('team')
+  })
+})
