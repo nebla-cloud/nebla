@@ -343,7 +343,7 @@ describe('ServerDetailShell', () => {
           200,
           action({
             status: 'error',
-            error: { code: 'pve_error', message: 'Proxmox refused to reboot' },
+            error: { code: 'failed', message: 'Proxmox refused to reboot' },
             finished: '2026-11-20T10:00:02Z',
           }),
         )

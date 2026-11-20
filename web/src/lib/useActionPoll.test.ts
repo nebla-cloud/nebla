@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, ref } from 'vue'
+import { defineComponent, h, ref, watch } from 'vue'
 import { mount } from '@vue/test-utils'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { http } from 'msw'
@@ -70,7 +70,7 @@ describe('useActionPoll', () => {
   it('stops and surfaces error', async () => {
     const calls = sequence([
       action('running', 10),
-      action('error', 40, { code: 'pve_error', message: 'clone failed' }),
+      action('error', 40, { code: 'failed', message: 'clone failed' }),
     ])
     const onDone = vi.fn()
     const { result } = withSetup(() => useActionPoll(ref(5), { onDone, intervalMs: 10 }))
@@ -97,6 +97,28 @@ describe('useActionPoll', () => {
     const seen = calls
     await sleep(60)
     expect(calls).toBe(seen)
+  })
+
+  it('keeps polling through a rate limit', async () => {
+    let calls = 0
+    const errors: (string | null)[] = []
+    server.use(
+      http.get('*/v1/actions/5', () => {
+        calls++
+        if (calls === 2)
+          return json(429, { error: { code: 'rate_limit_exceeded', message: 'too many requests' } })
+        return json(200, calls < 3 ? action('running', 10) : action('success', 100))
+      }),
+    )
+    const onDone = vi.fn()
+    const { result } = withSetup(() => {
+      const r = useActionPoll(ref(5), { onDone, intervalMs: 10 })
+      watch(r.error, (e) => errors.push(e))
+      return r
+    })
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(result.action.value?.status).toBe('success')
+    expect(errors).not.toContain('too many requests')
   })
 
   it('does nothing without an action id', async () => {

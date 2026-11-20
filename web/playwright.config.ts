@@ -18,5 +18,10 @@ export default defineConfig({
   projects: [
     { name: 'first-run', testMatch: /first-run\.spec\.ts/ },
     { name: 'catalog', testMatch: /catalog\.spec\.ts/, dependencies: ['first-run'] },
+    {
+      name: 'server-depth',
+      testMatch: /server-depth\.spec\.ts/,
+      dependencies: ['catalog'],
+    },
   ],
 })
