@@ -54,6 +54,10 @@ type Tx struct {
 	Setting *SettingClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// WebauthnChallenge is the client for interacting with the WebauthnChallenge builders.
+	WebauthnChallenge *WebauthnChallengeClient
+	// WebauthnCredential is the client for interacting with the WebauthnCredential builders.
+	WebauthnCredential *WebauthnCredentialClient
 
 	// lazily loaded.
 	client     *Client
@@ -205,6 +209,8 @@ func (tx *Tx) init() {
 	tx.Session = NewSessionClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
 	tx.User = NewUserClient(tx.config)
+	tx.WebauthnChallenge = NewWebauthnChallengeClient(tx.config)
+	tx.WebauthnCredential = NewWebauthnCredentialClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

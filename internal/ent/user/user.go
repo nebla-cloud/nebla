@@ -27,6 +27,8 @@ const (
 	FieldTotpPendingSecret = "totp_pending_secret"
 	// FieldTotpEnabled holds the string denoting the totp_enabled field in the database.
 	FieldTotpEnabled = "totp_enabled"
+	// FieldWebauthnHandle holds the string denoting the webauthn_handle field in the database.
+	FieldWebauthnHandle = "webauthn_handle"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// Table holds the table name of the user in the database.
@@ -43,6 +45,7 @@ var Columns = []string{
 	FieldTotpSecret,
 	FieldTotpPendingSecret,
 	FieldTotpEnabled,
+	FieldWebauthnHandle,
 	FieldCreatedAt,
 }
 

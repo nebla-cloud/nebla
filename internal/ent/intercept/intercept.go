@@ -29,6 +29,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
+	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
 
 // The Query interface represents an operation that queries a graph.
@@ -627,6 +629,60 @@ func (f TraverseUser) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserQuery", q)
 }
 
+// The WebauthnChallengeFunc type is an adapter to allow the use of ordinary function as a Querier.
+type WebauthnChallengeFunc func(context.Context, *ent.WebauthnChallengeQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f WebauthnChallengeFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.WebauthnChallengeQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.WebauthnChallengeQuery", q)
+}
+
+// The TraverseWebauthnChallenge type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseWebauthnChallenge func(context.Context, *ent.WebauthnChallengeQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseWebauthnChallenge) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseWebauthnChallenge) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.WebauthnChallengeQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.WebauthnChallengeQuery", q)
+}
+
+// The WebauthnCredentialFunc type is an adapter to allow the use of ordinary function as a Querier.
+type WebauthnCredentialFunc func(context.Context, *ent.WebauthnCredentialQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f WebauthnCredentialFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.WebauthnCredentialQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.WebauthnCredentialQuery", q)
+}
+
+// The TraverseWebauthnCredential type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseWebauthnCredential func(context.Context, *ent.WebauthnCredentialQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseWebauthnCredential) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseWebauthnCredential) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.WebauthnCredentialQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.WebauthnCredentialQuery", q)
+}
+
 // NewQuery returns the generic Query interface for the given typed query.
 func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
@@ -670,6 +726,10 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.SettingQuery, predicate.Setting, setting.OrderOption]{typ: ent.TypeSetting, tq: q}, nil
 	case *ent.UserQuery:
 		return &query[*ent.UserQuery, predicate.User, user.OrderOption]{typ: ent.TypeUser, tq: q}, nil
+	case *ent.WebauthnChallengeQuery:
+		return &query[*ent.WebauthnChallengeQuery, predicate.WebauthnChallenge, webauthnchallenge.OrderOption]{typ: ent.TypeWebauthnChallenge, tq: q}, nil
+	case *ent.WebauthnCredentialQuery:
+		return &query[*ent.WebauthnCredentialQuery, predicate.WebauthnCredential, webauthncredential.OrderOption]{typ: ent.TypeWebauthnCredential, tq: q}, nil
 	default:
 		return nil, fmt.Errorf("unknown query type %T", q)
 	}

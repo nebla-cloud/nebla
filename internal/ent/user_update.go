@@ -138,6 +138,18 @@ func (_u *UserUpdate) SetNillableTotpEnabled(v *bool) *UserUpdate {
 	return _u
 }
 
+// SetWebauthnHandle sets the "webauthn_handle" field.
+func (_u *UserUpdate) SetWebauthnHandle(v []byte) *UserUpdate {
+	_u.mutation.SetWebauthnHandle(v)
+	return _u
+}
+
+// ClearWebauthnHandle clears the value of the "webauthn_handle" field.
+func (_u *UserUpdate) ClearWebauthnHandle() *UserUpdate {
+	_u.mutation.ClearWebauthnHandle()
+	return _u
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -211,6 +223,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.TotpEnabled(); ok {
 		_spec.SetField(user.FieldTotpEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.WebauthnHandle(); ok {
+		_spec.SetField(user.FieldWebauthnHandle, field.TypeBytes, value)
+	}
+	if _u.mutation.WebauthnHandleCleared() {
+		_spec.ClearField(user.FieldWebauthnHandle, field.TypeBytes)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
@@ -344,6 +362,18 @@ func (_u *UserUpdateOne) SetNillableTotpEnabled(v *bool) *UserUpdateOne {
 	return _u
 }
 
+// SetWebauthnHandle sets the "webauthn_handle" field.
+func (_u *UserUpdateOne) SetWebauthnHandle(v []byte) *UserUpdateOne {
+	_u.mutation.SetWebauthnHandle(v)
+	return _u
+}
+
+// ClearWebauthnHandle clears the value of the "webauthn_handle" field.
+func (_u *UserUpdateOne) ClearWebauthnHandle() *UserUpdateOne {
+	_u.mutation.ClearWebauthnHandle()
+	return _u
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -447,6 +477,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.TotpEnabled(); ok {
 		_spec.SetField(user.FieldTotpEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.WebauthnHandle(); ok {
+		_spec.SetField(user.FieldWebauthnHandle, field.TypeBytes, value)
+	}
+	if _u.mutation.WebauthnHandleCleared() {
+		_spec.ClearField(user.FieldWebauthnHandle, field.TypeBytes)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	_node = &User{config: _u.config}

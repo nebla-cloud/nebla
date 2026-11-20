@@ -17,6 +17,7 @@ func (User) Fields() []ent.Field {
 		field.Text("totp_secret").Optional().Nillable().Sensitive(),
 		field.Text("totp_pending_secret").Optional().Nillable().Sensitive(),
 		field.Bool("totp_enabled").Default(false),
+		field.Bytes("webauthn_handle").Optional().Nillable().Unique().Sensitive(),
 		createdAt(),
 	}
 }

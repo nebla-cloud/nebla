@@ -25,6 +25,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -300,7 +301,13 @@ func init() {
 	// user.DefaultTotpEnabled holds the default value on creation for the totp_enabled field.
 	user.DefaultTotpEnabled = userDescTotpEnabled.Default.(bool)
 	// userDescCreatedAt is the schema descriptor for created_at field.
-	userDescCreatedAt := userFields[8].Descriptor()
+	userDescCreatedAt := userFields[9].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
+	webauthncredentialFields := schema.WebauthnCredential{}.Fields()
+	_ = webauthncredentialFields
+	// webauthncredentialDescCreatedAt is the schema descriptor for created_at field.
+	webauthncredentialDescCreatedAt := webauthncredentialFields[6].Descriptor()
+	// webauthncredential.DefaultCreatedAt holds the default value on creation for the created_at field.
+	webauthncredential.DefaultCreatedAt = webauthncredentialDescCreatedAt.Default.(func() time.Time)
 }

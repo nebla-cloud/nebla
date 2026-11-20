@@ -89,6 +89,11 @@ func TotpEnabled(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldTotpEnabled, v))
 }
 
+// WebauthnHandle applies equality check predicate on the "webauthn_handle" field. It's identical to WebauthnHandleEQ.
+func WebauthnHandle(v []byte) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldWebauthnHandle, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -457,6 +462,56 @@ func TotpEnabledEQ(v bool) predicate.User {
 // TotpEnabledNEQ applies the NEQ predicate on the "totp_enabled" field.
 func TotpEnabledNEQ(v bool) predicate.User {
 	return predicate.User(sql.FieldNEQ(FieldTotpEnabled, v))
+}
+
+// WebauthnHandleEQ applies the EQ predicate on the "webauthn_handle" field.
+func WebauthnHandleEQ(v []byte) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldWebauthnHandle, v))
+}
+
+// WebauthnHandleNEQ applies the NEQ predicate on the "webauthn_handle" field.
+func WebauthnHandleNEQ(v []byte) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldWebauthnHandle, v))
+}
+
+// WebauthnHandleIn applies the In predicate on the "webauthn_handle" field.
+func WebauthnHandleIn(vs ...[]byte) predicate.User {
+	return predicate.User(sql.FieldIn(FieldWebauthnHandle, vs...))
+}
+
+// WebauthnHandleNotIn applies the NotIn predicate on the "webauthn_handle" field.
+func WebauthnHandleNotIn(vs ...[]byte) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldWebauthnHandle, vs...))
+}
+
+// WebauthnHandleGT applies the GT predicate on the "webauthn_handle" field.
+func WebauthnHandleGT(v []byte) predicate.User {
+	return predicate.User(sql.FieldGT(FieldWebauthnHandle, v))
+}
+
+// WebauthnHandleGTE applies the GTE predicate on the "webauthn_handle" field.
+func WebauthnHandleGTE(v []byte) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldWebauthnHandle, v))
+}
+
+// WebauthnHandleLT applies the LT predicate on the "webauthn_handle" field.
+func WebauthnHandleLT(v []byte) predicate.User {
+	return predicate.User(sql.FieldLT(FieldWebauthnHandle, v))
+}
+
+// WebauthnHandleLTE applies the LTE predicate on the "webauthn_handle" field.
+func WebauthnHandleLTE(v []byte) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldWebauthnHandle, v))
+}
+
+// WebauthnHandleIsNil applies the IsNil predicate on the "webauthn_handle" field.
+func WebauthnHandleIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldWebauthnHandle))
+}
+
+// WebauthnHandleNotNil applies the NotNil predicate on the "webauthn_handle" field.
+func WebauthnHandleNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldWebauthnHandle))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

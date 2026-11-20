@@ -114,3 +114,24 @@ func (c Config) HTTPS() bool {
 	u, err := url.Parse(c.BaseURL)
 	return err == nil && strings.EqualFold(u.Scheme, "https")
 }
+
+// PasskeyOrigin is BaseURL's scheme://host[:port] when passkeys can work there, else "".
+func (c Config) PasskeyOrigin() string {
+	u, err := url.Parse(c.BaseURL)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	scheme, host := strings.ToLower(u.Scheme), strings.ToLower(u.Hostname())
+	if scheme != "http" && scheme != "https" {
+		return ""
+	}
+	_, ipErr := netip.ParseAddr(host)
+	if host != "localhost" && (scheme != "https" || ipErr == nil) {
+		return ""
+	}
+	host = strings.ToLower(u.Host)
+	if port := u.Port(); (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
+		host = strings.TrimSuffix(host, ":"+port)
+	}
+	return scheme + "://" + host
+}
