@@ -50,6 +50,7 @@ func parseLabels(in []string) (apiclient.Labels, error) {
 func newServerCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "server", Short: "Manage servers"}
 	cmd.AddCommand(serverCreateCmd(a), serverListCmd(a), serverDescribeCmd(a), serverDeleteCmd(a), serverRenameCmd(a))
+	cmd.AddCommand(serverActionCmds(a)...)
 	return cmd
 }
 
