@@ -591,3 +591,41 @@ func TestDisableTakesFinalizeLock(t *testing.T) {
 		t.Fatal("disable still blocked after the lock was released")
 	}
 }
+
+func TestDeleteLocationWaitsForTemplateJobs(t *testing.T) {
+	ctx := context.Background()
+	hook := func(o *catalog.Options) { o.Hooks.TemplatesPending = osimages.TemplatesPending }
+	t.Run("retire", func(t *testing.T) {
+		e := buildEnvWith(t, false, hook)
+		loc := e.location("eu-1", "local-lvm", "imp")
+		imgID := e.readyWithImage(loc)
+		_, err := e.svc.Disable(ctx, "debian-13", loc)
+		require.NoError(t, err)
+		exists, err := e.ent.Image.Query().Where(image.ID(imgID)).Exist(ctx)
+		require.NoError(t, err)
+		require.False(t, exists)
+		requireCode(t, e.cat.DeleteLocation(ctx, loc), 409, "location_in_use")
+		_, err = e.sql.Exec(`update river_job set state = 'retryable' where kind = $1`, osimages.KindRetire)
+		require.NoError(t, err)
+		requireCode(t, e.cat.DeleteLocation(ctx, loc), 409, "location_in_use")
+		_, err = e.sql.Exec(`update river_job set state = 'completed', finalized_at = now() where kind = $1`, osimages.KindRetire)
+		require.NoError(t, err)
+		e.insertJob(osimages.CleanupArgs{BuildID: 1, LocationID: loc + 1000, VMID: 7000, Tag: "nebla-tpl-1-aa"})
+		require.NoError(t, e.cat.DeleteLocation(ctx, loc))
+	})
+	t.Run("cleanup", func(t *testing.T) {
+		e := buildEnvWith(t, false, hook)
+		loc := e.location("eu-1", "local-lvm", "imp")
+		e.insertJob(osimages.CleanupArgs{BuildID: 1, LocationID: loc, VMID: 7000, Tag: "nebla-tpl-1-aa"})
+		requireCode(t, e.cat.DeleteLocation(ctx, loc), 409, "location_in_use")
+	})
+}
+
+func (e *env) insertJob(args river.JobArgs) {
+	e.t.Helper()
+	tx, err := e.sql.Begin()
+	require.NoError(e.t, err)
+	_, err = e.jobs.InsertTx(context.Background(), tx, args, nil)
+	require.NoError(e.t, err)
+	require.NoError(e.t, tx.Commit())
+}

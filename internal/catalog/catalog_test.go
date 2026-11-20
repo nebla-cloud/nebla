@@ -489,3 +489,14 @@ func TestCreateCatalogImageConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, id1, id2)
 }
+
+func TestDeleteLocationRefusedWhileTemplatesPending(t *testing.T) {
+	ctx := context.Background()
+	pending := true
+	svc, pv, _ := setup(t, catalog.Hooks{TemplatesPending: func(context.Context, *ent.Client, int64) (bool, error) { return pending, nil }})
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	requireCode(t, svc.DeleteLocation(ctx, loc.ID), 409, "location_in_use")
+	pending = false
+	require.NoError(t, svc.DeleteLocation(ctx, loc.ID))
+}

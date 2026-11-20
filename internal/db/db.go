@@ -77,7 +77,21 @@ func WithTx(ctx context.Context, sqlDB *sql.DB, fn func(tx *sql.Tx, etx *ent.Cli
 // joinDriver runs ent on an open *sql.Tx; its Tx joins it with a no-op commit and rollback.
 type joinDriver struct{ *entsql.Driver }
 
-func (d joinDriver) Tx(context.Context) (dialect.Tx, error) { return dialect.NopTx(d), nil }
+func (d joinDriver) Tx(context.Context) (dialect.Tx, error) { return joinTx{dialect.NopTx(d), d.Driver}, nil }
+
+// joinTx keeps raw ExecContext and QueryContext working inside WithTx.
+type joinTx struct {
+	dialect.Tx
+	d *entsql.Driver
+}
+
+func (t joinTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return t.d.ExecContext(ctx, query, args...)
+}
+
+func (t joinTx) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return t.d.QueryContext(ctx, query, args...)
+}
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	sqlDB := SQL(pool)

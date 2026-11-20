@@ -203,6 +203,9 @@ func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hoo
 	if c.LocationInUse == nil {
 		c.LocationInUse = servers.LocationInUse
 	}
+	if c.TemplatesPending == nil {
+		c.TemplatesPending = osimages.TemplatesPending
+	}
 	return p, c
 }
 

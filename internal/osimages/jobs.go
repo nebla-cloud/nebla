@@ -1,6 +1,9 @@
 package osimages
 
 import (
+	"context"
+
+	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/riverqueue/river"
 )
@@ -50,4 +53,22 @@ func (CleanupArgs) Kind() string { return KindCleanup }
 
 func (CleanupArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{Queue: jobs.QueueMaintenance, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: jobs.LiveStates}}
+}
+
+// TemplatesPending is the catalog.Hooks.TemplatesPending implementation; retryable counts as live here.
+func TemplatesPending(ctx context.Context, c *ent.Client, locationID int64) (bool, error) {
+	rows, err := c.QueryContext(ctx, `select exists (select 1 from river_job where kind in ($1, $2)
+		and (args->>'location_id')::bigint = $3 and state in ('available', 'pending', 'running', 'scheduled', 'retryable'))`,
+		KindRetire, KindCleanup, locationID)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	var ok bool
+	if rows.Next() {
+		if err := rows.Scan(&ok); err != nil {
+			return false, err
+		}
+	}
+	return ok, rows.Err()
 }
