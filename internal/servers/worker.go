@@ -26,13 +26,23 @@ func retryable(err error) bool {
 	return pve.IsTransient(err) || db.IsTransient(err) || errors.As(err, &te)
 }
 
-// pendingCleanup returns the action message when the previous attempt's cleanup did not finish.
-func pendingCleanup(job *rivertype.JobRow) (string, bool) {
-	if n := len(job.Errors); n > 0 {
-		return strings.CutPrefix(job.Errors[n-1].Error, cleanupPending)
+// pendingCleanup returns the failure when the previous attempt's cleanup did not finish.
+func pendingCleanup(job *rivertype.JobRow) (failure, bool) {
+	n := len(job.Errors)
+	if n == 0 {
+		return failure{}, false
 	}
-	return "", false
+	rest, ok := strings.CutPrefix(job.Errors[n-1].Error, cleanupPending)
+	if !ok {
+		return failure{}, false
+	}
+	if code, detail, ok := strings.Cut(rest, ": "); ok && actions.ValidCode(code) {
+		return failure{code, detail}, true
+	}
+	return failure{actions.CodeFailed, rest}, true
 }
+
+func (f failure) pending() string { return cleanupPending + f.code + ": " + f.detail }
 
 func lastError(job *rivertype.JobRow) string {
 	if n := len(job.Errors); n > 0 {
@@ -50,21 +60,21 @@ type contract struct {
 	log      *slog.Logger
 	run      func(context.Context) error
 	// fail undoes what it can and fails the action; it must be idempotent and fail the action last.
-	fail func(ctx context.Context, msg string) error
+	fail func(ctx context.Context, f failure) error
 }
 
 // work runs the attempt: transient errors retry below the cap, anything else ends in fail and JobCancel.
 func (k contract) work(ctx context.Context) error {
-	msg, pending := pendingCleanup(k.job)
+	f, pending := pendingCleanup(k.job)
 	if k.finished && !pending {
 		return nil
 	}
 	if pending || k.job.Attempt > MaxAttempts {
 		if !pending {
-			msg = k.name + " did not finish after " + strconv.Itoa(MaxAttempts) + " attempts"
+			f = failure{actions.CodeFailed, k.name + " did not finish after " + strconv.Itoa(MaxAttempts) + " attempts: " + lastError(k.job)}
 			k.log.Error("attempts exhausted", "last_error", lastError(k.job))
 		}
-		return k.finish(ctx, msg, errors.New(msg))
+		return k.finish(ctx, f, errors.New(f.detail))
 	}
 	err := k.run(ctx)
 	if err == nil {
@@ -77,17 +87,18 @@ func (k contract) work(ctx context.Context) error {
 	if retry && k.job.Attempt < MaxAttempts {
 		return err
 	}
-	k.log.Error("action failed", "err", err)
-	return k.finish(ctx, errorMessage(err), err)
+	f = classify(err)
+	k.log.Error("action failed", "err", err, "code", f.code)
+	return k.finish(ctx, f, err)
 }
 
 // finish cancels the job once the failure is recorded, else leaves it for the next attempt.
-func (k contract) finish(ctx context.Context, msg string, cause error) error {
+func (k contract) finish(ctx context.Context, f failure, cause error) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
-	if err := k.fail(ctx, msg); err != nil {
+	if err := k.fail(ctx, f); err != nil {
 		k.log.Error("cleanup will be retried", "err", err)
-		return errors.New(cleanupPending + msg)
+		return errors.New(f.pending())
 	}
 	return river.JobCancel(cause)
 }
@@ -106,7 +117,7 @@ func (o *WorkerOptions) begin(ctx context.Context, actionID, serverID int64) (ac
 		if act.Finished != nil {
 			return act, nil, nil, true
 		}
-		if ferr := failAction(ctx, o.Ent, actionID, "server no longer exists"); ferr != nil {
+		if ferr := failAction(ctx, o.Ent, actionID, failure{actions.CodeServerGone, "server no longer exists"}); ferr != nil {
 			return act, nil, ferr, true
 		}
 		return act, nil, river.JobCancel(err), true
@@ -117,8 +128,8 @@ func (o *WorkerOptions) begin(ctx context.Context, actionID, serverID int64) (ac
 	return act, row, nil, false
 }
 
-func failAction(ctx context.Context, c *ent.Client, id int64, msg string) error {
-	return actions.Fail(context.WithoutCancel(ctx), c, id, "pve_error", msg)
+func failAction(ctx context.Context, c *ent.Client, id int64, f failure) error {
+	return actions.Fail(context.WithoutCancel(ctx), c, id, f.code, f.detail)
 }
 
 // realStatus is the server status Proxmox shows for vmid, or fallback when it cannot tell.
@@ -136,4 +147,8 @@ func realStatus(ctx context.Context, pc pve.Client, serverID int64, vmid *int, f
 		return StatusRunning
 	}
 	return StatusOff
+}
+
+func actionLog(l *slog.Logger, act *ent.Action, serverID int64) *slog.Logger {
+	return l.With("server_id", serverID, "action_id", act.ID, "command", act.Command)
 }

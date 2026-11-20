@@ -88,7 +88,7 @@ func (w *PowerServerWorker) Work(ctx context.Context, job *river.Job[PowerServer
 		}
 		return w.run(ctx, pc, row, a)
 	}
-	fail := func(ctx context.Context, msg string) error {
+	fail := func(ctx context.Context, f failure) error {
 		if pc == nil {
 			pc, _ = w.o.Catalog.ProxmoxFor(ctx, row.LocationID)
 		}
@@ -96,15 +96,15 @@ func (w *PowerServerWorker) Work(ctx context.Context, job *river.Job[PowerServer
 		if err := w.o.Ent.Server.UpdateOneID(row.ID).SetStatus(server.Status(st)).Exec(ctx); err != nil {
 			return err
 		}
-		return failAction(ctx, w.o.Ent, a.ActionID, msg)
+		return failAction(ctx, w.o.Ent, a.ActionID, f)
 	}
-	return contract{job: job.JobRow, name: string(a.Op), finished: act.Finished != nil, log: w.o.Logger.With("server_id", row.ID),
+	return contract{job: job.JobRow, name: string(a.Op), finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: run, fail: fail}.work(ctx)
 }
 
 func (w *PowerServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Server, a PowerServerArgs) error {
 	if row.Vmid == nil {
-		return permanent("server has no VM")
+		return missing("server has no VM")
 	}
 	vmid := *row.Vmid
 	v, found, err := findVM(ctx, pc, vmid)
@@ -112,7 +112,7 @@ func (w *PowerServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Ser
 		return &stepError{"find vm", err}
 	}
 	if !found || !ownedBy(v, row.ID) {
-		return permanent("vm %d is missing", vmid)
+		return missing("vm %d is missing", vmid)
 	}
 	want, mid := "running", StatusStarting
 	if stops(a.Op) {
@@ -153,7 +153,7 @@ func (w *PowerServerWorker) power(ctx context.Context, pc pve.Client, node strin
 	defer cancel()
 	err = pc.WaitTask(wctx, node, up)
 	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-		return permanent("%s did not finish within %s", op, w.o.PowerWait)
+		return timedOut("%s did not finish within %s", op, w.o.PowerWait)
 	}
 	return err
 }

@@ -33,6 +33,12 @@ var templates = map[string]string{
 	CodeOrphaned:      "Couldn't %s because the request was interrupted. Try again.",
 }
 
+// ValidCode reports whether code is one of the Code* kinds.
+func ValidCode(code string) bool {
+	_, ok := templates[code]
+	return ok
+}
+
 // normalizeCode maps unknown and legacy codes to CodeFailed.
 func normalizeCode(code string) string {
 	if _, ok := templates[code]; ok {

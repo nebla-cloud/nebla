@@ -366,7 +366,7 @@ func startVM(ctx context.Context, pc pve.Client, vmid int, poll time.Duration) e
 		return err
 	}
 	if !found {
-		return permanent("vm %d disappeared before start", vmid)
+		return missing("vm %d disappeared before start", vmid)
 	}
 	if v.Status != "running" {
 		up, err := pc.Power(ctx, v.Node, vmid, pve.PowerStart)
@@ -392,7 +392,7 @@ func waitStatus(ctx context.Context, pc pve.Client, vmid int, want string, limit
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return permanent("vm %d did not reach %s within %s", vmid, want, limit)
+			return timedOut("vm %d did not reach %s within %s", vmid, want, limit)
 		}
 		select {
 		case <-ctx.Done():

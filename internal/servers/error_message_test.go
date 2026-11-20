@@ -28,33 +28,40 @@ func TestActionErrorHidesProxmoxURL(t *testing.T) {
 	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
 	require.NoError(t, err)
 	require.NotNil(t, a.Error)
-	require.Contains(t, a.Error.Detail, "could not reach Proxmox")
-	require.NotContains(t, a.Error.Detail, "127.0.0.1:1")
+	require.Equal(t, actions.CodeUnreachable, a.Error.Code)
+	require.NotContains(t, a.Error.Message, "127.0.0.1")
+	require.Contains(t, a.Error.Detail, "127.0.0.1:1", "admins see the real cause")
 }
 
-func TestErrorMessageKeepsPVEMessages(t *testing.T) {
+func TestFailure(t *testing.T) {
 	urlErr := &url.Error{Op: "Get", URL: "https://10.0.0.1:8006/x", Err: errors.New("refused")}
 	tests := []struct {
 		name string
 		err  error
-		want string
+		code string
 	}{
-		{"pve error", &pve.Error{Status: 500, Message: "boom"}, "boom"},
-		{"task error", &pve.TaskError{ExitStatus: "task failed"}, "task failed"},
-		{"permanent", servers.Permanent("no capacity"), "no capacity"},
-		{"url error", urlErr, "could not reach Proxmox"},
-		{"wrapped url error", fmt.Errorf("get vms: %w", urlErr), "could not reach Proxmox"},
-		{"net error", &net.OpError{Op: "dial", Err: errors.New("refused")}, "could not reach Proxmox"},
-		{"deadline", fmt.Errorf("get: %w", context.DeadlineExceeded), "could not reach Proxmox"},
-		{"timeout url error", &url.Error{Op: "Get", URL: "https://h:1", Err: context.DeadlineExceeded}, "could not reach Proxmox"},
-		{"unknown", errors.New("dial tcp 10.0.0.1:8006: boom"), "unexpected error"},
-		{"pve error wrapping url error", &wrapsURL{pe: &pve.Error{Status: 502, Message: "bad gateway"}, ue: urlErr}, "bad gateway"},
-		{"permanent wrapping url error", &wrapsPerm{ue: urlErr}, "no capacity"},
+		{"pve error", &pve.Error{Status: 500, Message: "storage local-lvm full"}, actions.CodeFailed},
+		{"task error", &pve.TaskError{ExitStatus: "task failed"}, actions.CodeFailed},
+		{"permanent", servers.Permanent("no capacity"), actions.CodeFailed},
+		{"missing", servers.Missing("vm %d is missing", 4242), actions.CodeServerMissing},
+		{"timed out", servers.TimedOut("vm %d did not reach running", 4242), actions.CodeTimedOut},
+		{"url error", urlErr, actions.CodeUnreachable},
+		{"wrapped url error", fmt.Errorf("get vms: %w", urlErr), actions.CodeUnreachable},
+		{"net error", &net.OpError{Op: "dial", Err: errors.New("refused")}, actions.CodeUnreachable},
+		{"deadline", fmt.Errorf("get: %w", context.DeadlineExceeded), actions.CodeUnreachable},
+		{"timeout url error", &url.Error{Op: "Get", URL: "https://h:1", Err: context.DeadlineExceeded}, actions.CodeUnreachable},
+		{"unknown", errors.New("dial tcp 10.0.0.1:8006: boom"), actions.CodeFailed},
+		{"pve error wrapping url error", &wrapsURL{pe: &pve.Error{Status: 502, Message: "bad gateway"}, ue: urlErr}, actions.CodeFailed},
+		{"permanent wrapping url error", &wrapsPerm{ue: urlErr}, actions.CodeFailed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, servers.ErrorMessage(tt.err))
-			require.Equal(t, "step: "+tt.want, servers.ErrorMessage(servers.StepError("step", tt.err)))
+			code, detail := servers.Failure(tt.err)
+			require.Equal(t, tt.code, code)
+			require.Equal(t, tt.err.Error(), detail)
+			code, detail = servers.Failure(servers.StepError("clone", tt.err))
+			require.Equal(t, tt.code, code)
+			require.Equal(t, "clone: "+tt.err.Error(), detail)
 		})
 	}
 }
@@ -72,3 +79,36 @@ type wrapsPerm struct{ ue *url.Error }
 
 func (w *wrapsPerm) Error() string   { return "x" }
 func (w *wrapsPerm) Unwrap() []error { return []error{servers.Permanent("no capacity"), w.ue} }
+
+func TestPowerOnMissingVMIsServerMissing(t *testing.T) {
+	ctx := context.Background()
+	e, cw := directEnv(t)
+	s := builtServer(t, e, cw, "web")
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	e.App.PVE.DeleteVM(*row.Vmid)
+	id := startAction(t, e, s.ServerID, "reboot", nil)
+	w := servers.NewPowerServerWorker(opts(e))
+	_ = w.Work(ctx, jobOf(queuedArgs[servers.PowerServerArgs](t, e, id), 1))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
+	require.NoError(t, err)
+	require.Equal(t, actions.CodeServerMissing, a.Error.Code)
+	require.Contains(t, a.Error.Detail, fmt.Sprint(*row.Vmid))
+	require.NotContains(t, a.Error.Message, fmt.Sprint(*row.Vmid))
+}
+
+func TestDeletedServerIsServerGone(t *testing.T) {
+	ctx := context.Background()
+	e, cw := directEnv(t)
+	s := builtServer(t, e, cw, "web")
+	id := startAction(t, e, s.ServerID, "reboot", nil)
+	args := queuedArgs[servers.PowerServerArgs](t, e, id)
+	_, err := e.App.Ent.IPAllocation.Delete().Exec(ctx)
+	require.NoError(t, err)
+	require.NoError(t, e.App.Ent.Server.DeleteOneID(s.ServerID).Exec(ctx))
+	_ = servers.NewPowerServerWorker(opts(e)).Work(ctx, jobOf(args, 1))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
+	require.NoError(t, err)
+	require.Equal(t, actions.CodeServerGone, a.Error.Code)
+	require.Equal(t, "The server no longer exists.", a.Error.Message)
+}

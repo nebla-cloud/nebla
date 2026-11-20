@@ -108,7 +108,7 @@ func (w *RebuildServerWorker) Work(ctx context.Context, job *river.Job[RebuildSe
 		return ret
 	}
 	r := &rebuildRun{w: w, args: job.Args, row: row}
-	return contract{job: job.JobRow, name: "rebuild", finished: act.Finished != nil, log: w.o.Logger.With("server_id", row.ID),
+	return contract{job: job.JobRow, name: "rebuild", finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: r.run, fail: r.cleanup}.work(ctx)
 }
 
@@ -231,9 +231,9 @@ func (r *rebuildRun) finish(ctx context.Context) error {
 }
 
 // cleanup removes whichever VM rebuild_* holds: the new one before the swap, the old one after.
-func (r *rebuildRun) cleanup(ctx context.Context, msg string) error {
+func (r *rebuildRun) cleanup(ctx context.Context, f failure) error {
 	log := r.w.o.Logger.With("server_id", r.row.ID, "action_id", r.args.ActionID)
-	log.Warn("rebuild server failed", "err", msg)
+	log.Warn("rebuild server failed", "err", f.detail, "code", f.code)
 	cur, err := r.w.o.Ent.Server.Get(ctx, r.row.ID)
 	if err != nil {
 		return err
@@ -260,9 +260,9 @@ func (r *rebuildRun) cleanup(ctx context.Context, msg string) error {
 	}
 	switch {
 	case !gone && swapped:
-		msg += fmt.Sprintf("; old VM %d could not be removed", *cur.RebuildVmid)
+		f.detail += fmt.Sprintf("; old VM %d could not be removed", *cur.RebuildVmid)
 	case !gone:
-		msg += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *cur.RebuildVmid)
+		f.detail += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *cur.RebuildVmid)
 	}
 	fallback := StatusOff
 	if r.args.StartAfter {
@@ -281,5 +281,5 @@ func (r *rebuildRun) cleanup(ctx context.Context, msg string) error {
 	if err := u.Exec(ctx); err != nil {
 		return err
 	}
-	return failAction(ctx, r.w.o.Ent, r.args.ActionID, msg)
+	return failAction(ctx, r.w.o.Ent, r.args.ActionID, f)
 }

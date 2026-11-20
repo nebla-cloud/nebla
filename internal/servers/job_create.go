@@ -106,7 +106,7 @@ func (w *CreateServerWorker) Work(ctx context.Context, job *river.Job[CreateServ
 		return ret
 	}
 	c := &createRun{w: w, args: job.Args, row: row}
-	return contract{job: job.JobRow, name: "create", finished: act.Finished != nil, log: w.o.Logger.With("server_id", row.ID),
+	return contract{job: job.JobRow, name: "create", finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: c.run, fail: c.cleanup}.work(ctx)
 }
 
@@ -199,10 +199,10 @@ func (o *WorkerOptions) publish(ctx context.Context, kind ext.EventKind, row *en
 }
 
 // cleanup undoes a failed create; IPs are released only once the VM is confirmed gone.
-func (c *createRun) cleanup(ctx context.Context, msg string) error {
+func (c *createRun) cleanup(ctx context.Context, f failure) error {
 	w := c.w
 	log := w.o.Logger.With("server_id", c.row.ID, "action_id", c.args.ActionID)
-	log.Warn("create server failed", "err", msg)
+	log.Warn("create server failed", "err", f.detail, "code", f.code)
 	if c.b == nil {
 		if err := c.load(ctx); err != nil && retryable(err) {
 			return err
@@ -217,7 +217,7 @@ func (c *createRun) cleanup(ctx context.Context, msg string) error {
 		gone = CleanupVM(ctx, log, c.b.pc, c.row.ID, c.row.Node, c.row.Vmid, CloneProof{UPID: c.row.CloneUpid, Nonce: c.row.CloneNonce}, isoStorage, volid)
 	}
 	if !gone {
-		msg += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *c.row.Vmid)
+		f.detail += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *c.row.Vmid)
 	}
 	err := db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
 		if w.cleanupTxHook != nil {
@@ -237,5 +237,5 @@ func (c *createRun) cleanup(ctx context.Context, msg string) error {
 	if err != nil {
 		return err
 	}
-	return failAction(ctx, w.o.Ent, c.args.ActionID, msg)
+	return failAction(ctx, w.o.Ent, c.args.ActionID, f)
 }
