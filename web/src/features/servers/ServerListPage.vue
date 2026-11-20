@@ -10,7 +10,7 @@ import { useCurrentProject } from '@/lib/project'
 import { useServers } from './queries'
 
 const { projectId } = useCurrentProject()
-const newPath = computed(() => `/p/${projectId.value}/servers/new`)
+const newRoute = computed(() => ({ name: 'server-new', params: { projectId: projectId.value } }))
 const { data: servers, isPending, error } = useServers()
 </script>
 
@@ -18,7 +18,7 @@ const { data: servers, isPending, error } = useServers()
   <div class="flex flex-col gap-4">
     <div class="flex items-center justify-between gap-3">
       <h1 class="text-xl font-bold tracking-tight text-highlighted">Servers</h1>
-      <UButton v-if="servers?.length" :to="newPath">Create server</UButton>
+      <UButton v-if="servers?.length" :to="newRoute">Create server</UButton>
     </div>
 
     <UAlert v-if="error" color="error" variant="subtle" :description="errorMessage(error)" />
@@ -28,7 +28,7 @@ const { data: servers, isPending, error } = useServers()
       title="No servers yet"
       body="Create a server to get started. It is ready in about a minute."
     >
-      <UButton :to="newPath">Create server</UButton>
+      <UButton :to="newRoute">Create server</UButton>
     </EmptyState>
     <ul v-else class="flex flex-col divide-y divide-default rounded-lg border border-default">
       <li v-for="s in servers" :key="s.id">

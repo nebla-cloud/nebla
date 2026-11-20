@@ -19,6 +19,7 @@ function useProject() {
 async function mountList() {
   const router = testRouter([
     { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+    { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
     { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
   ])
   await router.push('/p/1/servers')
@@ -65,6 +66,7 @@ describe('ServerListPage', () => {
     )
     const router = testRouter([
       { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+      { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
       { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
     ])
     await router.push('/p/1/servers')
@@ -83,6 +85,7 @@ describe('ServerListPage', () => {
     expect(wrapper.text()).toContain('No servers yet')
     const links = wrapper.findAll('a').filter((a) => a.text() === 'Create server')
     expect(links.length).toBeGreaterThan(0)
+    // Links by route name, so it resolves through the server-new route.
     expect(links[0]!.attributes('href')).toBe('/p/1/servers/new')
   })
 })

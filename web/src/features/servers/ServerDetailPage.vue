@@ -38,7 +38,9 @@ const { projectId } = useCurrentProject()
 const serverId = computed(() => parseProjectId(route.params.serverId) ?? 0)
 const { data: server, error: loadError } = useServer(serverId)
 
-const actionId = ref<number | null>(null)
+// The create page hands its create_server action over in history state.
+const handoff = router.options.history.state.actionId
+const actionId = ref<number | null>(typeof handoff === 'number' ? handoff : null)
 const lastName = ref('')
 const { action, running, error: actionError } = useActionPoll(actionId, { onDone: finished })
 
