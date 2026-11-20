@@ -22,6 +22,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ipam"
 	"github.com/Hexeption/nebla/internal/jobs"
 	"github.com/Hexeption/nebla/internal/mail"
+	"github.com/Hexeption/nebla/internal/osimages"
 	"github.com/Hexeption/nebla/internal/projects"
 	"github.com/Hexeption/nebla/internal/ratelimit"
 	"github.com/Hexeption/nebla/internal/servers"
@@ -49,6 +50,8 @@ type Deps struct {
 	// Catalog defaults to a service keyed by Config.SecretKey with CatalogHooks.
 	Catalog      *catalog.Service
 	CatalogHooks catalog.Hooks
+	// OSImages serves the built-in OS image catalog; defaults to one over Catalog with no job runtime.
+	OSImages *osimages.Service
 	// Jobs enqueues background work; nil makes server create and delete return 503 service_unavailable.
 	Jobs *jobs.Jobs
 	// ScopedRoutes mounts extra non-strict routes under /v1 behind the project scope.
@@ -64,6 +67,7 @@ type server struct {
 	projects   *projects.Service
 	settings   *settings.Store
 	catalog    *catalog.Service
+	osimages   *osimages.Service
 	ipam       *ipam.Service
 	sshkeys    *sshkeys.Service
 	servers    *servers.Service
@@ -106,6 +110,9 @@ func New(deps Deps) http.Handler {
 	if deps.Catalog == nil {
 		deps.Catalog = catalog.New(deps.SQL, deps.Ent, catalog.Options{SecretKey: deps.Config.SecretKey, Hooks: deps.CatalogHooks})
 	}
+	if deps.OSImages == nil {
+		deps.OSImages = osimages.New(osimages.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Jobs: deps.Jobs, Logger: log})
+	}
 	proj := projects.New(deps.Ent, projects.Options{
 		Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
 		DefaultQuota: deps.Config.DefaultQuota, MaxOwnedProjects: deps.Config.MaxProjectsPerUser,
@@ -117,6 +124,7 @@ func New(deps Deps) http.Handler {
 		projects:   proj,
 		settings:   st,
 		catalog:    deps.Catalog,
+		osimages:   deps.OSImages,
 		ipam:       ipam.New(deps.SQL, deps.Ent),
 		sshkeys:    sshkeys.New(deps.Ent),
 		servers:    servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),

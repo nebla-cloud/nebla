@@ -1,12 +1,16 @@
 package testutil
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/catalog"
 	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/httpapi"
+	"github.com/Hexeption/nebla/internal/osimages"
 	"github.com/Hexeption/nebla/internal/pve/fake"
 )
 
@@ -80,4 +84,16 @@ func (c *Client) createID(method, path string, body any) int64 {
 	}
 	c.decode(c.Send(method, path, body), http.StatusCreated, &v)
 	return v.ID
+}
+
+// WithOSImages gives the app an OS image service over entries and a fake upstream client.
+func WithOSImages(entries []osimages.Entry, hc *http.Client) func(*httpapi.Deps) {
+	return func(d *httpapi.Deps) {
+		_, d.CatalogHooks = httpapi.ServerHooks(d.ProjectHooks, d.CatalogHooks)
+		if d.Catalog == nil {
+			d.Catalog = catalog.New(d.SQL, d.Ent, CatalogOptions(d.CatalogHooks))
+		}
+		d.OSImages = osimages.New(osimages.Options{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Entries: entries, HTTP: hc,
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	}
 }
