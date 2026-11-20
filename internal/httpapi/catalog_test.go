@@ -35,8 +35,9 @@ func TestAdminLocationHTTP(t *testing.T) {
 	require.NotContains(t, body, "token_secret")
 	require.NotContains(t, body, app.PVE.Conn().Secret)
 	var loc struct {
-		Name string `json:"name"`
-		PVE  struct {
+		Name          string  `json:"name"`
+		ImportStorage *string `json:"import_storage"`
+		PVE           struct {
 			TokenID   string `json:"token_id"`
 			HasSecret bool   `json:"has_secret"`
 		} `json:"pve"`
@@ -47,6 +48,8 @@ func TestAdminLocationHTTP(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(body), &loc))
 	require.Equal(t, "eu-1", loc.Name)
+	require.NotNil(t, loc.ImportStorage)
+	require.Empty(t, *loc.ImportStorage)
 	require.True(t, loc.PVE.HasSecret)
 	require.Equal(t, app.PVE.Conn().TokenID, loc.PVE.TokenID)
 	require.Len(t, loc.Nodes, 2)

@@ -35,6 +35,8 @@ type Location struct {
 	DiskStorage string `json:"disk_storage,omitempty"`
 	// IsoStorage holds the value of the "iso_storage" field.
 	IsoStorage string `json:"iso_storage,omitempty"`
+	// ImportStorage holds the value of the "import_storage" field.
+	ImportStorage string `json:"import_storage,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -53,9 +55,11 @@ type LocationEdges struct {
 	ServerTypes []*ServerType `json:"server_types,omitempty"`
 	// ImageTemplates holds the value of the image_templates edge.
 	ImageTemplates []*ImageTemplate `json:"image_templates,omitempty"`
+	// CatalogBuilds holds the value of the catalog_builds edge.
+	CatalogBuilds []*CatalogBuild `json:"catalog_builds,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
 }
 
 // NodesOrErr returns the Nodes value or an error if the edge
@@ -85,6 +89,15 @@ func (e LocationEdges) ImageTemplatesOrErr() ([]*ImageTemplate, error) {
 	return nil, &NotLoadedError{edge: "image_templates"}
 }
 
+// CatalogBuildsOrErr returns the CatalogBuilds value or an error if the edge
+// was not loaded in eager-loading.
+func (e LocationEdges) CatalogBuildsOrErr() ([]*CatalogBuild, error) {
+	if e.loadedTypes[3] {
+		return e.CatalogBuilds, nil
+	}
+	return nil, &NotLoadedError{edge: "catalog_builds"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Location) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -96,7 +109,7 @@ func (*Location) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case location.FieldID:
 			values[i] = new(sql.NullInt64)
-		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage:
+		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage:
 			values[i] = new(sql.NullString)
 		case location.FieldCreatedAt, location.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -175,6 +188,12 @@ func (_m *Location) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.IsoStorage = value.String
 			}
+		case location.FieldImportStorage:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field import_storage", values[i])
+			} else if value.Valid {
+				_m.ImportStorage = value.String
+			}
 		case location.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -213,6 +232,11 @@ func (_m *Location) QueryServerTypes() *ServerTypeQuery {
 // QueryImageTemplates queries the "image_templates" edge of the Location entity.
 func (_m *Location) QueryImageTemplates() *ImageTemplateQuery {
 	return NewLocationClient(_m.config).QueryImageTemplates(_m)
+}
+
+// QueryCatalogBuilds queries the "catalog_builds" edge of the Location entity.
+func (_m *Location) QueryCatalogBuilds() *CatalogBuildQuery {
+	return NewLocationClient(_m.config).QueryCatalogBuilds(_m)
 }
 
 // Update returns a builder for updating this Location.
@@ -263,6 +287,9 @@ func (_m *Location) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("iso_storage=")
 	builder.WriteString(_m.IsoStorage)
+	builder.WriteString(", ")
+	builder.WriteString("import_storage=")
+	builder.WriteString(_m.ImportStorage)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/location"
 	"github.com/Hexeption/nebla/internal/ent/node"
@@ -150,6 +151,20 @@ func (_u *LocationUpdate) SetNillableIsoStorage(v *string) *LocationUpdate {
 	return _u
 }
 
+// SetImportStorage sets the "import_storage" field.
+func (_u *LocationUpdate) SetImportStorage(v string) *LocationUpdate {
+	_u.mutation.SetImportStorage(v)
+	return _u
+}
+
+// SetNillableImportStorage sets the "import_storage" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableImportStorage(v *string) *LocationUpdate {
+	if v != nil {
+		_u.SetImportStorage(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdate) SetUpdatedAt(v time.Time) *LocationUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -199,6 +214,21 @@ func (_u *LocationUpdate) AddImageTemplates(v ...*ImageTemplate) *LocationUpdate
 		ids[i] = v[i].ID
 	}
 	return _u.AddImageTemplateIDs(ids...)
+}
+
+// AddCatalogBuildIDs adds the "catalog_builds" edge to the CatalogBuild entity by IDs.
+func (_u *LocationUpdate) AddCatalogBuildIDs(ids ...int64) *LocationUpdate {
+	_u.mutation.AddCatalogBuildIDs(ids...)
+	return _u
+}
+
+// AddCatalogBuilds adds the "catalog_builds" edges to the CatalogBuild entity.
+func (_u *LocationUpdate) AddCatalogBuilds(v ...*CatalogBuild) *LocationUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCatalogBuildIDs(ids...)
 }
 
 // Mutation returns the LocationMutation object of the builder.
@@ -267,6 +297,27 @@ func (_u *LocationUpdate) RemoveImageTemplates(v ...*ImageTemplate) *LocationUpd
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveImageTemplateIDs(ids...)
+}
+
+// ClearCatalogBuilds clears all "catalog_builds" edges to the CatalogBuild entity.
+func (_u *LocationUpdate) ClearCatalogBuilds() *LocationUpdate {
+	_u.mutation.ClearCatalogBuilds()
+	return _u
+}
+
+// RemoveCatalogBuildIDs removes the "catalog_builds" edge to CatalogBuild entities by IDs.
+func (_u *LocationUpdate) RemoveCatalogBuildIDs(ids ...int64) *LocationUpdate {
+	_u.mutation.RemoveCatalogBuildIDs(ids...)
+	return _u
+}
+
+// RemoveCatalogBuilds removes "catalog_builds" edges to CatalogBuild entities.
+func (_u *LocationUpdate) RemoveCatalogBuilds(v ...*CatalogBuild) *LocationUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCatalogBuildIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -346,6 +397,9 @@ func (_u *LocationUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.IsoStorage(); ok {
 		_spec.SetField(location.FieldIsoStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ImportStorage(); ok {
+		_spec.SetField(location.FieldImportStorage, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)
@@ -478,6 +532,51 @@ func (_u *LocationUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(imagetemplate.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.CatalogBuildsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   location.CatalogBuildsTable,
+			Columns: []string{location.CatalogBuildsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(catalogbuild.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCatalogBuildsIDs(); len(nodes) > 0 && !_u.mutation.CatalogBuildsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   location.CatalogBuildsTable,
+			Columns: []string{location.CatalogBuildsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(catalogbuild.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CatalogBuildsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   location.CatalogBuildsTable,
+			Columns: []string{location.CatalogBuildsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(catalogbuild.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -625,6 +724,20 @@ func (_u *LocationUpdateOne) SetNillableIsoStorage(v *string) *LocationUpdateOne
 	return _u
 }
 
+// SetImportStorage sets the "import_storage" field.
+func (_u *LocationUpdateOne) SetImportStorage(v string) *LocationUpdateOne {
+	_u.mutation.SetImportStorage(v)
+	return _u
+}
+
+// SetNillableImportStorage sets the "import_storage" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableImportStorage(v *string) *LocationUpdateOne {
+	if v != nil {
+		_u.SetImportStorage(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdateOne) SetUpdatedAt(v time.Time) *LocationUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -674,6 +787,21 @@ func (_u *LocationUpdateOne) AddImageTemplates(v ...*ImageTemplate) *LocationUpd
 		ids[i] = v[i].ID
 	}
 	return _u.AddImageTemplateIDs(ids...)
+}
+
+// AddCatalogBuildIDs adds the "catalog_builds" edge to the CatalogBuild entity by IDs.
+func (_u *LocationUpdateOne) AddCatalogBuildIDs(ids ...int64) *LocationUpdateOne {
+	_u.mutation.AddCatalogBuildIDs(ids...)
+	return _u
+}
+
+// AddCatalogBuilds adds the "catalog_builds" edges to the CatalogBuild entity.
+func (_u *LocationUpdateOne) AddCatalogBuilds(v ...*CatalogBuild) *LocationUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCatalogBuildIDs(ids...)
 }
 
 // Mutation returns the LocationMutation object of the builder.
@@ -742,6 +870,27 @@ func (_u *LocationUpdateOne) RemoveImageTemplates(v ...*ImageTemplate) *Location
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveImageTemplateIDs(ids...)
+}
+
+// ClearCatalogBuilds clears all "catalog_builds" edges to the CatalogBuild entity.
+func (_u *LocationUpdateOne) ClearCatalogBuilds() *LocationUpdateOne {
+	_u.mutation.ClearCatalogBuilds()
+	return _u
+}
+
+// RemoveCatalogBuildIDs removes the "catalog_builds" edge to CatalogBuild entities by IDs.
+func (_u *LocationUpdateOne) RemoveCatalogBuildIDs(ids ...int64) *LocationUpdateOne {
+	_u.mutation.RemoveCatalogBuildIDs(ids...)
+	return _u
+}
+
+// RemoveCatalogBuilds removes "catalog_builds" edges to CatalogBuild entities.
+func (_u *LocationUpdateOne) RemoveCatalogBuilds(v ...*CatalogBuild) *LocationUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCatalogBuildIDs(ids...)
 }
 
 // Where appends a list predicates to the LocationUpdate builder.
@@ -851,6 +1000,9 @@ func (_u *LocationUpdateOne) sqlSave(ctx context.Context) (_node *Location, err 
 	}
 	if value, ok := _u.mutation.IsoStorage(); ok {
 		_spec.SetField(location.FieldIsoStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ImportStorage(); ok {
+		_spec.SetField(location.FieldImportStorage, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)
@@ -983,6 +1135,51 @@ func (_u *LocationUpdateOne) sqlSave(ctx context.Context) (_node *Location, err 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(imagetemplate.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.CatalogBuildsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   location.CatalogBuildsTable,
+			Columns: []string{location.CatalogBuildsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(catalogbuild.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCatalogBuildsIDs(); len(nodes) > 0 && !_u.mutation.CatalogBuildsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   location.CatalogBuildsTable,
+			Columns: []string{location.CatalogBuildsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(catalogbuild.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CatalogBuildsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   location.CatalogBuildsTable,
+			Columns: []string{location.CatalogBuildsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(catalogbuild.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

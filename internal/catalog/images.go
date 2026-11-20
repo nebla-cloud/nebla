@@ -39,8 +39,10 @@ type Image struct {
 	Description string
 	OSFlavor    string
 	OSVersion   string
-	Templates   []ImageTemplate
-	CreatedAt   time.Time
+	// CatalogKey is "" for hand-registered images.
+	CatalogKey string
+	Templates  []ImageTemplate
+	CreatedAt  time.Time
 }
 
 // Locations lists the locations the image has a template in.
@@ -81,6 +83,9 @@ func templateNotShared(format string, a ...any) error {
 func toImage(i *ent.Image) Image {
 	out := Image{ID: i.ID, Name: i.Name, Description: i.Description, OSFlavor: i.OsFlavor, OSVersion: i.OsVersion,
 		Templates: []ImageTemplate{}, CreatedAt: i.CreatedAt}
+	if i.CatalogKey != nil {
+		out.CatalogKey = *i.CatalogKey
+	}
 	for _, t := range i.Edges.Templates {
 		out.Templates = append(out.Templates, ImageTemplate{LocationID: t.LocationID, Node: t.Node, VMID: t.Vmid})
 	}
@@ -290,8 +295,8 @@ func (s *Service) UpdateImage(ctx context.Context, id int64, in ImageInput) (Ima
 	if err := validImage(&in); err != nil {
 		return Image{}, err
 	}
-	if _, err := s.db.Image.Get(ctx, id); err != nil {
-		return Image{}, notFound(err)
+	if err := s.guardManual(ctx, id); err != nil {
+		return Image{}, err
 	}
 	if err := s.checkTemplates(ctx, in.Templates); err != nil {
 		return Image{}, err
@@ -376,6 +381,9 @@ func (s *Service) ListImages(ctx context.Context, locationID int64, page, perPag
 
 // DeleteImage fails with resource_in_use once servers reference the image.
 func (s *Service) DeleteImage(ctx context.Context, id int64) error {
+	if err := s.guardManual(ctx, id); err != nil {
+		return err
+	}
 	return mapWriteErr(s.db.Image.DeleteOneID(id).Exec(ctx), "image")
 }
 
@@ -395,4 +403,37 @@ func (s *Service) TemplatesFor(ctx context.Context, imageID, locationID int64) (
 		out[i] = Template{Node: r.Node, VMID: r.Vmid}
 	}
 	return out, nil
+}
+
+// ErrCatalogManaged is returned when a hand edit targets a catalog-owned image.
+var ErrCatalogManaged = apierr.New(http.StatusConflict, "catalog_managed", "this image is managed by the OS catalog; use the catalog to change it")
+
+// guardManual returns not_found for a missing image and ErrCatalogManaged for a catalog-owned one.
+func (s *Service) guardManual(ctx context.Context, id int64) error {
+	img, err := s.db.Image.Get(ctx, id)
+	if err != nil {
+		return notFound(err)
+	}
+	if img.CatalogKey != nil {
+		return ErrCatalogManaged
+	}
+	return nil
+}
+
+// CreateCatalogImage creates the catalog-owned image row, or returns the existing id for key.
+func (s *Service) CreateCatalogImage(ctx context.Context, tx *ent.Client, key, name, desc, flavor, version string) (int64, error) {
+	if img, err := tx.Image.Query().Where(image.CatalogKey(key)).Only(ctx); err == nil {
+		return img.ID, nil
+	} else if !ent.IsNotFound(err) {
+		return 0, err
+	}
+	img, err := tx.Image.Create().SetName(name).SetDescription(desc).SetOsFlavor(flavor).SetOsVersion(version).
+		SetCatalogKey(key).Save(ctx)
+	if err != nil {
+		if pgCode(err) == "23505" {
+			return 0, apierr.New(http.StatusConflict, "conflict", fmt.Sprintf("an image named %q already exists", name))
+		}
+		return 0, err
+	}
+	return img.ID, nil
 }

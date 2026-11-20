@@ -39,7 +39,7 @@ func apiNode(n catalog.Node) apigen.Node {
 }
 
 func apiAdminLocation(l catalog.Location) apigen.AdminLocation {
-	out := apigen.AdminLocation{Id: l.ID, Name: l.Name, Description: l.Description, DiskStorage: l.DiskStorage, IsoStorage: l.ISOStorage,
+	out := apigen.AdminLocation{Id: l.ID, Name: l.Name, Description: l.Description, DiskStorage: l.DiskStorage, IsoStorage: l.ISOStorage, ImportStorage: l.ImportStorage,
 		Pve:   apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
 		Nodes: make([]apigen.Node, len(l.Nodes)), Created: l.CreatedAt, Updated: l.UpdatedAt}
 	for i, n := range l.Nodes {
@@ -53,7 +53,7 @@ func apiLocation(l catalog.Location) apigen.Location {
 }
 
 func locationInput(b *apigen.LocationInput) catalog.LocationInput {
-	return catalog.LocationInput{Name: b.Name, Description: deref(b.Description), DiskStorage: b.DiskStorage, ISOStorage: b.IsoStorage,
+	return catalog.LocationInput{Name: b.Name, Description: deref(b.Description), DiskStorage: b.DiskStorage, ISOStorage: b.IsoStorage, ImportStorage: deref(b.ImportStorage),
 		PVE: catalog.PVEInput{URL: b.Pve.Url, TokenID: b.Pve.TokenId, TokenSecret: b.Pve.TokenSecret,
 			CAFingerprint: deref(b.Pve.CaFingerprint), InsecureTLS: deref(b.Pve.InsecureTls)}}
 }
@@ -71,6 +71,9 @@ func serverTypeInput(b *apigen.ServerTypeInput) catalog.ServerTypeInput {
 func apiAdminImage(i catalog.Image) apigen.AdminImage {
 	out := apigen.AdminImage{Id: i.ID, Name: i.Name, Description: i.Description, OsFlavor: i.OSFlavor, OsVersion: i.OSVersion,
 		Templates: make([]apigen.ImageTemplate, len(i.Templates)), Created: i.CreatedAt}
+	if i.CatalogKey != "" {
+		out.CatalogKey = new(i.CatalogKey)
+	}
 	for j, t := range i.Templates {
 		out.Templates[j] = apigen.ImageTemplate{LocationId: t.LocationID, Vmid: t.VMID}
 		if t.Node != "" {

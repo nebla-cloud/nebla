@@ -208,6 +208,8 @@ type ActionStatus string
 
 // AdminImage defines model for AdminImage.
 type AdminImage struct {
+	// CatalogKey Set for images owned by the OS catalog; those are read-only
+	CatalogKey  *string         `json:"catalog_key,omitempty"`
 	Created     time.Time       `json:"created"`
 	Description string          `json:"description"`
 	Id          int64           `json:"id"`
@@ -219,15 +221,16 @@ type AdminImage struct {
 
 // AdminLocation defines model for AdminLocation.
 type AdminLocation struct {
-	Created     time.Time     `json:"created"`
-	Description string        `json:"description"`
-	DiskStorage string        `json:"disk_storage"`
-	Id          int64         `json:"id"`
-	IsoStorage  string        `json:"iso_storage"`
-	Name        string        `json:"name"`
-	Nodes       []Node        `json:"nodes"`
-	Pve         PveConnection `json:"pve"`
-	Updated     time.Time     `json:"updated"`
+	Created       time.Time     `json:"created"`
+	Description   string        `json:"description"`
+	DiskStorage   string        `json:"disk_storage"`
+	Id            int64         `json:"id"`
+	ImportStorage string        `json:"import_storage"`
+	IsoStorage    string        `json:"iso_storage"`
+	Name          string        `json:"name"`
+	Nodes         []Node        `json:"nodes"`
+	Pve           PveConnection `json:"pve"`
+	Updated       time.Time     `json:"updated"`
 }
 
 // AdminProject defines model for AdminProject.
@@ -366,11 +369,14 @@ type Location struct {
 
 // LocationInput defines model for LocationInput.
 type LocationInput struct {
-	Description *string            `json:"description,omitempty"`
-	DiskStorage string             `json:"disk_storage"`
-	IsoStorage  string             `json:"iso_storage"`
-	Name        string             `json:"name"`
-	Pve         PveConnectionInput `json:"pve"`
+	Description *string `json:"description,omitempty"`
+	DiskStorage string  `json:"disk_storage"`
+
+	// ImportStorage Storage with the import content type, for building catalog templates; empty disables it
+	ImportStorage *string            `json:"import_storage,omitempty"`
+	IsoStorage    string             `json:"iso_storage"`
+	Name          string             `json:"name"`
+	Pve           PveConnectionInput `json:"pve"`
 }
 
 // Member defines model for Member.

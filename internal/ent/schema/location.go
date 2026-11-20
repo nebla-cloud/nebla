@@ -24,6 +24,7 @@ func (Location) Fields() []ent.Field {
 		field.Bool("insecure_tls").Default(false),
 		field.Text("disk_storage"),
 		field.Text("iso_storage"),
+		field.Text("import_storage").Default(""),
 		createdAt(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now).
 			Annotations(entsql.DefaultExpr("now()")),
@@ -35,6 +36,7 @@ func (Location) Edges() []ent.Edge {
 		edge.From("nodes", Node.Type).Ref("location"),
 		edge.From("server_types", ServerType.Type).Ref("locations"),
 		edge.From("image_templates", ImageTemplate.Type).Ref("location"),
+		edge.From("catalog_builds", CatalogBuild.Type).Ref("location"),
 	}
 }
 

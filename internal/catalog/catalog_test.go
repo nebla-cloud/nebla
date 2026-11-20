@@ -414,3 +414,65 @@ func waitForLockWait(t *testing.T, client *ent.Client) {
 	}
 	t.Fatal("sync never waited on the node lock")
 }
+
+func TestLocationImportStorageProbe(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	in := testutil.LocationInput(pv, "eu-1")
+	in.ImportStorage = "local"
+	_, err := svc.CreateLocation(ctx, in)
+	requireCode(t, err, 422, "invalid_input")
+	require.Contains(t, err.Error(), `import_storage "local" does not allow the import content type`)
+
+	for _, n := range []string{"pve1", "pve2"} {
+		pv.AddStorage(n, "local", []string{"iso", "import"}, false)
+	}
+	loc, err := svc.CreateLocation(ctx, in)
+	require.NoError(t, err)
+	require.Equal(t, "local", loc.ImportStorage)
+
+	in = testutil.LocationInput(pv, "eu-2")
+	loc, err = svc.CreateLocation(ctx, in)
+	require.NoError(t, err)
+	require.Equal(t, "", loc.ImportStorage)
+}
+
+func TestCatalogImageIsReadOnly(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, client := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	img, err := client.Image.Create().SetName("debian-13").SetOsFlavor("debian").SetOsVersion("13").
+		SetCatalogKey("debian-13").Save(ctx)
+	require.NoError(t, err)
+	require.NoError(t, client.ImageTemplate.Create().SetImageID(img.ID).SetLocationID(loc.ID).SetNode("").SetVmid(testutil.TemplateVMID).Exec(ctx))
+
+	_, err = svc.UpdateImage(ctx, img.ID, catalog.ImageInput{Name: "x", OSFlavor: "x", OSVersion: "1",
+		Templates: []catalog.TemplateInput{{LocationID: loc.ID, VMID: testutil.TemplateVMID}}})
+	requireCode(t, err, 409, "catalog_managed")
+	requireCode(t, svc.DeleteImage(ctx, img.ID), 409, "catalog_managed")
+
+	got, err := svc.GetImage(ctx, img.ID)
+	require.NoError(t, err)
+	require.Equal(t, "debian-13", got.Name)
+	require.Equal(t, "debian-13", got.CatalogKey)
+	require.Len(t, got.Templates, 1)
+}
+
+func TestCreateCatalogImageConflict(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, client := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	_, err = svc.CreateImage(ctx, catalog.ImageInput{Name: "debian-13", OSFlavor: "debian", OSVersion: "13",
+		Templates: []catalog.TemplateInput{{LocationID: loc.ID, VMID: testutil.TemplateVMID}}})
+	require.NoError(t, err)
+	_, err = svc.CreateCatalogImage(ctx, client, "debian-13", "debian-13", "", "debian", "13")
+	requireCode(t, err, 409, "conflict")
+
+	id1, err := svc.CreateCatalogImage(ctx, client, "ubuntu-24.04", "ubuntu-24.04", "d", "ubuntu", "24.04")
+	require.NoError(t, err)
+	id2, err := svc.CreateCatalogImage(ctx, client, "ubuntu-24.04", "ubuntu-24.04", "d", "ubuntu", "24.04")
+	require.NoError(t, err)
+	require.Equal(t, id1, id2)
+}

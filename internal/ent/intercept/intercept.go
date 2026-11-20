@@ -10,6 +10,7 @@ import (
 	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/Hexeption/nebla/internal/ent/action"
 	"github.com/Hexeption/nebla/internal/ent/apitoken"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/consoletoken"
 	"github.com/Hexeption/nebla/internal/ent/image"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
@@ -137,6 +138,33 @@ func (f TraverseAction) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ActionQuery", q)
+}
+
+// The CatalogBuildFunc type is an adapter to allow the use of ordinary function as a Querier.
+type CatalogBuildFunc func(context.Context, *ent.CatalogBuildQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f CatalogBuildFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.CatalogBuildQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.CatalogBuildQuery", q)
+}
+
+// The TraverseCatalogBuild type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseCatalogBuild func(context.Context, *ent.CatalogBuildQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseCatalogBuild) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseCatalogBuild) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.CatalogBuildQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.CatalogBuildQuery", q)
 }
 
 // The ConsoleTokenFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -578,6 +606,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.APITokenQuery, predicate.APIToken, apitoken.OrderOption]{typ: ent.TypeAPIToken, tq: q}, nil
 	case *ent.ActionQuery:
 		return &query[*ent.ActionQuery, predicate.Action, action.OrderOption]{typ: ent.TypeAction, tq: q}, nil
+	case *ent.CatalogBuildQuery:
+		return &query[*ent.CatalogBuildQuery, predicate.CatalogBuild, catalogbuild.OrderOption]{typ: ent.TypeCatalogBuild, tq: q}, nil
 	case *ent.ConsoleTokenQuery:
 		return &query[*ent.ConsoleTokenQuery, predicate.ConsoleToken, consoletoken.OrderOption]{typ: ent.TypeConsoleToken, tq: q}, nil
 	case *ent.IPAllocationQuery:

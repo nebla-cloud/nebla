@@ -100,6 +100,11 @@ func IsoStorage(v string) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldIsoStorage, v))
 }
 
+// ImportStorage applies equality check predicate on the "import_storage" field. It's identical to ImportStorageEQ.
+func ImportStorage(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldImportStorage, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldCreatedAt, v))
@@ -615,6 +620,71 @@ func IsoStorageContainsFold(v string) predicate.Location {
 	return predicate.Location(sql.FieldContainsFold(FieldIsoStorage, v))
 }
 
+// ImportStorageEQ applies the EQ predicate on the "import_storage" field.
+func ImportStorageEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldImportStorage, v))
+}
+
+// ImportStorageNEQ applies the NEQ predicate on the "import_storage" field.
+func ImportStorageNEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldImportStorage, v))
+}
+
+// ImportStorageIn applies the In predicate on the "import_storage" field.
+func ImportStorageIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldImportStorage, vs...))
+}
+
+// ImportStorageNotIn applies the NotIn predicate on the "import_storage" field.
+func ImportStorageNotIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldImportStorage, vs...))
+}
+
+// ImportStorageGT applies the GT predicate on the "import_storage" field.
+func ImportStorageGT(v string) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldImportStorage, v))
+}
+
+// ImportStorageGTE applies the GTE predicate on the "import_storage" field.
+func ImportStorageGTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldImportStorage, v))
+}
+
+// ImportStorageLT applies the LT predicate on the "import_storage" field.
+func ImportStorageLT(v string) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldImportStorage, v))
+}
+
+// ImportStorageLTE applies the LTE predicate on the "import_storage" field.
+func ImportStorageLTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldImportStorage, v))
+}
+
+// ImportStorageContains applies the Contains predicate on the "import_storage" field.
+func ImportStorageContains(v string) predicate.Location {
+	return predicate.Location(sql.FieldContains(FieldImportStorage, v))
+}
+
+// ImportStorageHasPrefix applies the HasPrefix predicate on the "import_storage" field.
+func ImportStorageHasPrefix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasPrefix(FieldImportStorage, v))
+}
+
+// ImportStorageHasSuffix applies the HasSuffix predicate on the "import_storage" field.
+func ImportStorageHasSuffix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasSuffix(FieldImportStorage, v))
+}
+
+// ImportStorageEqualFold applies the EqualFold predicate on the "import_storage" field.
+func ImportStorageEqualFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldEqualFold(FieldImportStorage, v))
+}
+
+// ImportStorageContainsFold applies the ContainsFold predicate on the "import_storage" field.
+func ImportStorageContainsFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldContainsFold(FieldImportStorage, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldCreatedAt, v))
@@ -756,6 +826,29 @@ func HasImageTemplates() predicate.Location {
 func HasImageTemplatesWith(preds ...predicate.ImageTemplate) predicate.Location {
 	return predicate.Location(func(s *sql.Selector) {
 		step := newImageTemplatesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasCatalogBuilds applies the HasEdge predicate on the "catalog_builds" edge.
+func HasCatalogBuilds() predicate.Location {
+	return predicate.Location(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, CatalogBuildsTable, CatalogBuildsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCatalogBuildsWith applies the HasEdge predicate on the "catalog_builds" edge with a given conditions (other predicates).
+func HasCatalogBuildsWith(preds ...predicate.CatalogBuild) predicate.Location {
+	return predicate.Location(func(s *sql.Selector) {
+		step := newCatalogBuildsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)
