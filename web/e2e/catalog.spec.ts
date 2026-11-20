@@ -6,7 +6,7 @@ test('failed build can be retried', async ({ page, request }) => {
   await page.goto('/login')
   await page.locator('input[name=email]').fill('admin@example.test')
   await page.locator('input[name=password]').fill('correct-horse-battery')
-  await page.getByRole('button', { name: 'Log in' }).click()
+  await page.getByRole('button', { name: 'Log in', exact: true }).click()
   await expect(page).not.toHaveURL(/\/login/)
 
   await page.goto('/admin/os-images')
