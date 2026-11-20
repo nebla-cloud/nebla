@@ -105,6 +105,11 @@ func ImportStorage(v string) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldImportStorage, v))
 }
 
+// FirewallEnabled applies equality check predicate on the "firewall_enabled" field. It's identical to FirewallEnabledEQ.
+func FirewallEnabled(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldFirewallEnabled, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldCreatedAt, v))
@@ -683,6 +688,26 @@ func ImportStorageEqualFold(v string) predicate.Location {
 // ImportStorageContainsFold applies the ContainsFold predicate on the "import_storage" field.
 func ImportStorageContainsFold(v string) predicate.Location {
 	return predicate.Location(sql.FieldContainsFold(FieldImportStorage, v))
+}
+
+// FirewallEnabledEQ applies the EQ predicate on the "firewall_enabled" field.
+func FirewallEnabledEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldFirewallEnabled, v))
+}
+
+// FirewallEnabledNEQ applies the NEQ predicate on the "firewall_enabled" field.
+func FirewallEnabledNEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldFirewallEnabled, v))
+}
+
+// FirewallEnabledIsNil applies the IsNil predicate on the "firewall_enabled" field.
+func FirewallEnabledIsNil() predicate.Location {
+	return predicate.Location(sql.FieldIsNull(FieldFirewallEnabled))
+}
+
+// FirewallEnabledNotNil applies the NotNil predicate on the "firewall_enabled" field.
+func FirewallEnabledNotNil() predicate.Location {
+	return predicate.Location(sql.FieldNotNull(FieldFirewallEnabled))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

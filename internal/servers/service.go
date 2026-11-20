@@ -28,6 +28,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
@@ -117,8 +118,8 @@ type UpdateInput struct {
 
 var (
 	nameRE       = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-	labelKeyRE   = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._/-]{0,61}[a-zA-Z0-9])?$`)
-	labelValueRE = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9._-]{0,61}[a-zA-Z0-9])?)?$`)
+	labelKeyRE   = labels.KeyRE
+	labelValueRE = labels.ValueRE
 
 	errNotFound  = apierr.New(http.StatusNotFound, "not_found", "not found")
 	errNoJobs    = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")

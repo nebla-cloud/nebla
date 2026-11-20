@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -434,6 +435,68 @@ func (_u *ServerUpdate) AppendSSHKeys(v []string) *ServerUpdate {
 	return _u
 }
 
+// SetFirewallGenDesired sets the "firewall_gen_desired" field.
+func (_u *ServerUpdate) SetFirewallGenDesired(v int64) *ServerUpdate {
+	_u.mutation.ResetFirewallGenDesired()
+	_u.mutation.SetFirewallGenDesired(v)
+	return _u
+}
+
+// SetNillableFirewallGenDesired sets the "firewall_gen_desired" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableFirewallGenDesired(v *int64) *ServerUpdate {
+	if v != nil {
+		_u.SetFirewallGenDesired(*v)
+	}
+	return _u
+}
+
+// AddFirewallGenDesired adds value to the "firewall_gen_desired" field.
+func (_u *ServerUpdate) AddFirewallGenDesired(v int64) *ServerUpdate {
+	_u.mutation.AddFirewallGenDesired(v)
+	return _u
+}
+
+// SetFirewallGenApplied sets the "firewall_gen_applied" field.
+func (_u *ServerUpdate) SetFirewallGenApplied(v int64) *ServerUpdate {
+	_u.mutation.ResetFirewallGenApplied()
+	_u.mutation.SetFirewallGenApplied(v)
+	return _u
+}
+
+// SetNillableFirewallGenApplied sets the "firewall_gen_applied" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableFirewallGenApplied(v *int64) *ServerUpdate {
+	if v != nil {
+		_u.SetFirewallGenApplied(*v)
+	}
+	return _u
+}
+
+// AddFirewallGenApplied adds value to the "firewall_gen_applied" field.
+func (_u *ServerUpdate) AddFirewallGenApplied(v int64) *ServerUpdate {
+	_u.mutation.AddFirewallGenApplied(v)
+	return _u
+}
+
+// SetFirewallLeaseUntil sets the "firewall_lease_until" field.
+func (_u *ServerUpdate) SetFirewallLeaseUntil(v time.Time) *ServerUpdate {
+	_u.mutation.SetFirewallLeaseUntil(v)
+	return _u
+}
+
+// SetNillableFirewallLeaseUntil sets the "firewall_lease_until" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableFirewallLeaseUntil(v *time.Time) *ServerUpdate {
+	if v != nil {
+		_u.SetFirewallLeaseUntil(*v)
+	}
+	return _u
+}
+
+// ClearFirewallLeaseUntil clears the value of the "firewall_lease_until" field.
+func (_u *ServerUpdate) ClearFirewallLeaseUntil() *ServerUpdate {
+	_u.mutation.ClearFirewallLeaseUntil()
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdate) SetServerType(v *ServerType) *ServerUpdate {
 	return _u.SetServerTypeID(v.ID)
@@ -640,6 +703,24 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, server.FieldSSHKeys, value)
 		})
+	}
+	if value, ok := _u.mutation.FirewallGenDesired(); ok {
+		_spec.SetField(server.FieldFirewallGenDesired, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFirewallGenDesired(); ok {
+		_spec.AddField(server.FieldFirewallGenDesired, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.FirewallGenApplied(); ok {
+		_spec.SetField(server.FieldFirewallGenApplied, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFirewallGenApplied(); ok {
+		_spec.AddField(server.FieldFirewallGenApplied, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.FirewallLeaseUntil(); ok {
+		_spec.SetField(server.FieldFirewallLeaseUntil, field.TypeTime, value)
+	}
+	if _u.mutation.FirewallLeaseUntilCleared() {
+		_spec.ClearField(server.FieldFirewallLeaseUntil, field.TypeTime)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1124,6 +1205,68 @@ func (_u *ServerUpdateOne) AppendSSHKeys(v []string) *ServerUpdateOne {
 	return _u
 }
 
+// SetFirewallGenDesired sets the "firewall_gen_desired" field.
+func (_u *ServerUpdateOne) SetFirewallGenDesired(v int64) *ServerUpdateOne {
+	_u.mutation.ResetFirewallGenDesired()
+	_u.mutation.SetFirewallGenDesired(v)
+	return _u
+}
+
+// SetNillableFirewallGenDesired sets the "firewall_gen_desired" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableFirewallGenDesired(v *int64) *ServerUpdateOne {
+	if v != nil {
+		_u.SetFirewallGenDesired(*v)
+	}
+	return _u
+}
+
+// AddFirewallGenDesired adds value to the "firewall_gen_desired" field.
+func (_u *ServerUpdateOne) AddFirewallGenDesired(v int64) *ServerUpdateOne {
+	_u.mutation.AddFirewallGenDesired(v)
+	return _u
+}
+
+// SetFirewallGenApplied sets the "firewall_gen_applied" field.
+func (_u *ServerUpdateOne) SetFirewallGenApplied(v int64) *ServerUpdateOne {
+	_u.mutation.ResetFirewallGenApplied()
+	_u.mutation.SetFirewallGenApplied(v)
+	return _u
+}
+
+// SetNillableFirewallGenApplied sets the "firewall_gen_applied" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableFirewallGenApplied(v *int64) *ServerUpdateOne {
+	if v != nil {
+		_u.SetFirewallGenApplied(*v)
+	}
+	return _u
+}
+
+// AddFirewallGenApplied adds value to the "firewall_gen_applied" field.
+func (_u *ServerUpdateOne) AddFirewallGenApplied(v int64) *ServerUpdateOne {
+	_u.mutation.AddFirewallGenApplied(v)
+	return _u
+}
+
+// SetFirewallLeaseUntil sets the "firewall_lease_until" field.
+func (_u *ServerUpdateOne) SetFirewallLeaseUntil(v time.Time) *ServerUpdateOne {
+	_u.mutation.SetFirewallLeaseUntil(v)
+	return _u
+}
+
+// SetNillableFirewallLeaseUntil sets the "firewall_lease_until" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableFirewallLeaseUntil(v *time.Time) *ServerUpdateOne {
+	if v != nil {
+		_u.SetFirewallLeaseUntil(*v)
+	}
+	return _u
+}
+
+// ClearFirewallLeaseUntil clears the value of the "firewall_lease_until" field.
+func (_u *ServerUpdateOne) ClearFirewallLeaseUntil() *ServerUpdateOne {
+	_u.mutation.ClearFirewallLeaseUntil()
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdateOne) SetServerType(v *ServerType) *ServerUpdateOne {
 	return _u.SetServerTypeID(v.ID)
@@ -1360,6 +1503,24 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, server.FieldSSHKeys, value)
 		})
+	}
+	if value, ok := _u.mutation.FirewallGenDesired(); ok {
+		_spec.SetField(server.FieldFirewallGenDesired, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFirewallGenDesired(); ok {
+		_spec.AddField(server.FieldFirewallGenDesired, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.FirewallGenApplied(); ok {
+		_spec.SetField(server.FieldFirewallGenApplied, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFirewallGenApplied(); ok {
+		_spec.AddField(server.FieldFirewallGenApplied, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.FirewallLeaseUntil(); ok {
+		_spec.SetField(server.FieldFirewallLeaseUntil, field.TypeTime, value)
+	}
+	if _u.mutation.FirewallLeaseUntilCleared() {
+		_spec.ClearField(server.FieldFirewallLeaseUntil, field.TypeTime)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{

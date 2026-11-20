@@ -165,6 +165,26 @@ func (_u *LocationUpdate) SetNillableImportStorage(v *string) *LocationUpdate {
 	return _u
 }
 
+// SetFirewallEnabled sets the "firewall_enabled" field.
+func (_u *LocationUpdate) SetFirewallEnabled(v bool) *LocationUpdate {
+	_u.mutation.SetFirewallEnabled(v)
+	return _u
+}
+
+// SetNillableFirewallEnabled sets the "firewall_enabled" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableFirewallEnabled(v *bool) *LocationUpdate {
+	if v != nil {
+		_u.SetFirewallEnabled(*v)
+	}
+	return _u
+}
+
+// ClearFirewallEnabled clears the value of the "firewall_enabled" field.
+func (_u *LocationUpdate) ClearFirewallEnabled() *LocationUpdate {
+	_u.mutation.ClearFirewallEnabled()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdate) SetUpdatedAt(v time.Time) *LocationUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -400,6 +420,12 @@ func (_u *LocationUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.ImportStorage(); ok {
 		_spec.SetField(location.FieldImportStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FirewallEnabled(); ok {
+		_spec.SetField(location.FieldFirewallEnabled, field.TypeBool, value)
+	}
+	if _u.mutation.FirewallEnabledCleared() {
+		_spec.ClearField(location.FieldFirewallEnabled, field.TypeBool)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)
@@ -738,6 +764,26 @@ func (_u *LocationUpdateOne) SetNillableImportStorage(v *string) *LocationUpdate
 	return _u
 }
 
+// SetFirewallEnabled sets the "firewall_enabled" field.
+func (_u *LocationUpdateOne) SetFirewallEnabled(v bool) *LocationUpdateOne {
+	_u.mutation.SetFirewallEnabled(v)
+	return _u
+}
+
+// SetNillableFirewallEnabled sets the "firewall_enabled" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableFirewallEnabled(v *bool) *LocationUpdateOne {
+	if v != nil {
+		_u.SetFirewallEnabled(*v)
+	}
+	return _u
+}
+
+// ClearFirewallEnabled clears the value of the "firewall_enabled" field.
+func (_u *LocationUpdateOne) ClearFirewallEnabled() *LocationUpdateOne {
+	_u.mutation.ClearFirewallEnabled()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdateOne) SetUpdatedAt(v time.Time) *LocationUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1003,6 +1049,12 @@ func (_u *LocationUpdateOne) sqlSave(ctx context.Context) (_node *Location, err 
 	}
 	if value, ok := _u.mutation.ImportStorage(); ok {
 		_spec.SetField(location.FieldImportStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FirewallEnabled(); ok {
+		_spec.SetField(location.FieldFirewallEnabled, field.TypeBool, value)
+	}
+	if _u.mutation.FirewallEnabledCleared() {
+		_spec.ClearField(location.FieldFirewallEnabled, field.TypeBool)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)

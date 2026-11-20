@@ -118,6 +118,20 @@ func (_c *LocationCreate) SetNillableImportStorage(v *string) *LocationCreate {
 	return _c
 }
 
+// SetFirewallEnabled sets the "firewall_enabled" field.
+func (_c *LocationCreate) SetFirewallEnabled(v bool) *LocationCreate {
+	_c.mutation.SetFirewallEnabled(v)
+	return _c
+}
+
+// SetNillableFirewallEnabled sets the "firewall_enabled" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableFirewallEnabled(v *bool) *LocationCreate {
+	if v != nil {
+		_c.SetFirewallEnabled(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *LocationCreate) SetCreatedAt(v time.Time) *LocationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -378,6 +392,10 @@ func (_c *LocationCreate) createSpec() (*Location, *sqlgraph.CreateSpec) {
 		_spec.SetField(location.FieldImportStorage, field.TypeString, value)
 		_node.ImportStorage = value
 	}
+	if value, ok := _c.mutation.FirewallEnabled(); ok {
+		_spec.SetField(location.FieldFirewallEnabled, field.TypeBool, value)
+		_node.FirewallEnabled = &value
+	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(location.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -622,6 +640,24 @@ func (u *LocationUpsert) UpdateImportStorage() *LocationUpsert {
 	return u
 }
 
+// SetFirewallEnabled sets the "firewall_enabled" field.
+func (u *LocationUpsert) SetFirewallEnabled(v bool) *LocationUpsert {
+	u.Set(location.FieldFirewallEnabled, v)
+	return u
+}
+
+// UpdateFirewallEnabled sets the "firewall_enabled" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateFirewallEnabled() *LocationUpsert {
+	u.SetExcluded(location.FieldFirewallEnabled)
+	return u
+}
+
+// ClearFirewallEnabled clears the value of the "firewall_enabled" field.
+func (u *LocationUpsert) ClearFirewallEnabled() *LocationUpsert {
+	u.SetNull(location.FieldFirewallEnabled)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *LocationUpsert) SetUpdatedAt(v time.Time) *LocationUpsert {
 	u.Set(location.FieldUpdatedAt, v)
@@ -822,6 +858,27 @@ func (u *LocationUpsertOne) SetImportStorage(v string) *LocationUpsertOne {
 func (u *LocationUpsertOne) UpdateImportStorage() *LocationUpsertOne {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateImportStorage()
+	})
+}
+
+// SetFirewallEnabled sets the "firewall_enabled" field.
+func (u *LocationUpsertOne) SetFirewallEnabled(v bool) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetFirewallEnabled(v)
+	})
+}
+
+// UpdateFirewallEnabled sets the "firewall_enabled" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateFirewallEnabled() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateFirewallEnabled()
+	})
+}
+
+// ClearFirewallEnabled clears the value of the "firewall_enabled" field.
+func (u *LocationUpsertOne) ClearFirewallEnabled() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.ClearFirewallEnabled()
 	})
 }
 
@@ -1193,6 +1250,27 @@ func (u *LocationUpsertBulk) SetImportStorage(v string) *LocationUpsertBulk {
 func (u *LocationUpsertBulk) UpdateImportStorage() *LocationUpsertBulk {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateImportStorage()
+	})
+}
+
+// SetFirewallEnabled sets the "firewall_enabled" field.
+func (u *LocationUpsertBulk) SetFirewallEnabled(v bool) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetFirewallEnabled(v)
+	})
+}
+
+// UpdateFirewallEnabled sets the "firewall_enabled" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateFirewallEnabled() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateFirewallEnabled()
+	})
+}
+
+// ClearFirewallEnabled clears the value of the "firewall_enabled" field.
+func (u *LocationUpsertBulk) ClearFirewallEnabled() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.ClearFirewallEnabled()
 	})
 }
 

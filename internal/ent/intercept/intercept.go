@@ -12,6 +12,9 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/firewall"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallrule"
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
@@ -195,6 +198,87 @@ func (f TraverseConsoleToken) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ConsoleTokenQuery", q)
+}
+
+// The FirewallFunc type is an adapter to allow the use of ordinary function as a Querier.
+type FirewallFunc func(context.Context, *ent.FirewallQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f FirewallFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.FirewallQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.FirewallQuery", q)
+}
+
+// The TraverseFirewall type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseFirewall func(context.Context, *ent.FirewallQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseFirewall) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseFirewall) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.FirewallQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.FirewallQuery", q)
+}
+
+// The FirewallResourceFunc type is an adapter to allow the use of ordinary function as a Querier.
+type FirewallResourceFunc func(context.Context, *ent.FirewallResourceQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f FirewallResourceFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.FirewallResourceQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.FirewallResourceQuery", q)
+}
+
+// The TraverseFirewallResource type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseFirewallResource func(context.Context, *ent.FirewallResourceQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseFirewallResource) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseFirewallResource) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.FirewallResourceQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.FirewallResourceQuery", q)
+}
+
+// The FirewallRuleFunc type is an adapter to allow the use of ordinary function as a Querier.
+type FirewallRuleFunc func(context.Context, *ent.FirewallRuleQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f FirewallRuleFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.FirewallRuleQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.FirewallRuleQuery", q)
+}
+
+// The TraverseFirewallRule type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseFirewallRule func(context.Context, *ent.FirewallRuleQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseFirewallRule) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseFirewallRule) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.FirewallRuleQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.FirewallRuleQuery", q)
 }
 
 // The IPAllocationFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -694,6 +778,12 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.CatalogBuildQuery, predicate.CatalogBuild, catalogbuild.OrderOption]{typ: ent.TypeCatalogBuild, tq: q}, nil
 	case *ent.ConsoleTokenQuery:
 		return &query[*ent.ConsoleTokenQuery, predicate.ConsoleToken, consoletoken.OrderOption]{typ: ent.TypeConsoleToken, tq: q}, nil
+	case *ent.FirewallQuery:
+		return &query[*ent.FirewallQuery, predicate.Firewall, firewall.OrderOption]{typ: ent.TypeFirewall, tq: q}, nil
+	case *ent.FirewallResourceQuery:
+		return &query[*ent.FirewallResourceQuery, predicate.FirewallResource, firewallresource.OrderOption]{typ: ent.TypeFirewallResource, tq: q}, nil
+	case *ent.FirewallRuleQuery:
+		return &query[*ent.FirewallRuleQuery, predicate.FirewallRule, firewallrule.OrderOption]{typ: ent.TypeFirewallRule, tq: q}, nil
 	case *ent.IPAllocationQuery:
 		return &query[*ent.IPAllocationQuery, predicate.IPAllocation, ipallocation.OrderOption]{typ: ent.TypeIPAllocation, tq: q}, nil
 	case *ent.IPPoolQuery:

@@ -191,6 +191,112 @@ var (
 			},
 		},
 	}
+	// FirewallsColumns holds the columns for the "firewalls" table.
+	FirewallsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "labels", Type: field.TypeJSON},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+	}
+	// FirewallsTable holds the schema information for the "firewalls" table.
+	FirewallsTable = &schema.Table{
+		Name:       "firewalls",
+		Columns:    FirewallsColumns,
+		PrimaryKey: []*schema.Column{FirewallsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "firewalls_projects_project",
+				Columns:    []*schema.Column{FirewallsColumns[4]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "firewalls_project_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{FirewallsColumns[4], FirewallsColumns[1]},
+			},
+		},
+	}
+	// FirewallResourcesColumns holds the columns for the "firewall_resources" table.
+	FirewallResourcesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"server", "label_selector"}},
+		{Name: "selector", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "firewall_id", Type: field.TypeInt64},
+		{Name: "server_id", Type: field.TypeInt64, Nullable: true},
+	}
+	// FirewallResourcesTable holds the schema information for the "firewall_resources" table.
+	FirewallResourcesTable = &schema.Table{
+		Name:       "firewall_resources",
+		Columns:    FirewallResourcesColumns,
+		PrimaryKey: []*schema.Column{FirewallResourcesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "firewall_resources_firewalls_firewall",
+				Columns:    []*schema.Column{FirewallResourcesColumns[3]},
+				RefColumns: []*schema.Column{FirewallsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "firewall_resources_servers_server",
+				Columns:    []*schema.Column{FirewallResourcesColumns[4]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "firewall_resources_server_key",
+				Unique:  true,
+				Columns: []*schema.Column{FirewallResourcesColumns[3], FirewallResourcesColumns[4]},
+			},
+			{
+				Name:    "firewall_resources_selector_key",
+				Unique:  true,
+				Columns: []*schema.Column{FirewallResourcesColumns[3], FirewallResourcesColumns[2]},
+			},
+			{
+				Name:    "firewall_resources_server_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{FirewallResourcesColumns[4]},
+			},
+		},
+	}
+	// FirewallRulesColumns holds the columns for the "firewall_rules" table.
+	FirewallRulesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "position", Type: field.TypeInt},
+		{Name: "direction", Type: field.TypeEnum, Enums: []string{"in", "out"}},
+		{Name: "protocol", Type: field.TypeEnum, Enums: []string{"tcp", "udp", "icmp", "esp", "gre"}},
+		{Name: "port", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "ips", Type: field.TypeJSON},
+		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "firewall_id", Type: field.TypeInt64},
+	}
+	// FirewallRulesTable holds the schema information for the "firewall_rules" table.
+	FirewallRulesTable = &schema.Table{
+		Name:       "firewall_rules",
+		Columns:    FirewallRulesColumns,
+		PrimaryKey: []*schema.Column{FirewallRulesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "firewall_rules_firewalls_firewall",
+				Columns:    []*schema.Column{FirewallRulesColumns[7]},
+				RefColumns: []*schema.Column{FirewallsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "firewall_rules_firewall_position_idx",
+				Unique:  false,
+				Columns: []*schema.Column{FirewallRulesColumns[7], FirewallRulesColumns[1]},
+			},
+		},
+	}
 	// IPAllocationsColumns holds the columns for the "ip_allocations" table.
 	IPAllocationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -385,6 +491,7 @@ var (
 		{Name: "disk_storage", Type: field.TypeString, Size: 2147483647},
 		{Name: "iso_storage", Type: field.TypeString, Size: 2147483647},
 		{Name: "import_storage", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "firewall_enabled", Type: field.TypeBool, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
@@ -630,6 +737,9 @@ var (
 		{Name: "disk_gb", Type: field.TypeInt},
 		{Name: "user_data", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "ssh_keys", Type: field.TypeJSON},
+		{Name: "firewall_gen_desired", Type: field.TypeInt64, Default: 0},
+		{Name: "firewall_gen_applied", Type: field.TypeInt64, Default: 0},
+		{Name: "firewall_lease_until", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -644,25 +754,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "servers_projects_project",
-				Columns:    []*schema.Column{ServersColumns[23]},
+				Columns:    []*schema.Column{ServersColumns[26]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_locations_location",
-				Columns:    []*schema.Column{ServersColumns[24]},
+				Columns:    []*schema.Column{ServersColumns[27]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_server_types_server_type",
-				Columns:    []*schema.Column{ServersColumns[25]},
+				Columns:    []*schema.Column{ServersColumns[28]},
 				RefColumns: []*schema.Column{ServerTypesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_images_image",
-				Columns:    []*schema.Column{ServersColumns[26]},
+				Columns:    []*schema.Column{ServersColumns[29]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -671,7 +781,7 @@ var (
 			{
 				Name:    "servers_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{ServersColumns[23], ServersColumns[1]},
+				Columns: []*schema.Column{ServersColumns[26], ServersColumns[1]},
 			},
 			{
 				Name:    "servers_mac_key",
@@ -681,17 +791,17 @@ var (
 			{
 				Name:    "servers_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[24], ServersColumns[2]},
+				Columns: []*schema.Column{ServersColumns[27], ServersColumns[2]},
 			},
 			{
 				Name:    "servers_server_type_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[25]},
+				Columns: []*schema.Column{ServersColumns[28]},
 			},
 			{
 				Name:    "servers_image_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[26]},
+				Columns: []*schema.Column{ServersColumns[29]},
 			},
 		},
 	}
@@ -869,6 +979,9 @@ var (
 		ActionsTable,
 		CatalogBuildsTable,
 		ConsoleTokensTable,
+		FirewallsTable,
+		FirewallResourcesTable,
+		FirewallRulesTable,
 		IPAllocationsTable,
 		IPPoolsTable,
 		ImagesTable,
@@ -900,6 +1013,10 @@ func init() {
 	ActionsTable.ForeignKeys[0].RefTable = ProjectsTable
 	CatalogBuildsTable.ForeignKeys[0].RefTable = LocationsTable
 	ConsoleTokensTable.ForeignKeys[0].RefTable = ServersTable
+	FirewallsTable.ForeignKeys[0].RefTable = ProjectsTable
+	FirewallResourcesTable.ForeignKeys[0].RefTable = FirewallsTable
+	FirewallResourcesTable.ForeignKeys[1].RefTable = ServersTable
+	FirewallRulesTable.ForeignKeys[0].RefTable = FirewallsTable
 	IPAllocationsTable.ForeignKeys[0].RefTable = IPPoolsTable
 	IPPoolsTable.ForeignKeys[0].RefTable = LocationsTable
 	ImageTemplatesTable.ForeignKeys[0].RefTable = ImagesTable

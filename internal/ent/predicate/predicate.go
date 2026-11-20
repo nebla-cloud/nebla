@@ -18,6 +18,15 @@ type CatalogBuild func(*sql.Selector)
 // ConsoleToken is the predicate function for consoletoken builders.
 type ConsoleToken func(*sql.Selector)
 
+// Firewall is the predicate function for firewall builders.
+type Firewall func(*sql.Selector)
+
+// FirewallResource is the predicate function for firewallresource builders.
+type FirewallResource func(*sql.Selector)
+
+// FirewallRule is the predicate function for firewallrule builders.
+type FirewallRule func(*sql.Selector)
+
 // IPAllocation is the predicate function for ipallocation builders.
 type IPAllocation func(*sql.Selector)
 

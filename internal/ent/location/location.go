@@ -34,6 +34,8 @@ const (
 	FieldIsoStorage = "iso_storage"
 	// FieldImportStorage holds the string denoting the import_storage field in the database.
 	FieldImportStorage = "import_storage"
+	// FieldFirewallEnabled holds the string denoting the firewall_enabled field in the database.
+	FieldFirewallEnabled = "firewall_enabled"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -89,6 +91,7 @@ var Columns = []string{
 	FieldDiskStorage,
 	FieldIsoStorage,
 	FieldImportStorage,
+	FieldFirewallEnabled,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -177,6 +180,11 @@ func ByIsoStorage(opts ...sql.OrderTermOption) OrderOption {
 // ByImportStorage orders the results by the import_storage field.
 func ByImportStorage(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldImportStorage, opts...).ToFunc()
+}
+
+// ByFirewallEnabled orders the results by the firewall_enabled field.
+func ByFirewallEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFirewallEnabled, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

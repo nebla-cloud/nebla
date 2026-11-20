@@ -280,6 +280,48 @@ func (_c *ServerCreate) SetSSHKeys(v []string) *ServerCreate {
 	return _c
 }
 
+// SetFirewallGenDesired sets the "firewall_gen_desired" field.
+func (_c *ServerCreate) SetFirewallGenDesired(v int64) *ServerCreate {
+	_c.mutation.SetFirewallGenDesired(v)
+	return _c
+}
+
+// SetNillableFirewallGenDesired sets the "firewall_gen_desired" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableFirewallGenDesired(v *int64) *ServerCreate {
+	if v != nil {
+		_c.SetFirewallGenDesired(*v)
+	}
+	return _c
+}
+
+// SetFirewallGenApplied sets the "firewall_gen_applied" field.
+func (_c *ServerCreate) SetFirewallGenApplied(v int64) *ServerCreate {
+	_c.mutation.SetFirewallGenApplied(v)
+	return _c
+}
+
+// SetNillableFirewallGenApplied sets the "firewall_gen_applied" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableFirewallGenApplied(v *int64) *ServerCreate {
+	if v != nil {
+		_c.SetFirewallGenApplied(*v)
+	}
+	return _c
+}
+
+// SetFirewallLeaseUntil sets the "firewall_lease_until" field.
+func (_c *ServerCreate) SetFirewallLeaseUntil(v time.Time) *ServerCreate {
+	_c.mutation.SetFirewallLeaseUntil(v)
+	return _c
+}
+
+// SetNillableFirewallLeaseUntil sets the "firewall_lease_until" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableFirewallLeaseUntil(v *time.Time) *ServerCreate {
+	if v != nil {
+		_c.SetFirewallLeaseUntil(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ServerCreate) SetCreatedAt(v time.Time) *ServerCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -379,6 +421,14 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultUserData
 		_c.mutation.SetUserData(v)
 	}
+	if _, ok := _c.mutation.FirewallGenDesired(); !ok {
+		v := server.DefaultFirewallGenDesired
+		_c.mutation.SetFirewallGenDesired(v)
+	}
+	if _, ok := _c.mutation.FirewallGenApplied(); !ok {
+		v := server.DefaultFirewallGenApplied
+		_c.mutation.SetFirewallGenApplied(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := server.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -445,6 +495,12 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.SSHKeys(); !ok {
 		return &ValidationError{Name: "ssh_keys", err: errors.New(`ent: missing required field "Server.ssh_keys"`)}
+	}
+	if _, ok := _c.mutation.FirewallGenDesired(); !ok {
+		return &ValidationError{Name: "firewall_gen_desired", err: errors.New(`ent: missing required field "Server.firewall_gen_desired"`)}
+	}
+	if _, ok := _c.mutation.FirewallGenApplied(); !ok {
+		return &ValidationError{Name: "firewall_gen_applied", err: errors.New(`ent: missing required field "Server.firewall_gen_applied"`)}
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "Server.project"`)}
@@ -574,6 +630,18 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SSHKeys(); ok {
 		_spec.SetField(server.FieldSSHKeys, field.TypeJSON, value)
 		_node.SSHKeys = value
+	}
+	if value, ok := _c.mutation.FirewallGenDesired(); ok {
+		_spec.SetField(server.FieldFirewallGenDesired, field.TypeInt64, value)
+		_node.FirewallGenDesired = value
+	}
+	if value, ok := _c.mutation.FirewallGenApplied(); ok {
+		_spec.SetField(server.FieldFirewallGenApplied, field.TypeInt64, value)
+		_node.FirewallGenApplied = value
+	}
+	if value, ok := _c.mutation.FirewallLeaseUntil(); ok {
+		_spec.SetField(server.FieldFirewallLeaseUntil, field.TypeTime, value)
+		_node.FirewallLeaseUntil = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(server.FieldCreatedAt, field.TypeTime, value)
@@ -1059,6 +1127,60 @@ func (u *ServerUpsert) UpdateSSHKeys() *ServerUpsert {
 	return u
 }
 
+// SetFirewallGenDesired sets the "firewall_gen_desired" field.
+func (u *ServerUpsert) SetFirewallGenDesired(v int64) *ServerUpsert {
+	u.Set(server.FieldFirewallGenDesired, v)
+	return u
+}
+
+// UpdateFirewallGenDesired sets the "firewall_gen_desired" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateFirewallGenDesired() *ServerUpsert {
+	u.SetExcluded(server.FieldFirewallGenDesired)
+	return u
+}
+
+// AddFirewallGenDesired adds v to the "firewall_gen_desired" field.
+func (u *ServerUpsert) AddFirewallGenDesired(v int64) *ServerUpsert {
+	u.Add(server.FieldFirewallGenDesired, v)
+	return u
+}
+
+// SetFirewallGenApplied sets the "firewall_gen_applied" field.
+func (u *ServerUpsert) SetFirewallGenApplied(v int64) *ServerUpsert {
+	u.Set(server.FieldFirewallGenApplied, v)
+	return u
+}
+
+// UpdateFirewallGenApplied sets the "firewall_gen_applied" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateFirewallGenApplied() *ServerUpsert {
+	u.SetExcluded(server.FieldFirewallGenApplied)
+	return u
+}
+
+// AddFirewallGenApplied adds v to the "firewall_gen_applied" field.
+func (u *ServerUpsert) AddFirewallGenApplied(v int64) *ServerUpsert {
+	u.Add(server.FieldFirewallGenApplied, v)
+	return u
+}
+
+// SetFirewallLeaseUntil sets the "firewall_lease_until" field.
+func (u *ServerUpsert) SetFirewallLeaseUntil(v time.Time) *ServerUpsert {
+	u.Set(server.FieldFirewallLeaseUntil, v)
+	return u
+}
+
+// UpdateFirewallLeaseUntil sets the "firewall_lease_until" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateFirewallLeaseUntil() *ServerUpsert {
+	u.SetExcluded(server.FieldFirewallLeaseUntil)
+	return u
+}
+
+// ClearFirewallLeaseUntil clears the value of the "firewall_lease_until" field.
+func (u *ServerUpsert) ClearFirewallLeaseUntil() *ServerUpsert {
+	u.SetNull(server.FieldFirewallLeaseUntil)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -1536,6 +1658,69 @@ func (u *ServerUpsertOne) SetSSHKeys(v []string) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateSSHKeys() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateSSHKeys()
+	})
+}
+
+// SetFirewallGenDesired sets the "firewall_gen_desired" field.
+func (u *ServerUpsertOne) SetFirewallGenDesired(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetFirewallGenDesired(v)
+	})
+}
+
+// AddFirewallGenDesired adds v to the "firewall_gen_desired" field.
+func (u *ServerUpsertOne) AddFirewallGenDesired(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddFirewallGenDesired(v)
+	})
+}
+
+// UpdateFirewallGenDesired sets the "firewall_gen_desired" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateFirewallGenDesired() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateFirewallGenDesired()
+	})
+}
+
+// SetFirewallGenApplied sets the "firewall_gen_applied" field.
+func (u *ServerUpsertOne) SetFirewallGenApplied(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetFirewallGenApplied(v)
+	})
+}
+
+// AddFirewallGenApplied adds v to the "firewall_gen_applied" field.
+func (u *ServerUpsertOne) AddFirewallGenApplied(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddFirewallGenApplied(v)
+	})
+}
+
+// UpdateFirewallGenApplied sets the "firewall_gen_applied" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateFirewallGenApplied() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateFirewallGenApplied()
+	})
+}
+
+// SetFirewallLeaseUntil sets the "firewall_lease_until" field.
+func (u *ServerUpsertOne) SetFirewallLeaseUntil(v time.Time) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetFirewallLeaseUntil(v)
+	})
+}
+
+// UpdateFirewallLeaseUntil sets the "firewall_lease_until" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateFirewallLeaseUntil() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateFirewallLeaseUntil()
+	})
+}
+
+// ClearFirewallLeaseUntil clears the value of the "firewall_lease_until" field.
+func (u *ServerUpsertOne) ClearFirewallLeaseUntil() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearFirewallLeaseUntil()
 	})
 }
 
@@ -2182,6 +2367,69 @@ func (u *ServerUpsertBulk) SetSSHKeys(v []string) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateSSHKeys() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateSSHKeys()
+	})
+}
+
+// SetFirewallGenDesired sets the "firewall_gen_desired" field.
+func (u *ServerUpsertBulk) SetFirewallGenDesired(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetFirewallGenDesired(v)
+	})
+}
+
+// AddFirewallGenDesired adds v to the "firewall_gen_desired" field.
+func (u *ServerUpsertBulk) AddFirewallGenDesired(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddFirewallGenDesired(v)
+	})
+}
+
+// UpdateFirewallGenDesired sets the "firewall_gen_desired" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateFirewallGenDesired() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateFirewallGenDesired()
+	})
+}
+
+// SetFirewallGenApplied sets the "firewall_gen_applied" field.
+func (u *ServerUpsertBulk) SetFirewallGenApplied(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetFirewallGenApplied(v)
+	})
+}
+
+// AddFirewallGenApplied adds v to the "firewall_gen_applied" field.
+func (u *ServerUpsertBulk) AddFirewallGenApplied(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddFirewallGenApplied(v)
+	})
+}
+
+// UpdateFirewallGenApplied sets the "firewall_gen_applied" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateFirewallGenApplied() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateFirewallGenApplied()
+	})
+}
+
+// SetFirewallLeaseUntil sets the "firewall_lease_until" field.
+func (u *ServerUpsertBulk) SetFirewallLeaseUntil(v time.Time) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetFirewallLeaseUntil(v)
+	})
+}
+
+// UpdateFirewallLeaseUntil sets the "firewall_lease_until" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateFirewallLeaseUntil() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateFirewallLeaseUntil()
+	})
+}
+
+// ClearFirewallLeaseUntil clears the value of the "firewall_lease_until" field.
+func (u *ServerUpsertBulk) ClearFirewallLeaseUntil() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearFirewallLeaseUntil()
 	})
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
 )
 
@@ -32,43 +33,26 @@ func labelsHave(k string) predicate.Server {
 	}
 }
 
-// LabelSelector parses comma-separated k=v, k!=v, k and !k terms into predicates.
+// LabelSelector turns a label selector into predicates; blank means no filter.
 func LabelSelector(sel string) ([]predicate.Server, error) {
 	if strings.TrimSpace(sel) == "" {
 		return nil, nil
 	}
-	var out []predicate.Server
-	for term := range strings.SplitSeq(sel, ",") {
-		term = strings.TrimSpace(term)
-		key, val, op := term, "", ""
-		switch {
-		case strings.HasPrefix(term, "!"):
-			key, op = term[1:], "!"
-		case strings.Contains(term, "!="):
-			key, val, _ = strings.Cut(term, "!=")
-			op = "!="
-		case strings.Contains(term, "="):
-			key, val, _ = strings.Cut(term, "=")
-			op = "="
-		}
-		key, val = strings.TrimSpace(key), strings.TrimSpace(val)
-		if !labelKeyRE.MatchString(key) {
-			return nil, invalid("label_selector: bad key in %q", term)
-		}
-		if op == "=" || op == "!=" {
-			if !labelValueRE.MatchString(val) {
-				return nil, invalid("label_selector: bad value in %q", term)
-			}
-		}
-		switch op {
-		case "":
-			out = append(out, labelsHave(key))
-		case "!":
-			out = append(out, server.Not(labelsHave(key)))
-		case "=":
-			out = append(out, labelsContain(key, val))
-		case "!=":
-			out = append(out, server.Not(labelsContain(key, val)))
+	parsed, err := labels.Parse(sel)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]predicate.Server, 0, len(parsed))
+	for _, t := range parsed {
+		switch t.Op {
+		case labels.Has:
+			out = append(out, labelsHave(t.Key))
+		case labels.Lacks:
+			out = append(out, server.Not(labelsHave(t.Key)))
+		case labels.Eq:
+			out = append(out, labelsContain(t.Key, t.Value))
+		case labels.Ne:
+			out = append(out, server.Not(labelsContain(t.Key, t.Value)))
 		}
 	}
 	return out, nil

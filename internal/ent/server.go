@@ -72,6 +72,12 @@ type Server struct {
 	UserData string `json:"-"`
 	// SSHKeys holds the value of the "ssh_keys" field.
 	SSHKeys []string `json:"-"`
+	// FirewallGenDesired holds the value of the "firewall_gen_desired" field.
+	FirewallGenDesired int64 `json:"firewall_gen_desired,omitempty"`
+	// FirewallGenApplied holds the value of the "firewall_gen_applied" field.
+	FirewallGenApplied int64 `json:"firewall_gen_applied,omitempty"`
+	// FirewallLeaseUntil holds the value of the "firewall_lease_until" field.
+	FirewallLeaseUntil *time.Time `json:"firewall_lease_until,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -146,11 +152,11 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied:
 			values[i] = new(sql.NullInt64)
 		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData:
 			values[i] = new(sql.NullString)
-		case server.FieldCreatedAt:
+		case server.FieldFirewallLeaseUntil, server.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -334,6 +340,25 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field ssh_keys: %w", err)
 				}
 			}
+		case server.FieldFirewallGenDesired:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field firewall_gen_desired", values[i])
+			} else if value.Valid {
+				_m.FirewallGenDesired = value.Int64
+			}
+		case server.FieldFirewallGenApplied:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field firewall_gen_applied", values[i])
+			} else if value.Valid {
+				_m.FirewallGenApplied = value.Int64
+			}
+		case server.FieldFirewallLeaseUntil:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field firewall_lease_until", values[i])
+			} else if value.Valid {
+				_m.FirewallLeaseUntil = new(time.Time)
+				*_m.FirewallLeaseUntil = value.Time
+			}
 		case server.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -482,6 +507,17 @@ func (_m *Server) String() string {
 	builder.WriteString("user_data=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("ssh_keys=<sensitive>")
+	builder.WriteString(", ")
+	builder.WriteString("firewall_gen_desired=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FirewallGenDesired))
+	builder.WriteString(", ")
+	builder.WriteString("firewall_gen_applied=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FirewallGenApplied))
+	builder.WriteString(", ")
+	if v := _m.FirewallLeaseUntil; v != nil {
+		builder.WriteString("firewall_lease_until=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

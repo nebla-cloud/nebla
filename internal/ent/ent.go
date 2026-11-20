@@ -16,6 +16,9 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/firewall"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallrule"
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
@@ -98,6 +101,9 @@ func checkColumn(t, c string) error {
 			action.Table:             action.ValidColumn,
 			catalogbuild.Table:       catalogbuild.ValidColumn,
 			consoletoken.Table:       consoletoken.ValidColumn,
+			firewall.Table:           firewall.ValidColumn,
+			firewallresource.Table:   firewallresource.ValidColumn,
+			firewallrule.Table:       firewallrule.ValidColumn,
 			ipallocation.Table:       ipallocation.ValidColumn,
 			ippool.Table:             ippool.ValidColumn,
 			image.Table:              image.ValidColumn,

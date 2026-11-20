@@ -37,6 +37,8 @@ type Location struct {
 	IsoStorage string `json:"iso_storage,omitempty"`
 	// ImportStorage holds the value of the "import_storage" field.
 	ImportStorage string `json:"import_storage,omitempty"`
+	// FirewallEnabled holds the value of the "firewall_enabled" field.
+	FirewallEnabled *bool `json:"firewall_enabled,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -105,7 +107,7 @@ func (*Location) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case location.FieldTokenSecret:
 			values[i] = new([]byte)
-		case location.FieldInsecureTLS:
+		case location.FieldInsecureTLS, location.FieldFirewallEnabled:
 			values[i] = new(sql.NullBool)
 		case location.FieldID:
 			values[i] = new(sql.NullInt64)
@@ -193,6 +195,13 @@ func (_m *Location) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field import_storage", values[i])
 			} else if value.Valid {
 				_m.ImportStorage = value.String
+			}
+		case location.FieldFirewallEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field firewall_enabled", values[i])
+			} else if value.Valid {
+				_m.FirewallEnabled = new(bool)
+				*_m.FirewallEnabled = value.Bool
 			}
 		case location.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -290,6 +299,11 @@ func (_m *Location) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("import_storage=")
 	builder.WriteString(_m.ImportStorage)
+	builder.WriteString(", ")
+	if v := _m.FirewallEnabled; v != nil {
+		builder.WriteString("firewall_enabled=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

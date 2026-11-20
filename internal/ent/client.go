@@ -19,6 +19,9 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/firewall"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallrule"
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
@@ -54,6 +57,12 @@ type Client struct {
 	CatalogBuild *CatalogBuildClient
 	// ConsoleToken is the client for interacting with the ConsoleToken builders.
 	ConsoleToken *ConsoleTokenClient
+	// Firewall is the client for interacting with the Firewall builders.
+	Firewall *FirewallClient
+	// FirewallResource is the client for interacting with the FirewallResource builders.
+	FirewallResource *FirewallResourceClient
+	// FirewallRule is the client for interacting with the FirewallRule builders.
+	FirewallRule *FirewallRuleClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
 	IPAllocation *IPAllocationClient
 	// IPPool is the client for interacting with the IPPool builders.
@@ -105,6 +114,9 @@ func (c *Client) init() {
 	c.Action = NewActionClient(c.config)
 	c.CatalogBuild = NewCatalogBuildClient(c.config)
 	c.ConsoleToken = NewConsoleTokenClient(c.config)
+	c.Firewall = NewFirewallClient(c.config)
+	c.FirewallResource = NewFirewallResourceClient(c.config)
+	c.FirewallRule = NewFirewallRuleClient(c.config)
 	c.IPAllocation = NewIPAllocationClient(c.config)
 	c.IPPool = NewIPPoolClient(c.config)
 	c.Image = NewImageClient(c.config)
@@ -219,6 +231,9 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Action:             NewActionClient(cfg),
 		CatalogBuild:       NewCatalogBuildClient(cfg),
 		ConsoleToken:       NewConsoleTokenClient(cfg),
+		Firewall:           NewFirewallClient(cfg),
+		FirewallResource:   NewFirewallResourceClient(cfg),
+		FirewallRule:       NewFirewallRuleClient(cfg),
 		IPAllocation:       NewIPAllocationClient(cfg),
 		IPPool:             NewIPPoolClient(cfg),
 		Image:              NewImageClient(cfg),
@@ -260,6 +275,9 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Action:             NewActionClient(cfg),
 		CatalogBuild:       NewCatalogBuildClient(cfg),
 		ConsoleToken:       NewConsoleTokenClient(cfg),
+		Firewall:           NewFirewallClient(cfg),
+		FirewallResource:   NewFirewallResourceClient(cfg),
+		FirewallRule:       NewFirewallRuleClient(cfg),
 		IPAllocation:       NewIPAllocationClient(cfg),
 		IPPool:             NewIPPoolClient(cfg),
 		Image:              NewImageClient(cfg),
@@ -307,10 +325,11 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.IPAllocation, c.IPPool,
-		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
-		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
-		c.Setting, c.User, c.WebauthnChallenge, c.WebauthnCredential,
+		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.Firewall,
+		c.FirewallResource, c.FirewallRule, c.IPAllocation, c.IPPool, c.Image,
+		c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node, c.Project,
+		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
+		c.User, c.WebauthnChallenge, c.WebauthnCredential,
 	} {
 		n.Use(hooks...)
 	}
@@ -320,10 +339,11 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.IPAllocation, c.IPPool,
-		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
-		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
-		c.Setting, c.User, c.WebauthnChallenge, c.WebauthnCredential,
+		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.Firewall,
+		c.FirewallResource, c.FirewallRule, c.IPAllocation, c.IPPool, c.Image,
+		c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node, c.Project,
+		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
+		c.User, c.WebauthnChallenge, c.WebauthnCredential,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -340,6 +360,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.CatalogBuild.mutate(ctx, m)
 	case *ConsoleTokenMutation:
 		return c.ConsoleToken.mutate(ctx, m)
+	case *FirewallMutation:
+		return c.Firewall.mutate(ctx, m)
+	case *FirewallResourceMutation:
+		return c.FirewallResource.mutate(ctx, m)
+	case *FirewallRuleMutation:
+		return c.FirewallRule.mutate(ctx, m)
 	case *IPAllocationMutation:
 		return c.IPAllocation.mutate(ctx, m)
 	case *IPPoolMutation:
@@ -990,6 +1016,501 @@ func (c *ConsoleTokenClient) mutate(ctx context.Context, m *ConsoleTokenMutation
 		return (&ConsoleTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ConsoleToken mutation op: %q", m.Op())
+	}
+}
+
+// FirewallClient is a client for the Firewall schema.
+type FirewallClient struct {
+	config
+}
+
+// NewFirewallClient returns a client for the Firewall from the given config.
+func NewFirewallClient(c config) *FirewallClient {
+	return &FirewallClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `firewall.Hooks(f(g(h())))`.
+func (c *FirewallClient) Use(hooks ...Hook) {
+	c.hooks.Firewall = append(c.hooks.Firewall, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `firewall.Intercept(f(g(h())))`.
+func (c *FirewallClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Firewall = append(c.inters.Firewall, interceptors...)
+}
+
+// Create returns a builder for creating a Firewall entity.
+func (c *FirewallClient) Create() *FirewallCreate {
+	mutation := newFirewallMutation(c.config, OpCreate)
+	return &FirewallCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Firewall entities.
+func (c *FirewallClient) CreateBulk(builders ...*FirewallCreate) *FirewallCreateBulk {
+	return &FirewallCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FirewallClient) MapCreateBulk(slice any, setFunc func(*FirewallCreate, int)) *FirewallCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FirewallCreateBulk{err: fmt.Errorf("calling to FirewallClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FirewallCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FirewallCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Firewall.
+func (c *FirewallClient) Update() *FirewallUpdate {
+	mutation := newFirewallMutation(c.config, OpUpdate)
+	return &FirewallUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FirewallClient) UpdateOne(_m *Firewall) *FirewallUpdateOne {
+	mutation := newFirewallMutation(c.config, OpUpdateOne, withFirewall(_m))
+	return &FirewallUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FirewallClient) UpdateOneID(id int64) *FirewallUpdateOne {
+	mutation := newFirewallMutation(c.config, OpUpdateOne, withFirewallID(id))
+	return &FirewallUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Firewall.
+func (c *FirewallClient) Delete() *FirewallDelete {
+	mutation := newFirewallMutation(c.config, OpDelete)
+	return &FirewallDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FirewallClient) DeleteOne(_m *Firewall) *FirewallDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FirewallClient) DeleteOneID(id int64) *FirewallDeleteOne {
+	builder := c.Delete().Where(firewall.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FirewallDeleteOne{builder}
+}
+
+// Query returns a query builder for Firewall.
+func (c *FirewallClient) Query() *FirewallQuery {
+	return &FirewallQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFirewall},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Firewall entity by its id.
+func (c *FirewallClient) Get(ctx context.Context, id int64) (*Firewall, error) {
+	return c.Query().Where(firewall.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FirewallClient) GetX(ctx context.Context, id int64) *Firewall {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a Firewall.
+func (c *FirewallClient) QueryProject(_m *Firewall) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(firewall.Table, firewall.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, firewall.ProjectTable, firewall.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryRules queries the rules edge of a Firewall.
+func (c *FirewallClient) QueryRules(_m *Firewall) *FirewallRuleQuery {
+	query := (&FirewallRuleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(firewall.Table, firewall.FieldID, id),
+			sqlgraph.To(firewallrule.Table, firewallrule.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, firewall.RulesTable, firewall.RulesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryResources queries the resources edge of a Firewall.
+func (c *FirewallClient) QueryResources(_m *Firewall) *FirewallResourceQuery {
+	query := (&FirewallResourceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(firewall.Table, firewall.FieldID, id),
+			sqlgraph.To(firewallresource.Table, firewallresource.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, firewall.ResourcesTable, firewall.ResourcesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *FirewallClient) Hooks() []Hook {
+	return c.hooks.Firewall
+}
+
+// Interceptors returns the client interceptors.
+func (c *FirewallClient) Interceptors() []Interceptor {
+	return c.inters.Firewall
+}
+
+func (c *FirewallClient) mutate(ctx context.Context, m *FirewallMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FirewallCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FirewallUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FirewallUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FirewallDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Firewall mutation op: %q", m.Op())
+	}
+}
+
+// FirewallResourceClient is a client for the FirewallResource schema.
+type FirewallResourceClient struct {
+	config
+}
+
+// NewFirewallResourceClient returns a client for the FirewallResource from the given config.
+func NewFirewallResourceClient(c config) *FirewallResourceClient {
+	return &FirewallResourceClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `firewallresource.Hooks(f(g(h())))`.
+func (c *FirewallResourceClient) Use(hooks ...Hook) {
+	c.hooks.FirewallResource = append(c.hooks.FirewallResource, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `firewallresource.Intercept(f(g(h())))`.
+func (c *FirewallResourceClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FirewallResource = append(c.inters.FirewallResource, interceptors...)
+}
+
+// Create returns a builder for creating a FirewallResource entity.
+func (c *FirewallResourceClient) Create() *FirewallResourceCreate {
+	mutation := newFirewallResourceMutation(c.config, OpCreate)
+	return &FirewallResourceCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FirewallResource entities.
+func (c *FirewallResourceClient) CreateBulk(builders ...*FirewallResourceCreate) *FirewallResourceCreateBulk {
+	return &FirewallResourceCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FirewallResourceClient) MapCreateBulk(slice any, setFunc func(*FirewallResourceCreate, int)) *FirewallResourceCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FirewallResourceCreateBulk{err: fmt.Errorf("calling to FirewallResourceClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FirewallResourceCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FirewallResourceCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FirewallResource.
+func (c *FirewallResourceClient) Update() *FirewallResourceUpdate {
+	mutation := newFirewallResourceMutation(c.config, OpUpdate)
+	return &FirewallResourceUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FirewallResourceClient) UpdateOne(_m *FirewallResource) *FirewallResourceUpdateOne {
+	mutation := newFirewallResourceMutation(c.config, OpUpdateOne, withFirewallResource(_m))
+	return &FirewallResourceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FirewallResourceClient) UpdateOneID(id int64) *FirewallResourceUpdateOne {
+	mutation := newFirewallResourceMutation(c.config, OpUpdateOne, withFirewallResourceID(id))
+	return &FirewallResourceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FirewallResource.
+func (c *FirewallResourceClient) Delete() *FirewallResourceDelete {
+	mutation := newFirewallResourceMutation(c.config, OpDelete)
+	return &FirewallResourceDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FirewallResourceClient) DeleteOne(_m *FirewallResource) *FirewallResourceDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FirewallResourceClient) DeleteOneID(id int64) *FirewallResourceDeleteOne {
+	builder := c.Delete().Where(firewallresource.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FirewallResourceDeleteOne{builder}
+}
+
+// Query returns a query builder for FirewallResource.
+func (c *FirewallResourceClient) Query() *FirewallResourceQuery {
+	return &FirewallResourceQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFirewallResource},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FirewallResource entity by its id.
+func (c *FirewallResourceClient) Get(ctx context.Context, id int64) (*FirewallResource, error) {
+	return c.Query().Where(firewallresource.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FirewallResourceClient) GetX(ctx context.Context, id int64) *FirewallResource {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryFirewall queries the firewall edge of a FirewallResource.
+func (c *FirewallResourceClient) QueryFirewall(_m *FirewallResource) *FirewallQuery {
+	query := (&FirewallClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(firewallresource.Table, firewallresource.FieldID, id),
+			sqlgraph.To(firewall.Table, firewall.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, firewallresource.FirewallTable, firewallresource.FirewallColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryServer queries the server edge of a FirewallResource.
+func (c *FirewallResourceClient) QueryServer(_m *FirewallResource) *ServerQuery {
+	query := (&ServerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(firewallresource.Table, firewallresource.FieldID, id),
+			sqlgraph.To(server.Table, server.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, firewallresource.ServerTable, firewallresource.ServerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *FirewallResourceClient) Hooks() []Hook {
+	return c.hooks.FirewallResource
+}
+
+// Interceptors returns the client interceptors.
+func (c *FirewallResourceClient) Interceptors() []Interceptor {
+	return c.inters.FirewallResource
+}
+
+func (c *FirewallResourceClient) mutate(ctx context.Context, m *FirewallResourceMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FirewallResourceCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FirewallResourceUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FirewallResourceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FirewallResourceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FirewallResource mutation op: %q", m.Op())
+	}
+}
+
+// FirewallRuleClient is a client for the FirewallRule schema.
+type FirewallRuleClient struct {
+	config
+}
+
+// NewFirewallRuleClient returns a client for the FirewallRule from the given config.
+func NewFirewallRuleClient(c config) *FirewallRuleClient {
+	return &FirewallRuleClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `firewallrule.Hooks(f(g(h())))`.
+func (c *FirewallRuleClient) Use(hooks ...Hook) {
+	c.hooks.FirewallRule = append(c.hooks.FirewallRule, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `firewallrule.Intercept(f(g(h())))`.
+func (c *FirewallRuleClient) Intercept(interceptors ...Interceptor) {
+	c.inters.FirewallRule = append(c.inters.FirewallRule, interceptors...)
+}
+
+// Create returns a builder for creating a FirewallRule entity.
+func (c *FirewallRuleClient) Create() *FirewallRuleCreate {
+	mutation := newFirewallRuleMutation(c.config, OpCreate)
+	return &FirewallRuleCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of FirewallRule entities.
+func (c *FirewallRuleClient) CreateBulk(builders ...*FirewallRuleCreate) *FirewallRuleCreateBulk {
+	return &FirewallRuleCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FirewallRuleClient) MapCreateBulk(slice any, setFunc func(*FirewallRuleCreate, int)) *FirewallRuleCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FirewallRuleCreateBulk{err: fmt.Errorf("calling to FirewallRuleClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FirewallRuleCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FirewallRuleCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for FirewallRule.
+func (c *FirewallRuleClient) Update() *FirewallRuleUpdate {
+	mutation := newFirewallRuleMutation(c.config, OpUpdate)
+	return &FirewallRuleUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FirewallRuleClient) UpdateOne(_m *FirewallRule) *FirewallRuleUpdateOne {
+	mutation := newFirewallRuleMutation(c.config, OpUpdateOne, withFirewallRule(_m))
+	return &FirewallRuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FirewallRuleClient) UpdateOneID(id int64) *FirewallRuleUpdateOne {
+	mutation := newFirewallRuleMutation(c.config, OpUpdateOne, withFirewallRuleID(id))
+	return &FirewallRuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for FirewallRule.
+func (c *FirewallRuleClient) Delete() *FirewallRuleDelete {
+	mutation := newFirewallRuleMutation(c.config, OpDelete)
+	return &FirewallRuleDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FirewallRuleClient) DeleteOne(_m *FirewallRule) *FirewallRuleDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FirewallRuleClient) DeleteOneID(id int64) *FirewallRuleDeleteOne {
+	builder := c.Delete().Where(firewallrule.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FirewallRuleDeleteOne{builder}
+}
+
+// Query returns a query builder for FirewallRule.
+func (c *FirewallRuleClient) Query() *FirewallRuleQuery {
+	return &FirewallRuleQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFirewallRule},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a FirewallRule entity by its id.
+func (c *FirewallRuleClient) Get(ctx context.Context, id int64) (*FirewallRule, error) {
+	return c.Query().Where(firewallrule.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FirewallRuleClient) GetX(ctx context.Context, id int64) *FirewallRule {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryFirewall queries the firewall edge of a FirewallRule.
+func (c *FirewallRuleClient) QueryFirewall(_m *FirewallRule) *FirewallQuery {
+	query := (&FirewallClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(firewallrule.Table, firewallrule.FieldID, id),
+			sqlgraph.To(firewall.Table, firewall.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, firewallrule.FirewallTable, firewallrule.FirewallColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *FirewallRuleClient) Hooks() []Hook {
+	return c.hooks.FirewallRule
+}
+
+// Interceptors returns the client interceptors.
+func (c *FirewallRuleClient) Interceptors() []Interceptor {
+	return c.inters.FirewallRule
+}
+
+func (c *FirewallRuleClient) mutate(ctx context.Context, m *FirewallRuleMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FirewallRuleCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FirewallRuleUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FirewallRuleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FirewallRuleDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown FirewallRule mutation op: %q", m.Op())
 	}
 }
 
@@ -3838,16 +4359,16 @@ func (c *WebauthnCredentialClient) mutate(ctx context.Context, m *WebauthnCreden
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIToken, Action, CatalogBuild, ConsoleToken, IPAllocation, IPPool, Image,
-		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
-		ProjectMember, SSHKey, Server, ServerType, Session, Setting, User,
-		WebauthnChallenge, WebauthnCredential []ent.Hook
+		APIToken, Action, CatalogBuild, ConsoleToken, Firewall, FirewallResource,
+		FirewallRule, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
+		LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server, ServerType,
+		Session, Setting, User, WebauthnChallenge, WebauthnCredential []ent.Hook
 	}
 	inters struct {
-		APIToken, Action, CatalogBuild, ConsoleToken, IPAllocation, IPPool, Image,
-		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
-		ProjectMember, SSHKey, Server, ServerType, Session, Setting, User,
-		WebauthnChallenge, WebauthnCredential []ent.Interceptor
+		APIToken, Action, CatalogBuild, ConsoleToken, Firewall, FirewallResource,
+		FirewallRule, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
+		LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server, ServerType,
+		Session, Setting, User, WebauthnChallenge, WebauthnCredential []ent.Interceptor
 	}
 )
 

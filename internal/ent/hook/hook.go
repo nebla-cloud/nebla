@@ -57,6 +57,42 @@ func (f ConsoleTokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ConsoleTokenMutation", m)
 }
 
+// The FirewallFunc type is an adapter to allow the use of ordinary
+// function as Firewall mutator.
+type FirewallFunc func(context.Context, *ent.FirewallMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FirewallFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FirewallMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FirewallMutation", m)
+}
+
+// The FirewallResourceFunc type is an adapter to allow the use of ordinary
+// function as FirewallResource mutator.
+type FirewallResourceFunc func(context.Context, *ent.FirewallResourceMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FirewallResourceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FirewallResourceMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FirewallResourceMutation", m)
+}
+
+// The FirewallRuleFunc type is an adapter to allow the use of ordinary
+// function as FirewallRule mutator.
+type FirewallRuleFunc func(context.Context, *ent.FirewallRuleMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FirewallRuleFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FirewallRuleMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FirewallRuleMutation", m)
+}
+
 // The IPAllocationFunc type is an adapter to allow the use of ordinary
 // function as IPAllocation mutator.
 type IPAllocationFunc func(context.Context, *ent.IPAllocationMutation) (ent.Value, error)

@@ -165,6 +165,21 @@ func UserData(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldUserData, v))
 }
 
+// FirewallGenDesired applies equality check predicate on the "firewall_gen_desired" field. It's identical to FirewallGenDesiredEQ.
+func FirewallGenDesired(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldFirewallGenDesired, v))
+}
+
+// FirewallGenApplied applies equality check predicate on the "firewall_gen_applied" field. It's identical to FirewallGenAppliedEQ.
+func FirewallGenApplied(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldFirewallGenApplied, v))
+}
+
+// FirewallLeaseUntil applies equality check predicate on the "firewall_lease_until" field. It's identical to FirewallLeaseUntilEQ.
+func FirewallLeaseUntil(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldFirewallLeaseUntil, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreatedAt, v))
@@ -1283,6 +1298,136 @@ func UserDataEqualFold(v string) predicate.Server {
 // UserDataContainsFold applies the ContainsFold predicate on the "user_data" field.
 func UserDataContainsFold(v string) predicate.Server {
 	return predicate.Server(sql.FieldContainsFold(FieldUserData, v))
+}
+
+// FirewallGenDesiredEQ applies the EQ predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldFirewallGenDesired, v))
+}
+
+// FirewallGenDesiredNEQ applies the NEQ predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredNEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldFirewallGenDesired, v))
+}
+
+// FirewallGenDesiredIn applies the In predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldFirewallGenDesired, vs...))
+}
+
+// FirewallGenDesiredNotIn applies the NotIn predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredNotIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldFirewallGenDesired, vs...))
+}
+
+// FirewallGenDesiredGT applies the GT predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredGT(v int64) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldFirewallGenDesired, v))
+}
+
+// FirewallGenDesiredGTE applies the GTE predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredGTE(v int64) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldFirewallGenDesired, v))
+}
+
+// FirewallGenDesiredLT applies the LT predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredLT(v int64) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldFirewallGenDesired, v))
+}
+
+// FirewallGenDesiredLTE applies the LTE predicate on the "firewall_gen_desired" field.
+func FirewallGenDesiredLTE(v int64) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldFirewallGenDesired, v))
+}
+
+// FirewallGenAppliedEQ applies the EQ predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldFirewallGenApplied, v))
+}
+
+// FirewallGenAppliedNEQ applies the NEQ predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedNEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldFirewallGenApplied, v))
+}
+
+// FirewallGenAppliedIn applies the In predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldFirewallGenApplied, vs...))
+}
+
+// FirewallGenAppliedNotIn applies the NotIn predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedNotIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldFirewallGenApplied, vs...))
+}
+
+// FirewallGenAppliedGT applies the GT predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedGT(v int64) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldFirewallGenApplied, v))
+}
+
+// FirewallGenAppliedGTE applies the GTE predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedGTE(v int64) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldFirewallGenApplied, v))
+}
+
+// FirewallGenAppliedLT applies the LT predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedLT(v int64) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldFirewallGenApplied, v))
+}
+
+// FirewallGenAppliedLTE applies the LTE predicate on the "firewall_gen_applied" field.
+func FirewallGenAppliedLTE(v int64) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldFirewallGenApplied, v))
+}
+
+// FirewallLeaseUntilEQ applies the EQ predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilEQ(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldFirewallLeaseUntil, v))
+}
+
+// FirewallLeaseUntilNEQ applies the NEQ predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilNEQ(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldFirewallLeaseUntil, v))
+}
+
+// FirewallLeaseUntilIn applies the In predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilIn(vs ...time.Time) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldFirewallLeaseUntil, vs...))
+}
+
+// FirewallLeaseUntilNotIn applies the NotIn predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilNotIn(vs ...time.Time) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldFirewallLeaseUntil, vs...))
+}
+
+// FirewallLeaseUntilGT applies the GT predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilGT(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldFirewallLeaseUntil, v))
+}
+
+// FirewallLeaseUntilGTE applies the GTE predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilGTE(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldFirewallLeaseUntil, v))
+}
+
+// FirewallLeaseUntilLT applies the LT predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilLT(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldFirewallLeaseUntil, v))
+}
+
+// FirewallLeaseUntilLTE applies the LTE predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilLTE(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldFirewallLeaseUntil, v))
+}
+
+// FirewallLeaseUntilIsNil applies the IsNil predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldFirewallLeaseUntil))
+}
+
+// FirewallLeaseUntilNotNil applies the NotNil predicate on the "firewall_lease_until" field.
+func FirewallLeaseUntilNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldFirewallLeaseUntil))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

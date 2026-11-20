@@ -22,6 +22,12 @@ type Tx struct {
 	CatalogBuild *CatalogBuildClient
 	// ConsoleToken is the client for interacting with the ConsoleToken builders.
 	ConsoleToken *ConsoleTokenClient
+	// Firewall is the client for interacting with the Firewall builders.
+	Firewall *FirewallClient
+	// FirewallResource is the client for interacting with the FirewallResource builders.
+	FirewallResource *FirewallResourceClient
+	// FirewallRule is the client for interacting with the FirewallRule builders.
+	FirewallRule *FirewallRuleClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
 	IPAllocation *IPAllocationClient
 	// IPPool is the client for interacting with the IPPool builders.
@@ -193,6 +199,9 @@ func (tx *Tx) init() {
 	tx.Action = NewActionClient(tx.config)
 	tx.CatalogBuild = NewCatalogBuildClient(tx.config)
 	tx.ConsoleToken = NewConsoleTokenClient(tx.config)
+	tx.Firewall = NewFirewallClient(tx.config)
+	tx.FirewallResource = NewFirewallResourceClient(tx.config)
+	tx.FirewallRule = NewFirewallRuleClient(tx.config)
 	tx.IPAllocation = NewIPAllocationClient(tx.config)
 	tx.IPPool = NewIPPoolClient(tx.config)
 	tx.Image = NewImageClient(tx.config)

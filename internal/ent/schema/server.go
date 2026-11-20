@@ -48,6 +48,10 @@ func (Server) Fields() []ent.Field {
 		// user_data and ssh_keys feed cloud-init and are never returned by the API.
 		field.Text("user_data").Default("").Sensitive(),
 		field.JSON("ssh_keys", []string{}).Sensitive(),
+		// firewall_gen_* track the desired and applied firewall generation; the lease marks a worker apply in flight.
+		field.Int64("firewall_gen_desired").Default(0),
+		field.Int64("firewall_gen_applied").Default(0),
+		field.Time("firewall_lease_until").Optional().Nillable(),
 		createdAt(),
 	}
 }

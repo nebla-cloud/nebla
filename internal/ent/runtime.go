@@ -9,6 +9,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/firewall"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallrule"
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
@@ -90,6 +92,18 @@ func init() {
 	consoletokenDescCreatedAt := consoletokenFields[10].Descriptor()
 	// consoletoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	consoletoken.DefaultCreatedAt = consoletokenDescCreatedAt.Default.(func() time.Time)
+	firewallFields := schema.Firewall{}.Fields()
+	_ = firewallFields
+	// firewallDescCreatedAt is the schema descriptor for created_at field.
+	firewallDescCreatedAt := firewallFields[4].Descriptor()
+	// firewall.DefaultCreatedAt holds the default value on creation for the created_at field.
+	firewall.DefaultCreatedAt = firewallDescCreatedAt.Default.(func() time.Time)
+	firewallruleFields := schema.FirewallRule{}.Fields()
+	_ = firewallruleFields
+	// firewallruleDescDescription is the schema descriptor for description field.
+	firewallruleDescDescription := firewallruleFields[7].Descriptor()
+	// firewallrule.DefaultDescription holds the default value on creation for the description field.
+	firewallrule.DefaultDescription = firewallruleDescDescription.Default.(string)
 	ipallocationFields := schema.IPAllocation{}.Fields()
 	_ = ipallocationFields
 	// ipallocationDescCreatedAt is the schema descriptor for created_at field.
@@ -143,11 +157,11 @@ func init() {
 	// location.DefaultImportStorage holds the default value on creation for the import_storage field.
 	location.DefaultImportStorage = locationDescImportStorage.Default.(string)
 	// locationDescCreatedAt is the schema descriptor for created_at field.
-	locationDescCreatedAt := locationFields[11].Descriptor()
+	locationDescCreatedAt := locationFields[12].Descriptor()
 	// location.DefaultCreatedAt holds the default value on creation for the created_at field.
 	location.DefaultCreatedAt = locationDescCreatedAt.Default.(func() time.Time)
 	// locationDescUpdatedAt is the schema descriptor for updated_at field.
-	locationDescUpdatedAt := locationFields[12].Descriptor()
+	locationDescUpdatedAt := locationFields[13].Descriptor()
 	// location.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
 	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -266,8 +280,16 @@ func init() {
 	serverDescUserData := serverFields[24].Descriptor()
 	// server.DefaultUserData holds the default value on creation for the user_data field.
 	server.DefaultUserData = serverDescUserData.Default.(string)
+	// serverDescFirewallGenDesired is the schema descriptor for firewall_gen_desired field.
+	serverDescFirewallGenDesired := serverFields[26].Descriptor()
+	// server.DefaultFirewallGenDesired holds the default value on creation for the firewall_gen_desired field.
+	server.DefaultFirewallGenDesired = serverDescFirewallGenDesired.Default.(int64)
+	// serverDescFirewallGenApplied is the schema descriptor for firewall_gen_applied field.
+	serverDescFirewallGenApplied := serverFields[27].Descriptor()
+	// server.DefaultFirewallGenApplied holds the default value on creation for the firewall_gen_applied field.
+	server.DefaultFirewallGenApplied = serverDescFirewallGenApplied.Default.(int64)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[26].Descriptor()
+	serverDescCreatedAt := serverFields[29].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()

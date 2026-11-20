@@ -25,6 +25,8 @@ func (Location) Fields() []ent.Field {
 		field.Text("disk_storage"),
 		field.Text("iso_storage"),
 		field.Text("import_storage").Default(""),
+		// firewall_enabled is nil until the datacenter firewall state is known.
+		field.Bool("firewall_enabled").Optional().Nillable(),
 		createdAt(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now).
 			Annotations(entsql.DefaultExpr("now()")),

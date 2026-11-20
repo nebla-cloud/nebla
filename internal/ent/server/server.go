@@ -65,6 +65,12 @@ const (
 	FieldUserData = "user_data"
 	// FieldSSHKeys holds the string denoting the ssh_keys field in the database.
 	FieldSSHKeys = "ssh_keys"
+	// FieldFirewallGenDesired holds the string denoting the firewall_gen_desired field in the database.
+	FieldFirewallGenDesired = "firewall_gen_desired"
+	// FieldFirewallGenApplied holds the string denoting the firewall_gen_applied field in the database.
+	FieldFirewallGenApplied = "firewall_gen_applied"
+	// FieldFirewallLeaseUntil holds the string denoting the firewall_lease_until field in the database.
+	FieldFirewallLeaseUntil = "firewall_lease_until"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -135,6 +141,9 @@ var Columns = []string{
 	FieldDiskGB,
 	FieldUserData,
 	FieldSSHKeys,
+	FieldFirewallGenDesired,
+	FieldFirewallGenApplied,
+	FieldFirewallLeaseUntil,
 	FieldCreatedAt,
 }
 
@@ -159,6 +168,10 @@ var (
 	DefaultRebuildStep int
 	// DefaultUserData holds the default value on creation for the "user_data" field.
 	DefaultUserData string
+	// DefaultFirewallGenDesired holds the default value on creation for the "firewall_gen_desired" field.
+	DefaultFirewallGenDesired int64
+	// DefaultFirewallGenApplied holds the default value on creation for the "firewall_gen_applied" field.
+	DefaultFirewallGenApplied int64
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -317,6 +330,21 @@ func ByDiskGB(opts ...sql.OrderTermOption) OrderOption {
 // ByUserData orders the results by the user_data field.
 func ByUserData(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserData, opts...).ToFunc()
+}
+
+// ByFirewallGenDesired orders the results by the firewall_gen_desired field.
+func ByFirewallGenDesired(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFirewallGenDesired, opts...).ToFunc()
+}
+
+// ByFirewallGenApplied orders the results by the firewall_gen_applied field.
+func ByFirewallGenApplied(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFirewallGenApplied, opts...).ToFunc()
+}
+
+// ByFirewallLeaseUntil orders the results by the firewall_lease_until field.
+func ByFirewallLeaseUntil(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFirewallLeaseUntil, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

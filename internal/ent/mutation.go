@@ -16,6 +16,9 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/ent/firewall"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallrule"
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
@@ -51,6 +54,9 @@ const (
 	TypeAction             = "Action"
 	TypeCatalogBuild       = "CatalogBuild"
 	TypeConsoleToken       = "ConsoleToken"
+	TypeFirewall           = "Firewall"
+	TypeFirewallResource   = "FirewallResource"
+	TypeFirewallRule       = "FirewallRule"
 	TypeIPAllocation       = "IPAllocation"
 	TypeIPPool             = "IPPool"
 	TypeImage              = "Image"
@@ -4896,6 +4902,2147 @@ func (m *ConsoleTokenMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown ConsoleToken edge %s", name)
 }
 
+// FirewallMutation represents an operation that mutates the Firewall nodes in the graph.
+type FirewallMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int64
+	name             *string
+	labels           *map[string]string
+	created_at       *time.Time
+	clearedFields    map[string]struct{}
+	project          *int64
+	clearedproject   bool
+	rules            map[int64]struct{}
+	removedrules     map[int64]struct{}
+	clearedrules     bool
+	resources        map[int64]struct{}
+	removedresources map[int64]struct{}
+	clearedresources bool
+	done             bool
+	oldValue         func(context.Context) (*Firewall, error)
+	predicates       []predicate.Firewall
+}
+
+var _ ent.Mutation = (*FirewallMutation)(nil)
+
+// firewallOption allows management of the mutation configuration using functional options.
+type firewallOption func(*FirewallMutation)
+
+// newFirewallMutation creates new mutation for the Firewall entity.
+func newFirewallMutation(c config, op Op, opts ...firewallOption) *FirewallMutation {
+	m := &FirewallMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFirewall,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFirewallID sets the ID field of the mutation.
+func withFirewallID(id int64) firewallOption {
+	return func(m *FirewallMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Firewall
+		)
+		m.oldValue = func(ctx context.Context) (*Firewall, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Firewall.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFirewall sets the old Firewall of the mutation.
+func withFirewall(node *Firewall) firewallOption {
+	return func(m *FirewallMutation) {
+		m.oldValue = func(context.Context) (*Firewall, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FirewallMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FirewallMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Firewall entities.
+func (m *FirewallMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FirewallMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FirewallMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Firewall.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *FirewallMutation) SetProjectID(i int64) {
+	m.project = &i
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *FirewallMutation) ProjectID() (r int64, exists bool) {
+	v := m.project
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Firewall entity.
+// If the Firewall object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallMutation) OldProjectID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *FirewallMutation) ResetProjectID() {
+	m.project = nil
+}
+
+// SetName sets the "name" field.
+func (m *FirewallMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *FirewallMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Firewall entity.
+// If the Firewall object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *FirewallMutation) ResetName() {
+	m.name = nil
+}
+
+// SetLabels sets the "labels" field.
+func (m *FirewallMutation) SetLabels(value map[string]string) {
+	m.labels = &value
+}
+
+// Labels returns the value of the "labels" field in the mutation.
+func (m *FirewallMutation) Labels() (r map[string]string, exists bool) {
+	v := m.labels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabels returns the old "labels" field's value of the Firewall entity.
+// If the Firewall object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallMutation) OldLabels(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabels is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabels requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabels: %w", err)
+	}
+	return oldValue.Labels, nil
+}
+
+// ResetLabels resets all changes to the "labels" field.
+func (m *FirewallMutation) ResetLabels() {
+	m.labels = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *FirewallMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *FirewallMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Firewall entity.
+// If the Firewall object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *FirewallMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (m *FirewallMutation) ClearProject() {
+	m.clearedproject = true
+	m.clearedFields[firewall.FieldProjectID] = struct{}{}
+}
+
+// ProjectCleared reports if the "project" edge to the Project entity was cleared.
+func (m *FirewallMutation) ProjectCleared() bool {
+	return m.clearedproject
+}
+
+// ProjectIDs returns the "project" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ProjectID instead. It exists only for internal usage by the builders.
+func (m *FirewallMutation) ProjectIDs() (ids []int64) {
+	if id := m.project; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetProject resets all changes to the "project" edge.
+func (m *FirewallMutation) ResetProject() {
+	m.project = nil
+	m.clearedproject = false
+}
+
+// AddRuleIDs adds the "rules" edge to the FirewallRule entity by ids.
+func (m *FirewallMutation) AddRuleIDs(ids ...int64) {
+	if m.rules == nil {
+		m.rules = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.rules[ids[i]] = struct{}{}
+	}
+}
+
+// ClearRules clears the "rules" edge to the FirewallRule entity.
+func (m *FirewallMutation) ClearRules() {
+	m.clearedrules = true
+}
+
+// RulesCleared reports if the "rules" edge to the FirewallRule entity was cleared.
+func (m *FirewallMutation) RulesCleared() bool {
+	return m.clearedrules
+}
+
+// RemoveRuleIDs removes the "rules" edge to the FirewallRule entity by IDs.
+func (m *FirewallMutation) RemoveRuleIDs(ids ...int64) {
+	if m.removedrules == nil {
+		m.removedrules = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.rules, ids[i])
+		m.removedrules[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedRules returns the removed IDs of the "rules" edge to the FirewallRule entity.
+func (m *FirewallMutation) RemovedRulesIDs() (ids []int64) {
+	for id := range m.removedrules {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// RulesIDs returns the "rules" edge IDs in the mutation.
+func (m *FirewallMutation) RulesIDs() (ids []int64) {
+	for id := range m.rules {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetRules resets all changes to the "rules" edge.
+func (m *FirewallMutation) ResetRules() {
+	m.rules = nil
+	m.clearedrules = false
+	m.removedrules = nil
+}
+
+// AddResourceIDs adds the "resources" edge to the FirewallResource entity by ids.
+func (m *FirewallMutation) AddResourceIDs(ids ...int64) {
+	if m.resources == nil {
+		m.resources = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.resources[ids[i]] = struct{}{}
+	}
+}
+
+// ClearResources clears the "resources" edge to the FirewallResource entity.
+func (m *FirewallMutation) ClearResources() {
+	m.clearedresources = true
+}
+
+// ResourcesCleared reports if the "resources" edge to the FirewallResource entity was cleared.
+func (m *FirewallMutation) ResourcesCleared() bool {
+	return m.clearedresources
+}
+
+// RemoveResourceIDs removes the "resources" edge to the FirewallResource entity by IDs.
+func (m *FirewallMutation) RemoveResourceIDs(ids ...int64) {
+	if m.removedresources == nil {
+		m.removedresources = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.resources, ids[i])
+		m.removedresources[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedResources returns the removed IDs of the "resources" edge to the FirewallResource entity.
+func (m *FirewallMutation) RemovedResourcesIDs() (ids []int64) {
+	for id := range m.removedresources {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResourcesIDs returns the "resources" edge IDs in the mutation.
+func (m *FirewallMutation) ResourcesIDs() (ids []int64) {
+	for id := range m.resources {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetResources resets all changes to the "resources" edge.
+func (m *FirewallMutation) ResetResources() {
+	m.resources = nil
+	m.clearedresources = false
+	m.removedresources = nil
+}
+
+// Where appends a list predicates to the FirewallMutation builder.
+func (m *FirewallMutation) Where(ps ...predicate.Firewall) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FirewallMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FirewallMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Firewall, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FirewallMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FirewallMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Firewall).
+func (m *FirewallMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FirewallMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.project != nil {
+		fields = append(fields, firewall.FieldProjectID)
+	}
+	if m.name != nil {
+		fields = append(fields, firewall.FieldName)
+	}
+	if m.labels != nil {
+		fields = append(fields, firewall.FieldLabels)
+	}
+	if m.created_at != nil {
+		fields = append(fields, firewall.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FirewallMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case firewall.FieldProjectID:
+		return m.ProjectID()
+	case firewall.FieldName:
+		return m.Name()
+	case firewall.FieldLabels:
+		return m.Labels()
+	case firewall.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FirewallMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case firewall.FieldProjectID:
+		return m.OldProjectID(ctx)
+	case firewall.FieldName:
+		return m.OldName(ctx)
+	case firewall.FieldLabels:
+		return m.OldLabels(ctx)
+	case firewall.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Firewall field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FirewallMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case firewall.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
+		return nil
+	case firewall.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case firewall.FieldLabels:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabels(v)
+		return nil
+	case firewall.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Firewall field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FirewallMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FirewallMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FirewallMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Firewall numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FirewallMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FirewallMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FirewallMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Firewall nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FirewallMutation) ResetField(name string) error {
+	switch name {
+	case firewall.FieldProjectID:
+		m.ResetProjectID()
+		return nil
+	case firewall.FieldName:
+		m.ResetName()
+		return nil
+	case firewall.FieldLabels:
+		m.ResetLabels()
+		return nil
+	case firewall.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Firewall field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FirewallMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.project != nil {
+		edges = append(edges, firewall.EdgeProject)
+	}
+	if m.rules != nil {
+		edges = append(edges, firewall.EdgeRules)
+	}
+	if m.resources != nil {
+		edges = append(edges, firewall.EdgeResources)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FirewallMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case firewall.EdgeProject:
+		if id := m.project; id != nil {
+			return []ent.Value{*id}
+		}
+	case firewall.EdgeRules:
+		ids := make([]ent.Value, 0, len(m.rules))
+		for id := range m.rules {
+			ids = append(ids, id)
+		}
+		return ids
+	case firewall.EdgeResources:
+		ids := make([]ent.Value, 0, len(m.resources))
+		for id := range m.resources {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FirewallMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.removedrules != nil {
+		edges = append(edges, firewall.EdgeRules)
+	}
+	if m.removedresources != nil {
+		edges = append(edges, firewall.EdgeResources)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FirewallMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case firewall.EdgeRules:
+		ids := make([]ent.Value, 0, len(m.removedrules))
+		for id := range m.removedrules {
+			ids = append(ids, id)
+		}
+		return ids
+	case firewall.EdgeResources:
+		ids := make([]ent.Value, 0, len(m.removedresources))
+		for id := range m.removedresources {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FirewallMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedproject {
+		edges = append(edges, firewall.EdgeProject)
+	}
+	if m.clearedrules {
+		edges = append(edges, firewall.EdgeRules)
+	}
+	if m.clearedresources {
+		edges = append(edges, firewall.EdgeResources)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FirewallMutation) EdgeCleared(name string) bool {
+	switch name {
+	case firewall.EdgeProject:
+		return m.clearedproject
+	case firewall.EdgeRules:
+		return m.clearedrules
+	case firewall.EdgeResources:
+		return m.clearedresources
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FirewallMutation) ClearEdge(name string) error {
+	switch name {
+	case firewall.EdgeProject:
+		m.ClearProject()
+		return nil
+	}
+	return fmt.Errorf("unknown Firewall unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FirewallMutation) ResetEdge(name string) error {
+	switch name {
+	case firewall.EdgeProject:
+		m.ResetProject()
+		return nil
+	case firewall.EdgeRules:
+		m.ResetRules()
+		return nil
+	case firewall.EdgeResources:
+		m.ResetResources()
+		return nil
+	}
+	return fmt.Errorf("unknown Firewall edge %s", name)
+}
+
+// FirewallResourceMutation represents an operation that mutates the FirewallResource nodes in the graph.
+type FirewallResourceMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	_type           *firewallresource.Type
+	selector        *string
+	clearedFields   map[string]struct{}
+	firewall        *int64
+	clearedfirewall bool
+	server          *int64
+	clearedserver   bool
+	done            bool
+	oldValue        func(context.Context) (*FirewallResource, error)
+	predicates      []predicate.FirewallResource
+}
+
+var _ ent.Mutation = (*FirewallResourceMutation)(nil)
+
+// firewallresourceOption allows management of the mutation configuration using functional options.
+type firewallresourceOption func(*FirewallResourceMutation)
+
+// newFirewallResourceMutation creates new mutation for the FirewallResource entity.
+func newFirewallResourceMutation(c config, op Op, opts ...firewallresourceOption) *FirewallResourceMutation {
+	m := &FirewallResourceMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFirewallResource,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFirewallResourceID sets the ID field of the mutation.
+func withFirewallResourceID(id int64) firewallresourceOption {
+	return func(m *FirewallResourceMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *FirewallResource
+		)
+		m.oldValue = func(ctx context.Context) (*FirewallResource, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().FirewallResource.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFirewallResource sets the old FirewallResource of the mutation.
+func withFirewallResource(node *FirewallResource) firewallresourceOption {
+	return func(m *FirewallResourceMutation) {
+		m.oldValue = func(context.Context) (*FirewallResource, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FirewallResourceMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FirewallResourceMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of FirewallResource entities.
+func (m *FirewallResourceMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FirewallResourceMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FirewallResourceMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().FirewallResource.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetFirewallID sets the "firewall_id" field.
+func (m *FirewallResourceMutation) SetFirewallID(i int64) {
+	m.firewall = &i
+}
+
+// FirewallID returns the value of the "firewall_id" field in the mutation.
+func (m *FirewallResourceMutation) FirewallID() (r int64, exists bool) {
+	v := m.firewall
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirewallID returns the old "firewall_id" field's value of the FirewallResource entity.
+// If the FirewallResource object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallResourceMutation) OldFirewallID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirewallID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirewallID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirewallID: %w", err)
+	}
+	return oldValue.FirewallID, nil
+}
+
+// ResetFirewallID resets all changes to the "firewall_id" field.
+func (m *FirewallResourceMutation) ResetFirewallID() {
+	m.firewall = nil
+}
+
+// SetType sets the "type" field.
+func (m *FirewallResourceMutation) SetType(f firewallresource.Type) {
+	m._type = &f
+}
+
+// GetType returns the value of the "type" field in the mutation.
+func (m *FirewallResourceMutation) GetType() (r firewallresource.Type, exists bool) {
+	v := m._type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldType returns the old "type" field's value of the FirewallResource entity.
+// If the FirewallResource object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallResourceMutation) OldType(ctx context.Context) (v firewallresource.Type, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldType: %w", err)
+	}
+	return oldValue.Type, nil
+}
+
+// ResetType resets all changes to the "type" field.
+func (m *FirewallResourceMutation) ResetType() {
+	m._type = nil
+}
+
+// SetServerID sets the "server_id" field.
+func (m *FirewallResourceMutation) SetServerID(i int64) {
+	m.server = &i
+}
+
+// ServerID returns the value of the "server_id" field in the mutation.
+func (m *FirewallResourceMutation) ServerID() (r int64, exists bool) {
+	v := m.server
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerID returns the old "server_id" field's value of the FirewallResource entity.
+// If the FirewallResource object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallResourceMutation) OldServerID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerID: %w", err)
+	}
+	return oldValue.ServerID, nil
+}
+
+// ClearServerID clears the value of the "server_id" field.
+func (m *FirewallResourceMutation) ClearServerID() {
+	m.server = nil
+	m.clearedFields[firewallresource.FieldServerID] = struct{}{}
+}
+
+// ServerIDCleared returns if the "server_id" field was cleared in this mutation.
+func (m *FirewallResourceMutation) ServerIDCleared() bool {
+	_, ok := m.clearedFields[firewallresource.FieldServerID]
+	return ok
+}
+
+// ResetServerID resets all changes to the "server_id" field.
+func (m *FirewallResourceMutation) ResetServerID() {
+	m.server = nil
+	delete(m.clearedFields, firewallresource.FieldServerID)
+}
+
+// SetSelector sets the "selector" field.
+func (m *FirewallResourceMutation) SetSelector(s string) {
+	m.selector = &s
+}
+
+// Selector returns the value of the "selector" field in the mutation.
+func (m *FirewallResourceMutation) Selector() (r string, exists bool) {
+	v := m.selector
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSelector returns the old "selector" field's value of the FirewallResource entity.
+// If the FirewallResource object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallResourceMutation) OldSelector(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSelector is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSelector requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSelector: %w", err)
+	}
+	return oldValue.Selector, nil
+}
+
+// ClearSelector clears the value of the "selector" field.
+func (m *FirewallResourceMutation) ClearSelector() {
+	m.selector = nil
+	m.clearedFields[firewallresource.FieldSelector] = struct{}{}
+}
+
+// SelectorCleared returns if the "selector" field was cleared in this mutation.
+func (m *FirewallResourceMutation) SelectorCleared() bool {
+	_, ok := m.clearedFields[firewallresource.FieldSelector]
+	return ok
+}
+
+// ResetSelector resets all changes to the "selector" field.
+func (m *FirewallResourceMutation) ResetSelector() {
+	m.selector = nil
+	delete(m.clearedFields, firewallresource.FieldSelector)
+}
+
+// ClearFirewall clears the "firewall" edge to the Firewall entity.
+func (m *FirewallResourceMutation) ClearFirewall() {
+	m.clearedfirewall = true
+	m.clearedFields[firewallresource.FieldFirewallID] = struct{}{}
+}
+
+// FirewallCleared reports if the "firewall" edge to the Firewall entity was cleared.
+func (m *FirewallResourceMutation) FirewallCleared() bool {
+	return m.clearedfirewall
+}
+
+// FirewallIDs returns the "firewall" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// FirewallID instead. It exists only for internal usage by the builders.
+func (m *FirewallResourceMutation) FirewallIDs() (ids []int64) {
+	if id := m.firewall; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetFirewall resets all changes to the "firewall" edge.
+func (m *FirewallResourceMutation) ResetFirewall() {
+	m.firewall = nil
+	m.clearedfirewall = false
+}
+
+// ClearServer clears the "server" edge to the Server entity.
+func (m *FirewallResourceMutation) ClearServer() {
+	m.clearedserver = true
+	m.clearedFields[firewallresource.FieldServerID] = struct{}{}
+}
+
+// ServerCleared reports if the "server" edge to the Server entity was cleared.
+func (m *FirewallResourceMutation) ServerCleared() bool {
+	return m.ServerIDCleared() || m.clearedserver
+}
+
+// ServerIDs returns the "server" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServerID instead. It exists only for internal usage by the builders.
+func (m *FirewallResourceMutation) ServerIDs() (ids []int64) {
+	if id := m.server; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetServer resets all changes to the "server" edge.
+func (m *FirewallResourceMutation) ResetServer() {
+	m.server = nil
+	m.clearedserver = false
+}
+
+// Where appends a list predicates to the FirewallResourceMutation builder.
+func (m *FirewallResourceMutation) Where(ps ...predicate.FirewallResource) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FirewallResourceMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FirewallResourceMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.FirewallResource, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FirewallResourceMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FirewallResourceMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (FirewallResource).
+func (m *FirewallResourceMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FirewallResourceMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.firewall != nil {
+		fields = append(fields, firewallresource.FieldFirewallID)
+	}
+	if m._type != nil {
+		fields = append(fields, firewallresource.FieldType)
+	}
+	if m.server != nil {
+		fields = append(fields, firewallresource.FieldServerID)
+	}
+	if m.selector != nil {
+		fields = append(fields, firewallresource.FieldSelector)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FirewallResourceMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case firewallresource.FieldFirewallID:
+		return m.FirewallID()
+	case firewallresource.FieldType:
+		return m.GetType()
+	case firewallresource.FieldServerID:
+		return m.ServerID()
+	case firewallresource.FieldSelector:
+		return m.Selector()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FirewallResourceMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case firewallresource.FieldFirewallID:
+		return m.OldFirewallID(ctx)
+	case firewallresource.FieldType:
+		return m.OldType(ctx)
+	case firewallresource.FieldServerID:
+		return m.OldServerID(ctx)
+	case firewallresource.FieldSelector:
+		return m.OldSelector(ctx)
+	}
+	return nil, fmt.Errorf("unknown FirewallResource field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FirewallResourceMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case firewallresource.FieldFirewallID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirewallID(v)
+		return nil
+	case firewallresource.FieldType:
+		v, ok := value.(firewallresource.Type)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetType(v)
+		return nil
+	case firewallresource.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerID(v)
+		return nil
+	case firewallresource.FieldSelector:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSelector(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallResource field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FirewallResourceMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FirewallResourceMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FirewallResourceMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown FirewallResource numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FirewallResourceMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(firewallresource.FieldServerID) {
+		fields = append(fields, firewallresource.FieldServerID)
+	}
+	if m.FieldCleared(firewallresource.FieldSelector) {
+		fields = append(fields, firewallresource.FieldSelector)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FirewallResourceMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FirewallResourceMutation) ClearField(name string) error {
+	switch name {
+	case firewallresource.FieldServerID:
+		m.ClearServerID()
+		return nil
+	case firewallresource.FieldSelector:
+		m.ClearSelector()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallResource nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FirewallResourceMutation) ResetField(name string) error {
+	switch name {
+	case firewallresource.FieldFirewallID:
+		m.ResetFirewallID()
+		return nil
+	case firewallresource.FieldType:
+		m.ResetType()
+		return nil
+	case firewallresource.FieldServerID:
+		m.ResetServerID()
+		return nil
+	case firewallresource.FieldSelector:
+		m.ResetSelector()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallResource field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FirewallResourceMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.firewall != nil {
+		edges = append(edges, firewallresource.EdgeFirewall)
+	}
+	if m.server != nil {
+		edges = append(edges, firewallresource.EdgeServer)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FirewallResourceMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case firewallresource.EdgeFirewall:
+		if id := m.firewall; id != nil {
+			return []ent.Value{*id}
+		}
+	case firewallresource.EdgeServer:
+		if id := m.server; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FirewallResourceMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FirewallResourceMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FirewallResourceMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedfirewall {
+		edges = append(edges, firewallresource.EdgeFirewall)
+	}
+	if m.clearedserver {
+		edges = append(edges, firewallresource.EdgeServer)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FirewallResourceMutation) EdgeCleared(name string) bool {
+	switch name {
+	case firewallresource.EdgeFirewall:
+		return m.clearedfirewall
+	case firewallresource.EdgeServer:
+		return m.clearedserver
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FirewallResourceMutation) ClearEdge(name string) error {
+	switch name {
+	case firewallresource.EdgeFirewall:
+		m.ClearFirewall()
+		return nil
+	case firewallresource.EdgeServer:
+		m.ClearServer()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallResource unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FirewallResourceMutation) ResetEdge(name string) error {
+	switch name {
+	case firewallresource.EdgeFirewall:
+		m.ResetFirewall()
+		return nil
+	case firewallresource.EdgeServer:
+		m.ResetServer()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallResource edge %s", name)
+}
+
+// FirewallRuleMutation represents an operation that mutates the FirewallRule nodes in the graph.
+type FirewallRuleMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	position        *int
+	addposition     *int
+	direction       *schema.Direction
+	protocol        *firewallrule.Protocol
+	port            *string
+	ips             *[]string
+	appendips       []string
+	description     *string
+	clearedFields   map[string]struct{}
+	firewall        *int64
+	clearedfirewall bool
+	done            bool
+	oldValue        func(context.Context) (*FirewallRule, error)
+	predicates      []predicate.FirewallRule
+}
+
+var _ ent.Mutation = (*FirewallRuleMutation)(nil)
+
+// firewallruleOption allows management of the mutation configuration using functional options.
+type firewallruleOption func(*FirewallRuleMutation)
+
+// newFirewallRuleMutation creates new mutation for the FirewallRule entity.
+func newFirewallRuleMutation(c config, op Op, opts ...firewallruleOption) *FirewallRuleMutation {
+	m := &FirewallRuleMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeFirewallRule,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withFirewallRuleID sets the ID field of the mutation.
+func withFirewallRuleID(id int64) firewallruleOption {
+	return func(m *FirewallRuleMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *FirewallRule
+		)
+		m.oldValue = func(ctx context.Context) (*FirewallRule, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().FirewallRule.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withFirewallRule sets the old FirewallRule of the mutation.
+func withFirewallRule(node *FirewallRule) firewallruleOption {
+	return func(m *FirewallRuleMutation) {
+		m.oldValue = func(context.Context) (*FirewallRule, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m FirewallRuleMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m FirewallRuleMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of FirewallRule entities.
+func (m *FirewallRuleMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *FirewallRuleMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *FirewallRuleMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().FirewallRule.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetFirewallID sets the "firewall_id" field.
+func (m *FirewallRuleMutation) SetFirewallID(i int64) {
+	m.firewall = &i
+}
+
+// FirewallID returns the value of the "firewall_id" field in the mutation.
+func (m *FirewallRuleMutation) FirewallID() (r int64, exists bool) {
+	v := m.firewall
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirewallID returns the old "firewall_id" field's value of the FirewallRule entity.
+// If the FirewallRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallRuleMutation) OldFirewallID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirewallID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirewallID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirewallID: %w", err)
+	}
+	return oldValue.FirewallID, nil
+}
+
+// ResetFirewallID resets all changes to the "firewall_id" field.
+func (m *FirewallRuleMutation) ResetFirewallID() {
+	m.firewall = nil
+}
+
+// SetPosition sets the "position" field.
+func (m *FirewallRuleMutation) SetPosition(i int) {
+	m.position = &i
+	m.addposition = nil
+}
+
+// Position returns the value of the "position" field in the mutation.
+func (m *FirewallRuleMutation) Position() (r int, exists bool) {
+	v := m.position
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPosition returns the old "position" field's value of the FirewallRule entity.
+// If the FirewallRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallRuleMutation) OldPosition(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPosition is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPosition requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPosition: %w", err)
+	}
+	return oldValue.Position, nil
+}
+
+// AddPosition adds i to the "position" field.
+func (m *FirewallRuleMutation) AddPosition(i int) {
+	if m.addposition != nil {
+		*m.addposition += i
+	} else {
+		m.addposition = &i
+	}
+}
+
+// AddedPosition returns the value that was added to the "position" field in this mutation.
+func (m *FirewallRuleMutation) AddedPosition() (r int, exists bool) {
+	v := m.addposition
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPosition resets all changes to the "position" field.
+func (m *FirewallRuleMutation) ResetPosition() {
+	m.position = nil
+	m.addposition = nil
+}
+
+// SetDirection sets the "direction" field.
+func (m *FirewallRuleMutation) SetDirection(s schema.Direction) {
+	m.direction = &s
+}
+
+// Direction returns the value of the "direction" field in the mutation.
+func (m *FirewallRuleMutation) Direction() (r schema.Direction, exists bool) {
+	v := m.direction
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDirection returns the old "direction" field's value of the FirewallRule entity.
+// If the FirewallRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallRuleMutation) OldDirection(ctx context.Context) (v schema.Direction, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDirection is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDirection requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDirection: %w", err)
+	}
+	return oldValue.Direction, nil
+}
+
+// ResetDirection resets all changes to the "direction" field.
+func (m *FirewallRuleMutation) ResetDirection() {
+	m.direction = nil
+}
+
+// SetProtocol sets the "protocol" field.
+func (m *FirewallRuleMutation) SetProtocol(f firewallrule.Protocol) {
+	m.protocol = &f
+}
+
+// Protocol returns the value of the "protocol" field in the mutation.
+func (m *FirewallRuleMutation) Protocol() (r firewallrule.Protocol, exists bool) {
+	v := m.protocol
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProtocol returns the old "protocol" field's value of the FirewallRule entity.
+// If the FirewallRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallRuleMutation) OldProtocol(ctx context.Context) (v firewallrule.Protocol, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProtocol is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProtocol requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProtocol: %w", err)
+	}
+	return oldValue.Protocol, nil
+}
+
+// ResetProtocol resets all changes to the "protocol" field.
+func (m *FirewallRuleMutation) ResetProtocol() {
+	m.protocol = nil
+}
+
+// SetPort sets the "port" field.
+func (m *FirewallRuleMutation) SetPort(s string) {
+	m.port = &s
+}
+
+// Port returns the value of the "port" field in the mutation.
+func (m *FirewallRuleMutation) Port() (r string, exists bool) {
+	v := m.port
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPort returns the old "port" field's value of the FirewallRule entity.
+// If the FirewallRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallRuleMutation) OldPort(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPort is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPort requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPort: %w", err)
+	}
+	return oldValue.Port, nil
+}
+
+// ClearPort clears the value of the "port" field.
+func (m *FirewallRuleMutation) ClearPort() {
+	m.port = nil
+	m.clearedFields[firewallrule.FieldPort] = struct{}{}
+}
+
+// PortCleared returns if the "port" field was cleared in this mutation.
+func (m *FirewallRuleMutation) PortCleared() bool {
+	_, ok := m.clearedFields[firewallrule.FieldPort]
+	return ok
+}
+
+// ResetPort resets all changes to the "port" field.
+func (m *FirewallRuleMutation) ResetPort() {
+	m.port = nil
+	delete(m.clearedFields, firewallrule.FieldPort)
+}
+
+// SetIps sets the "ips" field.
+func (m *FirewallRuleMutation) SetIps(s []string) {
+	m.ips = &s
+	m.appendips = nil
+}
+
+// Ips returns the value of the "ips" field in the mutation.
+func (m *FirewallRuleMutation) Ips() (r []string, exists bool) {
+	v := m.ips
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIps returns the old "ips" field's value of the FirewallRule entity.
+// If the FirewallRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallRuleMutation) OldIps(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIps is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIps requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIps: %w", err)
+	}
+	return oldValue.Ips, nil
+}
+
+// AppendIps adds s to the "ips" field.
+func (m *FirewallRuleMutation) AppendIps(s []string) {
+	m.appendips = append(m.appendips, s...)
+}
+
+// AppendedIps returns the list of values that were appended to the "ips" field in this mutation.
+func (m *FirewallRuleMutation) AppendedIps() ([]string, bool) {
+	if len(m.appendips) == 0 {
+		return nil, false
+	}
+	return m.appendips, true
+}
+
+// ResetIps resets all changes to the "ips" field.
+func (m *FirewallRuleMutation) ResetIps() {
+	m.ips = nil
+	m.appendips = nil
+}
+
+// SetDescription sets the "description" field.
+func (m *FirewallRuleMutation) SetDescription(s string) {
+	m.description = &s
+}
+
+// Description returns the value of the "description" field in the mutation.
+func (m *FirewallRuleMutation) Description() (r string, exists bool) {
+	v := m.description
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDescription returns the old "description" field's value of the FirewallRule entity.
+// If the FirewallRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *FirewallRuleMutation) OldDescription(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDescription is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDescription requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDescription: %w", err)
+	}
+	return oldValue.Description, nil
+}
+
+// ResetDescription resets all changes to the "description" field.
+func (m *FirewallRuleMutation) ResetDescription() {
+	m.description = nil
+}
+
+// ClearFirewall clears the "firewall" edge to the Firewall entity.
+func (m *FirewallRuleMutation) ClearFirewall() {
+	m.clearedfirewall = true
+	m.clearedFields[firewallrule.FieldFirewallID] = struct{}{}
+}
+
+// FirewallCleared reports if the "firewall" edge to the Firewall entity was cleared.
+func (m *FirewallRuleMutation) FirewallCleared() bool {
+	return m.clearedfirewall
+}
+
+// FirewallIDs returns the "firewall" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// FirewallID instead. It exists only for internal usage by the builders.
+func (m *FirewallRuleMutation) FirewallIDs() (ids []int64) {
+	if id := m.firewall; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetFirewall resets all changes to the "firewall" edge.
+func (m *FirewallRuleMutation) ResetFirewall() {
+	m.firewall = nil
+	m.clearedfirewall = false
+}
+
+// Where appends a list predicates to the FirewallRuleMutation builder.
+func (m *FirewallRuleMutation) Where(ps ...predicate.FirewallRule) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the FirewallRuleMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *FirewallRuleMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.FirewallRule, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *FirewallRuleMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *FirewallRuleMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (FirewallRule).
+func (m *FirewallRuleMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *FirewallRuleMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.firewall != nil {
+		fields = append(fields, firewallrule.FieldFirewallID)
+	}
+	if m.position != nil {
+		fields = append(fields, firewallrule.FieldPosition)
+	}
+	if m.direction != nil {
+		fields = append(fields, firewallrule.FieldDirection)
+	}
+	if m.protocol != nil {
+		fields = append(fields, firewallrule.FieldProtocol)
+	}
+	if m.port != nil {
+		fields = append(fields, firewallrule.FieldPort)
+	}
+	if m.ips != nil {
+		fields = append(fields, firewallrule.FieldIps)
+	}
+	if m.description != nil {
+		fields = append(fields, firewallrule.FieldDescription)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *FirewallRuleMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case firewallrule.FieldFirewallID:
+		return m.FirewallID()
+	case firewallrule.FieldPosition:
+		return m.Position()
+	case firewallrule.FieldDirection:
+		return m.Direction()
+	case firewallrule.FieldProtocol:
+		return m.Protocol()
+	case firewallrule.FieldPort:
+		return m.Port()
+	case firewallrule.FieldIps:
+		return m.Ips()
+	case firewallrule.FieldDescription:
+		return m.Description()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *FirewallRuleMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case firewallrule.FieldFirewallID:
+		return m.OldFirewallID(ctx)
+	case firewallrule.FieldPosition:
+		return m.OldPosition(ctx)
+	case firewallrule.FieldDirection:
+		return m.OldDirection(ctx)
+	case firewallrule.FieldProtocol:
+		return m.OldProtocol(ctx)
+	case firewallrule.FieldPort:
+		return m.OldPort(ctx)
+	case firewallrule.FieldIps:
+		return m.OldIps(ctx)
+	case firewallrule.FieldDescription:
+		return m.OldDescription(ctx)
+	}
+	return nil, fmt.Errorf("unknown FirewallRule field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FirewallRuleMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case firewallrule.FieldFirewallID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirewallID(v)
+		return nil
+	case firewallrule.FieldPosition:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPosition(v)
+		return nil
+	case firewallrule.FieldDirection:
+		v, ok := value.(schema.Direction)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDirection(v)
+		return nil
+	case firewallrule.FieldProtocol:
+		v, ok := value.(firewallrule.Protocol)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProtocol(v)
+		return nil
+	case firewallrule.FieldPort:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPort(v)
+		return nil
+	case firewallrule.FieldIps:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIps(v)
+		return nil
+	case firewallrule.FieldDescription:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDescription(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallRule field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *FirewallRuleMutation) AddedFields() []string {
+	var fields []string
+	if m.addposition != nil {
+		fields = append(fields, firewallrule.FieldPosition)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *FirewallRuleMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case firewallrule.FieldPosition:
+		return m.AddedPosition()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *FirewallRuleMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case firewallrule.FieldPosition:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPosition(v)
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallRule numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *FirewallRuleMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(firewallrule.FieldPort) {
+		fields = append(fields, firewallrule.FieldPort)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *FirewallRuleMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *FirewallRuleMutation) ClearField(name string) error {
+	switch name {
+	case firewallrule.FieldPort:
+		m.ClearPort()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallRule nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *FirewallRuleMutation) ResetField(name string) error {
+	switch name {
+	case firewallrule.FieldFirewallID:
+		m.ResetFirewallID()
+		return nil
+	case firewallrule.FieldPosition:
+		m.ResetPosition()
+		return nil
+	case firewallrule.FieldDirection:
+		m.ResetDirection()
+		return nil
+	case firewallrule.FieldProtocol:
+		m.ResetProtocol()
+		return nil
+	case firewallrule.FieldPort:
+		m.ResetPort()
+		return nil
+	case firewallrule.FieldIps:
+		m.ResetIps()
+		return nil
+	case firewallrule.FieldDescription:
+		m.ResetDescription()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallRule field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *FirewallRuleMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.firewall != nil {
+		edges = append(edges, firewallrule.EdgeFirewall)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *FirewallRuleMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case firewallrule.EdgeFirewall:
+		if id := m.firewall; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *FirewallRuleMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *FirewallRuleMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *FirewallRuleMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedfirewall {
+		edges = append(edges, firewallrule.EdgeFirewall)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *FirewallRuleMutation) EdgeCleared(name string) bool {
+	switch name {
+	case firewallrule.EdgeFirewall:
+		return m.clearedfirewall
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *FirewallRuleMutation) ClearEdge(name string) error {
+	switch name {
+	case firewallrule.EdgeFirewall:
+		m.ClearFirewall()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallRule unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *FirewallRuleMutation) ResetEdge(name string) error {
+	switch name {
+	case firewallrule.EdgeFirewall:
+		m.ResetFirewall()
+		return nil
+	}
+	return fmt.Errorf("unknown FirewallRule edge %s", name)
+}
+
 // IPAllocationMutation represents an operation that mutates the IPAllocation nodes in the graph.
 type IPAllocationMutation struct {
 	config
@@ -8723,6 +10870,7 @@ type LocationMutation struct {
 	disk_storage           *string
 	iso_storage            *string
 	import_storage         *string
+	firewall_enabled       *bool
 	created_at             *time.Time
 	updated_at             *time.Time
 	clearedFields          map[string]struct{}
@@ -9207,6 +11355,55 @@ func (m *LocationMutation) ResetImportStorage() {
 	m.import_storage = nil
 }
 
+// SetFirewallEnabled sets the "firewall_enabled" field.
+func (m *LocationMutation) SetFirewallEnabled(b bool) {
+	m.firewall_enabled = &b
+}
+
+// FirewallEnabled returns the value of the "firewall_enabled" field in the mutation.
+func (m *LocationMutation) FirewallEnabled() (r bool, exists bool) {
+	v := m.firewall_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirewallEnabled returns the old "firewall_enabled" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldFirewallEnabled(ctx context.Context) (v *bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirewallEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirewallEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirewallEnabled: %w", err)
+	}
+	return oldValue.FirewallEnabled, nil
+}
+
+// ClearFirewallEnabled clears the value of the "firewall_enabled" field.
+func (m *LocationMutation) ClearFirewallEnabled() {
+	m.firewall_enabled = nil
+	m.clearedFields[location.FieldFirewallEnabled] = struct{}{}
+}
+
+// FirewallEnabledCleared returns if the "firewall_enabled" field was cleared in this mutation.
+func (m *LocationMutation) FirewallEnabledCleared() bool {
+	_, ok := m.clearedFields[location.FieldFirewallEnabled]
+	return ok
+}
+
+// ResetFirewallEnabled resets all changes to the "firewall_enabled" field.
+func (m *LocationMutation) ResetFirewallEnabled() {
+	m.firewall_enabled = nil
+	delete(m.clearedFields, location.FieldFirewallEnabled)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *LocationMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -9529,7 +11726,7 @@ func (m *LocationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *LocationMutation) Fields() []string {
-	fields := make([]string, 0, 12)
+	fields := make([]string, 0, 13)
 	if m.name != nil {
 		fields = append(fields, location.FieldName)
 	}
@@ -9559,6 +11756,9 @@ func (m *LocationMutation) Fields() []string {
 	}
 	if m.import_storage != nil {
 		fields = append(fields, location.FieldImportStorage)
+	}
+	if m.firewall_enabled != nil {
+		fields = append(fields, location.FieldFirewallEnabled)
 	}
 	if m.created_at != nil {
 		fields = append(fields, location.FieldCreatedAt)
@@ -9594,6 +11794,8 @@ func (m *LocationMutation) Field(name string) (ent.Value, bool) {
 		return m.IsoStorage()
 	case location.FieldImportStorage:
 		return m.ImportStorage()
+	case location.FieldFirewallEnabled:
+		return m.FirewallEnabled()
 	case location.FieldCreatedAt:
 		return m.CreatedAt()
 	case location.FieldUpdatedAt:
@@ -9627,6 +11829,8 @@ func (m *LocationMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldIsoStorage(ctx)
 	case location.FieldImportStorage:
 		return m.OldImportStorage(ctx)
+	case location.FieldFirewallEnabled:
+		return m.OldFirewallEnabled(ctx)
 	case location.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case location.FieldUpdatedAt:
@@ -9710,6 +11914,13 @@ func (m *LocationMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetImportStorage(v)
 		return nil
+	case location.FieldFirewallEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirewallEnabled(v)
+		return nil
 	case location.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -9753,7 +11964,11 @@ func (m *LocationMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *LocationMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(location.FieldFirewallEnabled) {
+		fields = append(fields, location.FieldFirewallEnabled)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -9766,6 +11981,11 @@ func (m *LocationMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *LocationMutation) ClearField(name string) error {
+	switch name {
+	case location.FieldFirewallEnabled:
+		m.ClearFirewallEnabled()
+		return nil
+	}
 	return fmt.Errorf("unknown Location nullable field %s", name)
 }
 
@@ -9802,6 +12022,9 @@ func (m *LocationMutation) ResetField(name string) error {
 		return nil
 	case location.FieldImportStorage:
 		m.ResetImportStorage()
+		return nil
+	case location.FieldFirewallEnabled:
+		m.ResetFirewallEnabled()
 		return nil
 	case location.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -14395,53 +16618,58 @@ func (m *SSHKeyMutation) ResetEdge(name string) error {
 // ServerMutation represents an operation that mutates the Server nodes in the graph.
 type ServerMutation struct {
 	config
-	op                  Op
-	typ                 string
-	id                  *int64
-	name                *string
-	node                *string
-	vmid                *int
-	addvmid             *int
-	template_vmid       *int
-	addtemplate_vmid    *int
-	status              *server.Status
-	mac                 *string
-	labels              *map[string]string
-	iso_volid           *string
-	iso_generation      *int
-	addiso_generation   *int
-	clone_upid          *string
-	clone_nonce         *string
-	create_step         *int
-	addcreate_step      *int
-	rebuild_vmid        *int
-	addrebuild_vmid     *int
-	rebuild_clone_upid  *string
-	rebuild_clone_nonce *string
-	rebuild_step        *int
-	addrebuild_step     *int
-	cores               *int
-	addcores            *int
-	memory_mb           *int
-	addmemory_mb        *int
-	disk_gb             *int
-	adddisk_gb          *int
-	user_data           *string
-	ssh_keys            *[]string
-	appendssh_keys      []string
-	created_at          *time.Time
-	clearedFields       map[string]struct{}
-	project             *int64
-	clearedproject      bool
-	location            *int64
-	clearedlocation     bool
-	server_type         *int64
-	clearedserver_type  bool
-	image               *int64
-	clearedimage        bool
-	done                bool
-	oldValue            func(context.Context) (*Server, error)
-	predicates          []predicate.Server
+	op                      Op
+	typ                     string
+	id                      *int64
+	name                    *string
+	node                    *string
+	vmid                    *int
+	addvmid                 *int
+	template_vmid           *int
+	addtemplate_vmid        *int
+	status                  *server.Status
+	mac                     *string
+	labels                  *map[string]string
+	iso_volid               *string
+	iso_generation          *int
+	addiso_generation       *int
+	clone_upid              *string
+	clone_nonce             *string
+	create_step             *int
+	addcreate_step          *int
+	rebuild_vmid            *int
+	addrebuild_vmid         *int
+	rebuild_clone_upid      *string
+	rebuild_clone_nonce     *string
+	rebuild_step            *int
+	addrebuild_step         *int
+	cores                   *int
+	addcores                *int
+	memory_mb               *int
+	addmemory_mb            *int
+	disk_gb                 *int
+	adddisk_gb              *int
+	user_data               *string
+	ssh_keys                *[]string
+	appendssh_keys          []string
+	firewall_gen_desired    *int64
+	addfirewall_gen_desired *int64
+	firewall_gen_applied    *int64
+	addfirewall_gen_applied *int64
+	firewall_lease_until    *time.Time
+	created_at              *time.Time
+	clearedFields           map[string]struct{}
+	project                 *int64
+	clearedproject          bool
+	location                *int64
+	clearedlocation         bool
+	server_type             *int64
+	clearedserver_type      bool
+	image                   *int64
+	clearedimage            bool
+	done                    bool
+	oldValue                func(context.Context) (*Server, error)
+	predicates              []predicate.Server
 }
 
 var _ ent.Mutation = (*ServerMutation)(nil)
@@ -15736,6 +17964,167 @@ func (m *ServerMutation) ResetSSHKeys() {
 	m.appendssh_keys = nil
 }
 
+// SetFirewallGenDesired sets the "firewall_gen_desired" field.
+func (m *ServerMutation) SetFirewallGenDesired(i int64) {
+	m.firewall_gen_desired = &i
+	m.addfirewall_gen_desired = nil
+}
+
+// FirewallGenDesired returns the value of the "firewall_gen_desired" field in the mutation.
+func (m *ServerMutation) FirewallGenDesired() (r int64, exists bool) {
+	v := m.firewall_gen_desired
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirewallGenDesired returns the old "firewall_gen_desired" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldFirewallGenDesired(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirewallGenDesired is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirewallGenDesired requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirewallGenDesired: %w", err)
+	}
+	return oldValue.FirewallGenDesired, nil
+}
+
+// AddFirewallGenDesired adds i to the "firewall_gen_desired" field.
+func (m *ServerMutation) AddFirewallGenDesired(i int64) {
+	if m.addfirewall_gen_desired != nil {
+		*m.addfirewall_gen_desired += i
+	} else {
+		m.addfirewall_gen_desired = &i
+	}
+}
+
+// AddedFirewallGenDesired returns the value that was added to the "firewall_gen_desired" field in this mutation.
+func (m *ServerMutation) AddedFirewallGenDesired() (r int64, exists bool) {
+	v := m.addfirewall_gen_desired
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetFirewallGenDesired resets all changes to the "firewall_gen_desired" field.
+func (m *ServerMutation) ResetFirewallGenDesired() {
+	m.firewall_gen_desired = nil
+	m.addfirewall_gen_desired = nil
+}
+
+// SetFirewallGenApplied sets the "firewall_gen_applied" field.
+func (m *ServerMutation) SetFirewallGenApplied(i int64) {
+	m.firewall_gen_applied = &i
+	m.addfirewall_gen_applied = nil
+}
+
+// FirewallGenApplied returns the value of the "firewall_gen_applied" field in the mutation.
+func (m *ServerMutation) FirewallGenApplied() (r int64, exists bool) {
+	v := m.firewall_gen_applied
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirewallGenApplied returns the old "firewall_gen_applied" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldFirewallGenApplied(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirewallGenApplied is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirewallGenApplied requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirewallGenApplied: %w", err)
+	}
+	return oldValue.FirewallGenApplied, nil
+}
+
+// AddFirewallGenApplied adds i to the "firewall_gen_applied" field.
+func (m *ServerMutation) AddFirewallGenApplied(i int64) {
+	if m.addfirewall_gen_applied != nil {
+		*m.addfirewall_gen_applied += i
+	} else {
+		m.addfirewall_gen_applied = &i
+	}
+}
+
+// AddedFirewallGenApplied returns the value that was added to the "firewall_gen_applied" field in this mutation.
+func (m *ServerMutation) AddedFirewallGenApplied() (r int64, exists bool) {
+	v := m.addfirewall_gen_applied
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetFirewallGenApplied resets all changes to the "firewall_gen_applied" field.
+func (m *ServerMutation) ResetFirewallGenApplied() {
+	m.firewall_gen_applied = nil
+	m.addfirewall_gen_applied = nil
+}
+
+// SetFirewallLeaseUntil sets the "firewall_lease_until" field.
+func (m *ServerMutation) SetFirewallLeaseUntil(t time.Time) {
+	m.firewall_lease_until = &t
+}
+
+// FirewallLeaseUntil returns the value of the "firewall_lease_until" field in the mutation.
+func (m *ServerMutation) FirewallLeaseUntil() (r time.Time, exists bool) {
+	v := m.firewall_lease_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFirewallLeaseUntil returns the old "firewall_lease_until" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldFirewallLeaseUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFirewallLeaseUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFirewallLeaseUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFirewallLeaseUntil: %w", err)
+	}
+	return oldValue.FirewallLeaseUntil, nil
+}
+
+// ClearFirewallLeaseUntil clears the value of the "firewall_lease_until" field.
+func (m *ServerMutation) ClearFirewallLeaseUntil() {
+	m.firewall_lease_until = nil
+	m.clearedFields[server.FieldFirewallLeaseUntil] = struct{}{}
+}
+
+// FirewallLeaseUntilCleared returns if the "firewall_lease_until" field was cleared in this mutation.
+func (m *ServerMutation) FirewallLeaseUntilCleared() bool {
+	_, ok := m.clearedFields[server.FieldFirewallLeaseUntil]
+	return ok
+}
+
+// ResetFirewallLeaseUntil resets all changes to the "firewall_lease_until" field.
+func (m *ServerMutation) ResetFirewallLeaseUntil() {
+	m.firewall_lease_until = nil
+	delete(m.clearedFields, server.FieldFirewallLeaseUntil)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ServerMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -15914,7 +18303,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 26)
+	fields := make([]string, 0, 29)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -15990,6 +18379,15 @@ func (m *ServerMutation) Fields() []string {
 	if m.ssh_keys != nil {
 		fields = append(fields, server.FieldSSHKeys)
 	}
+	if m.firewall_gen_desired != nil {
+		fields = append(fields, server.FieldFirewallGenDesired)
+	}
+	if m.firewall_gen_applied != nil {
+		fields = append(fields, server.FieldFirewallGenApplied)
+	}
+	if m.firewall_lease_until != nil {
+		fields = append(fields, server.FieldFirewallLeaseUntil)
+	}
 	if m.created_at != nil {
 		fields = append(fields, server.FieldCreatedAt)
 	}
@@ -16051,6 +18449,12 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.UserData()
 	case server.FieldSSHKeys:
 		return m.SSHKeys()
+	case server.FieldFirewallGenDesired:
+		return m.FirewallGenDesired()
+	case server.FieldFirewallGenApplied:
+		return m.FirewallGenApplied()
+	case server.FieldFirewallLeaseUntil:
+		return m.FirewallLeaseUntil()
 	case server.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -16112,6 +18516,12 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldUserData(ctx)
 	case server.FieldSSHKeys:
 		return m.OldSSHKeys(ctx)
+	case server.FieldFirewallGenDesired:
+		return m.OldFirewallGenDesired(ctx)
+	case server.FieldFirewallGenApplied:
+		return m.OldFirewallGenApplied(ctx)
+	case server.FieldFirewallLeaseUntil:
+		return m.OldFirewallLeaseUntil(ctx)
 	case server.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -16298,6 +18708,27 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSSHKeys(v)
 		return nil
+	case server.FieldFirewallGenDesired:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirewallGenDesired(v)
+		return nil
+	case server.FieldFirewallGenApplied:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirewallGenApplied(v)
+		return nil
+	case server.FieldFirewallLeaseUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFirewallLeaseUntil(v)
+		return nil
 	case server.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -16340,6 +18771,12 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.adddisk_gb != nil {
 		fields = append(fields, server.FieldDiskGB)
 	}
+	if m.addfirewall_gen_desired != nil {
+		fields = append(fields, server.FieldFirewallGenDesired)
+	}
+	if m.addfirewall_gen_applied != nil {
+		fields = append(fields, server.FieldFirewallGenApplied)
+	}
 	return fields
 }
 
@@ -16366,6 +18803,10 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedMemoryMB()
 	case server.FieldDiskGB:
 		return m.AddedDiskGB()
+	case server.FieldFirewallGenDesired:
+		return m.AddedFirewallGenDesired()
+	case server.FieldFirewallGenApplied:
+		return m.AddedFirewallGenApplied()
 	}
 	return nil, false
 }
@@ -16438,6 +18879,20 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddDiskGB(v)
 		return nil
+	case server.FieldFirewallGenDesired:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFirewallGenDesired(v)
+		return nil
+	case server.FieldFirewallGenApplied:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFirewallGenApplied(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Server numeric field %s", name)
 }
@@ -16466,6 +18921,9 @@ func (m *ServerMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(server.FieldRebuildCloneNonce) {
 		fields = append(fields, server.FieldRebuildCloneNonce)
+	}
+	if m.FieldCleared(server.FieldFirewallLeaseUntil) {
+		fields = append(fields, server.FieldFirewallLeaseUntil)
 	}
 	return fields
 }
@@ -16501,6 +18959,9 @@ func (m *ServerMutation) ClearField(name string) error {
 		return nil
 	case server.FieldRebuildCloneNonce:
 		m.ClearRebuildCloneNonce()
+		return nil
+	case server.FieldFirewallLeaseUntil:
+		m.ClearFirewallLeaseUntil()
 		return nil
 	}
 	return fmt.Errorf("unknown Server nullable field %s", name)
@@ -16584,6 +19045,15 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldSSHKeys:
 		m.ResetSSHKeys()
+		return nil
+	case server.FieldFirewallGenDesired:
+		m.ResetFirewallGenDesired()
+		return nil
+	case server.FieldFirewallGenApplied:
+		m.ResetFirewallGenApplied()
+		return nil
+	case server.FieldFirewallLeaseUntil:
+		m.ResetFirewallLeaseUntil()
 		return nil
 	case server.FieldCreatedAt:
 		m.ResetCreatedAt()
