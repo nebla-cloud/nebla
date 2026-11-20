@@ -25,6 +25,8 @@ type InUseFunc func(ctx context.Context, tx *ent.Client, locationID int64) (bool
 type Hooks struct {
 	// LocationInUse reports servers or IP pools in a location; defaults to never.
 	LocationInUse InUseFunc
+	// TemplatesPending reports live jobs still removing catalog templates; defaults to never.
+	TemplatesPending InUseFunc
 }
 
 type Options struct {
@@ -60,6 +62,9 @@ func New(sqlDB *sql.DB, client *ent.Client, opts Options) *Service {
 	}
 	if opts.LocationInUse == nil {
 		opts.LocationInUse = func(context.Context, *ent.Client, int64) (bool, error) { return false, nil }
+	}
+	if opts.TemplatesPending == nil {
+		opts.TemplatesPending = func(context.Context, *ent.Client, int64) (bool, error) { return false, nil }
 	}
 	box, err := crypto.NewBox(opts.SecretKey)
 	return &Service{db: client, sql: sqlDB, box: box, boxErr: err, opts: opts, clients: map[int64]cachedClient{}}

@@ -165,3 +165,30 @@ func TestMigrateCreatesRiverSchema(t *testing.T) {
 	require.NoError(t, pool.QueryRow(context.Background(), "select count(*) from river_job").Scan(&n))
 	require.Zero(t, n)
 }
+
+func TestWithTxSupportsRawQuery(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.NewDB(t)
+	client, sqlDB := db.NewEnt(pool)
+	t.Cleanup(func() { client.Close() })
+
+	var n int
+	err := db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+		if _, err := etx.ExecContext(ctx, "insert into settings (key, value) values ('raw', '1')"); err != nil {
+			return err
+		}
+		rows, err := etx.QueryContext(ctx, "select count(*) from settings where key = 'raw'")
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			if err := rows.Scan(&n); err != nil {
+				return err
+			}
+		}
+		return rows.Err()
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+}

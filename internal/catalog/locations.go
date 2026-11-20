@@ -328,7 +328,7 @@ func locationInUse(why string) error {
 	return apierr.New(http.StatusConflict, "location_in_use", "location is in use: "+why)
 }
 
-// DeleteLocation refuses while images, catalog builds, restricted server types or LocationInUse reference the location.
+// DeleteLocation refuses while images, catalog builds or their template jobs, restricted server types or LocationInUse reference the location.
 func (s *Service) DeleteLocation(ctx context.Context, id int64) error {
 	err := s.withTx(ctx, func(tx *ent.Client) error {
 		if _, err := tx.Location.Query().Where(location.ID(id)).ForUpdate().Only(ctx); err != nil {
@@ -347,6 +347,14 @@ func (s *Service) DeleteLocation(ctx context.Context, id int64) error {
 		}
 		if builds {
 			return locationInUse("OS catalog images are still enabled in it")
+		}
+		// Checked after catalog_builds: Disable deletes the rows and queues these jobs in one commit.
+		pending, err := s.opts.TemplatesPending(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if pending {
+			return locationInUse("OS catalog templates are still being removed from it")
 		}
 		// Dropping the last location of a restricted type would silently offer it everywhere.
 		types, err := tx.ServerType.Query().Where(servertype.HasLocationsWith(location.ID(id))).Exist(ctx)
