@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/auth"
-	"github.com/Hexeption/nebla/internal/realip"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/realip"
 )
 
 func apiUser(u auth.User) apigen.User {

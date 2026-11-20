@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/ext"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"

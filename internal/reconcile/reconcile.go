@@ -13,14 +13,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/catalog"
-	"github.com/Hexeption/nebla/internal/db"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/action"
-	"github.com/Hexeption/nebla/internal/ent/server"
-	"github.com/Hexeption/nebla/internal/jobs"
-	"github.com/Hexeption/nebla/internal/pve"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/servers"
 )
 
 // ErrProxmoxState means Proxmox answered with a state too implausible to act on.

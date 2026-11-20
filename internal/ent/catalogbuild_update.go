@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 )
 
 // CatalogBuildUpdate is the builder for updating CatalogBuild entities.

@@ -5,9 +5,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/ent/server"
-	"github.com/Hexeption/nebla/internal/ext"
-	"github.com/Hexeption/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 )

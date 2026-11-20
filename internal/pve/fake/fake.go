@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/coder/websocket"
+	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
 const prefix = "/api2/json"

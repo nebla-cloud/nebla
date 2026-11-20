@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
 // TagNebla marks every VM the panel manages.

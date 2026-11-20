@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/action"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 )
 
 // ActionDelete is the builder for deleting a Action entity.

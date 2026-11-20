@@ -3,7 +3,7 @@ package cli
 import (
 	"encoding/json"
 
-	"github.com/Hexeption/nebla/internal/cli/apiclient"
+	"github.com/nebla-cloud/nebla/internal/cli/apiclient"
 	"regexp"
 	"strings"
 	"testing"

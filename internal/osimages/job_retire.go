@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/pve"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
 )
 

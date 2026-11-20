@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/project"
-	"github.com/Hexeption/nebla/internal/ent/projectmember"
-	"github.com/Hexeption/nebla/internal/ent/setting"
-	"github.com/Hexeption/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
+	"github.com/nebla-cloud/nebla/internal/ent/setting"
+	"github.com/nebla-cloud/nebla/internal/ent/user"
 )
 
 const backfillKey = "projects.default_quota_backfilled"

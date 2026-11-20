@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/apigen"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/nebla-cloud/nebla/internal/apigen"
 	"github.com/stretchr/testify/require"
 )
 

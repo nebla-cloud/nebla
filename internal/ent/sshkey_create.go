@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/project"
-	"github.com/Hexeption/nebla/internal/ent/sshkey"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 )
 
 // SSHKeyCreate is the builder for creating a SSHKey entity.

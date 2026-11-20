@@ -5,7 +5,7 @@ package imagetemplate
 import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.

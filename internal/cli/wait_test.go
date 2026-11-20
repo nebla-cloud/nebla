@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/actions"
-	"github.com/Hexeption/nebla/internal/cli/apiclient"
+	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/cli/apiclient"
 )
 
 func TestWaitSuccess(t *testing.T) {

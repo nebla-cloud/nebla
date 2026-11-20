@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/Hexeption/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/ext"
 )
 
 type blockSink struct {

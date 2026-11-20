@@ -9,12 +9,12 @@ import (
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/session"
-	"github.com/Hexeption/nebla/internal/ent/user"
-	"github.com/Hexeption/nebla/internal/ext"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/session"
+	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ext"
 )
 
 type User struct {

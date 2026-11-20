@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/auth"
-	"github.com/Hexeption/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/projects"
 )
 
 // projectScopedOps take a token or a session plus Project-ID; a test keeps it equal to the spec.

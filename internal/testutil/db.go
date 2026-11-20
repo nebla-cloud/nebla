@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/db"
-	"github.com/Hexeption/nebla/internal/ent"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"

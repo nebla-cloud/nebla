@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/httpapi"
-	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/go-chi/chi/v5"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

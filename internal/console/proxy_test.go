@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/auth"
-	"github.com/Hexeption/nebla/internal/console"
-	"github.com/Hexeption/nebla/internal/ent/consoletoken"
-	"github.com/Hexeption/nebla/internal/httpapi"
-	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/coder/websocket"
+	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/console"
+	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
+	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

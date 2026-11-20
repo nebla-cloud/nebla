@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
-	"github.com/Hexeption/nebla/internal/ent/project"
-	"github.com/Hexeption/nebla/internal/ent/sshkey"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 )
 
 // SSHKeyQuery is the builder for querying SSHKey entities.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Hexeption/nebla/internal/cli/apiclient"
+	"github.com/nebla-cloud/nebla/internal/cli/apiclient"
 	"github.com/spf13/cobra"
 )
 

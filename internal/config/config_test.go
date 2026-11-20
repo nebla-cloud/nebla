@@ -4,8 +4,8 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/config"
-	"github.com/Hexeption/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/config"
+	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/stretchr/testify/require"
 )
 

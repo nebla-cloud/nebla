@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/cli/apiclient"
+	"github.com/nebla-cloud/nebla/internal/cli/apiclient"
 	"golang.org/x/crypto/ssh"
 )
 

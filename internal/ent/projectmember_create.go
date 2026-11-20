@@ -11,9 +11,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/project"
-	"github.com/Hexeption/nebla/internal/ent/projectmember"
-	"github.com/Hexeption/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
+	"github.com/nebla-cloud/nebla/internal/ent/user"
 )
 
 // ProjectMemberCreate is the builder for creating a ProjectMember entity.

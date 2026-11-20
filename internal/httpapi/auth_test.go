@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 )

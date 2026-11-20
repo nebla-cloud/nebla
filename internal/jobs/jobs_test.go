@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/actions"
-	"github.com/Hexeption/nebla/internal/db"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/jobs"
-	"github.com/Hexeption/nebla/internal/testutil"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/require"
 )

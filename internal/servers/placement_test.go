@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/catalog"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/stretchr/testify/require"
 )
 

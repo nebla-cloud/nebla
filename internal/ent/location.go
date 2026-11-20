@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 )
 
 // Location is the model entity for the Location schema.

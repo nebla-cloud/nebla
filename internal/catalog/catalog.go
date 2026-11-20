@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/crypto"
-	"github.com/Hexeption/nebla/internal/db"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/pve"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/crypto"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
 // InUseFunc reports whether something outside the catalog still references a location.

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
-	"github.com/Hexeption/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
+	"github.com/nebla-cloud/nebla/internal/osimages"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"

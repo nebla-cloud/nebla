@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/actions"
-	"github.com/Hexeption/nebla/internal/ent/server"
-	"github.com/Hexeption/nebla/internal/ipam"
-	"github.com/Hexeption/nebla/internal/reconcile"
-	"github.com/Hexeption/nebla/internal/servers"
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/reconcile"
+	"github.com/nebla-cloud/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

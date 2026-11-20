@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/cloudinit"
-	"github.com/Hexeption/nebla/internal/ipam"
 	"github.com/kdomanski/iso9660"
+	"github.com/nebla-cloud/nebla/internal/cloudinit"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v4"
 )

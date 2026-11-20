@@ -3,7 +3,7 @@ package httpapi
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/apigen"
 )
 
 // RequestServerConsole returns only wss_url and password; it is not an Action.

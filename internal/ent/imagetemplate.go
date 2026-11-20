@@ -8,9 +8,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/image"
-	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
-	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/image"
+	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 )
 
 // ImageTemplate is the model entity for the ImageTemplate schema.

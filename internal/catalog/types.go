@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/location"
-	"github.com/Hexeption/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 )
 
 type ServerType struct {

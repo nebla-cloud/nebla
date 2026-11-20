@@ -10,11 +10,11 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/image"
-	"github.com/Hexeption/nebla/internal/ent/location"
-	"github.com/Hexeption/nebla/internal/ent/project"
-	"github.com/Hexeption/nebla/internal/ent/server"
-	"github.com/Hexeption/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/image"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 )
 
 // Server is the model entity for the Server schema.

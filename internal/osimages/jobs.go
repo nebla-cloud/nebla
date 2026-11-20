@@ -3,8 +3,8 @@ package osimages
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 )

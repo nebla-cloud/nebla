@@ -5,7 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/realip"
+	"github.com/nebla-cloud/nebla/internal/realip"
 	"github.com/stretchr/testify/require"
 )
 

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/stretchr/testify/require"
 )
 

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/auth"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ent/hook"
-	"github.com/Hexeption/nebla/internal/ext"
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/hook"
+	"github.com/nebla-cloud/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 )

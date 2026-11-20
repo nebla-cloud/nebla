@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent"
 )
 
 // The APITokenFunc type is an adapter to allow the use of ordinary

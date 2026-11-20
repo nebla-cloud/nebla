@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent"
 	// required by schema hooks.
-	_ "github.com/Hexeption/nebla/internal/ent/runtime"
+	_ "github.com/nebla-cloud/nebla/internal/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/Hexeption/nebla/internal/ent/migrate"
+	"github.com/nebla-cloud/nebla/internal/ent/migrate"
 )
 
 type (

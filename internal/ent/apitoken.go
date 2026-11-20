@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/apitoken"
-	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
 )
 
 // APIToken is the model entity for the APIToken schema.

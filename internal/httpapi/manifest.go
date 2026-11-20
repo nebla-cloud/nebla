@@ -3,7 +3,7 @@ package httpapi
 import (
 	"context"
 
-	"github.com/Hexeption/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/apigen"
 )
 
 func (s *server) GetUiManifest(ctx context.Context, _ apigen.GetUiManifestRequestObject) (apigen.GetUiManifestResponseObject, error) {

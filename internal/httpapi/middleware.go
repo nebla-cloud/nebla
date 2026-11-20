@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/apigen"
-	"github.com/Hexeption/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/auth"
 )
 
 const sessionCookie = "nb_session"

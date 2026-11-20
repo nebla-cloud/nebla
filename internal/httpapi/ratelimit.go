@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/apierr"
-	"github.com/Hexeption/nebla/internal/ratelimit"
-	"github.com/Hexeption/nebla/internal/realip"
+	"github.com/nebla-cloud/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/ratelimit"
+	"github.com/nebla-cloud/nebla/internal/realip"
 	"golang.org/x/time/rate"
 )
 

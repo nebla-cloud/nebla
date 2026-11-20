@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/actions"
-	"github.com/Hexeption/nebla/internal/pve"
-	"github.com/Hexeption/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/stretchr/testify/require"
 )
 

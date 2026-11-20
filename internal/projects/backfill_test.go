@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/auth"
-	"github.com/Hexeption/nebla/internal/ent"
-	"github.com/Hexeption/nebla/internal/ext"
-	"github.com/Hexeption/nebla/internal/projects"
-	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

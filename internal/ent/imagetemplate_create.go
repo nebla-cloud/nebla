@@ -10,9 +10,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/image"
-	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
-	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/image"
+	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 )
 
 // ImageTemplateCreate is the builder for creating a ImageTemplate entity.

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/ratelimit"
+	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 )

@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/pve"
-	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/coder/websocket"
+	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/pve/fake"
 )
 
 func setup(t *testing.T) (*fake.Server, pve.Client) {

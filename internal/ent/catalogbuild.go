@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
-	"github.com/Hexeption/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 )
 
 // CatalogBuild is the model entity for the CatalogBuild schema.

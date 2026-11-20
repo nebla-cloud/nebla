@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Hexeption/nebla/internal/apierr"
+	"github.com/nebla-cloud/nebla/internal/apierr"
 )
 
 // WriteError writes the standard error envelope.

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hexeption/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/osimages"
 	"github.com/stretchr/testify/require"
 )
 

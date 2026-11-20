@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 )
 
 // ServerType is the model entity for the ServerType schema.

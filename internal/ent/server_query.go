@@ -12,12 +12,12 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Hexeption/nebla/internal/ent/image"
-	"github.com/Hexeption/nebla/internal/ent/location"
-	"github.com/Hexeption/nebla/internal/ent/predicate"
-	"github.com/Hexeption/nebla/internal/ent/project"
-	"github.com/Hexeption/nebla/internal/ent/server"
-	"github.com/Hexeption/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/image"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 )
 
 // ServerQuery is the builder for querying Server entities.

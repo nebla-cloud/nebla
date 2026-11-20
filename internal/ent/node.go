@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Hexeption/nebla/internal/ent/location"
-	"github.com/Hexeption/nebla/internal/ent/node"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/node"
 )
 
 // Node is the model entity for the Node schema.

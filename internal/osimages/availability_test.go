@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Hexeption/nebla/internal/catalog"
-	"github.com/Hexeption/nebla/internal/osimages"
-	"github.com/Hexeption/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/stretchr/testify/require"
 )
 

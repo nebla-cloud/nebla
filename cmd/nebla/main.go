@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/Hexeption/nebla/internal/cli"
+	"github.com/nebla-cloud/nebla/internal/cli"
 )
 
 func main() {
