@@ -5,19 +5,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"text/tabwriter"
-	"time"
 
+	"github.com/Hexeption/nebla/internal/cli/apiclient"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
-func newContextCmd(env Env, g *globalFlags) *cobra.Command {
+func newContextCmd(a *app) *cobra.Command {
+	env := a.env
 	load := func() (*Config, error) {
-		p, err := configPath(env, g.config)
+		p, err := configPath(env, a.flags.config)
 		if err != nil {
 			return nil, err
 		}
@@ -32,11 +32,14 @@ func newContextCmd(env Env, g *globalFlags) *cobra.Command {
 		Short: "Add a context after checking its token",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			if strings.TrimSpace(name) == "" {
+				return errors.New("context name must not be empty")
+			}
 			cfg, err := load()
 			if err != nil {
 				return err
 			}
-			name := args[0]
 			if cfg.find(name) != nil {
 				return fmt.Errorf("context %q already exists", name)
 			}
@@ -151,7 +154,7 @@ func readToken(env Env, in *bufio.Reader) (string, error) {
 		return requireToken(string(b))
 	}
 	if t := env.Getenv("NEBLA_TOKEN"); t != "" {
-		return t, nil
+		return requireToken(t)
 	}
 	line, _ := in.ReadString('\n')
 	return requireToken(line)
@@ -166,25 +169,17 @@ func requireToken(s string) (string, error) {
 
 // checkToken verifies the pair against the panel.
 func checkToken(ctx context.Context, env Env, t Target) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, t.Endpoint+"/v1/locations?per_page=1", nil)
+	api, err := newAPI(env, t)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+t.Token)
-	req.Header.Set("User-Agent", "nebla-cli/"+Version)
-	hc := env.HTTPClient
-	if hc == nil {
-		hc = http.DefaultClient
-	}
-	res, err := hc.Do(req)
+	one := 1
+	res, err := api.C.GetLocationsWithResponse(ctx, &apiclient.GetLocationsParams{PerPage: &one})
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("token check failed: %s", res.Status)
+	if _, err := result(res.StatusCode(), res.Body, res.JSON200); err != nil {
+		return fmt.Errorf("token check failed: %w", err)
 	}
 	return nil
 }
