@@ -1,6 +1,7 @@
 import { computed, watch, type ComputedRef, type Ref } from 'vue'
 import { useRoute, type Router } from 'vue-router'
 import { useQuery, type QueryClient } from '@tanstack/vue-query'
+import { onForbidden } from '@/api/client'
 import type { Project } from '@/api/types'
 import { projectQuery } from '@/features/projects/queries'
 import { readStorage, removeStorage, writeStorage } from './storage'
@@ -32,6 +33,24 @@ export async function recheckAccess(router: Router, qc: QueryClient, id: number)
     qc.invalidateQueries({ queryKey: ['projects'] }),
   ])
   await router.replace({ path: router.currentRoute.value.fullPath, force: true })
+}
+
+// A 403 under a project means our role is stale: refetch it and re-run the guards on gated pages.
+export function refreshOnForbidden(router: Router, qc: QueryClient): void {
+  const busy = new Set<number>()
+  onForbidden((id) => {
+    if (busy.has(id)) return
+    busy.add(id)
+    const cur = router.currentRoute.value
+    const gated = !!cur.meta.roles && parseProjectId(cur.params.projectId) === id
+    const run = gated
+      ? recheckAccess(router, qc, id)
+      : Promise.all([
+          qc.invalidateQueries({ queryKey: ['project', id] }),
+          qc.invalidateQueries({ queryKey: ['projects'] }),
+        ])
+    void run.catch(() => {}).finally(() => busy.delete(id))
+  })
 }
 
 export function useCurrentProject(): {

@@ -1,23 +1,19 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQueryClient } from '@tanstack/vue-query'
+import { ref } from 'vue'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
-import { ApiError, errorMessage } from '@/api/errors'
+import { errorMessage } from '@/api/errors'
 import type { ApiToken } from '@/api/types'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDate } from '@/lib/format'
-import { recheckAccess, useCurrentProject } from '@/lib/project'
+import { useCurrentProject } from '@/lib/project'
 import { permissionLabel } from '@/lib/roles'
 import CreateTokenModal from './CreateTokenModal.vue'
 import { useRevokeToken, useTokens } from './queries'
 
 const toast = useToast()
-const router = useRouter()
-const qc = useQueryClient()
 const { projectId, project } = useCurrentProject()
 const { data: tokens, isPending, error: loadError } = useTokens(projectId)
 const revoke = useRevokeToken(projectId)
@@ -25,10 +21,6 @@ const revoke = useRevokeToken(projectId)
 const creating = ref(false)
 const revoking = ref<ApiToken | null>(null)
 const revokeOpen = ref(false)
-
-watch(loadError, (e) => {
-  if (e instanceof ApiError && e.status === 403) void recheckAccess(router, qc, projectId.value)
-})
 
 function startRevoke(t: ApiToken) {
   revoking.value = t

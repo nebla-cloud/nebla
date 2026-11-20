@@ -65,7 +65,8 @@ function onRoleChange(m: Member, ev: Event) {
   const el = ev.target as HTMLSelectElement
   const role = el.value as Role
   if (role === m.role) return
-  if ((role === 'member' || role === 'read_only') && RANK[role] < RANK[m.role]) {
+  const lower = RANK[role] < RANK[m.role]
+  if (lower && (m.user_id === myId.value || role === 'member' || role === 'read_only')) {
     el.value = m.role
     pendingRole.value = { member: m, role }
     roleOpen.value = true
@@ -80,6 +81,13 @@ async function confirmRole() {
   await applyRole(p.member, p.role)
   roleOpen.value = false
 }
+
+const roleBody = computed(() => {
+  const m = pendingRole.value?.member
+  if (m && m.user_id === myId.value)
+    return "You'll lose some access. API tokens you made keep working."
+  return `${m?.name || m?.email || 'They'} will lose some access. ${TOKEN_NOTE}`
+})
 
 function startRemove(m: Member) {
   removing.value = m
@@ -216,7 +224,7 @@ async function confirmRevoke() {
     <ConfirmDialog
       v-model:open="roleOpen"
       :title="`Change role to ${pendingRole ? roleLabel(pendingRole.role) : ''}?`"
-      :body="`${pendingRole?.member.name || pendingRole?.member.email || 'They'} will lose some access. ${TOKEN_NOTE}`"
+      :body="roleBody"
       confirm-label="Change role"
       danger
       :loading="setRole.isPending.value"

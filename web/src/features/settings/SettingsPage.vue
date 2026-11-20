@@ -13,14 +13,15 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { forgetProject, useCurrentProject } from '@/lib/project'
 import { isManager } from '@/lib/roles'
 import { useSession } from '@/lib/session'
-import { useDeleteProject, useLeaveProject, useMembers, useRenameProject } from './queries'
+import { useMembers } from '@/features/members/queries'
+import { useDeleteProject, useLeaveProject, useRenameProject } from './queries'
 
 const router = useRouter()
 const qc = useQueryClient()
 const toast = useToast()
 const { me } = useSession()
 const { projectId, project } = useCurrentProject()
-const { data: members, isPending: membersPending } = useMembers()
+const { data: members, isPending: membersPending } = useMembers(projectId)
 const rename = useRenameProject()
 const leave = useLeaveProject()
 const remove = useDeleteProject()

@@ -81,6 +81,15 @@ describe('TwoFactorSection', () => {
     const shown = document.body.querySelector('input[readonly]') as HTMLInputElement
     expect(shown.value).toBe('JBSW Y3DP EHPK 3PXP')
 
+    const write = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: write },
+      configurable: true,
+    })
+    button('Copy').click()
+    await settle()
+    expect(write).toHaveBeenCalledWith('JBSWY3DPEHPK3PXP')
+
     await fill('code', '123456')
     await submit()
     expect(calls[1]).toEqual({ path: '/auth/totp/verify', body: { code: '123456' } })

@@ -100,6 +100,40 @@ describe('InvitePage', () => {
     expect(wrapper.text()).toContain('Join Homelab')
   })
 
+  it('read-only invites say read-only access', async () => {
+    usePreview({ role: 'read_only' })
+    const { wrapper } = await open(sam)
+    expect(wrapper.text()).toContain('Sam Reed invited you with read-only access.')
+  })
+
+  it('log out from the other-email state clears the query cache', async () => {
+    usePreview({ email: 'alex@example.com' })
+    server.use(http.post('*/v1/auth/logout', () => new Response(null, { status: 204 })))
+    const { wrapper, queryClient } = await open(sam)
+    queryClient.setQueryData(['projects'], [{ id: 1 }])
+    await button(wrapper, 'Log out')!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(queryClient.getQueryData(['projects'])).toBeUndefined()
+  })
+
+  it('login_required on join reports a lost session', async () => {
+    usePreview()
+    server.use(
+      http.post('*/v1/invites/tok/accept', () =>
+        json(401, { error: { code: 'login_required', message: 'Log in first.' } }),
+      ),
+    )
+    const fn = vi.fn()
+    onUnauthorized(fn)
+    const { wrapper } = await open(sam)
+    await button(wrapper, 'Join')!.trigger('click')
+    await flushPromises()
+    await flushPromises()
+    expect(fn).toHaveBeenCalledOnce()
+    onUnauthorized(() => {})
+  })
+
   it('account_exists links to login even when it can create', async () => {
     usePreview({ account_exists: true, can_create_account: true })
     const { wrapper } = await open(null)
