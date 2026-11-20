@@ -77,6 +77,9 @@ func run() error {
 	if err := rec.RescueAll(ctx); err != nil {
 		return err
 	}
+	if _, err := projects.BackfillCreatedBy(ctx, client); err != nil {
+		return err
+	}
 	filled, err := projects.BackfillDefaultQuota(ctx, client, cfg.DefaultQuota)
 	if err != nil {
 		return err
