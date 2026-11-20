@@ -23,10 +23,28 @@ const sync = useSyncNodes()
 const updateNode = useUpdateNode(id.value)
 const del = useDeleteLocation()
 const rerun = useStartEnrollment()
+const cleanup = ref<string[]>(readCleanup())
 const editing = ref(false)
 const confirmOpen = ref(false)
 const actionError = ref<string | null>(null)
 const override = ref<Record<number, string>>({})
+
+function readCleanup(): string[] {
+  const c = (router.options.history.state as { cleanup?: unknown }).cleanup
+  if (!Array.isArray(c)) return []
+  // Clear it so a later visit doesn't show the alert again.
+  void router.replace({ name: 'admin-location', params: route.params, state: {} })
+  return c.map(String)
+}
+
+async function copyCleanup() {
+  try {
+    await navigator.clipboard.writeText(cleanup.value.join('\n'))
+    toast.add({ title: 'Copied', color: 'success' })
+  } catch {
+    toast.add({ title: "Couldn't copy", color: 'error' })
+  }
+}
 
 async function run(fn: () => Promise<unknown>, done?: string) {
   actionError.value = null
@@ -118,6 +136,27 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
       </header>
 
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
+
+      <UAlert
+        v-if="cleanup.length"
+        color="warning"
+        variant="subtle"
+        title="Optional cleanup on the node"
+        description="Run these on the Proxmox node to remove the old setup."
+        close
+        @update:open="cleanup = []"
+      >
+        <template #description>
+          <p>Run these on the Proxmox node to remove the old setup.</p>
+          <pre
+            data-testid="enroll-cleanup"
+            class="mt-2 overflow-x-auto rounded border border-default bg-default p-2 text-xs whitespace-pre-wrap break-all"
+            >{{ cleanup.join('\n') }}</pre>
+          <UButton class="mt-2" color="neutral" variant="outline" size="xs" @click="copyCleanup">
+            Copy
+          </UButton>
+        </template>
+      </UAlert>
 
       <section v-if="editing" class="rounded-lg border border-default p-4 sm:p-6">
         <h2 class="mb-4 text-lg font-bold tracking-tight text-highlighted">Edit connection</h2>
