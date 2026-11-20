@@ -320,10 +320,6 @@ func TestRefresh(t *testing.T) {
 	e.markReady(rows[1].ID, 9102, "n2")
 	require.NoError(t, e.ent.CatalogBuild.UpdateOneID(rows[0].ID).SetStep(7).Exec(ctx))
 
-	// The finished build jobs no longer dedupe the refresh.
-	_, err = e.sql.Exec(`update river_job set state = 'completed', finalized_at = now()`)
-	require.NoError(t, err)
-
 	ls, err := e.svc.Refresh(ctx, "debian-13", loc)
 	require.NoError(t, err)
 	require.Equal(t, "building", ls.State)
@@ -336,6 +332,52 @@ func TestRefresh(t *testing.T) {
 		require.NotNil(t, r.Nonce)
 	}
 	require.Len(t, e.jobArgs(osimages.KindBuild), 4)
+}
+
+func TestRefreshWhilePreviousJobStillRunning(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "ceph", "imp")
+	_, err := e.svc.Enable(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	row := e.rows("debian-13", loc)[0]
+	oldJob := *row.RiverJobID
+	// The build set the row ready but its job has not returned yet.
+	_, err = e.sql.Exec(`update river_job set state = 'running', attempt = 1, attempted_at = now() where id = $1`, oldJob)
+	require.NoError(t, err)
+	e.markReady(row.ID, 9101, "n1")
+
+	_, err = e.svc.Refresh(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	var ids []int64
+	rs, err := e.sql.Query(`select id from river_job where kind = $1 and (args->>'build_id')::bigint = $2 order by id`, osimages.KindBuild, row.ID)
+	require.NoError(t, err)
+	defer rs.Close()
+	for rs.Next() {
+		var id int64
+		require.NoError(t, rs.Scan(&id))
+		ids = append(ids, id)
+	}
+	require.NoError(t, rs.Err())
+	require.Len(t, ids, 2)
+	row = e.rows("debian-13", loc)[0]
+	require.Equal(t, catalogbuild.StatusBuilding, row.Status)
+	require.NotEqual(t, oldJob, *row.RiverJobID)
+	require.Equal(t, ids[1], *row.RiverJobID)
+}
+
+func TestDisableWhileProxmoxDown(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "local-lvm", "imp")
+	e.readyWithImage(loc)
+	e.pve.SetDown(true)
+	ls, err := e.svc.Disable(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	require.Equal(t, "off", ls.State)
+	require.True(t, ls.Available)
+	require.Empty(t, ls.Reason)
+	require.Len(t, e.jobArgs(osimages.KindRetire), 2)
 }
 
 // readyWithImage enables debian-13 on local storage, marks both rows ready and registers the image and its templates.
