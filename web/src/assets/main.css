@@ -76,7 +76,7 @@
 }
 
 /* Unlayered so it beats Nuxt UI's translucent focus utilities. */
-:focus-visible {
+:focus-visible:not([tabindex="-1"]) {
   outline: 2px solid var(--nb-focus);
   outline-offset: 2px;
 }

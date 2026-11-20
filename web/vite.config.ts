@@ -17,8 +17,11 @@ export default defineConfig({
           slots: { base: 'font-semibold' },
           compoundVariants: [{ color: 'primary', variant: 'solid', class: 'nb-gradient-underline' }],
         },
-        input: { slots: { base: 'h-9 ring-(color:--ui-border)' } },
-        textarea: { slots: { base: 'ring-(color:--ui-border)' } },
+        input: {
+          slots: { base: 'h-9' },
+          compoundVariants: [{ variant: 'outline', class: 'ring-(color:--ui-border)' }],
+        },
+        textarea: { compoundVariants: [{ variant: 'outline', class: 'ring-(color:--ui-border)' }] },
         modal: { slots: { content: 'rounded-(--nb-radius-panel) p-5' } },
         dropdownMenu: { slots: { content: 'rounded-xl shadow-[0_8px_24px_-8px_rgb(21_24_29/0.18)]' } },
         popover: { slots: { content: 'rounded-xl shadow-[0_8px_24px_-8px_rgb(21_24_29/0.18)]' } },
