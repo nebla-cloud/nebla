@@ -312,6 +312,14 @@ func (s *Server) VM(vmid int) (FakeVM, bool) {
 	return f, true
 }
 
+// PutVolume stores a volume, e.g. a leftover import file.
+func (s *Server) PutVolume(id string, data []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep()
+	s.volumes[id] = slices.Clone(data)
+}
+
 func (s *Server) Volume(id string) ([]byte, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

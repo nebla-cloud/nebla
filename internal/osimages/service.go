@@ -263,6 +263,21 @@ func restart(u *ent.CatalogBuildUpdateOne) *ent.CatalogBuildUpdateOne {
 		ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid().ClearBuildNode()
 }
 
+// cleanupArgs is the cleanup for a row's leftover half-built VM, if it kept one.
+func cleanupArgs(entries []Entry, loc catalog.Location, r *ent.CatalogBuild) (CleanupArgs, bool) {
+	if r.NewVmid == nil || r.NewNonce == nil {
+		return CleanupArgs{}, false
+	}
+	a := CleanupArgs{BuildID: r.ID, LocationID: loc.ID, VMID: *r.NewVmid, Tag: templateTag(r.ID, *r.NewNonce)}
+	if r.BuildNode != nil {
+		a.Node = *r.BuildNode
+	}
+	if e, ok := Lookup(entries, r.CatalogKey); ok && r.NewChecksum != nil && r.BuildNode != nil && loc.ImportStorage != "" {
+		a.Volume = importVolume(loc.ImportStorage, r.CatalogKey, *r.NewChecksum, r.ID, e.Format)
+	}
+	return a, true
+}
+
 func enqueueBuilds(ctx context.Context, j *jobs.Jobs, tx *sql.Tx, etx *ent.Client, ids []int64) error {
 	for _, id := range ids {
 		res, err := j.InsertTx(ctx, tx, BuildArgs{BuildID: id}, nil)
@@ -316,6 +331,11 @@ func (s *Service) Enable(ctx context.Context, key string, locationID int64) (Loc
 					return errBuilding
 				}
 			case r.Status == catalogbuild.StatusFailed:
+				if a, ok := cleanupArgs(s.o.Entries, loc, r); ok {
+					if _, err := j.InsertTx(ctx, tx, a, nil); err != nil {
+						return err
+					}
+				}
 				err = restart(r.Update()).Exec(ctx)
 			default:
 				continue
@@ -412,6 +432,11 @@ func (s *Service) Disable(ctx context.Context, key string, locationID int64) (Lo
 			return err
 		}
 		for _, r := range rows {
+			if a, ok := cleanupArgs(s.o.Entries, loc, r); ok {
+				if _, err := j.InsertTx(ctx, tx, a, nil); err != nil {
+					return err
+				}
+			}
 			if r.Vmid == nil {
 				continue
 			}

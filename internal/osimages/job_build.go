@@ -77,6 +77,7 @@ type BuildWorker struct {
 func Register(w *river.Workers, s *Service) {
 	river.AddWorker(w, &BuildWorker{s: s})
 	river.AddWorker(w, &RetireWorker{s: s})
+	river.AddWorker(w, &CleanupWorker{s: s})
 }
 
 func (*BuildWorker) Timeout(*river.Job[BuildArgs]) time.Duration { return buildTimeout }
@@ -268,8 +269,12 @@ func (b *build) save(ctx context.Context, f func(*ent.CatalogBuildUpdate)) error
 func (b *build) tag(nonce string) string { return templateTag(b.row.ID, nonce) }
 
 func (b *build) volid() string {
-	sum := *b.row.NewChecksum
-	return fmt.Sprintf("%s:import/nebla-%s-%s-%d.%s", b.loc.ImportStorage, b.row.CatalogKey, sum[:min(12, len(sum))], b.row.ID, b.entry.Format)
+	return importVolume(b.loc.ImportStorage, b.row.CatalogKey, *b.row.NewChecksum, b.row.ID, b.entry.Format)
+}
+
+// importVolume is the volid a build downloads its image to.
+func importVolume(storage, key, checksum string, buildID int64, format string) string {
+	return fmt.Sprintf("%s:import/nebla-%s-%s-%d.%s", storage, key, checksum[:min(12, len(checksum))], buildID, format)
 }
 
 // budgetFor is waitBudget, cut short so a wait ends before the job deadline.
@@ -612,15 +617,20 @@ func (b *build) finish(ctx context.Context, code, msg string, cause error) error
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 	last := b.job.Attempt >= b.job.MaxAttempts
+	cleaned := true
 	if err := b.cleanup(ctx); err != nil {
 		b.log.Error("catalog build cleanup failed", "err", err, "new_vmid", b.row.NewVmid)
 		if !last {
 			return errors.New(cleanupPending + code + ": " + msg)
 		}
+		cleaned = false
 	}
 	err := b.save(ctx, func(u *ent.CatalogBuildUpdate) {
-		u.SetStatus(catalogbuild.StatusFailed).SetErrorCode(code).SetErrorMessage(msg).
-			ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid().ClearBuildNode()
+		u.SetStatus(catalogbuild.StatusFailed).SetErrorCode(code).SetErrorMessage(msg).ClearUpid()
+		// Kept on a failed cleanup so Enable or Disable can queue an os_template_cleanup.
+		if cleaned {
+			u.ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearBuildNode()
+		}
 	})
 	switch {
 	case errors.Is(err, errStale):
@@ -646,7 +656,7 @@ func (b *build) cleanup(ctx context.Context) error {
 		_ = b.pc.WaitTask(ctx, upidNode(*b.row.Upid), pve.UPID(*b.row.Upid))
 	}
 	if b.row.NewVmid != nil && b.row.NewNonce != nil {
-		if err := b.destroy(ctx, *b.row.NewVmid, b.tag(*b.row.NewNonce)); err != nil {
+		if err := destroyTagged(ctx, b.pc, *b.row.NewVmid, b.tag(*b.row.NewNonce)); err != nil {
 			return err
 		}
 	}
@@ -656,12 +666,13 @@ func (b *build) cleanup(ctx context.Context) error {
 	return nil
 }
 
-func (b *build) destroy(ctx context.Context, vmid int, tag string) error {
-	v, found, err := findVM(ctx, b.pc, vmid)
+// destroyTagged destroys vmid only if its config carries tag; a missing VM is fine.
+func destroyTagged(ctx context.Context, pc pve.Client, vmid int, tag string) error {
+	v, found, err := findVM(ctx, pc, vmid)
 	if err != nil || !found {
 		return err
 	}
-	cfg, err := b.pc.Config(ctx, v.Node, vmid)
+	cfg, err := pc.Config(ctx, v.Node, vmid)
 	if errors.Is(err, pve.ErrNotFound) {
 		return nil
 	}
@@ -674,9 +685,9 @@ func (b *build) destroy(ctx context.Context, vmid int, tag string) error {
 	if cfg["lock"] != "" {
 		return fmt.Errorf("vm %d is locked (%s)", vmid, cfg["lock"])
 	}
-	up, err := b.pc.Destroy(ctx, v.Node, vmid)
+	up, err := pc.Destroy(ctx, v.Node, vmid)
 	if err == nil {
-		err = b.pc.WaitTask(ctx, v.Node, up)
+		err = pc.WaitTask(ctx, v.Node, up)
 	}
 	if errors.Is(err, pve.ErrNotFound) {
 		return nil
