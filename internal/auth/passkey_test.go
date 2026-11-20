@@ -5,12 +5,15 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/nebla-cloud/nebla/internal/auth"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
@@ -597,4 +600,51 @@ func TestChallengeCleanupJob(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, left, 1)
 	require.Equal(t, []byte{1}, left[0].ID)
+}
+
+func isDeadlock(err error) bool {
+	var pe *pgconn.PgError
+	return errors.As(err, &pe) && pe.Code == "40P01"
+}
+
+// The admin start is staggered so the two transactions overlap.
+func TestPasskeyLoginRacesAdminRemove(t *testing.T) {
+	e := newPKEnv(t, pkOrigin)
+	ctx := context.Background()
+	admin, err := e.svc.CreateUser(ctx, "admin@example.com", pw, "A", true)
+	require.NoError(t, err)
+	u := e.user(t, "u@example.com")
+	const iterations = 50
+	deadlocks, logins := 0, 0
+	for i := range iterations {
+		a := testutil.NewAuthenticator(pkOrigin, icloudAAGUID)
+		e.register(t, u.ID, a)
+		id, opts, err := e.pk.BeginLogin(ctx, rpName)
+		require.NoError(t, err)
+		resp := a.Assert(opts)
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		var loginErr, removeErr error
+		wg.Go(func() { <-start; _, _, loginErr = e.pk.FinishLogin(ctx, id, resp) })
+		wg.Go(func() {
+			<-start
+			time.Sleep(time.Duration(i%10) * 300 * time.Microsecond)
+			removeErr = e.svc.AdminRemovePasskeys(ctx, admin.ID, u.ID)
+		})
+		close(start)
+		wg.Wait()
+		if isDeadlock(loginErr) || isDeadlock(removeErr) {
+			deadlocks++
+			continue
+		}
+		require.NoError(t, removeErr, "iteration %d", i)
+		if loginErr != nil {
+			requireCode(t, loginErr, http.StatusUnauthorized, "passkey_failed")
+		} else {
+			logins++
+		}
+	}
+	t.Logf("deadlocks: %d, logins: %d of %d", deadlocks, logins, iterations)
+	require.Zero(t, deadlocks)
 }
