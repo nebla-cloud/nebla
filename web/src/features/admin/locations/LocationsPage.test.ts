@@ -142,4 +142,106 @@ describe('admin locations', () => {
     await flushPromises()
     await vi.waitFor(() => expect(deleted).toBe(true))
   })
+
+  describe('enrollment', () => {
+    const enr = (
+      id: number,
+      name: string,
+      state: string,
+      expired = false,
+      location_id: number | null = null,
+    ) => ({
+      id,
+      name,
+      description: '',
+      location_id,
+      token_name: 't',
+      state,
+      expired,
+      expires_at: '2026-01-01T00:30:00Z',
+      created: '2026-01-01T00:00:00Z',
+      report: null,
+    })
+    const routers = () =>
+      testRouter([
+        { path: '/admin/locations', name: 'admin-locations', component: LocationsPage },
+        {
+          path: '/admin/locations/:locationId',
+          name: 'admin-location',
+          component: LocationDetailPage,
+        },
+        {
+          path: '/admin/locations/enroll/:enrollmentId',
+          name: 'admin-location-enroll',
+          component: { template: '<div />' },
+        },
+      ])
+
+    it('lists live enrollments with their state', async () => {
+      server.use(
+        list([loc()]),
+        http.get('*/v1/admin/location_enrollments', () =>
+          json(200, {
+            enrollments: [
+              enr(5, 'lab', 'waiting'),
+              enr(6, 'garage', 'reported'),
+              enr(8, 'home', 'waiting', true, 1),
+            ],
+          }),
+        ),
+      )
+      const { wrapper } = mountApp(LocationsPage, { router: routers() })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('lab · Waiting for setup'))
+      const text = wrapper.text()
+      expect(text).toContain('garage · Ready to finish')
+      expect(text).toContain('home (re-run) · Expired')
+      const hrefs = wrapper.findAll('a').map((a) => a.attributes('href'))
+      expect(hrefs).toContain('/admin/locations/enroll/5')
+      expect(hrefs).toContain('/admin/locations/enroll/6')
+    })
+
+    it('connect manually reveals the full form', async () => {
+      server.use(
+        list([]),
+        http.get('*/v1/admin/location_enrollments', () => json(200, { enrollments: [] })),
+      )
+      const { wrapper } = mountApp(LocationsPage, { router: routers() })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('No locations yet'))
+      const open = wrapper.findAll('button').find((b) => b.text() === 'Connect a location')!
+      await open.trigger('click')
+      expect(wrapper.find('input[name=token_secret]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Get setup command')
+      const manual = wrapper.findAll('button').find((b) => b.text() === 'Connect manually')!
+      await manual.trigger('click')
+      expect(wrapper.find('input[name=token_secret]').exists()).toBe(true)
+    })
+
+    it('re-run setup starts an enrollment for the location', async () => {
+      let body: unknown
+      server.use(
+        list([loc()]),
+        http.post('*/v1/admin/location_enrollments', async ({ request }) => {
+          body = await request.json()
+          return json(201, {
+            enrollment: enr(7, 'home', 'waiting', false, 1),
+            token: 'nbe_x',
+            command: 'c',
+            offline_script: 's',
+          })
+        }),
+      )
+      const router = routers()
+      await router.push('/admin/locations/1')
+      const { wrapper } = mountApp(LocationDetailPage, { router })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('Re-run setup'))
+      await wrapper
+        .findAll('button')
+        .find((b) => b.text() === 'Re-run setup')!
+        .trigger('click')
+      await vi.waitFor(() =>
+        expect(router.currentRoute.value.path).toBe('/admin/locations/enroll/7'),
+      )
+      expect(body).toEqual({ location_id: 1 })
+    })
+  })
 })

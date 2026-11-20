@@ -10,7 +10,7 @@ import { errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
 import LocationForm from './LocationForm.vue'
-import { useDeleteLocation, useSyncNodes, useUpdateNode } from './queries'
+import { useDeleteLocation, useStartEnrollment, useSyncNodes, useUpdateNode } from './queries'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,6 +22,7 @@ const location = computed(() => locations.value?.find((l) => l.id === id.value))
 const sync = useSyncNodes()
 const updateNode = useUpdateNode(id.value)
 const del = useDeleteLocation()
+const rerun = useStartEnrollment()
 const editing = ref(false)
 const confirmOpen = ref(false)
 const actionError = ref<string | null>(null)
@@ -49,6 +50,12 @@ const saveOverride = (nodeId: number, current: string) =>
       }),
     'Storage override saved',
   )
+
+const startRerun = () =>
+  run(async () => {
+    const c = await rerun.mutateAsync({ location_id: id.value })
+    await router.push({ name: 'admin-location-enroll', params: { enrollmentId: c.enrollment.id } })
+  })
 
 async function remove() {
   actionError.value = null
@@ -95,6 +102,14 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
         <div class="flex gap-2">
           <UButton v-if="!editing" color="neutral" variant="outline" @click="editing = true">
             Edit connection
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            :loading="rerun.isPending.value"
+            @click="startRerun"
+          >
+            Re-run setup
           </UButton>
           <UButton color="error" variant="outline" @click="confirmOpen = true">
             Delete location
