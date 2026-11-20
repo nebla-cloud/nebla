@@ -15,8 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/testutil"
+	"golang.org/x/time/rate"
 )
 
 type pveOut struct {
@@ -66,7 +69,9 @@ func TestUIHarness(t *testing.T) {
 		{Key: "ubuntu-24.04", Description: "Ubuntu 24.04", OSFlavor: "ubuntu", OSVersion: "24.04",
 			Dirs: []string{up.URL + "/ubuntu/"}, ChecksumName: "SHA256SUMS", File: regexp.MustCompile(`^ubuntu\.qcow2$`),
 			Algorithm: "sha256", Format: "qcow2"}}
-	app := testutil.NewAppWithWorkers(t, testutil.ServerWorkers, testutil.WithOSImages(entries, up.Client()))
+	app := testutil.NewAppWithWorkers(t, testutil.ServerWorkers, testutil.WithOSImages(entries, up.Client()),
+		// The specs share one admin principal; the production limit would starve later specs.
+		func(d *httpapi.Deps) { d.APILimiter = ratelimit.New(rate.Limit(10000), 100000) })
 	app.SeedPVE()
 	for _, n := range []string{"pve1", "pve2"} {
 		app.PVE.AddStorage(n, "imp", []string{"import"}, false)
