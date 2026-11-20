@@ -60,6 +60,11 @@ func ProjectID(v int64) predicate.APIToken {
 	return predicate.APIToken(sql.FieldEQ(FieldProjectID, v))
 }
 
+// CreatedBy applies equality check predicate on the "created_by" field. It's identical to CreatedByEQ.
+func CreatedBy(v int64) predicate.APIToken {
+	return predicate.APIToken(sql.FieldEQ(FieldCreatedBy, v))
+}
+
 // Name applies equality check predicate on the "name" field. It's identical to NameEQ.
 func Name(v string) predicate.APIToken {
 	return predicate.APIToken(sql.FieldEQ(FieldName, v))
@@ -103,6 +108,36 @@ func ProjectIDIn(vs ...int64) predicate.APIToken {
 // ProjectIDNotIn applies the NotIn predicate on the "project_id" field.
 func ProjectIDNotIn(vs ...int64) predicate.APIToken {
 	return predicate.APIToken(sql.FieldNotIn(FieldProjectID, vs...))
+}
+
+// CreatedByEQ applies the EQ predicate on the "created_by" field.
+func CreatedByEQ(v int64) predicate.APIToken {
+	return predicate.APIToken(sql.FieldEQ(FieldCreatedBy, v))
+}
+
+// CreatedByNEQ applies the NEQ predicate on the "created_by" field.
+func CreatedByNEQ(v int64) predicate.APIToken {
+	return predicate.APIToken(sql.FieldNEQ(FieldCreatedBy, v))
+}
+
+// CreatedByIn applies the In predicate on the "created_by" field.
+func CreatedByIn(vs ...int64) predicate.APIToken {
+	return predicate.APIToken(sql.FieldIn(FieldCreatedBy, vs...))
+}
+
+// CreatedByNotIn applies the NotIn predicate on the "created_by" field.
+func CreatedByNotIn(vs ...int64) predicate.APIToken {
+	return predicate.APIToken(sql.FieldNotIn(FieldCreatedBy, vs...))
+}
+
+// CreatedByIsNil applies the IsNil predicate on the "created_by" field.
+func CreatedByIsNil() predicate.APIToken {
+	return predicate.APIToken(sql.FieldIsNull(FieldCreatedBy))
+}
+
+// CreatedByNotNil applies the NotNil predicate on the "created_by" field.
+func CreatedByNotNil() predicate.APIToken {
+	return predicate.APIToken(sql.FieldNotNull(FieldCreatedBy))
 }
 
 // NameEQ applies the EQ predicate on the "name" field.
@@ -380,6 +415,29 @@ func HasProject() predicate.APIToken {
 func HasProjectWith(preds ...predicate.Project) predicate.APIToken {
 	return predicate.APIToken(func(s *sql.Selector) {
 		step := newProjectStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasCreator applies the HasEdge predicate on the "creator" edge.
+func HasCreator() predicate.APIToken {
+	return predicate.APIToken(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, CreatorTable, CreatorColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCreatorWith applies the HasEdge predicate on the "creator" edge with a given conditions (other predicates).
+func HasCreatorWith(preds ...predicate.User) predicate.APIToken {
+	return predicate.APIToken(func(s *sql.Selector) {
+		step := newCreatorStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

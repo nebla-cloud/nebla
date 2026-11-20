@@ -1,4 +1,4 @@
-h1:IIh+bA7qMNXHV6PUIzhKpMcKijrOtfT9fzybS7fEZpM=
+h1:IBFv90lalabqb7rCtTQidVtyHwUPvbhwJ4WINjuztb0=
 20261119105548_init.sql h1:EL0wlRJaIZf26vclFT/BsRYrEFStJzVJhaltQ0wTkz4=
 20261119110230_projects.sql h1:FWVokMkt36i6NSMVGFL2FScgdnpsAMivd1GnRyMlz8o=
 20261119111342_invite_created_by.sql h1:Sp/jQJ0Ph3MBWu6cAp6yetOszMZefiSu3lyEFfFp728=
@@ -17,3 +17,4 @@ h1:IIh+bA7qMNXHV6PUIzhKpMcKijrOtfT9fzybS7fEZpM=
 20261120035114_project_created_by.sql h1:KV3b3UGmSy9/urzvLRh6QP+MxjTUnEW/XMpBm6KXPx4=
 20261120064248_location_enrollments.sql h1:o5roHtRwFolYdAu3YqAEhIyDvwi2nCcH5shHZbpZlXE=
 20261120175437_passkeys.sql h1:IhyTUj+jevJsSN/fOMusRPy4WETiP8fNd44dHmLvIBM=
+20261120223510_api_token_created_by.sql h1:+UCymiQapFh7u0NvZ125MdDQnmw3wzfV2HJce7hmeVI=

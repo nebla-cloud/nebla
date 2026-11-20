@@ -113,6 +113,7 @@ type Token struct {
 	Permission string
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
+	CreatedBy  *int64
 }
 
 func toProject(p *ent.Project, role string) Project {
@@ -384,7 +385,10 @@ func (s *Service) SetRole(ctx context.Context, userID, projectID, memberID int64
 			return err
 		}
 		if !slices.Contains(managers, role) {
-			return deleteInvitesBy(ctx, tx, projectID, memberID)
+			if err := deleteInvitesBy(ctx, tx, projectID, memberID); err != nil {
+				return err
+			}
+			return deleteTokensBy(ctx, tx, projectID, memberID)
 		}
 		if m.Role == RoleOwner && role != RoleOwner {
 			// Owner invites need an owner creator, so drop them on demotion.
@@ -403,7 +407,10 @@ func (s *Service) RemoveMember(ctx context.Context, userID, projectID, memberID 
 		if err != nil {
 			return err
 		}
-		return deleteInvitesBy(ctx, tx, projectID, memberID)
+		if err := deleteInvitesBy(ctx, tx, projectID, memberID); err != nil {
+			return err
+		}
+		return deleteTokensBy(ctx, tx, projectID, memberID)
 	})
 	return err
 }
@@ -412,6 +419,12 @@ func (s *Service) RemoveMember(ctx context.Context, userID, projectID, memberID 
 func deleteInvitesBy(ctx context.Context, tx *ent.Client, projectID, creatorID int64) error {
 	_, err := tx.Invite.Delete().
 		Where(invite.ProjectID(projectID), invite.CreatedBy(creatorID), invite.AcceptedAtIsNil()).Exec(ctx)
+	return err
+}
+
+// deleteTokensBy revokes the API tokens a user created once they can no longer manage the project.
+func deleteTokensBy(ctx context.Context, tx *ent.Client, projectID, creatorID int64) error {
+	_, err := tx.APIToken.Delete().Where(apitoken.ProjectID(projectID), apitoken.CreatedBy(creatorID)).Exec(ctx)
 	return err
 }
 
@@ -650,7 +663,7 @@ func (s *Service) Tokens(ctx context.Context, userID, projectID int64) ([]Token,
 }
 
 func toToken(r *ent.APIToken) Token {
-	return Token{ID: r.ID, Name: r.Name, Permission: r.Permission, CreatedAt: r.CreatedAt, LastUsedAt: r.LastUsedAt}
+	return Token{ID: r.ID, Name: r.Name, Permission: r.Permission, CreatedAt: r.CreatedAt, LastUsedAt: r.LastUsedAt, CreatedBy: r.CreatedBy}
 }
 
 // CreateToken returns the token row and its plaintext, which is never stored.
@@ -669,7 +682,7 @@ func (s *Service) CreateToken(ctx context.Context, userID, projectID int64, name
 	if err != nil {
 		return Token{}, "", err
 	}
-	row, err := s.db.APIToken.Create().SetProjectID(projectID).SetName(name).SetPermission(perm).SetTokenHash(hash).Save(ctx)
+	row, err := s.db.APIToken.Create().SetProjectID(projectID).SetCreatedBy(userID).SetName(name).SetPermission(perm).SetTokenHash(hash).Save(ctx)
 	if err != nil {
 		return Token{}, "", err
 	}

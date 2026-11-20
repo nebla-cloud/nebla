@@ -2209,7 +2209,7 @@ paths:
       x-nebla-scope: project
       summary: Get a one-time VNC console URL for a running server
       description: >-
-        Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 60s and bound to the
+        Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 10s and bound to the
         server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only
         auth. password is the VNC password for noVNC.
       responses:
@@ -2397,13 +2397,21 @@ components:
         expires: { type: string, format: date-time }
     ApiToken:
       type: object
-      required: [id, name, permission, created, last_used]
+      required: [id, name, permission, created, last_used, created_by]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
         permission: { $ref: "#/components/schemas/TokenPermission" }
         created: { type: string, format: date-time }
         last_used: { type: string, format: date-time, nullable: true }
+        created_by:
+          type: integer
+          format: int64
+          nullable: true
+          description: >-
+            Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below
+            admin or is deleted. Null for tokens created before creators were recorded; those are never revoked
+            automatically.
     User:
       type: object
       required: [id, email, name, is_admin, totp_enabled]
