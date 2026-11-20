@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"bytes"
+	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -98,5 +101,44 @@ func TestContextListUseDelete(t *testing.T) {
 	}
 	if _, stderr, code := h.run("context", "use", "gone"); code != 1 || !strings.Contains(stderr, `context "gone" not found`) {
 		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func runInDir(t *testing.T, env map[string]string, args ...string) (int, string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	dir := t.TempDir()
+	code := Run(context.Background(), append([]string{"--config", filepath.Join(dir, "cli.yaml")}, args...), Env{
+		Stdin:  strings.NewReader(""),
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Getenv: func(k string) string { return env[k] },
+	})
+	return code, stderr.String()
+}
+
+func TestContextCreateEmptyName(t *testing.T) {
+	code, stderr := runInDir(t, map[string]string{"NEBLA_TOKEN": "tok"}, "context", "create", " ", "--endpoint", "http://127.0.0.1:1")
+	if code != 1 || !strings.Contains(stderr, "context name must not be empty") {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestContextCreateBlankEnvToken(t *testing.T) {
+	code, stderr := runInDir(t, map[string]string{"NEBLA_TOKEN": "  \n"}, "context", "create", "home", "--endpoint", "http://127.0.0.1:1")
+	if code != 1 || !strings.Contains(stderr, "no token given") {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestContextCreateTrimsEnvToken(t *testing.T) {
+	h := newHarness(t)
+	_, stderr, code := h.runEnv(map[string]string{"NEBLA_TOKEN": " " + h.Token + "\n"}, "", "context", "create", "home", "--endpoint", h.URL)
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+	cfg, _ := LoadConfig(h.configFile())
+	if c := cfg.find("home"); c == nil || c.Token != h.Token {
+		t.Fatalf("home=%+v", c)
 	}
 }
