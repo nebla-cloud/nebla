@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM node:26-alpine AS web
-RUN corepack enable
+# Node 25+ no longer bundles corepack
+RUN npm install -g corepack@0.36.0 && corepack enable
 WORKDIR /web
 COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile

@@ -93,7 +93,7 @@ make build      # bin/nebla-server
 docker build -t nebla:dev .
 ```
 
-The web panel is a Vue app in [web](web), embedded in the binary at build time. It needs Node 24 or newer and pnpm.
+The web panel is a Vue app in [web](web), embedded in the binary at build time. It needs Node 26 or newer and pnpm.
 `go build` works without Node: the binary then serves a placeholder page instead of the panel.
 
 ```sh

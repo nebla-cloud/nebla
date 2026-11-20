@@ -9,7 +9,7 @@ You need:
 
 - Go 1.27 (the version in `go.mod`)
 - Docker, because the tests start Postgres with Testcontainers
-- Node 24 and pnpm, for the web panel in `web/`
+- Node 26 and pnpm, for the web panel in `web/`
 - The Atlas CLI, only if you change the database schema
 
 ```sh

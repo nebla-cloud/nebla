@@ -28,5 +28,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],
+    // Node's built-in localStorage would shadow jsdom's
+    execArgv: ['--no-experimental-webstorage'],
   },
 })
