@@ -159,6 +159,8 @@ export function useFinishEnrollment(id: Ref<number>) {
       ),
     onSuccess: () => {
       forgetCreated(toValue(id))
+      // The row is gone after finish, so don't refetch it.
+      qc.removeQueries({ queryKey: [...enrollKey, toValue(id)] })
       return refresh(qc)
     },
   })
