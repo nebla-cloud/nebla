@@ -8,12 +8,12 @@ import LoginPage from './LoginPage.vue'
 
 const user = { id: 1, email: 'kai@example.com', name: 'Kai', is_admin: false, totp_enabled: true }
 
-async function loadSession() {
+async function loadSession(signup = false) {
   server.use(
     http.get('*/v1/ui/manifest', () =>
       json(200, {
         setup_required: false,
-        signup_enabled: false,
+        signup_enabled: signup,
         branding: { product_name: 'Nebla', logo_url: '', primary_color: '' },
         admin_sections: [],
       }),
@@ -65,5 +65,22 @@ describe('LoginPage', () => {
     })
     expect(useSession().me.value).toMatchObject({ email: 'kai@example.com' })
     expect(router.currentRoute.value.fullPath).toBe('/p/4/servers')
+    wrapper.unmount()
+  })
+
+  it('signup link only when enabled', async () => {
+    const router = testRouter([
+      { path: '/login', name: 'login', component: LoginPage },
+      { path: '/signup', name: 'signup', component: LoginPage },
+    ])
+    await router.push('/login')
+    await loadSession(false)
+    const off = mountApp(LoginPage, { router })
+    expect(off.wrapper.text()).not.toContain('New here? Create an account')
+    off.wrapper.unmount()
+    resetSession()
+    await loadSession(true)
+    const on = mountApp(LoginPage, { router })
+    expect(on.wrapper.text()).toContain('New here? Create an account')
   })
 })

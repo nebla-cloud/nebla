@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, reactive, ref, useTemplateRef } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
@@ -9,10 +9,11 @@ import { api } from '@/api/client'
 import { ApiError, errorMessage, unwrap } from '@/api/errors'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { safeNext } from '@/router/guards'
-import { setMe } from '@/lib/session'
+import { setMe, useSession } from '@/lib/session'
 
 const route = useRoute()
 const router = useRouter()
+const { manifest } = useSession()
 
 const form = reactive({ email: '', password: '', totp: '' })
 const needsTotp = ref(false)
@@ -88,5 +89,11 @@ async function submit() {
       </UFormField>
       <UButton type="submit" block size="lg" :loading="busy">Log in</UButton>
     </form>
+    <template v-if="manifest?.signup_enabled" #after>
+      New here?
+      <RouterLink :to="{ name: 'signup' }" class="font-medium text-primary"
+        >Create an account</RouterLink
+      >
+    </template>
   </AuthLayout>
 </template>
