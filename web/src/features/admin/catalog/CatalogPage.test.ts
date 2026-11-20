@@ -65,6 +65,23 @@ function serve(opts: { locations?: unknown[]; catalog?: () => CatalogEntry[] } =
   return () => catalogCalls
 }
 
+const ownImage = {
+  id: 2,
+  name: 'win-2025',
+  description: 'Windows Server 2025',
+  os_flavor: 'windows',
+  os_version: '2025',
+  catalog_key: null,
+  templates: [{ location_id: 2, vmid: 9100 }],
+  created: '2026-11-01T10:00:00Z',
+}
+
+function buttonByText(label: string): HTMLButtonElement | undefined {
+  return Array.from(document.body.querySelectorAll('button')).find(
+    (b) => b.textContent?.trim() === label,
+  )
+}
+
 afterEach(() => {
   vi.useRealTimers()
   document.body.innerHTML = ''
@@ -117,7 +134,7 @@ describe('CatalogPage', () => {
     expect(calls()).toBe(3)
   })
 
-  it('shows hand-registered images read-only', async () => {
+  it('lists hand-registered images with Edit and Delete', async () => {
     serve()
     server.use(
       http.get('*/v1/admin/images', () =>
@@ -155,14 +172,76 @@ describe('CatalogPage', () => {
     expect(own.text()).toContain('Windows Server 2025')
     expect(own.text()).toContain('rack-2')
     expect(own.text()).not.toContain('Debian 13')
-    expect(own.find('button').exists()).toBe(false)
+    expect(own.findAll('button').map((b) => b.text())).toEqual(['Add image', 'Edit', 'Delete'])
+    expect(own.text()).not.toContain('Register a template you made in Proxmox')
+  })
+
+  it('shows Your own images with the empty line when there are none', async () => {
+    serve()
+    const { wrapper } = mountApp(CatalogPage, { router })
+    await vi.waitFor(() => expect(wrapper.find('[data-own-images]').exists()).toBe(true))
+    const own = wrapper.find('[data-own-images]')
+    expect(own.text()).toContain('Register a template you made in Proxmox so people can pick it.')
+    expect(own.text()).toContain('Add image')
+  })
+
+  it('add opens the image form', async () => {
+    serve()
+    const { wrapper } = mountApp(CatalogPage, { router })
+    await vi.waitFor(() => expect(wrapper.find('[data-own-images]').exists()).toBe(true))
+    await wrapper.find('[data-own-images] button').trigger('click')
+    await vi.waitFor(() =>
+      expect(document.body.querySelector('input[name="vmid-0"]')).not.toBeNull(),
+    )
+  })
+
+  it('delete confirms, removes the image and refreshes the list', async () => {
+    serve()
+    let present = true
+    let deleted = 0
+    server.use(
+      http.get('*/v1/admin/images', () =>
+        json(200, { images: present ? [ownImage] : [], meta: {} }),
+      ),
+      http.delete('*/v1/admin/images/2', () => {
+        deleted++
+        present = false
+        return new Response(null, { status: 204 })
+      }),
+    )
+    const { wrapper } = mountApp(CatalogPage, { router })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Windows Server 2025'))
+    await wrapper.find('button[aria-label="Delete Windows Server 2025"]').trigger('click')
+    await vi.waitFor(() => expect(buttonByText('Delete image')).toBeDefined())
+    expect(deleted).toBe(0)
+    buttonByText('Delete image')!.click()
+    await vi.waitFor(() => expect(deleted).toBe(1))
+    await vi.waitFor(() => expect(wrapper.text()).not.toContain('Windows Server 2025'))
+  })
+
+  it('delete shows the 409 message when the image is in use', async () => {
+    serve()
+    server.use(
+      http.get('*/v1/admin/images', () => json(200, { images: [ownImage], meta: {} })),
+      http.delete('*/v1/admin/images/2', () =>
+        json(409, { error: { code: 'image_in_use', message: 'Servers still use this image.' } }),
+      ),
+    )
+    const { wrapper } = mountApp(CatalogPage, { router })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Windows Server 2025'))
+    await wrapper.find('button[aria-label="Delete Windows Server 2025"]').trigger('click')
+    await vi.waitFor(() => expect(buttonByText('Delete image')).toBeDefined())
+    buttonByText('Delete image')!.click()
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain('Servers still use this image.'),
+    )
+    expect(wrapper.text()).toContain('Windows Server 2025')
   })
 
   it('asks for a location first when there are none', async () => {
     serve({ locations: [] })
     const { wrapper } = mountApp(CatalogPage, { router })
-    await flushPromises()
-    expect(wrapper.text()).toContain('Connect a location first')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Connect a location first'))
     expect(wrapper.find('a[href="/admin/locations"]').exists()).toBe(true)
     expect(wrapper.find('table').exists()).toBe(false)
   })
