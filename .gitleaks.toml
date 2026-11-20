@@ -1,0 +1,22 @@
+[extend]
+useDefault = true
+
+# Public authenticator AAGUIDs and migration hashes.
+[[allowlists]]
+description = "Known non-secret files"
+paths = [
+  '''internal/auth/aaguids\.json''',
+  '''internal/db/migrations/atlas\.sum''',
+]
+
+# Fake values used by tests.
+[[allowlists]]
+description = "Test fixtures"
+regexTarget = "match"
+regexes = [
+  '''3f2b8c1e-5d4a-4e7b-9a10-0c6d2e8f7a11''',
+  '''0b7c6a52-6a49-4c8e-9a0e-5b2f1d3c4e5f''',
+  '''0123456789abcdef0123456789abcdef''',
+  '''nebla-test-secret-key-0123456789abcdef''',
+  '''dGhlIHNhbXBsZSBub25jZQ==''',
+]
