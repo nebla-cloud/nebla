@@ -2,9 +2,9 @@
 package enroll
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -246,15 +246,19 @@ func DecodeBlob(line string) (string, []byte, error) {
 }
 
 // EncodeBlob builds the paste-back line from a token and report JSON.
-func EncodeBlob(token string, raw []byte) string {
-	body := bytes.TrimSpace(raw)
-	if len(body) > 1 && body[0] == '{' {
-		tok, _ := json.Marshal(token) // a string always marshals
-		sep := ","
-		if bytes.Equal(bytes.TrimSpace(body[1:]), []byte("}")) {
-			sep = ""
-		}
-		body = append([]byte(`{"enroll_token":`+string(tok)+sep), body[1:]...)
+func EncodeBlob(token string, raw []byte) (string, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil || m == nil {
+		return "", errors.New("report is not a JSON object")
 	}
-	return blobPrefix + base64.RawURLEncoding.EncodeToString(body)
+	t, err := json.Marshal(token)
+	if err != nil {
+		return "", err
+	}
+	m["enroll_token"] = t
+	b, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+	return blobPrefix + base64.RawURLEncoding.EncodeToString(b), nil
 }
