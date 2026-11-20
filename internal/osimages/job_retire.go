@@ -16,6 +16,13 @@ const (
 	retireSnooze  = time.Minute
 )
 
+// retireDelay lets a create or rebuild that read the old template commit its template_vmid first.
+var retireDelay = 2 * time.Minute
+
+func retireOpts() *river.InsertOpts {
+	return &river.InsertOpts{ScheduledAt: time.Now().Add(retireDelay)}
+}
+
 // inflightClone is true while a create/rebuild could still clone the template.
 const inflightClone = `select exists (
 	select 1 from servers where location_id = $1 and template_vmid = $2 and status in ('initializing', 'rebuilding')

@@ -205,6 +205,19 @@ func TestDeleteLocationInUse(t *testing.T) {
 	requireCode(t, err, 404, "not_found")
 }
 
+func TestDeleteLocationRefusedWhileCatalogBuildExists(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, client := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	b, err := client.CatalogBuild.Create().SetCatalogKey("debian-13").SetLocationID(loc.ID).Save(ctx)
+	require.NoError(t, err)
+
+	requireCode(t, svc.DeleteLocation(ctx, loc.ID), 409, "location_in_use")
+	require.NoError(t, client.CatalogBuild.DeleteOneID(b.ID).Exec(ctx))
+	require.NoError(t, svc.DeleteLocation(ctx, loc.ID))
+}
+
 func TestImageLocalTemplateNeedsNode(t *testing.T) {
 	ctx := context.Background()
 	svc, pv, _ := setup(t)

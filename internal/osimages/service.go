@@ -372,6 +372,10 @@ func (s *Service) Disable(ctx context.Context, key string, locationID int64) (Lo
 		return LocationState{}, errNoJobs
 	}
 	err = db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		// Serialize with finalize, which takes the same lock.
+		if _, err := tx.ExecContext(ctx, `select pg_advisory_xact_lock(hashtext('osimages:' || $1))`, key); err != nil {
+			return err
+		}
 		rows, err := lockRows(ctx, etx, key, loc.ID)
 		if err != nil {
 			return err
@@ -399,7 +403,7 @@ func (s *Service) Disable(ctx context.Context, key string, locationID int64) (Lo
 				continue
 			}
 			args := RetireArgs{LocationID: loc.ID, Node: r.Node, VMID: *r.Vmid, Tag: templateTag(r.ID, *r.Nonce)}
-			if _, err := j.InsertTx(ctx, tx, args, nil); err != nil {
+			if _, err := j.InsertTx(ctx, tx, args, retireOpts()); err != nil {
 				return err
 			}
 		}

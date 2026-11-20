@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -325,6 +326,7 @@ func TestRefreshUnchangedChecksumNoop(t *testing.T) {
 }
 
 func TestRefreshSwapsAndRetires(t *testing.T) {
+	defer osimages.SetRetireDelay(100 * time.Millisecond)()
 	ctx := context.Background()
 	e := runEnv(t)
 	loc := e.location("eu-1", "ceph", "imp")
@@ -348,6 +350,7 @@ func TestRefreshSwapsAndRetires(t *testing.T) {
 	var a osimages.RetireArgs
 	require.NoError(t, json.Unmarshal(args[0], &a))
 	require.Equal(t, osimages.RetireArgs{LocationID: loc, Node: "", VMID: *first.Vmid, Tag: osimages.TemplateTag(r.ID, *first.Nonce)}, a)
+	require.Eventually(t, func() bool { return slices.Equal(e.tplVMs(), []int{*r.Vmid}) }, 30*time.Second, 50*time.Millisecond)
 }
 
 func TestDownloadSnoozesPastBudget(t *testing.T) {
@@ -414,7 +417,7 @@ func TestNoTransportDetails(t *testing.T) {
 			"download_failed", "download: download '[url]' failed: checksum mismatch"},
 		{"pve error", "create", &pve.Error{Status: 500, Message: "storage 'x' does not exist"}, "build_failed", "create: storage 'x' does not exist"},
 		{"download forbidden", "download", &pve.Error{Status: 403, Message: "Permission check failed (/, Sys.Modify)"}, "download_failed",
-			"download: permission denied; the API token needs Datastore.AllocateTemplate on the import storage and Sys.AccessNetwork on the node"},
+			"download: permission denied; the API token needs Datastore.AllocateTemplate and Datastore.Allocate on the import storage and Sys.AccessNetwork on the node"},
 		{"upstream", "resolve", fmt.Errorf("%w: debian-13: request failed", osimages.ErrUpstream), "upstream_unavailable",
 			"resolve: could not fetch the image checksum list from upstream"},
 		{"unknown", "create", errors.New("dial tcp 10.0.0.1:8006: boom"), "build_failed", "create: unexpected error"},
@@ -558,6 +561,38 @@ func TestCreateWaitsOnLockedUntaggedVM(t *testing.T) {
 	r := e.enable("debian-13", loc)[0]
 	// Each resume re-posts create and gets "already exists" again.
 	requireAdopted(t, e, r, *vmid, 0)
+	var snoozes int
+	require.NoError(t, e.sql.QueryRow(`select coalesce((metadata->>'snoozes')::int, 0) from river_job where id = $1`, *r.RiverJobID).Scan(&snoozes))
+	require.GreaterOrEqual(t, snoozes, 1)
+}
+
+func TestCreateGivesUpOnLongLockedUntaggedVM(t *testing.T) {
+	defer osimages.SetWaitBudget(50 * time.Millisecond)()
+	defer osimages.SetSnooze(10 * time.Millisecond)()
+	defer osimages.SetLockedForeignLimit(200 * time.Millisecond)()
+	e := runEnv(t)
+	var once sync.Once
+	foreign := 0
+	osimages.SetAfterStep(e.svc, func(id int64, step int) {
+		if step != osimages.StepAllocate {
+			return
+		}
+		once.Do(func() {
+			r, err := e.ent.CatalogBuild.Get(context.Background(), id)
+			require.NoError(t, err)
+			foreign = *r.NewVmid
+			e.pve.AddVM("pve1", foreign, "someone-else")
+			e.pve.SetVMConfig(foreign, "lock", "create")
+		})
+	})
+	loc := e.location("eu-1", "ceph", "imp")
+	r := e.enable("debian-13", loc)[0]
+	requireReady(t, r)
+	require.NotEqual(t, foreign, *r.Vmid)
+	require.Equal(t, []int{*r.Vmid}, e.tplVMs())
+	vm, ok := e.pve.VM(foreign)
+	require.True(t, ok, "foreign VM kept")
+	require.Equal(t, "someone-else", vm.Name)
 	var snoozes int
 	require.NoError(t, e.sql.QueryRow(`select coalesce((metadata->>'snoozes')::int, 0) from river_job where id = $1`, *r.RiverJobID).Scan(&snoozes))
 	require.GreaterOrEqual(t, snoozes, 1)

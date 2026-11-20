@@ -13,6 +13,7 @@ import (
 
 	"github.com/Hexeption/nebla/internal/apierr"
 	"github.com/Hexeption/nebla/internal/ent"
+	"github.com/Hexeption/nebla/internal/ent/catalogbuild"
 	"github.com/Hexeption/nebla/internal/ent/imagetemplate"
 	"github.com/Hexeption/nebla/internal/ent/ippool"
 	"github.com/Hexeption/nebla/internal/ent/location"
@@ -327,7 +328,7 @@ func locationInUse(why string) error {
 	return apierr.New(http.StatusConflict, "location_in_use", "location is in use: "+why)
 }
 
-// DeleteLocation refuses while images, restricted server types or LocationInUse reference the location.
+// DeleteLocation refuses while images, catalog builds, restricted server types or LocationInUse reference the location.
 func (s *Service) DeleteLocation(ctx context.Context, id int64) error {
 	err := s.withTx(ctx, func(tx *ent.Client) error {
 		if _, err := tx.Location.Query().Where(location.ID(id)).ForUpdate().Only(ctx); err != nil {
@@ -339,6 +340,13 @@ func (s *Service) DeleteLocation(ctx context.Context, id int64) error {
 		}
 		if imgs {
 			return locationInUse("images still have templates in it")
+		}
+		builds, err := tx.CatalogBuild.Query().Where(catalogbuild.LocationID(id)).Exist(ctx)
+		if err != nil {
+			return err
+		}
+		if builds {
+			return locationInUse("OS catalog images are still enabled in it")
 		}
 		// Dropping the last location of a restricted type would silently offer it everywhere.
 		types, err := tx.ServerType.Query().Where(servertype.HasLocationsWith(location.ID(id))).Exist(ctx)

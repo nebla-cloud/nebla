@@ -2,6 +2,7 @@ package osimages_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/ent/server"
@@ -97,4 +98,29 @@ func TestRetireWaitsForLiveRebuildJob(t *testing.T) {
 	require.NoError(t, e.retireWork(loc, 8001, retireTag))
 	_, ok = e.pve.VM(8001)
 	require.False(t, ok)
+}
+
+func TestRetireIsScheduledNotImmediate(t *testing.T) {
+	e := runEnv(t)
+	loc := e.location("eu-1", "ceph", "imp")
+	requireReady(t, e.enable("debian-13", loc)[0])
+	e.setSum("debian", strings.Repeat("ef56", 32))
+	requireReady(t, e.refresh("debian-13", loc)[0])
+	_, err := e.svc.Disable(context.Background(), "debian-13", loc)
+	require.NoError(t, err)
+
+	rs, err := e.sql.Query(`select state, scheduled_at > now() + interval '100 seconds' from river_job where kind = $1`, osimages.KindRetire)
+	require.NoError(t, err)
+	defer rs.Close()
+	n := 0
+	for rs.Next() {
+		var state string
+		var later bool
+		require.NoError(t, rs.Scan(&state, &later))
+		require.Equal(t, "scheduled", state)
+		require.True(t, later, "retire scheduled about two minutes out")
+		n++
+	}
+	require.NoError(t, rs.Err())
+	require.Equal(t, 2, n)
 }
