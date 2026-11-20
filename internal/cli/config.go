@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/url"
@@ -40,8 +41,16 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := yaml.Unmarshal(b, cfg); err != nil {
+	if len(bytes.TrimSpace(b)) == 0 {
+		return cfg, nil
+	}
+	if err := yaml.Load(b, cfg, yaml.WithKnownFields()); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	cfg.ActiveContext = strings.TrimSpace(cfg.ActiveContext)
+	for i := range cfg.Contexts {
+		c := &cfg.Contexts[i]
+		c.Name, c.Endpoint, c.Token = strings.TrimSpace(c.Name), strings.TrimSpace(c.Endpoint), strings.TrimSpace(c.Token)
 	}
 	return cfg, nil
 }

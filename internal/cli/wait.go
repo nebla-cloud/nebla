@@ -27,11 +27,15 @@ func (e interruptedError) Error() string {
 
 func (e interruptedError) Is(target error) bool { return target == ErrInterrupted }
 
-type waitOpts struct{ NoWait bool }
+type waitOpts struct {
+	NoWait  bool
+	Timeout time.Duration
+}
 
 func addWaitFlags(cmd *cobra.Command) *waitOpts {
 	o := &waitOpts{}
 	cmd.Flags().BoolVar(&o.NoWait, "no-wait", false, "print the action id and return without waiting")
+	cmd.Flags().DurationVar(&o.Timeout, "timeout", 0, "stop waiting after this long (0 waits forever)")
 	return o
 }
 
@@ -55,6 +59,9 @@ func (a *API) Wait(ctx context.Context, w io.Writer, tty bool, ids ...int64) ([]
 					return done, fmt.Errorf("timed out after %s waiting for action %d; it keeps running", a.Timeout, id)
 				}
 				return done, interruptedError{id}
+			}
+			if tty && act.Status != apiclient.ActionStatusError {
+				fmt.Fprintln(w)
 			}
 			return done, err
 		}

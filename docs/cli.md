@@ -16,7 +16,7 @@ Or run `make build`, which writes `bin/nebla`.
 
 A context is a panel endpoint plus a project token. Contexts are stored in `cli.yaml` under your user config directory
 (`~/.config/nebla` on Linux, `~/Library/Application Support/nebla` on macOS). The file is mode 0600 and the token is
-never printed after it is stored.
+never printed after it is stored. The file is not locked, so avoid running `context` commands concurrently.
 
 ```sh
 nebla context create home --endpoint https://panel.example.com   # asks for the token
@@ -26,7 +26,8 @@ nebla context delete home
 ```
 
 `context create` checks the endpoint and token before saving. The first context becomes active; pass `--activate` to
-switch to a later one. When stdin is not a terminal, the token is read from `NEBLA_TOKEN` or from one line of stdin.
+switch to a later one. A 401 from the panel names the context and endpoint in the error, so you know which one to
+recreate. Ctrl-C at the prompts exits with 130. When stdin is not a terminal, the token is read from `NEBLA_TOKEN` or from one line of stdin.
 
 ### Which context is used
 
@@ -82,12 +83,16 @@ stderr, so stdout stays clean for `-o json`.
 
 - `--no-wait` prints the action id and returns.
 - `--timeout 5m` stops waiting after that long. The default is to wait forever. The action keeps running on the panel.
+  Both flags exist only on the commands that wait.
 - Ctrl-C stops waiting and exits with 130. The CLI prints the action id.
 
 ## Output
 
 `-o table` (default), `-o json` or `-o yaml`. List commands print all pages. Add `--no-header` to a list to drop the
 table header.
+
+With `-o json` or `-o yaml`, `context list` prints an array of `name`, `endpoint` and `active` (never the token),
+`context create` prints that object for the new context, and `ssh-key delete` prints the deleted key.
 
 ## Exit codes
 
@@ -100,7 +105,7 @@ table header.
 ## server ssh
 
 `server ssh <server>` runs your system `ssh`. It uses the server's IPv4 address, or IPv6 with `--ipv6` or when the
-server has no IPv4. Arguments after `--` are ssh options, placed before the host (for example `-- -A -L 8080:localhost:80`). They are not a remote command. Without `-u`, the user comes from the image's OS:
+server has no IPv4. Arguments after `--` are ssh options, placed before the host (for example `-- -A -L 8080:localhost:80`). They are not a remote command: a first argument that does not start with `-` is rejected. Without `-u`, the user comes from the image's OS:
 
 | Image OS | User |
 | --- | --- |

@@ -85,6 +85,9 @@ func newSSHKeyCmd(a *app) *cobra.Command {
 			if s := res.StatusCode(); s < 200 || s > 299 {
 				return apiErr(s, res.Body)
 			}
+			if a.flags.output != "table" {
+				return a.printer().Object(k)
+			}
 			fmt.Fprintf(a.env.Stdout, "SSH key %s deleted\n", k.Name)
 			return nil
 		},

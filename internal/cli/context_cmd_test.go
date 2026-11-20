@@ -3,9 +3,12 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestContextCreateChecksToken(t *testing.T) {
@@ -140,5 +143,55 @@ func TestContextCreateTrimsEnvToken(t *testing.T) {
 	cfg, _ := LoadConfig(h.configFile())
 	if c := cfg.find("home"); c == nil || c.Token != h.Token {
 		t.Fatalf("home=%+v", c)
+	}
+}
+
+func TestContextListJSON(t *testing.T) {
+	h := newHarness(t)
+	out, errOut, code := h.run("-o", "json", "context", "list")
+	var got []map[string]any
+	if code != 0 || json.Unmarshal([]byte(out), &got) != nil || len(got) != 1 {
+		t.Fatalf("json: %d %q %q", code, out, errOut)
+	}
+	if got[0]["name"] != "test" || got[0]["endpoint"] != h.URL || got[0]["active"] != true || len(got[0]) != 3 || strings.Contains(out, h.Token) {
+		t.Fatalf("got %q", out)
+	}
+	out, _, code = h.run("context", "list", "--no-header")
+	if code != 0 || strings.Contains(out, "NAME") || !strings.Contains(out, "test") {
+		t.Fatalf("no-header: %d %q", code, out)
+	}
+}
+
+func TestContextCreateJSON(t *testing.T) {
+	h := newHarness(t)
+	out, errOut, code := h.runEnv(map[string]string{"NEBLA_TOKEN": h.Token}, "", "-o", "json", "context", "create", "home", "--endpoint", h.URL)
+	var got map[string]any
+	if code != 0 || json.Unmarshal([]byte(out), &got) != nil || got["name"] != "home" || got["active"] != false || strings.Contains(out, h.Token) {
+		t.Fatalf("create json: %d %q %q", code, out, errOut)
+	}
+}
+
+func TestContextCreateInterrupted(t *testing.T) {
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	var stderr bytes.Buffer
+	e := Env{Stdin: pr, Stdout: io.Discard, Stderr: &stderr, Getenv: func(string) string { return "" }, ConfigDir: dir}
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	codes := make(chan int, 1)
+	go func() {
+		codes <- Run(ctx, []string{"context", "create", "home", "--endpoint", "http://127.0.0.1:1"}, e)
+	}()
+	select {
+	case code := <-codes:
+		if code != 130 {
+			t.Fatalf("code=%d stderr=%q", code, stderr.String())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("create did not return after cancel")
 	}
 }

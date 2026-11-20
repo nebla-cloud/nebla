@@ -113,3 +113,26 @@ func TestConfigPath(t *testing.T) {
 		t.Fatal(p)
 	}
 }
+
+func TestLoadConfigTrimsAndRejectsUnknown(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "cli.yaml")
+	if err := os.WriteFile(p, []byte("active_context: a\ncontexts:\n  - name: a\n    endpoint: \"https://a.example.com \"\n    token: \"tok\\n\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(p)
+	if err != nil || cfg.Contexts[0].Token != "tok" || cfg.Contexts[0].Endpoint != "https://a.example.com" {
+		t.Fatalf("cfg=%+v err=%v", cfg, err)
+	}
+	if err := os.WriteFile(p, []byte("active-context: a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(p); err == nil || !strings.Contains(err.Error(), p) || !strings.Contains(err.Error(), "active-context") {
+		t.Fatalf("err=%v", err)
+	}
+	if err := os.WriteFile(p, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(p); err != nil {
+		t.Fatalf("empty file: %v", err)
+	}
+}

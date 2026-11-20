@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -36,6 +37,9 @@ func serverSSHCmd(a *app) *cobra.Command {
 		if d := cmd.ArgsLenAtDash(); d >= 0 {
 			extra = args[d:]
 			args = args[:d]
+			if len(extra) > 0 && !strings.HasPrefix(extra[0], "-") {
+				return errors.New("arguments after -- are ssh options; to run a remote command use ssh directly")
+			}
 		}
 		if len(args) != 1 {
 			return fmt.Errorf("expected one server, got %d", len(args))

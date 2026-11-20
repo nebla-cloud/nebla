@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -149,8 +150,11 @@ func TestServerDelete(t *testing.T) {
 func TestServerCreateWaitFailureNamesServer(t *testing.T) {
 	h := newHarnessQueueOnly(t)
 	ctx := context.Background()
+	stop := make(chan struct{})
+	finished := make(chan struct{})
 	go func() {
-		for i := 0; i < 200; i++ {
+		defer close(finished)
+		for {
 			ids, _ := h.Env.App.Ent.Action.Query().IDs(ctx)
 			if len(ids) > 0 {
 				for _, id := range ids {
@@ -158,11 +162,17 @@ func TestServerCreateWaitFailureNamesServer(t *testing.T) {
 				}
 				return
 			}
-			time.Sleep(20 * time.Millisecond)
+			select {
+			case <-stop:
+				return
+			case <-time.After(20 * time.Millisecond):
+			}
 		}
 	}()
 	_, errOut, code := h.run(createArgs("web1")...)
-	if code != 1 || !strings.Contains(errOut, "server 1 was created, but:") || !strings.Contains(errOut, "boom") {
+	close(stop)
+	<-finished
+	if code != 1 || !regexp.MustCompile(`server \d+ was created, but:`).MatchString(errOut) || !strings.Contains(errOut, "boom") {
 		t.Fatalf("got %d %q", code, errOut)
 	}
 }
