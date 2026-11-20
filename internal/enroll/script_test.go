@@ -76,13 +76,14 @@ func execScript(t *testing.T, args []string, env map[string]string) scriptRun {
 		require.NoError(t, os.WriteFile(p, []byte(content+"\n"), 0o644))
 	}
 	vars := map[string]string{
-		"PATH":          stubs + ":/usr/bin:/bin",
-		"HOME":          tmp,
-		"NEBLA_PVE_DIR": pveDir,
-		"NEBLA_TOKEN":   testToken,
-		"STUB_LOG":      filepath.Join(tmp, "calls.log"),
-		"STUB_BODY":     filepath.Join(tmp, "body.json"),
-		"STUB_SECRET":   stubSecret,
+		"PATH":              stubs + ":/usr/bin:/bin",
+		"HOME":              tmp,
+		"NEBLA_PVE_DIR":     pveDir,
+		"NEBLA_TOKEN":       testToken,
+		"STUB_LOG":          filepath.Join(tmp, "calls.log"),
+		"STUB_BODY":         filepath.Join(tmp, "body.json"),
+		"STUB_SECRET":       stubSecret,
+		"STUB_EXPECT_TOKEN": testToken,
 	}
 	for k, v := range env {
 		vars[k] = v
@@ -111,10 +112,21 @@ func execScript(t *testing.T, args []string, env map[string]string) scriptRun {
 			}
 		}
 	}
+	for _, c := range r.calls {
+		argv := strings.Join(c, " ")
+		require.False(t, strings.Contains(argv, testToken), "enrollment token in argv of %s", c[0])
+		require.False(t, strings.Contains(argv, stubSecret), "token secret in argv of %s", c[0])
+	}
+	require.False(t, r.has("pveum", "user", "token", "remove"), "the script removed a token")
 	if b, err := os.ReadFile(vars["STUB_BODY"]); err == nil {
 		r.body = string(b)
 	}
 	return r
+}
+
+// redact keeps the test token and secret out of failure messages.
+func redact(s string) string {
+	return strings.NewReplacer(testToken, "[token]", stubSecret, "[secret]").Replace(s)
 }
 
 func runScript(t *testing.T, env map[string]string) scriptRun {
@@ -139,6 +151,7 @@ func TestScriptRender(t *testing.T) {
 	s := string(Script(testPanel))
 	require.Contains(t, s, "\nPANEL_URL='https://panel.test'\n")
 	require.NotContains(t, s, "{{")
+	require.NotContains(t, s, "\t")
 	f := filepath.Join(t.TempDir(), "enroll.sh")
 	require.NoError(t, os.WriteFile(f, []byte(s), 0o644))
 	out, err := exec.Command("bash", "-n", f).CombinedOutput()
@@ -151,8 +164,9 @@ func TestScriptRender(t *testing.T) {
 
 func TestScriptCommand(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, "curl -fsSL 'https://panel.test/v1/enroll.sh' | NEBLA_TOKEN="+testToken+" bash", Command(testPanel, testToken))
-	require.Equal(t, "curl -fsSL 'https://panel.test/v1/enroll.sh' | NEBLA_TOKEN="+testToken+" bash", Command(testPanel+"/", testToken))
+	want := "curl -fsSL 'https://panel.test/v1/enroll.sh' | NEBLA_TOKEN=" + testToken + " bash"
+	require.True(t, Command(testPanel, testToken) == want, "command mismatch")
+	require.True(t, Command(testPanel+"/", testToken) == want, "command mismatch with trailing slash")
 	require.Panics(t, func() { Command(testPanel, "nbe_x; rm -rf /") })
 	off := OfflineScript(testPanel, testToken, testName)
 	require.True(t, strings.HasPrefix(off, "NEBLA_TOKEN="+testToken+" NEBLA_TOKEN_NAME="+testName+" NEBLA_OFFLINE=1 bash <<'NEBLA_EOF'\n"+string(Script(testPanel))))
@@ -211,38 +225,38 @@ func TestScriptPreflightUnreachable(t *testing.T) {
 func TestScriptPVE8Privs(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, map[string]string{"STUB_PVE": "8.2.4", "STUB_ADMIN_PRIVS": "Sys.Audit Sys.AccessNetwork VM.Config.HWType"})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.Equal(t, privs8+" Sys.AccessNetwork VM.Config.HWType", r.privs("add", "Nebla"))
 	require.Equal(t, privsISO, r.privs("add", "NeblaISO"))
 
 	r = runScript(t, map[string]string{"STUB_PVE": "8.2.4", "STUB_ADMIN_PRIVS": "Sys.Audit VM.Config.HWType"})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.Equal(t, privs8+" VM.Config.HWType", r.privs("add", "Nebla"))
 }
 
 func TestScriptPVE9Privs(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, map[string]string{"STUB_ADMIN_PRIVS": "Sys.Audit"})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.Equal(t, privs9, r.privs("add", "Nebla"))
 	require.Equal(t, privsISO, r.privs("add", "NeblaISO"))
 
 	r = runScript(t, map[string]string{"STUB_ADMIN_PRIVS": "Sys.AccessNetwork VM.Config.HWType"})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.Equal(t, privs9+" Sys.AccessNetwork VM.Config.HWType", r.privs("add", "Nebla"))
 }
 
 func TestScriptRerunModifiesRoles(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, map[string]string{"STUB_ROLES": "Administrator NeblaISOx Nebla NeblaISO", "STUB_USERS": "root@pam nebla@pve"})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.False(t, r.has("pveum", "role", "add"))
 	require.Equal(t, privs9, r.privs("modify", "Nebla"))
 	require.Equal(t, privsISO, r.privs("modify", "NeblaISO"))
 	require.False(t, r.has("pveum", "user", "add"))
 
 	r = runScript(t, map[string]string{"STUB_ROLES": "Administrator NeblaX", "STUB_USERS": "root@pam nebla@pvex"})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.False(t, r.has("pveum", "role", "modify"))
 	require.Equal(t, 2, r.count("pveum", "role", "add"))
 	require.True(t, r.has("pveum", "user", "add", "nebla@pve", "--comment", "Nebla panel"))
@@ -251,7 +265,7 @@ func TestScriptRerunModifiesRoles(t *testing.T) {
 func TestScriptUserAndACLs(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, nil)
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.True(t, r.has("pveum", "acl", "modify", "/", "--users", "nebla@pve", "--roles", "Nebla"))
 	require.True(t, r.has("pveum", "acl", "modify", "/storage/local", "--users", "nebla@pve", "--roles", "NeblaISO"))
 	require.True(t, r.has("pveum", "acl", "modify", "/storage/imp", "--users", "nebla@pve", "--roles", "NeblaISO"))
@@ -262,7 +276,7 @@ func TestScriptUserAndACLs(t *testing.T) {
 func TestScriptSkipsBadStorageID(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, map[string]string{"STUB_STORAGE": `[{"content":"iso","storage":"9bad","type":"dir"},{"content":"iso","storage":"local","type":"dir"}]`})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.Contains(t, r.stderr, "9bad")
 	require.False(t, r.has("pveum", "acl", "modify", "/storage/9bad"))
 	require.True(t, r.has("pveum", "acl", "modify", "/storage/local"))
@@ -270,38 +284,60 @@ func TestScriptSkipsBadStorageID(t *testing.T) {
 
 func TestScriptLeavesOtherTokens(t *testing.T) {
 	t.Parallel()
-	r := runScript(t, map[string]string{"STUB_TOKENS": "panel nebla-home-zzzzzz " + testName + "x"})
-	require.Equal(t, 0, r.code, r.stderr)
+	r := runScript(t, map[string]string{"STUB_TOKENS": "panel nebla-home-zzzzzz " + testName + "x", "STUB_USERS": "root@pam nebla@pve"})
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.False(t, r.has("pveum", "user", "token", "remove"))
 	require.Equal(t, 1, r.count("pveum", "user", "token", "add", "nebla@pve", testName))
 
-	r = runScript(t, map[string]string{"STUB_TOKENS": "panel " + testName + " nebla-home-zzzzzz"})
-	require.Equal(t, 0, r.code, r.stderr)
-	require.Equal(t, 1, r.count("pveum", "user", "token", "remove"))
-	require.True(t, r.has("pveum", "user", "token", "remove", "nebla@pve", testName))
-	rm, add := -1, -1
-	for i, c := range r.calls {
-		if strings.Join(c, " ") == "pveum user token remove nebla@pve "+testName {
-			rm = i
-		}
-		if len(c) > 3 && c[0] == "pveum" && c[3] == "add" {
-			add = i
-		}
-	}
-	require.Less(t, rm, add)
+	r = runScript(t, map[string]string{"STUB_TOKENS": "panel " + testName + " nebla-home-zzzzzz", "STUB_USERS": "root@pam nebla@pve"})
+	require.Equal(t, 1, r.code)
+	require.True(t, r.has("pveum", "user", "token", "list", "nebla@pve"))
+	noWrites(t, r)
+	require.Contains(t, r.stderr, "nebla: error: this setup command was already used; get a new command in the panel")
+	require.False(t, r.has("pveum", "user", "token", "remove"))
+	require.False(t, r.has("pveum", "user", "token", "add"))
+	require.NotContains(t, r.stderr, "pveum user token remove")
+	require.False(t, r.has("curl", "-sS", "--max-time", "20"))
+}
+
+func TestScriptTokenHintAfterLaterFailure(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{"STUB_CLUSTER": `[{"id":"node/pve9","ip":"10.0.0.9","local":1,"name":"pve9","online":1,"type":"node"}]`})
+	require.Equal(t, 1, r.code)
+	require.True(t, r.has("pveum", "user", "token", "add"))
+	require.Contains(t, r.stderr, "nebla: error: unexpected certificate fingerprint for node pve9")
+	require.Contains(t, r.stderr, "pveum user token remove nebla@pve "+testName)
+	require.False(t, r.has("curl", "-sS", "--max-time", "20"))
+	require.NotContains(t, r.stdout, "nebla-enroll:")
+
+	r = runScript(t, map[string]string{"STUB_SECRET": "not-a-uuid"})
+	require.Equal(t, 1, r.code)
+	require.Contains(t, r.stderr, "pveum user token remove nebla@pve "+testName)
+
+	r = runScript(t, nil)
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.NotContains(t, r.stdout+r.stderr, "pveum user token remove")
+}
+
+func TestScriptSendsTokenInConfig(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{"STUB_EXPECT_TOKEN": "nbe_" + strings.Repeat("z", 43)})
+	require.Equal(t, 1, r.code)
+	require.Contains(t, r.stderr, "the panel refused this enrollment")
+	noWrites(t, r)
 }
 
 func TestScriptOnlineReportParses(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, nil)
-	require.Equal(t, 0, r.code, r.stderr)
-	require.True(t, r.has("curl", "-sS", "--max-time", "20", "-H", "Authorization: Enroll "+testToken, "-H", "Content-Type: application/json", "--data-binary", "@-"))
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.True(t, r.has("curl", "-sS", "--max-time", "20", "--config"))
 	rep, err := ParseReport([]byte(r.body))
-	require.NoError(t, err, r.body)
+	require.NoError(t, err, "report rejected (body redacted)")
 	require.Equal(t, "9.0.3", rep.PVEVersion)
 	require.Equal(t, "pve1", rep.Node)
 	require.Equal(t, "nebla@pve!"+testName, rep.TokenID)
-	require.Equal(t, stubSecret, rep.TokenSecret)
+	require.True(t, rep.TokenSecret == stubSecret, "token secret mismatch")
 	require.Equal(t, []ReportNode{
 		{Name: "pve1", IP: "10.0.0.1", Online: true, Fingerprint: strings.Repeat("AA", 32)},
 		{Name: "pve2", IP: "10.0.0.2", Online: false, Fingerprint: strings.Repeat("BB", 32)},
@@ -319,7 +355,7 @@ func TestScriptOnlineReportParses(t *testing.T) {
 func TestScriptStandaloneNode(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, map[string]string{"STUB_CLUSTER": `[{"id":"node/pve1","ip":"192.168.1.5","level":"","local":1,"name":"pve1","nodeid":0,"online":1,"type":"node"}]`})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	rep, err := ParseReport([]byte(r.body))
 	require.NoError(t, err)
 	require.Len(t, rep.Nodes, 1)
@@ -328,11 +364,11 @@ func TestScriptStandaloneNode(t *testing.T) {
 func TestScriptOfflineBlob(t *testing.T) {
 	t.Parallel()
 	r := execScript(t, []string{"-c", OfflineScript(testPanel, testToken, testName)}, map[string]string{"NEBLA_TOKEN": "-"})
-	require.Equal(t, 0, r.code, r.stderr)
+	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.False(t, r.has("curl"))
 	tok, raw, err := DecodeBlob(r.lastLine())
 	require.NoError(t, err)
-	require.Equal(t, testToken, tok)
+	require.True(t, tok == testToken, "blob token mismatch")
 	rep, err := ParseReport(raw)
 	require.NoError(t, err)
 	require.Equal(t, "nebla@pve!"+testName, rep.TokenID)
@@ -343,10 +379,10 @@ func TestScriptReportFailsFallsBackToBlob(t *testing.T) {
 	t.Parallel()
 	for _, code := range []string{"000", "500"} {
 		r := runScript(t, map[string]string{"STUB_REPORT": code})
-		require.Equal(t, 0, r.code, r.stderr)
+		require.Equal(t, 0, r.code, redact(r.stderr))
 		tok, raw, err := DecodeBlob(r.lastLine())
 		require.NoError(t, err, code)
-		require.Equal(t, testToken, tok)
+		require.True(t, tok == testToken, "blob token mismatch")
 		_, err = ParseReport(raw)
 		require.NoError(t, err)
 	}
@@ -366,10 +402,8 @@ func TestScriptReportUsedNoBlob(t *testing.T) {
 func TestScriptNeverPrintsSecretOnline(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, nil)
-	require.Equal(t, 0, r.code, r.stderr)
-	require.NotContains(t, r.stdout, stubSecret)
-	require.NotContains(t, r.stderr, stubSecret)
-	for _, c := range r.calls {
-		require.NotContains(t, strings.Join(c, " "), stubSecret)
-	}
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.False(t, strings.Contains(r.stdout, stubSecret), "secret on stdout")
+	require.False(t, strings.Contains(r.stderr, stubSecret), "secret on stderr")
+	require.False(t, strings.Contains(r.stdout+r.stderr, testToken), "enrollment token printed")
 }
