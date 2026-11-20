@@ -40,6 +40,9 @@ func serverSSHCmd(a *app) *cobra.Command {
 		if len(args) != 1 {
 			return fmt.Errorf("expected one server, got %d", len(args))
 		}
+		if port < 1 || port > 65535 {
+			return fmt.Errorf("invalid port %d", port)
+		}
 		api, err := a.api()
 		if err != nil {
 			return err
@@ -49,10 +52,14 @@ func serverSSHCmd(a *app) *cobra.Command {
 			return err
 		}
 		ip := srv.PublicNet.Ipv4
-		if v6 || ip == nil || ip.Ip == "" {
+		has4 := ip != nil && ip.Ip != ""
+		if v6 || !has4 {
 			ip = srv.PublicNet.Ipv6
 		}
 		if ip == nil || ip.Ip == "" {
+			if v6 && has4 {
+				return fmt.Errorf("server %s has no IPv6 address", srv.Name)
+			}
 			return fmt.Errorf("server %s has no public IP", srv.Name)
 		}
 		if user == "" {

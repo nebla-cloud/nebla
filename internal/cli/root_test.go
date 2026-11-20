@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -56,4 +57,11 @@ func TestHelpHasNoForbiddenWords(t *testing.T) {
 		}
 	}
 	walk(newRootCmd(Env{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}))
+}
+
+func TestExitCodeChildStatus(t *testing.T) {
+	var b bytes.Buffer
+	if c := exitCode(&b, fmt.Errorf("wrap: %w", exitStatus(255))); c != 255 || b.Len() != 0 {
+		t.Fatalf("got %d %q", c, b.String())
+	}
 }

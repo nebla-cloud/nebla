@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 )
@@ -11,5 +12,10 @@ func execProcess(argv0 string, argv []string, env []string) error {
 	c := exec.Command(argv0, argv[1:]...)
 	c.Env = env
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return c.Run()
+	err := c.Run()
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return exitStatus(ee.ExitCode())
+	}
+	return err
 }

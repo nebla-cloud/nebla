@@ -77,3 +77,20 @@ func TestServerSSHNoIP(t *testing.T) {
 		t.Fatalf("noip: %d %q", code, errOut)
 	}
 }
+
+func TestServerSSHNoIPv6(t *testing.T) {
+	h := runningServer(t)
+	_, errOut, code := runSSH(h, "server", "ssh", "web1", "--ipv6")
+	if code != 1 || !strings.Contains(errOut, "server web1 has no IPv6 address") {
+		t.Fatalf("no ipv6: %d %q", code, errOut)
+	}
+}
+
+func TestServerSSHBadPort(t *testing.T) {
+	h := runningServer(t)
+	for _, p := range []string{"0", "70000"} {
+		if _, errOut, code := runSSH(h, "server", "ssh", "web1", "-p", p); code != 1 || !strings.Contains(errOut, "invalid port") {
+			t.Fatalf("port %s: %d %q", p, code, errOut)
+		}
+	}
+}

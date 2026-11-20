@@ -95,10 +95,19 @@ func Run(ctx context.Context, args []string, env Env) int {
 	return exitCode(env.Stderr, root.ExecuteContext(ctx))
 }
 
+// exitStatus is a child process exit code to pass on without printing.
+type exitStatus int
+
+func (e exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+
 func exitCode(stderr io.Writer, err error) int {
 	switch {
 	case err == nil:
 		return 0
+	case errors.As(err, new(exitStatus)):
+		var st exitStatus
+		errors.As(err, &st)
+		return int(st)
 	case errors.Is(err, ErrInterrupted):
 		fmt.Fprintln(stderr, err)
 		return 130
