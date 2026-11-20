@@ -193,6 +193,112 @@ describe('EnrollPage', () => {
     expect(button(wrapper, 'Connect location')).toBeTruthy()
   })
 
+  describe('finish prefill', () => {
+    const wide = {
+      ...report,
+      storages: [
+        ...report.storages,
+        { id: 'ceph', type: 'rbd', content: ['images'], shared: true, nebla_iso: false },
+        { id: 'nebla-iso2', type: 'nfs', content: ['iso'], shared: true, nebla_iso: true },
+      ],
+    }
+    const loc = (over: Partial<AdminLocation> = {}): AdminLocation => ({
+      id: 3,
+      name: 'home',
+      description: '',
+      pve: {
+        url: 'https://pve.example:8006',
+        token_id: 't',
+        has_secret: true,
+        ca_fingerprint: '',
+        insecure_tls: false,
+      },
+      disk_storage: 'ceph',
+      iso_storage: 'nebla-iso2',
+      import_storage: 'nebla-imp',
+      nodes: [],
+      created: '2026-01-01T00:00:00Z',
+      updated: '2026-01-01T00:00:00Z',
+      ...over,
+    })
+    const locations = (l: AdminLocation) =>
+      http.get('*/v1/admin/locations', () =>
+        json(200, {
+          locations: [l],
+          meta: { pagination: { page: 1, per_page: 50, total_entries: 1 } },
+        }),
+      )
+    const val = (w: { find: (s: string) => { element: Element } }, sel: string) =>
+      (w.find(sel).element as HTMLInputElement | HTMLSelectElement).value
+    const urlOpts = (w: { findAll: (s: string) => { attributes: (n: string) => unknown }[] }) =>
+      w.findAll('select[name=node_url] option').map((o) => o.attributes('value'))
+
+    it('a re-run keeps the current URL and storages', async () => {
+      server.use(
+        get(enrollment({ state: 'reported', report: wide, location_id: 3 })),
+        locations(loc()),
+      )
+      const { wrapper } = await mountPage()
+      await vi.waitFor(() => expect(wrapper.find('input[name=url]').exists()).toBe(true))
+      expect(val(wrapper, 'input[name=url]')).toBe('https://pve.example:8006')
+      expect(val(wrapper, 'select[name=disk_storage]')).toBe('ceph')
+      expect(val(wrapper, 'select[name=iso_storage]')).toBe('nebla-iso2')
+      expect(val(wrapper, 'select[name=import_storage]')).toBe('nebla-imp')
+      expect(urlOpts(wrapper)).toEqual(['', 'https://10.0.0.1:8006', 'https://10.0.0.2:8006'])
+      expect(button(wrapper, 'Save')).toBeTruthy()
+    })
+
+    it('a re-run falls back to defaults for storages the node no longer offers', async () => {
+      server.use(
+        get(enrollment({ state: 'reported', report: wide, location_id: 3 })),
+        locations(loc({ disk_storage: 'gone', iso_storage: 'local', import_storage: 'gone' })),
+      )
+      const { wrapper } = await mountPage()
+      await vi.waitFor(() => expect(wrapper.find('input[name=url]').exists()).toBe(true))
+      expect(val(wrapper, 'input[name=url]')).toBe('https://pve.example:8006')
+      expect(val(wrapper, 'select[name=disk_storage]')).toBe('local-lvm')
+      expect(val(wrapper, 'select[name=iso_storage]')).toBe('nebla-iso')
+      expect(val(wrapper, 'select[name=import_storage]')).toBe('')
+    })
+
+    it('a new enrollment keeps the defaults', async () => {
+      server.use(get(enrollment({ state: 'reported', report: wide })), locations(loc()))
+      const { wrapper } = await mountPage()
+      await vi.waitFor(() => expect(wrapper.find('input[name=url]').exists()).toBe(true))
+      expect(val(wrapper, 'input[name=url]')).toBe('https://10.0.0.1:8006')
+      expect(val(wrapper, 'select[name=disk_storage]')).toBe('local-lvm')
+      expect(val(wrapper, 'select[name=iso_storage]')).toBe('nebla-iso')
+      expect(val(wrapper, 'select[name=import_storage]')).toBe('')
+      expect(urlOpts(wrapper)).toEqual(['', 'https://10.0.0.2:8006'])
+    })
+
+    it('brackets IPv6 and skips nodes without an ip', async () => {
+      const v6 = {
+        ...report,
+        nodes: [
+          { name: 'pve1', ip: '2001:db8::1', online: true, fingerprint: 'AA:BB' },
+          { name: 'pve2', ip: '', online: false, fingerprint: 'CC:DD' },
+          { name: 'pve3', ip: 'fd00::3', online: true, fingerprint: 'EE:FF' },
+        ],
+      }
+      server.use(get(enrollment({ state: 'reported', report: v6 })))
+      const { wrapper } = await mountPage()
+      expect(val(wrapper, 'input[name=url]')).toBe('https://[2001:db8::1]:8006')
+      expect(urlOpts(wrapper)).toEqual(['', 'https://[fd00::3]:8006'])
+    })
+  })
+
+  it.each([
+    ['the server', { expired: true }],
+    ['the client clock', { expires_at: new Date(Date.now() - 1000).toISOString() }],
+  ])('shows an expired report without the finish form (%s)', async (_, over) => {
+    server.use(get(enrollment({ state: 'reported', report, ...over })))
+    const { wrapper } = await mountPage()
+    expect(wrapper.text()).toContain('This report expired. Cancel and run setup again.')
+    expect(wrapper.find('form[data-testid=enroll-finish]').exists()).toBe(false)
+    expect(button(wrapper, 'Cancel')).toBeTruthy()
+  })
+
   it('shows the fingerprint mismatch under the form', async () => {
     remember()
     server.use(

@@ -10,7 +10,13 @@ import { errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
 import LocationForm from './LocationForm.vue'
-import { useDeleteLocation, useStartEnrollment, useSyncNodes, useUpdateNode } from './queries'
+import {
+  useDeleteLocation,
+  useEnrollments,
+  useStartEnrollment,
+  useSyncNodes,
+  useUpdateNode,
+} from './queries'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +29,13 @@ const sync = useSyncNodes()
 const updateNode = useUpdateNode(id.value)
 const del = useDeleteLocation()
 const rerun = useStartEnrollment()
+const { data: enrollments } = useEnrollments()
+// A live Re-run is resumed rather than replaced, so a reported one isn't lost.
+const liveRerun = computed(() =>
+  enrollments.value?.find(
+    (e) => e.location_id === id.value && !e.expired && Date.parse(e.expires_at) > Date.now(),
+  ),
+)
 const cleanup = ref<string[]>(readCleanup())
 const editing = ref(false)
 const confirmOpen = ref(false)
@@ -122,6 +135,15 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
             Edit connection
           </UButton>
           <UButton
+            v-if="liveRerun"
+            color="neutral"
+            variant="outline"
+            :to="{ name: 'admin-location-enroll', params: { enrollmentId: liveRerun.id } }"
+          >
+            Re-run setup
+          </UButton>
+          <UButton
+            v-else
             color="neutral"
             variant="outline"
             :loading="rerun.isPending.value"

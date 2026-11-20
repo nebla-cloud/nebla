@@ -230,10 +230,46 @@ describe('admin locations', () => {
       expect(wrapper.find('input[name=token_secret]').exists()).toBe(true)
     })
 
+    it('re-run setup opens a live re-run instead of starting one', async () => {
+      let posted = false
+      const live = {
+        ...enr(9, 'home', 'reported', false, 1),
+        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      }
+      server.use(
+        list([loc()]),
+        http.get('*/v1/admin/location_enrollments', () =>
+          json(200, { enrollments: [enr(4, 'home', 'waiting', true, 1), live] }),
+        ),
+        http.post('*/v1/admin/location_enrollments', () => {
+          posted = true
+          return json(500, {})
+        }),
+      )
+      const router = routers()
+      await router.push('/admin/locations/1')
+      const { wrapper } = mountApp(LocationDetailPage, { router })
+      await vi.waitFor(() =>
+        expect(wrapper.findAll('a').map((a) => a.attributes('href'))).toContain(
+          '/admin/locations/enroll/9',
+        ),
+      )
+      const link = wrapper.findAll('a').find((a) => a.text() === 'Re-run setup')!
+      expect(link.attributes('href')).toBe('/admin/locations/enroll/9')
+      await link.trigger('click')
+      await vi.waitFor(() =>
+        expect(router.currentRoute.value.path).toBe('/admin/locations/enroll/9'),
+      )
+      expect(posted).toBe(false)
+    })
+
     it('re-run setup starts an enrollment for the location', async () => {
       let body: unknown
       server.use(
         list([loc()]),
+        http.get('*/v1/admin/location_enrollments', () =>
+          json(200, { enrollments: [enr(4, 'home', 'waiting', true, 1)] }),
+        ),
         http.post('*/v1/admin/location_enrollments', async ({ request }) => {
           body = await request.json()
           return json(201, {

@@ -113,11 +113,12 @@ const finished = (f: EnrollmentFinished) =>
 
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
 
-      <EnrollFinishForm
-        v-if="enrollment.state === 'reported'"
-        :enrollment="enrollment"
-        @finished="finished"
-      />
+      <template v-if="enrollment.state === 'reported'">
+        <p v-if="expired" class="text-highlighted">
+          This report expired. Cancel and run setup again.
+        </p>
+        <EnrollFinishForm v-else :enrollment="enrollment" @finished="finished" />
+      </template>
 
       <template v-else>
         <section v-if="expired" class="flex flex-col items-start gap-3">
