@@ -658,6 +658,42 @@ type NodeInput struct {
 	Enabled             *bool   `json:"enabled,omitempty"`
 }
 
+// Passkey defines model for Passkey.
+type Passkey struct {
+	CreatedAt  time.Time  `json:"created_at"`
+	Id         int64      `json:"id"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	Name       string     `json:"name"`
+}
+
+// PasskeyBeginInput defines model for PasskeyBeginInput.
+type PasskeyBeginInput struct {
+	Password string  `json:"password"`
+	TotpCode *string `json:"totp_code,omitempty"`
+}
+
+// PasskeyChallenge defines model for PasskeyChallenge.
+type PasskeyChallenge struct {
+	ChallengeId string                 `json:"challenge_id"`
+	Options     map[string]interface{} `json:"options"`
+}
+
+// PasskeyFinishInput defines model for PasskeyFinishInput.
+type PasskeyFinishInput struct {
+	ChallengeId string                 `json:"challenge_id"`
+	Credential  map[string]interface{} `json:"credential"`
+}
+
+// PasskeyList defines model for PasskeyList.
+type PasskeyList struct {
+	Passkeys []Passkey `json:"passkeys"`
+}
+
+// PasskeyName defines model for PasskeyName.
+type PasskeyName struct {
+	Name string `json:"name"`
+}
+
 // PasswordChange defines model for PasswordChange.
 type PasswordChange struct {
 	CurrentPassword string `json:"current_password"`
@@ -863,8 +899,9 @@ type UiManifest struct {
 		PrimaryColor string `json:"primary_color"`
 		ProductName  string `json:"product_name"`
 	} `json:"branding"`
-	SetupRequired bool `json:"setup_required"`
-	SignupEnabled bool `json:"signup_enabled"`
+	PasskeyOrigin *string `json:"passkey_origin"`
+	SetupRequired bool    `json:"setup_required"`
+	SignupEnabled bool    `json:"signup_enabled"`
 }
 
 // User defines model for User.
@@ -1137,6 +1174,9 @@ type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
 
+// PostAuthPasskeyFinishJSONRequestBody defines body for PostAuthPasskeyFinish for application/json ContentType.
+type PostAuthPasskeyFinishJSONRequestBody = PasskeyFinishInput
+
 // PostAuthTotpDisableJSONRequestBody defines body for PostAuthTotpDisable for application/json ContentType.
 type PostAuthTotpDisableJSONRequestBody = TotpDisable
 
@@ -1154,6 +1194,15 @@ type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
 
 // PutMeJSONRequestBody defines body for PutMe for application/json ContentType.
 type PutMeJSONRequestBody = MeInput
+
+// PostMePasskeysBeginJSONRequestBody defines body for PostMePasskeysBegin for application/json ContentType.
+type PostMePasskeysBeginJSONRequestBody = PasskeyBeginInput
+
+// PostMePasskeysFinishJSONRequestBody defines body for PostMePasskeysFinish for application/json ContentType.
+type PostMePasskeysFinishJSONRequestBody = PasskeyFinishInput
+
+// PutMePasskeyJSONRequestBody defines body for PutMePasskey for application/json ContentType.
+type PutMePasskeyJSONRequestBody = PasskeyName
 
 // PostMePasswordJSONRequestBody defines body for PostMePassword for application/json ContentType.
 type PostMePasswordJSONRequestBody = PasswordChange
@@ -1334,6 +1383,12 @@ type ServerInterface interface {
 	// PostAuthLogout End the current session
 	// (POST /auth/logout)
 	PostAuthLogout(w http.ResponseWriter, r *http.Request)
+	// PostAuthPasskeyBegin Start a passkey login
+	// (POST /auth/passkey/begin)
+	PostAuthPasskeyBegin(w http.ResponseWriter, r *http.Request)
+	// PostAuthPasskeyFinish Finish a passkey login and set the session cookie
+	// (POST /auth/passkey/finish)
+	PostAuthPasskeyFinish(w http.ResponseWriter, r *http.Request)
 	// PostAuthTotpDisable Disable TOTP
 	// (POST /auth/totp/disable)
 	PostAuthTotpDisable(w http.ResponseWriter, r *http.Request)
@@ -1379,6 +1434,21 @@ type ServerInterface interface {
 	// PutMe Update the current user's name
 	// (PUT /me)
 	PutMe(w http.ResponseWriter, r *http.Request)
+	// GetMePasskeys List the current user's passkeys
+	// (GET /me/passkeys)
+	GetMePasskeys(w http.ResponseWriter, r *http.Request)
+	// PostMePasskeysBegin Start adding a passkey
+	// (POST /me/passkeys/begin)
+	PostMePasskeysBegin(w http.ResponseWriter, r *http.Request)
+	// PostMePasskeysFinish Finish adding a passkey
+	// (POST /me/passkeys/finish)
+	PostMePasskeysFinish(w http.ResponseWriter, r *http.Request)
+	// DeleteMePasskey Remove a passkey and sign out other sessions
+	// (DELETE /me/passkeys/{id})
+	DeleteMePasskey(w http.ResponseWriter, r *http.Request, id int64)
+	// PutMePasskey Rename a passkey
+	// (PUT /me/passkeys/{id})
+	PutMePasskey(w http.ResponseWriter, r *http.Request, id int64)
 	// PostMePassword Change the current user's password and sign out other sessions
 	// (POST /me/password)
 	PostMePassword(w http.ResponseWriter, r *http.Request)
@@ -1778,6 +1848,18 @@ func (_ Unimplemented) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// PostAuthPasskeyBegin Start a passkey login
+// (POST /auth/passkey/begin)
+func (_ Unimplemented) PostAuthPasskeyBegin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAuthPasskeyFinish Finish a passkey login and set the session cookie
+// (POST /auth/passkey/finish)
+func (_ Unimplemented) PostAuthPasskeyFinish(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PostAuthTotpDisable Disable TOTP
 // (POST /auth/totp/disable)
 func (_ Unimplemented) PostAuthTotpDisable(w http.ResponseWriter, r *http.Request) {
@@ -1865,6 +1947,36 @@ func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
 // PutMe Update the current user's name
 // (PUT /me)
 func (_ Unimplemented) PutMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetMePasskeys List the current user's passkeys
+// (GET /me/passkeys)
+func (_ Unimplemented) GetMePasskeys(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostMePasskeysBegin Start adding a passkey
+// (POST /me/passkeys/begin)
+func (_ Unimplemented) PostMePasskeysBegin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostMePasskeysFinish Finish adding a passkey
+// (POST /me/passkeys/finish)
+func (_ Unimplemented) PostMePasskeysFinish(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteMePasskey Remove a passkey and sign out other sessions
+// (DELETE /me/passkeys/{id})
+func (_ Unimplemented) DeleteMePasskey(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutMePasskey Rename a passkey
+// (PUT /me/passkeys/{id})
+func (_ Unimplemented) PutMePasskey(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3423,6 +3535,34 @@ func (siw *ServerInterfaceWrapper) PostAuthLogout(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// PostAuthPasskeyBegin operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthPasskeyBegin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthPasskeyBegin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthPasskeyFinish operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthPasskeyFinish(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthPasskeyFinish(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostAuthTotpDisable operation middleware
 func (siw *ServerInterfaceWrapper) PostAuthTotpDisable(w http.ResponseWriter, r *http.Request) {
 
@@ -3749,6 +3889,100 @@ func (siw *ServerInterfaceWrapper) PutMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMePasskeys operation middleware
+func (siw *ServerInterfaceWrapper) GetMePasskeys(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMePasskeys(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostMePasskeysBegin operation middleware
+func (siw *ServerInterfaceWrapper) PostMePasskeysBegin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostMePasskeysBegin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostMePasskeysFinish operation middleware
+func (siw *ServerInterfaceWrapper) PostMePasskeysFinish(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostMePasskeysFinish(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteMePasskey operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMePasskey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteMePasskey(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutMePasskey operation middleware
+func (siw *ServerInterfaceWrapper) PutMePasskey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutMePasskey(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5104,6 +5338,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/me/password", wrapper.PostMePassword)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/passkey/begin", wrapper.PostAuthPasskeyBegin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/passkey/finish", wrapper.PostAuthPasskeyFinish)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/me/passkeys", wrapper.GetMePasskeys)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/me/passkeys/begin", wrapper.PostMePasskeysBegin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/me/passkeys/finish", wrapper.PostMePasskeysFinish)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/me/passkeys/{id}", wrapper.DeleteMePasskey)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/me/passkeys/{id}", wrapper.PutMePasskey)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/admin/settings", wrapper.GetAdminSettings)
@@ -9378,6 +9633,163 @@ func (response PostAuthLogoutdefaultJSONResponse) VisitPostAuthLogoutResponse(w 
 	return err
 }
 
+type PostAuthPasskeyBeginRequestObject struct {
+}
+
+type PostAuthPasskeyBeginResponseObject interface {
+	VisitPostAuthPasskeyBeginResponse(w http.ResponseWriter) error
+}
+
+type PostAuthPasskeyBegin200JSONResponse PasskeyChallenge
+
+func (response PostAuthPasskeyBegin200JSONResponse) VisitPostAuthPasskeyBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyBegin404JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAuthPasskeyBegin404JSONResponse) VisitPostAuthPasskeyBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyBegin429JSONResponse Error
+
+func (response PostAuthPasskeyBegin429JSONResponse) VisitPostAuthPasskeyBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyBegindefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAuthPasskeyBegindefaultJSONResponse) VisitPostAuthPasskeyBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyFinishRequestObject struct {
+	Body *PostAuthPasskeyFinishJSONRequestBody
+}
+
+type PostAuthPasskeyFinishResponseObject interface {
+	VisitPostAuthPasskeyFinishResponse(w http.ResponseWriter) error
+}
+
+type PostAuthPasskeyFinish200ResponseHeaders struct {
+	SetCookie *string
+}
+
+type PostAuthPasskeyFinish200JSONResponse struct {
+	Body    User
+	Headers PostAuthPasskeyFinish200ResponseHeaders
+}
+
+func (response PostAuthPasskeyFinish200JSONResponse) VisitPostAuthPasskeyFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.SetCookie != nil {
+		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
+	}
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyFinish401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAuthPasskeyFinish401JSONResponse) VisitPostAuthPasskeyFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyFinish404JSONResponse Error
+
+func (response PostAuthPasskeyFinish404JSONResponse) VisitPostAuthPasskeyFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyFinish429JSONResponse Error
+
+func (response PostAuthPasskeyFinish429JSONResponse) VisitPostAuthPasskeyFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthPasskeyFinishdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAuthPasskeyFinishdefaultJSONResponse) VisitPostAuthPasskeyFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostAuthTotpDisableRequestObject struct {
 	Body *PostAuthTotpDisableJSONRequestBody
 }
@@ -10450,6 +10862,405 @@ type PutMedefaultJSONResponse struct {
 }
 
 func (response PutMedefaultJSONResponse) VisitPutMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMePasskeysRequestObject struct {
+}
+
+type GetMePasskeysResponseObject interface {
+	VisitGetMePasskeysResponse(w http.ResponseWriter) error
+}
+
+type GetMePasskeys200JSONResponse PasskeyList
+
+func (response GetMePasskeys200JSONResponse) VisitGetMePasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMePasskeys401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetMePasskeys401JSONResponse) VisitGetMePasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMePasskeys404JSONResponse Error
+
+func (response GetMePasskeys404JSONResponse) VisitGetMePasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMePasskeysdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetMePasskeysdefaultJSONResponse) VisitGetMePasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysBeginRequestObject struct {
+	Body *PostMePasskeysBeginJSONRequestBody
+}
+
+type PostMePasskeysBeginResponseObject interface {
+	VisitPostMePasskeysBeginResponse(w http.ResponseWriter) error
+}
+
+type PostMePasskeysBegin200JSONResponse PasskeyChallenge
+
+func (response PostMePasskeysBegin200JSONResponse) VisitPostMePasskeysBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysBegin401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostMePasskeysBegin401JSONResponse) VisitPostMePasskeysBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysBegin404JSONResponse Error
+
+func (response PostMePasskeysBegin404JSONResponse) VisitPostMePasskeysBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysBegin409JSONResponse Error
+
+func (response PostMePasskeysBegin409JSONResponse) VisitPostMePasskeysBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysBegin429JSONResponse Error
+
+func (response PostMePasskeysBegin429JSONResponse) VisitPostMePasskeysBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysBegindefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostMePasskeysBegindefaultJSONResponse) VisitPostMePasskeysBeginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysFinishRequestObject struct {
+	Body *PostMePasskeysFinishJSONRequestBody
+}
+
+type PostMePasskeysFinishResponseObject interface {
+	VisitPostMePasskeysFinishResponse(w http.ResponseWriter) error
+}
+
+type PostMePasskeysFinish201JSONResponse Passkey
+
+func (response PostMePasskeysFinish201JSONResponse) VisitPostMePasskeysFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysFinish401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostMePasskeysFinish401JSONResponse) VisitPostMePasskeysFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysFinish404JSONResponse Error
+
+func (response PostMePasskeysFinish404JSONResponse) VisitPostMePasskeysFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysFinish409JSONResponse Error
+
+func (response PostMePasskeysFinish409JSONResponse) VisitPostMePasskeysFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysFinish422JSONResponse Error
+
+func (response PostMePasskeysFinish422JSONResponse) VisitPostMePasskeysFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMePasskeysFinishdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostMePasskeysFinishdefaultJSONResponse) VisitPostMePasskeysFinishResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMePasskeyRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type DeleteMePasskeyResponseObject interface {
+	VisitDeleteMePasskeyResponse(w http.ResponseWriter) error
+}
+
+type DeleteMePasskey204Response struct {
+}
+
+func (response DeleteMePasskey204Response) VisitDeleteMePasskeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteMePasskey401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteMePasskey401JSONResponse) VisitDeleteMePasskeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMePasskey404JSONResponse Error
+
+func (response DeleteMePasskey404JSONResponse) VisitDeleteMePasskeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMePasskeydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteMePasskeydefaultJSONResponse) VisitDeleteMePasskeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMePasskeyRequestObject struct {
+	Id   int64 `json:"id"`
+	Body *PutMePasskeyJSONRequestBody
+}
+
+type PutMePasskeyResponseObject interface {
+	VisitPutMePasskeyResponse(w http.ResponseWriter) error
+}
+
+type PutMePasskey200JSONResponse Passkey
+
+func (response PutMePasskey200JSONResponse) VisitPutMePasskeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMePasskey401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutMePasskey401JSONResponse) VisitPutMePasskeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMePasskey404JSONResponse Error
+
+func (response PutMePasskey404JSONResponse) VisitPutMePasskeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMePasskey422JSONResponse Error
+
+func (response PutMePasskey422JSONResponse) VisitPutMePasskeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMePasskeydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutMePasskeydefaultJSONResponse) VisitPutMePasskeyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -14248,6 +15059,12 @@ type StrictServerInterface interface {
 	// PostAuthLogout End the current session
 	// (POST /auth/logout)
 	PostAuthLogout(ctx context.Context, request PostAuthLogoutRequestObject) (PostAuthLogoutResponseObject, error)
+	// PostAuthPasskeyBegin Start a passkey login
+	// (POST /auth/passkey/begin)
+	PostAuthPasskeyBegin(ctx context.Context, request PostAuthPasskeyBeginRequestObject) (PostAuthPasskeyBeginResponseObject, error)
+	// PostAuthPasskeyFinish Finish a passkey login and set the session cookie
+	// (POST /auth/passkey/finish)
+	PostAuthPasskeyFinish(ctx context.Context, request PostAuthPasskeyFinishRequestObject) (PostAuthPasskeyFinishResponseObject, error)
 	// PostAuthTotpDisable Disable TOTP
 	// (POST /auth/totp/disable)
 	PostAuthTotpDisable(ctx context.Context, request PostAuthTotpDisableRequestObject) (PostAuthTotpDisableResponseObject, error)
@@ -14293,6 +15110,21 @@ type StrictServerInterface interface {
 	// PutMe Update the current user's name
 	// (PUT /me)
 	PutMe(ctx context.Context, request PutMeRequestObject) (PutMeResponseObject, error)
+	// GetMePasskeys List the current user's passkeys
+	// (GET /me/passkeys)
+	GetMePasskeys(ctx context.Context, request GetMePasskeysRequestObject) (GetMePasskeysResponseObject, error)
+	// PostMePasskeysBegin Start adding a passkey
+	// (POST /me/passkeys/begin)
+	PostMePasskeysBegin(ctx context.Context, request PostMePasskeysBeginRequestObject) (PostMePasskeysBeginResponseObject, error)
+	// PostMePasskeysFinish Finish adding a passkey
+	// (POST /me/passkeys/finish)
+	PostMePasskeysFinish(ctx context.Context, request PostMePasskeysFinishRequestObject) (PostMePasskeysFinishResponseObject, error)
+	// DeleteMePasskey Remove a passkey and sign out other sessions
+	// (DELETE /me/passkeys/{id})
+	DeleteMePasskey(ctx context.Context, request DeleteMePasskeyRequestObject) (DeleteMePasskeyResponseObject, error)
+	// PutMePasskey Rename a passkey
+	// (PUT /me/passkeys/{id})
+	PutMePasskey(ctx context.Context, request PutMePasskeyRequestObject) (PutMePasskeyResponseObject, error)
 	// PostMePassword Change the current user's password and sign out other sessions
 	// (POST /me/password)
 	PostMePassword(ctx context.Context, request PostMePasswordRequestObject) (PostMePasswordResponseObject, error)
@@ -15719,6 +16551,61 @@ func (sh *strictHandler) PostAuthLogout(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// PostAuthPasskeyBegin operation middleware
+func (sh *strictHandler) PostAuthPasskeyBegin(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthPasskeyBeginRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthPasskeyBegin(ctx, request.(PostAuthPasskeyBeginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthPasskeyBegin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthPasskeyBeginResponseObject); ok {
+		if err := validResponse.VisitPostAuthPasskeyBeginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthPasskeyFinish operation middleware
+func (sh *strictHandler) PostAuthPasskeyFinish(w http.ResponseWriter, r *http.Request) {
+	var request PostAuthPasskeyFinishRequestObject
+
+	var body PostAuthPasskeyFinishJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthPasskeyFinish(ctx, request.(PostAuthPasskeyFinishRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthPasskeyFinish")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthPasskeyFinishResponseObject); ok {
+		if err := validResponse.VisitPostAuthPasskeyFinishResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostAuthTotpDisable operation middleware
 func (sh *strictHandler) PostAuthTotpDisable(w http.ResponseWriter, r *http.Request) {
 	var request PostAuthTotpDisableRequestObject
@@ -16129,6 +17016,151 @@ func (sh *strictHandler) PutMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutMeResponseObject); ok {
 		if err := validResponse.VisitPutMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMePasskeys operation middleware
+func (sh *strictHandler) GetMePasskeys(w http.ResponseWriter, r *http.Request) {
+	var request GetMePasskeysRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMePasskeys(ctx, request.(GetMePasskeysRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMePasskeys")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMePasskeysResponseObject); ok {
+		if err := validResponse.VisitGetMePasskeysResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostMePasskeysBegin operation middleware
+func (sh *strictHandler) PostMePasskeysBegin(w http.ResponseWriter, r *http.Request) {
+	var request PostMePasskeysBeginRequestObject
+
+	var body PostMePasskeysBeginJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostMePasskeysBegin(ctx, request.(PostMePasskeysBeginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostMePasskeysBegin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostMePasskeysBeginResponseObject); ok {
+		if err := validResponse.VisitPostMePasskeysBeginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostMePasskeysFinish operation middleware
+func (sh *strictHandler) PostMePasskeysFinish(w http.ResponseWriter, r *http.Request) {
+	var request PostMePasskeysFinishRequestObject
+
+	var body PostMePasskeysFinishJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostMePasskeysFinish(ctx, request.(PostMePasskeysFinishRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostMePasskeysFinish")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostMePasskeysFinishResponseObject); ok {
+		if err := validResponse.VisitPostMePasskeysFinishResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteMePasskey operation middleware
+func (sh *strictHandler) DeleteMePasskey(w http.ResponseWriter, r *http.Request, id int64) {
+	var request DeleteMePasskeyRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteMePasskey(ctx, request.(DeleteMePasskeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteMePasskey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteMePasskeyResponseObject); ok {
+		if err := validResponse.VisitDeleteMePasskeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutMePasskey operation middleware
+func (sh *strictHandler) PutMePasskey(w http.ResponseWriter, r *http.Request, id int64) {
+	var request PutMePasskeyRequestObject
+
+	request.Id = id
+
+	var body PutMePasskeyJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutMePasskey(ctx, request.(PutMePasskeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutMePasskey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutMePasskeyResponseObject); ok {
+		if err := validResponse.VisitPutMePasskeyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

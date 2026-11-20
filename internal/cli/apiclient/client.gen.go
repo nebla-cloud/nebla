@@ -658,6 +658,42 @@ type NodeInput struct {
 	Enabled             *bool   `json:"enabled,omitempty"`
 }
 
+// Passkey defines model for Passkey.
+type Passkey struct {
+	CreatedAt  time.Time  `json:"created_at"`
+	Id         int64      `json:"id"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	Name       string     `json:"name"`
+}
+
+// PasskeyBeginInput defines model for PasskeyBeginInput.
+type PasskeyBeginInput struct {
+	Password string  `json:"password"`
+	TotpCode *string `json:"totp_code,omitempty"`
+}
+
+// PasskeyChallenge defines model for PasskeyChallenge.
+type PasskeyChallenge struct {
+	ChallengeId string                 `json:"challenge_id"`
+	Options     map[string]interface{} `json:"options"`
+}
+
+// PasskeyFinishInput defines model for PasskeyFinishInput.
+type PasskeyFinishInput struct {
+	ChallengeId string                 `json:"challenge_id"`
+	Credential  map[string]interface{} `json:"credential"`
+}
+
+// PasskeyList defines model for PasskeyList.
+type PasskeyList struct {
+	Passkeys []Passkey `json:"passkeys"`
+}
+
+// PasskeyName defines model for PasskeyName.
+type PasskeyName struct {
+	Name string `json:"name"`
+}
+
 // PasswordChange defines model for PasswordChange.
 type PasswordChange struct {
 	CurrentPassword string `json:"current_password"`
@@ -863,8 +899,9 @@ type UiManifest struct {
 		PrimaryColor string `json:"primary_color"`
 		ProductName  string `json:"product_name"`
 	} `json:"branding"`
-	SetupRequired bool `json:"setup_required"`
-	SignupEnabled bool `json:"signup_enabled"`
+	PasskeyOrigin *string `json:"passkey_origin"`
+	SetupRequired bool    `json:"setup_required"`
+	SignupEnabled bool    `json:"signup_enabled"`
 }
 
 // User defines model for User.
@@ -1137,6 +1174,9 @@ type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
 
+// PostAuthPasskeyFinishJSONRequestBody defines body for PostAuthPasskeyFinish for application/json ContentType.
+type PostAuthPasskeyFinishJSONRequestBody = PasskeyFinishInput
+
 // PostAuthTotpDisableJSONRequestBody defines body for PostAuthTotpDisable for application/json ContentType.
 type PostAuthTotpDisableJSONRequestBody = TotpDisable
 
@@ -1154,6 +1194,15 @@ type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
 
 // PutMeJSONRequestBody defines body for PutMe for application/json ContentType.
 type PutMeJSONRequestBody = MeInput
+
+// PostMePasskeysBeginJSONRequestBody defines body for PostMePasskeysBegin for application/json ContentType.
+type PostMePasskeysBeginJSONRequestBody = PasskeyBeginInput
+
+// PostMePasskeysFinishJSONRequestBody defines body for PostMePasskeysFinish for application/json ContentType.
+type PostMePasskeysFinishJSONRequestBody = PasskeyFinishInput
+
+// PutMePasskeyJSONRequestBody defines body for PutMePasskey for application/json ContentType.
+type PutMePasskeyJSONRequestBody = PasskeyName
 
 // PostMePasswordJSONRequestBody defines body for PostMePassword for application/json ContentType.
 type PostMePasswordJSONRequestBody = PasswordChange
@@ -1640,6 +1689,25 @@ type ClientInterface interface {
 	// Corresponds with POST /auth/logout (the `PostAuthLogout` operationId).
 	PostAuthLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostAuthPasskeyBegin Start a passkey login
+	//
+	// Corresponds with POST /auth/passkey/begin (the `PostAuthPasskeyBegin` operationId).
+	PostAuthPasskeyBegin(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAuthPasskeyFinishWithBody Finish a passkey login and set the session cookie
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+	PostAuthPasskeyFinishWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAuthPasskeyFinish Finish a passkey login and set the session cookie
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+	PostAuthPasskeyFinish(ctx context.Context, body PostAuthPasskeyFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostAuthTotpDisableWithBody Disable TOTP
 	//
 	// Takes any type of body and a specified content type.
@@ -1778,6 +1846,58 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /me (the `PutMe` operationId).
 	PutMe(ctx context.Context, body PutMeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetMePasskeys List the current user's passkeys
+	//
+	// Corresponds with GET /me/passkeys (the `GetMePasskeys` operationId).
+	GetMePasskeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostMePasskeysBeginWithBody Start adding a passkey
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+	PostMePasskeysBeginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostMePasskeysBegin Start adding a passkey
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+	PostMePasskeysBegin(ctx context.Context, body PostMePasskeysBeginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostMePasskeysFinishWithBody Finish adding a passkey
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+	PostMePasskeysFinishWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostMePasskeysFinish Finish adding a passkey
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+	PostMePasskeysFinish(ctx context.Context, body PostMePasskeysFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteMePasskey Remove a passkey and sign out other sessions
+	//
+	// Corresponds with DELETE /me/passkeys/{id} (the `DeleteMePasskey` operationId).
+	DeleteMePasskey(ctx context.Context, id int64, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutMePasskeyWithBody Rename a passkey
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+	PutMePasskeyWithBody(ctx context.Context, id int64, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutMePasskey Rename a passkey
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+	PutMePasskey(ctx context.Context, id int64, body PutMePasskeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostMePasswordWithBody Change the current user's password and sign out other sessions
 	//
@@ -3092,6 +3212,55 @@ func (c *Client) PostAuthLogout(ctx context.Context, reqEditors ...RequestEditor
 	return c.Client.Do(req)
 }
 
+// PostAuthPasskeyBegin Start a passkey login
+//
+// Corresponds with POST /auth/passkey/begin (the `PostAuthPasskeyBegin` operationId).
+func (c *Client) PostAuthPasskeyBegin(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAuthPasskeyBeginRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAuthPasskeyFinishWithBody Finish a passkey login and set the session cookie
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+func (c *Client) PostAuthPasskeyFinishWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAuthPasskeyFinishRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAuthPasskeyFinish Finish a passkey login and set the session cookie
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+func (c *Client) PostAuthPasskeyFinish(ctx context.Context, body PostAuthPasskeyFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAuthPasskeyFinishRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // PostAuthTotpDisableWithBody Disable TOTP
 //
 // Takes any type of body and a specified content type.
@@ -3431,6 +3600,138 @@ func (c *Client) PutMeWithBody(ctx context.Context, contentType string, body io.
 // Corresponds with PUT /me (the `PutMe` operationId).
 func (c *Client) PutMe(ctx context.Context, body PutMeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutMeRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetMePasskeys List the current user's passkeys
+//
+// Corresponds with GET /me/passkeys (the `GetMePasskeys` operationId).
+func (c *Client) GetMePasskeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMePasskeysRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostMePasskeysBeginWithBody Start adding a passkey
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+func (c *Client) PostMePasskeysBeginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostMePasskeysBeginRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostMePasskeysBegin Start adding a passkey
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+func (c *Client) PostMePasskeysBegin(ctx context.Context, body PostMePasskeysBeginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostMePasskeysBeginRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostMePasskeysFinishWithBody Finish adding a passkey
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+func (c *Client) PostMePasskeysFinishWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostMePasskeysFinishRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostMePasskeysFinish Finish adding a passkey
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+func (c *Client) PostMePasskeysFinish(ctx context.Context, body PostMePasskeysFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostMePasskeysFinishRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteMePasskey Remove a passkey and sign out other sessions
+//
+// Corresponds with DELETE /me/passkeys/{id} (the `DeleteMePasskey` operationId).
+func (c *Client) DeleteMePasskey(ctx context.Context, id int64, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMePasskeyRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutMePasskeyWithBody Rename a passkey
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+func (c *Client) PutMePasskeyWithBody(ctx context.Context, id int64, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMePasskeyRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutMePasskey Rename a passkey
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+func (c *Client) PutMePasskey(ctx context.Context, id int64, body PutMePasskeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutMePasskeyRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6334,6 +6635,73 @@ func NewPostAuthLogoutRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewPostAuthPasskeyBeginRequest constructs an http.Request for the PostAuthPasskeyBegin method
+func NewPostAuthPasskeyBeginRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/passkey/begin")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostAuthPasskeyFinishRequest calls the generic PostAuthPasskeyFinish builder with application/json body
+func NewPostAuthPasskeyFinishRequest(server string, body PostAuthPasskeyFinishJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostAuthPasskeyFinishRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostAuthPasskeyFinishRequestWithBody constructs an http.Request for the PostAuthPasskeyFinish method, with any body, and a specified content type
+func NewPostAuthPasskeyFinishRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/passkey/finish")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewPostAuthTotpDisableRequest calls the generic PostAuthTotpDisable builder with application/json body
 func NewPostAuthTotpDisableRequest(server string, body PostAuthTotpDisableJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6916,6 +7284,194 @@ func NewPutMeRequestWithBody(server string, contentType string, body io.Reader) 
 	}
 
 	operationPath := fmt.Sprintf("/me")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetMePasskeysRequest constructs an http.Request for the GetMePasskeys method
+func NewGetMePasskeysRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/me/passkeys")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostMePasskeysBeginRequest calls the generic PostMePasskeysBegin builder with application/json body
+func NewPostMePasskeysBeginRequest(server string, body PostMePasskeysBeginJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostMePasskeysBeginRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostMePasskeysBeginRequestWithBody constructs an http.Request for the PostMePasskeysBegin method, with any body, and a specified content type
+func NewPostMePasskeysBeginRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/me/passkeys/begin")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostMePasskeysFinishRequest calls the generic PostMePasskeysFinish builder with application/json body
+func NewPostMePasskeysFinishRequest(server string, body PostMePasskeysFinishJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostMePasskeysFinishRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostMePasskeysFinishRequestWithBody constructs an http.Request for the PostMePasskeysFinish method, with any body, and a specified content type
+func NewPostMePasskeysFinishRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/me/passkeys/finish")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteMePasskeyRequest constructs an http.Request for the DeleteMePasskey method
+func NewDeleteMePasskeyRequest(server string, id int64) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/me/passkeys/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutMePasskeyRequest calls the generic PutMePasskey builder with application/json body
+func NewPutMePasskeyRequest(server string, id int64, body PutMePasskeyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutMePasskeyRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutMePasskeyRequestWithBody constructs an http.Request for the PutMePasskey method, with any body, and a specified content type
+func NewPutMePasskeyRequestWithBody(server string, id int64, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/me/passkeys/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9195,6 +9751,27 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /auth/logout (the `PostAuthLogout` operationId).
 	PostAuthLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostAuthLogoutResponse, error)
 
+	// PostAuthPasskeyBeginWithResponse Start a passkey login
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /auth/passkey/begin (the `PostAuthPasskeyBegin` operationId).
+	PostAuthPasskeyBeginWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostAuthPasskeyBeginResponse, error)
+
+	// PostAuthPasskeyFinishWithBodyWithResponse Finish a passkey login and set the session cookie
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+	PostAuthPasskeyFinishWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAuthPasskeyFinishResponse, error)
+
+	// PostAuthPasskeyFinishWithResponse Finish a passkey login and set the session cookie
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+	PostAuthPasskeyFinishWithResponse(ctx context.Context, body PostAuthPasskeyFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAuthPasskeyFinishResponse, error)
+
 	// PostAuthTotpDisableWithBodyWithResponse Disable TOTP
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -9351,6 +9928,62 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /me (the `PutMe` operationId).
 	PutMeWithResponse(ctx context.Context, body PutMeJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMeResponse, error)
+
+	// GetMePasskeysWithResponse List the current user's passkeys
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /me/passkeys (the `GetMePasskeys` operationId).
+	GetMePasskeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMePasskeysResponse, error)
+
+	// PostMePasskeysBeginWithBodyWithResponse Start adding a passkey
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+	PostMePasskeysBeginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostMePasskeysBeginResponse, error)
+
+	// PostMePasskeysBeginWithResponse Start adding a passkey
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+	PostMePasskeysBeginWithResponse(ctx context.Context, body PostMePasskeysBeginJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMePasskeysBeginResponse, error)
+
+	// PostMePasskeysFinishWithBodyWithResponse Finish adding a passkey
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+	PostMePasskeysFinishWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostMePasskeysFinishResponse, error)
+
+	// PostMePasskeysFinishWithResponse Finish adding a passkey
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+	PostMePasskeysFinishWithResponse(ctx context.Context, body PostMePasskeysFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMePasskeysFinishResponse, error)
+
+	// DeleteMePasskeyWithResponse Remove a passkey and sign out other sessions
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /me/passkeys/{id} (the `DeleteMePasskey` operationId).
+	DeleteMePasskeyWithResponse(ctx context.Context, id int64, reqEditors ...RequestEditorFn) (*DeleteMePasskeyResponse, error)
+
+	// PutMePasskeyWithBodyWithResponse Rename a passkey
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+	PutMePasskeyWithBodyWithResponse(ctx context.Context, id int64, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMePasskeyResponse, error)
+
+	// PutMePasskeyWithResponse Rename a passkey
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+	PutMePasskeyWithResponse(ctx context.Context, id int64, body PutMePasskeyJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMePasskeyResponse, error)
 
 	// PostMePasswordWithBodyWithResponse Change the current user's password and sign out other sessions
 	//
@@ -13035,6 +13668,144 @@ func (r PostAuthLogoutResponse) ContentType() string {
 	return ""
 }
 
+type PostAuthPasskeyBeginResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PasskeyChallenge
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostAuthPasskeyBeginResponse) GetJSON200() *PasskeyChallenge {
+	return r.JSON200
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostAuthPasskeyBeginResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r PostAuthPasskeyBeginResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostAuthPasskeyBeginResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostAuthPasskeyBeginResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostAuthPasskeyBeginResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostAuthPasskeyBeginResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostAuthPasskeyBeginResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PostAuthPasskeyFinishResponse200Headers the declared response headers of an HTTP 200 response for PostAuthPasskeyFinish
+type PostAuthPasskeyFinishResponse200Headers struct {
+	SetCookie *string
+}
+
+type PostAuthPasskeyFinishResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *User
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PostAuthPasskeyFinishResponse200Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostAuthPasskeyFinishResponse) GetJSON200() *User {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostAuthPasskeyFinishResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostAuthPasskeyFinishResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r PostAuthPasskeyFinishResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostAuthPasskeyFinishResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostAuthPasskeyFinishResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostAuthPasskeyFinishResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostAuthPasskeyFinishResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostAuthPasskeyFinishResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostAuthTotpDisableResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13999,6 +14770,344 @@ func (r PutMeResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PutMeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetMePasskeysResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PasskeyList
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetMePasskeysResponse) GetJSON200() *PasskeyList {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetMePasskeysResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetMePasskeysResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetMePasskeysResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetMePasskeysResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMePasskeysResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMePasskeysResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetMePasskeysResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostMePasskeysBeginResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PasskeyChallenge
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostMePasskeysBeginResponse) GetJSON200() *PasskeyChallenge {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostMePasskeysBeginResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostMePasskeysBeginResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostMePasskeysBeginResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r PostMePasskeysBeginResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostMePasskeysBeginResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostMePasskeysBeginResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostMePasskeysBeginResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostMePasskeysBeginResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostMePasskeysBeginResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostMePasskeysFinishResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Passkey
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostMePasskeysFinishResponse) GetJSON201() *Passkey {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostMePasskeysFinishResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostMePasskeysFinishResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostMePasskeysFinishResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostMePasskeysFinishResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostMePasskeysFinishResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostMePasskeysFinishResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostMePasskeysFinishResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostMePasskeysFinishResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostMePasskeysFinishResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteMePasskeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteMePasskeyResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteMePasskeyResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteMePasskeyResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteMePasskeyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteMePasskeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteMePasskeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteMePasskeyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutMePasskeyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Passkey
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutMePasskeyResponse) GetJSON200() *Passkey {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutMePasskeyResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PutMePasskeyResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutMePasskeyResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutMePasskeyResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutMePasskeyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutMePasskeyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutMePasskeyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutMePasskeyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17814,6 +18923,45 @@ func (c *ClientWithResponses) PostAuthLogoutWithResponse(ctx context.Context, re
 	return ParsePostAuthLogoutResponse(rsp)
 }
 
+// PostAuthPasskeyBeginWithResponse Start a passkey login
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /auth/passkey/begin (the `PostAuthPasskeyBegin` operationId).
+func (c *ClientWithResponses) PostAuthPasskeyBeginWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostAuthPasskeyBeginResponse, error) {
+	rsp, err := c.PostAuthPasskeyBegin(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAuthPasskeyBeginResponse(rsp)
+}
+
+// PostAuthPasskeyFinishWithBodyWithResponse Finish a passkey login and set the session cookie
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+func (c *ClientWithResponses) PostAuthPasskeyFinishWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAuthPasskeyFinishResponse, error) {
+	rsp, err := c.PostAuthPasskeyFinishWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAuthPasskeyFinishResponse(rsp)
+}
+
+// PostAuthPasskeyFinishWithResponse Finish a passkey login and set the session cookie
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /auth/passkey/finish (the `PostAuthPasskeyFinish` operationId).
+func (c *ClientWithResponses) PostAuthPasskeyFinishWithResponse(ctx context.Context, body PostAuthPasskeyFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAuthPasskeyFinishResponse, error) {
+	rsp, err := c.PostAuthPasskeyFinish(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAuthPasskeyFinishResponse(rsp)
+}
+
 // PostAuthTotpDisableWithBodyWithResponse Disable TOTP
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -18095,6 +19243,110 @@ func (c *ClientWithResponses) PutMeWithResponse(ctx context.Context, body PutMeJ
 		return nil, err
 	}
 	return ParsePutMeResponse(rsp)
+}
+
+// GetMePasskeysWithResponse List the current user's passkeys
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /me/passkeys (the `GetMePasskeys` operationId).
+func (c *ClientWithResponses) GetMePasskeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMePasskeysResponse, error) {
+	rsp, err := c.GetMePasskeys(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMePasskeysResponse(rsp)
+}
+
+// PostMePasskeysBeginWithBodyWithResponse Start adding a passkey
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+func (c *ClientWithResponses) PostMePasskeysBeginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostMePasskeysBeginResponse, error) {
+	rsp, err := c.PostMePasskeysBeginWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostMePasskeysBeginResponse(rsp)
+}
+
+// PostMePasskeysBeginWithResponse Start adding a passkey
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /me/passkeys/begin (the `PostMePasskeysBegin` operationId).
+func (c *ClientWithResponses) PostMePasskeysBeginWithResponse(ctx context.Context, body PostMePasskeysBeginJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMePasskeysBeginResponse, error) {
+	rsp, err := c.PostMePasskeysBegin(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostMePasskeysBeginResponse(rsp)
+}
+
+// PostMePasskeysFinishWithBodyWithResponse Finish adding a passkey
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+func (c *ClientWithResponses) PostMePasskeysFinishWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostMePasskeysFinishResponse, error) {
+	rsp, err := c.PostMePasskeysFinishWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostMePasskeysFinishResponse(rsp)
+}
+
+// PostMePasskeysFinishWithResponse Finish adding a passkey
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /me/passkeys/finish (the `PostMePasskeysFinish` operationId).
+func (c *ClientWithResponses) PostMePasskeysFinishWithResponse(ctx context.Context, body PostMePasskeysFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMePasskeysFinishResponse, error) {
+	rsp, err := c.PostMePasskeysFinish(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostMePasskeysFinishResponse(rsp)
+}
+
+// DeleteMePasskeyWithResponse Remove a passkey and sign out other sessions
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /me/passkeys/{id} (the `DeleteMePasskey` operationId).
+func (c *ClientWithResponses) DeleteMePasskeyWithResponse(ctx context.Context, id int64, reqEditors ...RequestEditorFn) (*DeleteMePasskeyResponse, error) {
+	rsp, err := c.DeleteMePasskey(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteMePasskeyResponse(rsp)
+}
+
+// PutMePasskeyWithBodyWithResponse Rename a passkey
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+func (c *ClientWithResponses) PutMePasskeyWithBodyWithResponse(ctx context.Context, id int64, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMePasskeyResponse, error) {
+	rsp, err := c.PutMePasskeyWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMePasskeyResponse(rsp)
+}
+
+// PutMePasskeyWithResponse Rename a passkey
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /me/passkeys/{id} (the `PutMePasskey` operationId).
+func (c *ClientWithResponses) PutMePasskeyWithResponse(ctx context.Context, id int64, body PutMePasskeyJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMePasskeyResponse, error) {
+	rsp, err := c.PutMePasskey(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutMePasskeyResponse(rsp)
 }
 
 // PostMePasswordWithBodyWithResponse Change the current user's password and sign out other sessions
@@ -21439,6 +22691,120 @@ func ParsePostAuthLogoutResponse(rsp *http.Response) (*PostAuthLogoutResponse, e
 	return response, nil
 }
 
+// ParsePostAuthPasskeyBeginResponse parses an HTTP response from a PostAuthPasskeyBeginWithResponse call
+func ParsePostAuthPasskeyBeginResponse(rsp *http.Response) (*PostAuthPasskeyBeginResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostAuthPasskeyBeginResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PasskeyChallenge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostAuthPasskeyFinishResponse parses an HTTP response from a PostAuthPasskeyFinishWithResponse call
+func ParsePostAuthPasskeyFinishResponse(rsp *http.Response) (*PostAuthPasskeyFinishResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostAuthPasskeyFinishResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest User
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PostAuthPasskeyFinishResponse200Headers
+		if values := rsp.Header.Values("Set-Cookie"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Set-Cookie", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.SetCookie = &value
+		}
+		response.Headers200 = &headers
+	}
+
+	return response, nil
+}
+
 // ParsePostAuthTotpDisableResponse parses an HTTP response from a PostAuthTotpDisableWithResponse call
 func ParsePostAuthTotpDisableResponse(rsp *http.Response) (*PostAuthTotpDisableResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -22166,6 +23532,272 @@ func ParsePutMeResponse(rsp *http.Response) (*PutMeResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMePasskeysResponse parses an HTTP response from a GetMePasskeysWithResponse call
+func ParseGetMePasskeysResponse(rsp *http.Response) (*GetMePasskeysResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMePasskeysResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PasskeyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostMePasskeysBeginResponse parses an HTTP response from a PostMePasskeysBeginWithResponse call
+func ParsePostMePasskeysBeginResponse(rsp *http.Response) (*PostMePasskeysBeginResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostMePasskeysBeginResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PasskeyChallenge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostMePasskeysFinishResponse parses an HTTP response from a PostMePasskeysFinishWithResponse call
+func ParsePostMePasskeysFinishResponse(rsp *http.Response) (*PostMePasskeysFinishResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostMePasskeysFinishResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Passkey
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteMePasskeyResponse parses an HTTP response from a DeleteMePasskeyWithResponse call
+func ParseDeleteMePasskeyResponse(rsp *http.Response) (*DeleteMePasskeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteMePasskeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutMePasskeyResponse parses an HTTP response from a PutMePasskeyWithResponse call
+func ParsePutMePasskeyResponse(rsp *http.Response) (*PutMePasskeyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutMePasskeyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Passkey
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error

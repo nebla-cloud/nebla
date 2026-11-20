@@ -62,12 +62,15 @@ type Deps struct {
 	ScopedRoutes func(r chi.Router)
 	// APILimiter overrides the 3600/hour, burst 100 API limiter (tests).
 	APILimiter *ratelimit.Limiter
+	// Passkeys defaults to a service over the API's auth service and Config.PasskeyOrigin.
+	Passkeys *auth.Passkeys
 }
 
 type server struct {
 	deps        Deps
 	log         *slog.Logger
 	auth        *auth.Service
+	passkeys    *auth.Passkeys
 	projects    *projects.Service
 	settings    *settings.Store
 	catalog     *catalog.Service
@@ -123,6 +126,13 @@ func New(deps Deps) http.Handler {
 		deps.Enroll = enroll.New(deps.SQL, deps.Ent, enroll.Options{SecretKey: deps.Config.SecretKey, BaseURL: deps.Config.BaseURL,
 			Catalog: deps.Catalog, Logger: log})
 	}
+	if deps.Passkeys == nil {
+		var err error
+		if deps.Passkeys, err = auth.NewPasskeys(deps.Ent, au, deps.Config.PasskeyOrigin()); err != nil {
+			log.Error("passkeys disabled", "err", err)
+			deps.Passkeys, _ = auth.NewPasskeys(deps.Ent, au, "")
+		}
+	}
 	proj := projects.New(deps.Ent, projects.Options{
 		Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
 		DefaultQuota: deps.Config.DefaultQuota, MaxOwnedProjects: deps.Config.MaxProjectsPerUser,
@@ -131,6 +141,7 @@ func New(deps Deps) http.Handler {
 		deps:        deps,
 		log:         log,
 		auth:        au,
+		passkeys:    deps.Passkeys,
 		projects:    proj,
 		settings:    st,
 		catalog:     deps.Catalog,

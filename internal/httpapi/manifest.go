@@ -13,6 +13,9 @@ func (s *server) GetUiManifest(ctx context.Context, _ apigen.GetUiManifestReques
 		Path  string `json:"path"`
 		Title string `json:"title"`
 	}{}}
+	if o := s.deps.Config.PasskeyOrigin(); o != "" && s.passkeys.Enabled() {
+		out.PasskeyOrigin = &o
+	}
 	setup, err := s.auth.SetupRequired(ctx)
 	if err != nil {
 		return nil, err

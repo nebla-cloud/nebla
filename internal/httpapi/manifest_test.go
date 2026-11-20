@@ -11,7 +11,7 @@ import (
 func TestManifestDefaults(t *testing.T) {
 	res := testutil.NewApp(t).Get("/v1/ui/manifest")
 	require.Equal(t, 200, res.StatusCode)
-	require.JSONEq(t, `{"branding":{"product_name":"nebla","logo_url":"","primary_color":""},"admin_sections":[],"setup_required":true,"signup_enabled":false}`, body(res))
+	require.JSONEq(t, `{"branding":{"product_name":"nebla","logo_url":"","primary_color":""},"admin_sections":[],"setup_required":true,"signup_enabled":false,"passkey_origin":null}`, body(res))
 }
 
 func TestManifestSetupRequiredFalseAfterSetup(t *testing.T) {
@@ -19,7 +19,7 @@ func TestManifestSetupRequiredFalseAfterSetup(t *testing.T) {
 	app.LoginAdmin()
 	res := app.Get("/v1/ui/manifest")
 	require.Equal(t, 200, res.StatusCode)
-	require.JSONEq(t, `{"branding":{"product_name":"nebla","logo_url":"","primary_color":""},"admin_sections":[],"setup_required":false,"signup_enabled":false}`, body(res))
+	require.JSONEq(t, `{"branding":{"product_name":"nebla","logo_url":"","primary_color":""},"admin_sections":[],"setup_required":false,"signup_enabled":false,"passkey_origin":null}`, body(res))
 }
 
 func TestSPAFallbackOnlyForGetAndHead(t *testing.T) {

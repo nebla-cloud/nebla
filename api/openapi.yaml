@@ -224,6 +224,127 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /auth/passkey/begin:
+    post:
+      operationId: postAuthPasskeyBegin
+      summary: Start a passkey login
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PasskeyChallenge" }
+        "404": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /auth/passkey/finish:
+    post:
+      operationId: postAuthPasskeyFinish
+      summary: Finish a passkey login and set the session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasskeyFinishInput" }
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /me/passkeys:
+    get:
+      operationId: getMePasskeys
+      summary: List the current user's passkeys
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PasskeyList" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /me/passkeys/begin:
+    post:
+      operationId: postMePasskeysBegin
+      summary: Start adding a passkey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasskeyBeginInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PasskeyChallenge" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /me/passkeys/finish:
+    post:
+      operationId: postMePasskeysFinish
+      summary: Finish adding a passkey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasskeyFinishInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Passkey" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /me/passkeys/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    put:
+      operationId: putMePasskey
+      summary: Rename a passkey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasskeyName" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Passkey" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteMePasskey
+      summary: Remove a passkey and sign out other sessions
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
   /admin/settings:
     get:
       operationId: getAdminSettings
@@ -2211,10 +2332,49 @@ components:
       required: [self_signup]
       properties:
         self_signup: { type: boolean }
+    Passkey:
+      type: object
+      required: [id, name, created_at, last_used_at]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time, nullable: true }
+    PasskeyList:
+      type: object
+      required: [passkeys]
+      properties:
+        passkeys:
+          type: array
+          items: { $ref: "#/components/schemas/Passkey" }
+    PasskeyBeginInput:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string }
+        totp_code: { type: string }
+    PasskeyName:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    PasskeyChallenge:
+      type: object
+      required: [challenge_id, options]
+      properties:
+        challenge_id: { type: string }
+        options: { type: object, additionalProperties: true }
+    PasskeyFinishInput:
+      type: object
+      required: [challenge_id, credential]
+      properties:
+        challenge_id: { type: string }
+        credential: { type: object, additionalProperties: true }
     UiManifest:
       type: object
-      required: [branding, admin_sections, setup_required, signup_enabled]
+      required: [branding, admin_sections, setup_required, signup_enabled, passkey_origin]
       properties:
+        passkey_origin: { type: string, nullable: true }
         setup_required: { type: boolean }
         signup_enabled: { type: boolean }
         branding:
