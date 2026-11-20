@@ -13,8 +13,7 @@ import { useSession } from '@/lib/session'
 import InviteModal from './InviteModal.vue'
 import { useInvites, useMembers, useRemoveMember, useRevokeInvite, useSetRole } from './queries'
 
-const TOKEN_NOTE =
-  'API tokens they made keep working. Revoke them on the API tokens page if needed.'
+const TOKEN_NOTE = 'API tokens they made in this project are revoked.'
 const RANK: Record<Role, number> = { owner: 3, admin: 2, member: 1, read_only: 0 }
 
 const toast = useToast()
@@ -84,9 +83,11 @@ async function confirmRole() {
 
 const roleBody = computed(() => {
   const m = pendingRole.value?.member
+  const keeps = isManager(pendingRole.value?.role)
   if (m && m.user_id === myId.value)
-    return "You'll lose some access. API tokens you made keep working."
-  return `${m?.name || m?.email || 'They'} will lose some access. ${TOKEN_NOTE}`
+    return `You'll lose some access. API tokens you made ${keeps ? 'keep working' : 'in this project are revoked'}.`
+  const who = m?.name || m?.email || 'They'
+  return `${who} will lose some access. ${keeps ? 'API tokens they made keep working.' : TOKEN_NOTE}`
 })
 
 function startRemove(m: Member) {

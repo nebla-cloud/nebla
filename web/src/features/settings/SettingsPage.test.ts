@@ -150,7 +150,7 @@ describe('SettingsPage', () => {
     const { router, queryClient } = await mountPage()
     button('Leave project').click()
     await settle()
-    expect(body().textContent).toContain('API tokens you made keep working')
+    expect(body().textContent).toContain('API tokens you made in it are revoked.')
     expect(calls).toHaveLength(0)
     const confirm = Array.from(body().querySelectorAll('button')).filter((b) =>
       b.textContent?.includes('Leave project'),

@@ -169,7 +169,7 @@ describe('MembersPage', () => {
     await mountPage('owner')
     labelled('Remove Sam Reed').click()
     await settle()
-    expect(body().textContent).toContain('API tokens they made keep working')
+    expect(body().textContent).toContain('API tokens they made in this project are revoked.')
     expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
     dialogButton('Remove').click()
     await settle()
@@ -220,7 +220,7 @@ describe('MembersPage', () => {
     await mountPage('owner', 1)
     const adminSel = selects().find((s) => s.value === 'admin')!
     await choose(adminSel, 'read_only')
-    expect(body().textContent).toContain('API tokens they made keep working')
+    expect(body().textContent).toContain('API tokens they made in this project are revoked.')
     expect(calls.some((c) => c.method === 'PUT')).toBe(false)
     button('Change role').click()
     await settle()

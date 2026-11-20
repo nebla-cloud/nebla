@@ -34,8 +34,8 @@ const onlyOwner = computed(
 const leaveBlocked = computed(() => onlyOwner.value || (isOwner.value && membersPending.value))
 const leaveBody = computed(
   () =>
-    `You'll lose access to ${project.value?.name ?? 'this project'}. API tokens you made keep working.` +
-    (isManager(project.value?.role) ? ' Revoke them on the API tokens page if needed.' : ''),
+    `You'll lose access to ${project.value?.name ?? 'this project'}.` +
+    (isManager(project.value?.role) ? ' API tokens you made in it are revoked.' : ''),
 )
 
 const name = ref('')
