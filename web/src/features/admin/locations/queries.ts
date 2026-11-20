@@ -73,6 +73,12 @@ export function useUpdateNode(locationId: number) {
 // The token only comes back once, so the start response is handed to the enroll page here.
 export const lastCreated = ref<Record<number, EnrollmentCreated>>({})
 
+export const forgetCreated = (id: number) => {
+  const rest = { ...lastCreated.value }
+  delete rest[id]
+  lastCreated.value = rest
+}
+
 const remember = (c: EnrollmentCreated) => {
   lastCreated.value = { ...lastCreated.value, [c.enrollment.id]: c }
 }
@@ -151,7 +157,10 @@ export function useFinishEnrollment(id: Ref<number>) {
           body,
         }),
       ),
-    onSuccess: () => refresh(qc),
+    onSuccess: () => {
+      forgetCreated(toValue(id))
+      return refresh(qc)
+    },
   })
 }
 
@@ -161,6 +170,9 @@ export function useCancelEnrollment() {
     mutationFn: async (id: number): Promise<void> => {
       unwrap(await api.DELETE('/admin/location_enrollments/{id}', { params: { path: { id } } }))
     },
-    onSuccess: () => refresh(qc),
+    onSuccess: (_, id) => {
+      forgetCreated(id)
+      return refresh(qc)
+    },
   })
 }

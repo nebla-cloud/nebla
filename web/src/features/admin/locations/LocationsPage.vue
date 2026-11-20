@@ -41,10 +41,26 @@ function plural(n: number, word: string) {
           connect it.
         </p>
       </div>
-      <UButton v-if="!creating && locations?.length" @click="open"> Connect a location </UButton>
+      <UButton v-if="!creating && locations?.length" @click="open">Connect a location</UButton>
     </header>
 
     <UAlert v-if="error" color="error" variant="subtle" :description="errorMessage(error)" />
+
+    <ul
+      v-if="!creating && enrollments?.length"
+      class="flex flex-col divide-y divide-default rounded-lg border border-default"
+    >
+      <li v-for="e in enrollments" :key="e.id">
+        <RouterLink
+          :to="{ name: 'admin-location-enroll', params: { enrollmentId: e.id } }"
+          class="block px-4 py-3 hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          <span class="font-bold text-highlighted">{{ e.name }}</span>
+          <span v-if="e.location_id !== null" class="text-muted"> (re-run)</span>
+          <span class="text-muted"> · {{ stateLabel(e) }}</span>
+        </RouterLink>
+      </li>
+    </ul>
 
     <section v-if="creating" class="rounded-lg border border-default p-4 sm:p-6">
       <h2 class="mb-4 text-lg font-bold tracking-tight text-highlighted">Connect a location</h2>
@@ -62,22 +78,6 @@ function plural(n: number, word: string) {
         "
       />
     </section>
-
-    <ul
-      v-if="enrollments?.length"
-      class="flex flex-col divide-y divide-default rounded-lg border border-default"
-    >
-      <li v-for="e in enrollments" :key="e.id">
-        <RouterLink
-          :to="{ name: 'admin-location-enroll', params: { enrollmentId: e.id } }"
-          class="block px-4 py-3 hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary"
-        >
-          <span class="font-bold text-highlighted">{{ e.name }}</span>
-          <span v-if="e.location_id !== null" class="text-muted"> (re-run)</span>
-          <span class="text-muted"> · {{ stateLabel(e) }}</span>
-        </RouterLink>
-      </li>
-    </ul>
 
     <p v-else-if="isPending" class="text-muted">Loading locations</p>
 

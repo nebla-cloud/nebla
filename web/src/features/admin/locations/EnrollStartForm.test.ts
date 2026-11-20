@@ -36,8 +36,6 @@ async function fill(wrapper: ReturnType<typeof mountApp>['wrapper'], name: strin
   await wrapper.find('input[name=description]').setValue('Rack 2')
   await wrapper.find('form').trigger('submit')
   await flushPromises()
-  await new Promise((r) => setTimeout(r, 50))
-  await flushPromises()
 }
 
 describe('EnrollStartForm', () => {
