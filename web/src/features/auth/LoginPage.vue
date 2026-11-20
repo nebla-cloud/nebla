@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import { nextTick, reactive, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
+import {
+  type PublicKeyCredentialRequestOptionsJSON,
+  WebAuthnAbortService,
+  browserSupportsWebAuthnAutofill,
+  startAuthentication,
+} from '@simplewebauthn/browser'
 import { api } from '@/api/client'
 import { ApiError, errorMessage, unwrap } from '@/api/errors'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import { isCancel, passkeysUsable } from '@/features/auth/passkey'
 import { safeNext } from '@/router/guards'
 import { setMe, useSession } from '@/lib/session'
 
@@ -20,6 +27,61 @@ const needsTotp = ref(false)
 const busy = ref(false)
 const error = ref<string | null>(null)
 const totpInput = useTemplateRef<{ inputRef?: HTMLInputElement }>('totpInput')
+
+const passkeys = computed(() => passkeysUsable(manifest.value?.passkey_origin))
+let active = true
+
+async function finishLogin(user: Parameters<typeof setMe>[0]) {
+  setMe(user)
+  await router.replace(safeNext(route.query.next) ?? '/')
+}
+
+async function passkeyLogin(conditional: boolean) {
+  if (!conditional) {
+    if (busy.value) return
+    busy.value = true
+    error.value = null
+  }
+  try {
+    const begin = unwrap(await api.POST('/auth/passkey/begin'))
+    if (!active) return
+    const optionsJSON = begin.options as unknown as PublicKeyCredentialRequestOptionsJSON
+    const credential = await startAuthentication(
+      conditional ? { optionsJSON, useBrowserAutofill: true } : { optionsJSON },
+    )
+    if (!active) return
+    const user = unwrap(
+      await api.POST('/auth/passkey/finish', {
+        body: {
+          challenge_id: begin.challenge_id,
+          credential: credential as unknown as Record<string, unknown>,
+        },
+      }),
+    )
+    if (!active) return
+    await finishLogin(user)
+  } catch (e) {
+    if (isCancel(e) || !active) return
+    if (e instanceof ApiError && e.code === 'passkey_failed') {
+      error.value = "That passkey didn't work. Try again, or log in with your password."
+    } else if (!conditional) {
+      error.value = errorMessage(e)
+    }
+  } finally {
+    if (!conditional) busy.value = false
+  }
+}
+
+onMounted(async () => {
+  if (passkeys.value && (await browserSupportsWebAuthnAutofill()) && active) {
+    void passkeyLogin(true)
+  }
+})
+
+onBeforeUnmount(() => {
+  active = false
+  WebAuthnAbortService.cancelCeremony()
+})
 
 async function submit() {
   if (busy.value) return
@@ -58,7 +120,7 @@ async function submit() {
           v-model="form.email"
           name="email"
           type="email"
-          autocomplete="username"
+          :autocomplete="passkeys ? 'username webauthn' : 'username'"
           required
           class="w-full"
           :disabled="needsTotp"
@@ -88,6 +150,24 @@ async function submit() {
         />
       </UFormField>
       <UButton type="submit" block size="lg" :loading="busy">Log in</UButton>
+      <template v-if="passkeys && !needsTotp">
+        <div data-passkey-divider class="flex items-center gap-3 text-sm text-muted">
+          <span class="h-px flex-1 bg-[var(--ui-border)]" />
+          or
+          <span class="h-px flex-1 bg-[var(--ui-border)]" />
+        </div>
+        <UButton
+          type="button"
+          block
+          size="lg"
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-key-round"
+          :disabled="busy"
+          @click="passkeyLogin(false)"
+          >Log in with a passkey</UButton
+        >
+      </template>
     </form>
     <template v-if="manifest?.signup_enabled" #after>
       New here?
