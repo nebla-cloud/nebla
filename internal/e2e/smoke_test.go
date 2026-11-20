@@ -175,7 +175,18 @@ func sshKey(t *testing.T) string {
 	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pk))) + " nebla-e2e"
 }
 
-func TestSmoke(t *testing.T) {
+// env is a panel wired to the target with location e2e, type e2e-small, image e2e-debian, an IP pool and project e2e.
+type env struct {
+	tg     target
+	app    *testutil.App
+	admin  *testutil.Client
+	c      *testutil.Client
+	proj   int64
+	pc     pve.Client
+	pubNet map[string]bool
+}
+
+func newEnv(t *testing.T) env {
 	tg := loadTarget(t)
 	// Job and Proxmox logs go to stderr so a failed run shows how far each step got.
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -224,6 +235,12 @@ func TestSmoke(t *testing.T) {
 	call(t, app, c, http.MethodPost, "/v1/ssh_keys", map[string]string{"name": "e2e", "public_key": sshKey(t)},
 		http.StatusCreated, nil)
 
+	return env{tg: tg, app: app, admin: admin, c: c, proj: proj, pc: pc, pubNet: pubNet}
+}
+
+func TestSmoke(t *testing.T) {
+	e := newEnv(t)
+	app, c, pc, pubNet := e.app, e.c, e.pc, e.pubNet
 	var created struct {
 		Server struct {
 			ID int64 `json:"id"`
