@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/user"
 )
 
 // APITokenCreate is the builder for creating a APIToken entity.
@@ -26,6 +27,20 @@ type APITokenCreate struct {
 // SetProjectID sets the "project_id" field.
 func (_c *APITokenCreate) SetProjectID(v int64) *APITokenCreate {
 	_c.mutation.SetProjectID(v)
+	return _c
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (_c *APITokenCreate) SetCreatedBy(v int64) *APITokenCreate {
+	_c.mutation.SetCreatedBy(v)
+	return _c
+}
+
+// SetNillableCreatedBy sets the "created_by" field if the given value is not nil.
+func (_c *APITokenCreate) SetNillableCreatedBy(v *int64) *APITokenCreate {
+	if v != nil {
+		_c.SetCreatedBy(*v)
+	}
 	return _c
 }
 
@@ -84,6 +99,25 @@ func (_c *APITokenCreate) SetID(v int64) *APITokenCreate {
 // SetProject sets the "project" edge to the Project entity.
 func (_c *APITokenCreate) SetProject(v *Project) *APITokenCreate {
 	return _c.SetProjectID(v.ID)
+}
+
+// SetCreatorID sets the "creator" edge to the User entity by ID.
+func (_c *APITokenCreate) SetCreatorID(id int64) *APITokenCreate {
+	_c.mutation.SetCreatorID(id)
+	return _c
+}
+
+// SetNillableCreatorID sets the "creator" edge to the User entity by ID if the given value is not nil.
+func (_c *APITokenCreate) SetNillableCreatorID(id *int64) *APITokenCreate {
+	if id != nil {
+		_c = _c.SetCreatorID(*id)
+	}
+	return _c
+}
+
+// SetCreator sets the "creator" edge to the User entity.
+func (_c *APITokenCreate) SetCreator(v *User) *APITokenCreate {
+	return _c.SetCreatorID(v.ID)
 }
 
 // Mutation returns the APITokenMutation object of the builder.
@@ -214,6 +248,23 @@ func (_c *APITokenCreate) createSpec() (*APIToken, *sqlgraph.CreateSpec) {
 		_node.ProjectID = nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.CreatorIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   apitoken.CreatorTable,
+			Columns: []string{apitoken.CreatorColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.CreatedBy = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
 }
 
@@ -315,6 +366,9 @@ func (u *APITokenUpsertOne) UpdateNewValues() *APITokenUpsertOne {
 		}
 		if _, exists := u.create.mutation.ProjectID(); exists {
 			s.SetIgnore(apitoken.FieldProjectID)
+		}
+		if _, exists := u.create.mutation.CreatedBy(); exists {
+			s.SetIgnore(apitoken.FieldCreatedBy)
 		}
 		if _, exists := u.create.mutation.Permission(); exists {
 			s.SetIgnore(apitoken.FieldPermission)
@@ -575,6 +629,9 @@ func (u *APITokenUpsertBulk) UpdateNewValues() *APITokenUpsertBulk {
 			}
 			if _, exists := b.mutation.ProjectID(); exists {
 				s.SetIgnore(apitoken.FieldProjectID)
+			}
+			if _, exists := b.mutation.CreatedBy(); exists {
+				s.SetIgnore(apitoken.FieldCreatedBy)
 			}
 			if _, exists := b.mutation.Permission(); exists {
 				s.SetIgnore(apitoken.FieldPermission)

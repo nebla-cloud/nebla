@@ -18,6 +18,7 @@ var (
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "created_by", Type: field.TypeInt64, Nullable: true},
 	}
 	// APITokensTable holds the schema information for the "api_tokens" table.
 	APITokensTable = &schema.Table{
@@ -31,6 +32,12 @@ var (
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
+			{
+				Symbol:     "api_tokens_users_creator",
+				Columns:    []*schema.Column{APITokensColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
 		},
 		Indexes: []*schema.Index{
 			{
@@ -42,6 +49,11 @@ var (
 				Name:    "api_tokens_project_id_idx",
 				Unique:  false,
 				Columns: []*schema.Column{APITokensColumns[6]},
+			},
+			{
+				Name:    "api_tokens_created_by_idx",
+				Unique:  false,
+				Columns: []*schema.Column{APITokensColumns[7]},
 			},
 		},
 	}
@@ -878,6 +890,7 @@ var (
 
 func init() {
 	APITokensTable.ForeignKeys[0].RefTable = ProjectsTable
+	APITokensTable.ForeignKeys[1].RefTable = UsersTable
 	APITokensTable.Annotation = &entsql.Annotation{
 		Table: "api_tokens",
 	}

@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
+	"github.com/nebla-cloud/nebla/internal/ent/user"
 )
 
 // APIToken is the model entity for the APIToken schema.
@@ -20,6 +21,8 @@ type APIToken struct {
 	ID int64 `json:"id,omitempty"`
 	// ProjectID holds the value of the "project_id" field.
 	ProjectID int64 `json:"project_id,omitempty"`
+	// CreatedBy holds the value of the "created_by" field.
+	CreatedBy *int64 `json:"created_by,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
 	// Permission holds the value of the "permission" field.
@@ -40,9 +43,11 @@ type APIToken struct {
 type APITokenEdges struct {
 	// Project holds the value of the project edge.
 	Project *Project `json:"project,omitempty"`
+	// Creator holds the value of the creator edge.
+	Creator *User `json:"creator,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // ProjectOrErr returns the Project value or an error if the edge
@@ -56,6 +61,17 @@ func (e APITokenEdges) ProjectOrErr() (*Project, error) {
 	return nil, &NotLoadedError{edge: "project"}
 }
 
+// CreatorOrErr returns the Creator value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e APITokenEdges) CreatorOrErr() (*User, error) {
+	if e.Creator != nil {
+		return e.Creator, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: user.Label}
+	}
+	return nil, &NotLoadedError{edge: "creator"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*APIToken) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -63,7 +79,7 @@ func (*APIToken) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case apitoken.FieldTokenHash:
 			values[i] = new([]byte)
-		case apitoken.FieldID, apitoken.FieldProjectID:
+		case apitoken.FieldID, apitoken.FieldProjectID, apitoken.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
 		case apitoken.FieldName, apitoken.FieldPermission:
 			values[i] = new(sql.NullString)
@@ -95,6 +111,13 @@ func (_m *APIToken) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field project_id", values[i])
 			} else if value.Valid {
 				_m.ProjectID = value.Int64
+			}
+		case apitoken.FieldCreatedBy:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field created_by", values[i])
+			} else if value.Valid {
+				_m.CreatedBy = new(int64)
+				*_m.CreatedBy = value.Int64
 			}
 		case apitoken.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -145,6 +168,11 @@ func (_m *APIToken) QueryProject() *ProjectQuery {
 	return NewAPITokenClient(_m.config).QueryProject(_m)
 }
 
+// QueryCreator queries the "creator" edge of the APIToken entity.
+func (_m *APIToken) QueryCreator() *UserQuery {
+	return NewAPITokenClient(_m.config).QueryCreator(_m)
+}
+
 // Update returns a builder for updating this APIToken.
 // Note that you need to call APIToken.Unwrap() before calling this method if this APIToken
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -170,6 +198,11 @@ func (_m *APIToken) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("project_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ProjectID))
+	builder.WriteString(", ")
+	if v := _m.CreatedBy; v != nil {
+		builder.WriteString("created_by=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)

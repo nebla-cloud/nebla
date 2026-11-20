@@ -350,7 +350,10 @@ type AdminUserInput struct {
 
 // ApiToken defines model for ApiToken.
 type ApiToken struct {
-	Created    time.Time       `json:"created"`
+	Created time.Time `json:"created"`
+
+	// CreatedBy Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below admin or is deleted. Null for tokens created before creators were recorded; those are never revoked automatically.
+	CreatedBy  *int64          `json:"created_by"`
 	Id         int64           `json:"id"`
 	LastUsed   *time.Time      `json:"last_used"`
 	Name       string          `json:"name"`
@@ -2240,7 +2243,7 @@ type ClientInterface interface {
 
 	// RequestServerConsole Get a one-time VNC console URL for a running server
 	//
-	// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 60s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
+	// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 10s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
 	//
 	// Corresponds with POST /servers/{id}/actions/request_console (the `RequestServerConsole` operationId).
 	RequestServerConsole(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4616,7 +4619,7 @@ func (c *Client) RebuildServer(ctx context.Context, id ID, body RebuildServerJSO
 
 // RequestServerConsole Get a one-time VNC console URL for a running server
 //
-// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 60s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
+// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 10s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
 //
 // Corresponds with POST /servers/{id}/actions/request_console (the `RequestServerConsole` operationId).
 func (c *Client) RequestServerConsole(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10861,7 +10864,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestServerConsoleWithResponse Get a one-time VNC console URL for a running server
 	//
-	// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 60s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
+	// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 10s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -17175,7 +17178,10 @@ type PostProjectTokensResponse struct {
 	HTTPResponse *http.Response
 	// JSON201 the response for an HTTP 201 `application/json` response
 	JSON201 *struct {
-		Created    time.Time       `json:"created"`
+		Created time.Time `json:"created"`
+
+		// CreatedBy Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below admin or is deleted. Null for tokens created before creators were recorded; those are never revoked automatically.
+		CreatedBy  *int64          `json:"created_by"`
 		Id         int64           `json:"id"`
 		LastUsed   *time.Time      `json:"last_used"`
 		Name       string          `json:"name"`
@@ -17196,7 +17202,10 @@ type PostProjectTokensResponse struct {
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
 func (r PostProjectTokensResponse) GetJSON201() *struct {
-	Created    time.Time       `json:"created"`
+	Created time.Time `json:"created"`
+
+	// CreatedBy Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below admin or is deleted. Null for tokens created before creators were recorded; those are never revoked automatically.
+	CreatedBy  *int64          `json:"created_by"`
 	Id         int64           `json:"id"`
 	LastUsed   *time.Time      `json:"last_used"`
 	Name       string          `json:"name"`
@@ -21080,7 +21089,7 @@ func (c *ClientWithResponses) RebuildServerWithResponse(ctx context.Context, id 
 
 // RequestServerConsoleWithResponse Get a one-time VNC console URL for a running server
 //
-// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 60s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
+// Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 10s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -26213,7 +26222,10 @@ func ParsePostProjectTokensResponse(rsp *http.Response) (*PostProjectTokensRespo
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
-			Created    time.Time       `json:"created"`
+			Created time.Time `json:"created"`
+
+			// CreatedBy Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below admin or is deleted. Null for tokens created before creators were recorded; those are never revoked automatically.
+			CreatedBy  *int64          `json:"created_by"`
 			Id         int64           `json:"id"`
 			LastUsed   *time.Time      `json:"last_used"`
 			Name       string          `json:"name"`

@@ -1508,7 +1508,7 @@ export interface paths {
         put?: never;
         /**
          * Get a one-time VNC console URL for a running server
-         * @description Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 60s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
+         * @description Not an Action. wss_url is <base>/v1/console/<token>; the token is single-use, valid for 10s and bound to the server and project. GET /v1/console/{token} is a websocket route outside this spec because the token is its only auth. password is the VNC password for noVNC.
          */
         post: operations["requestServerConsole"];
         delete?: never;
@@ -1620,6 +1620,11 @@ export interface components {
             created: string;
             /** Format: date-time */
             last_used: string | null;
+            /**
+             * Format: int64
+             * @description Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below admin or is deleted. Null for tokens created before creators were recorded; those are never revoked automatically.
+             */
+            created_by: number | null;
         };
         User: {
             /** Format: int64 */

@@ -22,7 +22,7 @@ func apiMember(m projects.Member) apigen.Member {
 }
 
 func apiToken(t projects.Token) apigen.ApiToken {
-	return apigen.ApiToken{Id: t.ID, Name: t.Name, Permission: apigen.TokenPermission(t.Permission), Created: t.CreatedAt, LastUsed: t.LastUsedAt}
+	return apigen.ApiToken{Id: t.ID, Name: t.Name, Permission: apigen.TokenPermission(t.Permission), Created: t.CreatedAt, LastUsed: t.LastUsedAt, CreatedBy: t.CreatedBy}
 }
 
 func userID(ctx context.Context) int64 {
@@ -199,7 +199,7 @@ func (s *server) PostProjectTokens(ctx context.Context, req apigen.PostProjectTo
 	}
 	a := apiToken(t)
 	return apigen.PostProjectTokens201JSONResponse{
-		Id: a.Id, Name: a.Name, Permission: a.Permission, Created: a.Created, LastUsed: a.LastUsed, Token: plain,
+		Id: a.Id, Name: a.Name, Permission: a.Permission, Created: a.Created, LastUsed: a.LastUsed, CreatedBy: a.CreatedBy, Token: plain,
 	}, nil
 }
 

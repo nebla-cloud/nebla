@@ -350,7 +350,10 @@ type AdminUserInput struct {
 
 // ApiToken defines model for ApiToken.
 type ApiToken struct {
-	Created    time.Time       `json:"created"`
+	Created time.Time `json:"created"`
+
+	// CreatedBy Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below admin or is deleted. Null for tokens created before creators were recorded; those are never revoked automatically.
+	CreatedBy  *int64          `json:"created_by"`
 	Id         int64           `json:"id"`
 	LastUsed   *time.Time      `json:"last_used"`
 	Name       string          `json:"name"`
@@ -13379,7 +13382,10 @@ type PostProjectTokensResponseObject interface {
 }
 
 type PostProjectTokens201JSONResponse struct {
-	Created    time.Time       `json:"created"`
+	Created time.Time `json:"created"`
+
+	// CreatedBy Read-only. The user who created the token. The token is revoked when that user leaves the project, is demoted below admin or is deleted. Null for tokens created before creators were recorded; those are never revoked automatically.
+	CreatedBy  *int64          `json:"created_by"`
 	Id         int64           `json:"id"`
 	LastUsed   *time.Time      `json:"last_used"`
 	Name       string          `json:"name"`

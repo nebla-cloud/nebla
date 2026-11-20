@@ -85,6 +85,8 @@ type APITokenMutation struct {
 	clearedFields  map[string]struct{}
 	project        *int64
 	clearedproject bool
+	creator        *int64
+	clearedcreator bool
 	done           bool
 	oldValue       func(context.Context) (*APIToken, error)
 	predicates     []predicate.APIToken
@@ -228,6 +230,55 @@ func (m *APITokenMutation) OldProjectID(ctx context.Context) (v int64, err error
 // ResetProjectID resets all changes to the "project_id" field.
 func (m *APITokenMutation) ResetProjectID() {
 	m.project = nil
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *APITokenMutation) SetCreatedBy(i int64) {
+	m.creator = &i
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *APITokenMutation) CreatedBy() (r int64, exists bool) {
+	v := m.creator
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the APIToken entity.
+// If the APIToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APITokenMutation) OldCreatedBy(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (m *APITokenMutation) ClearCreatedBy() {
+	m.creator = nil
+	m.clearedFields[apitoken.FieldCreatedBy] = struct{}{}
+}
+
+// CreatedByCleared returns if the "created_by" field was cleared in this mutation.
+func (m *APITokenMutation) CreatedByCleared() bool {
+	_, ok := m.clearedFields[apitoken.FieldCreatedBy]
+	return ok
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *APITokenMutation) ResetCreatedBy() {
+	m.creator = nil
+	delete(m.clearedFields, apitoken.FieldCreatedBy)
 }
 
 // SetName sets the "name" field.
@@ -450,6 +501,46 @@ func (m *APITokenMutation) ResetProject() {
 	m.clearedproject = false
 }
 
+// SetCreatorID sets the "creator" edge to the User entity by id.
+func (m *APITokenMutation) SetCreatorID(id int64) {
+	m.creator = &id
+}
+
+// ClearCreator clears the "creator" edge to the User entity.
+func (m *APITokenMutation) ClearCreator() {
+	m.clearedcreator = true
+	m.clearedFields[apitoken.FieldCreatedBy] = struct{}{}
+}
+
+// CreatorCleared reports if the "creator" edge to the User entity was cleared.
+func (m *APITokenMutation) CreatorCleared() bool {
+	return m.CreatedByCleared() || m.clearedcreator
+}
+
+// CreatorID returns the "creator" edge ID in the mutation.
+func (m *APITokenMutation) CreatorID() (id int64, exists bool) {
+	if m.creator != nil {
+		return *m.creator, true
+	}
+	return
+}
+
+// CreatorIDs returns the "creator" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CreatorID instead. It exists only for internal usage by the builders.
+func (m *APITokenMutation) CreatorIDs() (ids []int64) {
+	if id := m.creator; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCreator resets all changes to the "creator" edge.
+func (m *APITokenMutation) ResetCreator() {
+	m.creator = nil
+	m.clearedcreator = false
+}
+
 // Where appends a list predicates to the APITokenMutation builder.
 func (m *APITokenMutation) Where(ps ...predicate.APIToken) {
 	m.predicates = append(m.predicates, ps...)
@@ -484,9 +575,12 @@ func (m *APITokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APITokenMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.project != nil {
 		fields = append(fields, apitoken.FieldProjectID)
+	}
+	if m.creator != nil {
+		fields = append(fields, apitoken.FieldCreatedBy)
 	}
 	if m.name != nil {
 		fields = append(fields, apitoken.FieldName)
@@ -513,6 +607,8 @@ func (m *APITokenMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case apitoken.FieldProjectID:
 		return m.ProjectID()
+	case apitoken.FieldCreatedBy:
+		return m.CreatedBy()
 	case apitoken.FieldName:
 		return m.Name()
 	case apitoken.FieldPermission:
@@ -534,6 +630,8 @@ func (m *APITokenMutation) OldField(ctx context.Context, name string) (ent.Value
 	switch name {
 	case apitoken.FieldProjectID:
 		return m.OldProjectID(ctx)
+	case apitoken.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
 	case apitoken.FieldName:
 		return m.OldName(ctx)
 	case apitoken.FieldPermission:
@@ -559,6 +657,13 @@ func (m *APITokenMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetProjectID(v)
+		return nil
+	case apitoken.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
 		return nil
 	case apitoken.FieldName:
 		v, ok := value.(string)
@@ -628,6 +733,9 @@ func (m *APITokenMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *APITokenMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(apitoken.FieldCreatedBy) {
+		fields = append(fields, apitoken.FieldCreatedBy)
+	}
 	if m.FieldCleared(apitoken.FieldLastUsedAt) {
 		fields = append(fields, apitoken.FieldLastUsedAt)
 	}
@@ -645,6 +753,9 @@ func (m *APITokenMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *APITokenMutation) ClearField(name string) error {
 	switch name {
+	case apitoken.FieldCreatedBy:
+		m.ClearCreatedBy()
+		return nil
 	case apitoken.FieldLastUsedAt:
 		m.ClearLastUsedAt()
 		return nil
@@ -658,6 +769,9 @@ func (m *APITokenMutation) ResetField(name string) error {
 	switch name {
 	case apitoken.FieldProjectID:
 		m.ResetProjectID()
+		return nil
+	case apitoken.FieldCreatedBy:
+		m.ResetCreatedBy()
 		return nil
 	case apitoken.FieldName:
 		m.ResetName()
@@ -680,9 +794,12 @@ func (m *APITokenMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *APITokenMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.project != nil {
 		edges = append(edges, apitoken.EdgeProject)
+	}
+	if m.creator != nil {
+		edges = append(edges, apitoken.EdgeCreator)
 	}
 	return edges
 }
@@ -695,13 +812,17 @@ func (m *APITokenMutation) AddedIDs(name string) []ent.Value {
 		if id := m.project; id != nil {
 			return []ent.Value{*id}
 		}
+	case apitoken.EdgeCreator:
+		if id := m.creator; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *APITokenMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	return edges
 }
 
@@ -713,9 +834,12 @@ func (m *APITokenMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *APITokenMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedproject {
 		edges = append(edges, apitoken.EdgeProject)
+	}
+	if m.clearedcreator {
+		edges = append(edges, apitoken.EdgeCreator)
 	}
 	return edges
 }
@@ -726,6 +850,8 @@ func (m *APITokenMutation) EdgeCleared(name string) bool {
 	switch name {
 	case apitoken.EdgeProject:
 		return m.clearedproject
+	case apitoken.EdgeCreator:
+		return m.clearedcreator
 	}
 	return false
 }
@@ -737,6 +863,9 @@ func (m *APITokenMutation) ClearEdge(name string) error {
 	case apitoken.EdgeProject:
 		m.ClearProject()
 		return nil
+	case apitoken.EdgeCreator:
+		m.ClearCreator()
+		return nil
 	}
 	return fmt.Errorf("unknown APIToken unique edge %s", name)
 }
@@ -747,6 +876,9 @@ func (m *APITokenMutation) ResetEdge(name string) error {
 	switch name {
 	case apitoken.EdgeProject:
 		m.ResetProject()
+		return nil
+	case apitoken.EdgeCreator:
+		m.ResetCreator()
 		return nil
 	}
 	return fmt.Errorf("unknown APIToken edge %s", name)
