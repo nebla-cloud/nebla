@@ -27,6 +27,7 @@ type Env struct {
 	HTTPClient *http.Client
 	Exec       func(argv0 string, argv []string, env []string) error
 	IsTerminal func(fd int) bool
+	LookPath   func(file string) (string, error)
 }
 
 type globalFlags struct {
@@ -83,6 +84,7 @@ func DefaultEnv() Env {
 		Stderr:     os.Stderr,
 		Getenv:     os.Getenv,
 		IsTerminal: term.IsTerminal,
+		Exec:       execProcess,
 	}
 }
 
