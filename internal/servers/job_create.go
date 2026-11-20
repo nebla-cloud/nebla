@@ -202,7 +202,7 @@ func (o *WorkerOptions) publish(ctx context.Context, kind ext.EventKind, row *en
 	if t, err := o.Catalog.GetServerType(ctx, row.ServerTypeID); err == nil {
 		data["server_type"] = t.Name
 	}
-	o.Bus.Publish(ctx, ext.Event{Kind: kind, ProjectID: row.ProjectID, ServerID: row.ID, At: time.Now(), Data: data})
+	o.Bus.Publish(ctx, ext.Event{Kind: kind, ProjectID: row.ProjectID, ServerID: row.ID, ResourceType: "server", ResourceID: row.ID, At: time.Now(), Data: data})
 }
 
 // cleanup undoes a failed create; IPs are released only once the VM is confirmed gone.

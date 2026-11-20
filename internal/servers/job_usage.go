@@ -74,7 +74,7 @@ func (w *UsageWorker) Work(ctx context.Context, job *river.Job[UsageArgs]) error
 			return err
 		}
 		for _, r := range rows {
-			w.o.Bus.Publish(ctx, ext.Event{Kind: ext.ServerUsage, ProjectID: r.ProjectID, ServerID: r.ID, At: now, Data: map[string]any{
+			w.o.Bus.Publish(ctx, ext.Event{Kind: ext.ServerUsage, ProjectID: r.ProjectID, ServerID: r.ID, ResourceType: "server", ResourceID: r.ID, At: now, Data: map[string]any{
 				"server_type": names[r.ServerTypeID], "status": string(r.Status),
 				"cores": r.Cores, "memory_mb": r.MemoryMB, "disk_gb": r.DiskGB, "period": period, "location_id": r.LocationID,
 			}})

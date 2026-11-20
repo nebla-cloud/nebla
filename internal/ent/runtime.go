@@ -27,6 +27,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
 
@@ -156,12 +157,20 @@ func init() {
 	locationDescImportStorage := locationFields[10].Descriptor()
 	// location.DefaultImportStorage holds the default value on creation for the import_storage field.
 	location.DefaultImportStorage = locationDescImportStorage.Default.(string)
+	// locationDescVolumeStorage is the schema descriptor for volume_storage field.
+	locationDescVolumeStorage := locationFields[12].Descriptor()
+	// location.DefaultVolumeStorage holds the default value on creation for the volume_storage field.
+	location.DefaultVolumeStorage = locationDescVolumeStorage.Default.(string)
+	// locationDescVolumeStorageOk is the schema descriptor for volume_storage_ok field.
+	locationDescVolumeStorageOk := locationFields[13].Descriptor()
+	// location.DefaultVolumeStorageOk holds the default value on creation for the volume_storage_ok field.
+	location.DefaultVolumeStorageOk = locationDescVolumeStorageOk.Default.(bool)
 	// locationDescCreatedAt is the schema descriptor for created_at field.
-	locationDescCreatedAt := locationFields[12].Descriptor()
+	locationDescCreatedAt := locationFields[14].Descriptor()
 	// location.DefaultCreatedAt holds the default value on creation for the created_at field.
 	location.DefaultCreatedAt = locationDescCreatedAt.Default.(func() time.Time)
 	// locationDescUpdatedAt is the schema descriptor for updated_at field.
-	locationDescUpdatedAt := locationFields[13].Descriptor()
+	locationDescUpdatedAt := locationFields[15].Descriptor()
 	// location.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
 	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -242,8 +251,16 @@ func init() {
 	projectDescMaxIps := projectFields[6].Descriptor()
 	// project.DefaultMaxIps holds the default value on creation for the max_ips field.
 	project.DefaultMaxIps = projectDescMaxIps.Default.(int)
+	// projectDescMaxVolumes is the schema descriptor for max_volumes field.
+	projectDescMaxVolumes := projectFields[7].Descriptor()
+	// project.DefaultMaxVolumes holds the default value on creation for the max_volumes field.
+	project.DefaultMaxVolumes = projectDescMaxVolumes.Default.(int)
+	// projectDescMaxVolumeGB is the schema descriptor for max_volume_gb field.
+	projectDescMaxVolumeGB := projectFields[8].Descriptor()
+	// project.DefaultMaxVolumeGB holds the default value on creation for the max_volume_gb field.
+	project.DefaultMaxVolumeGB = projectDescMaxVolumeGB.Default.(int)
 	// projectDescCreatedAt is the schema descriptor for created_at field.
-	projectDescCreatedAt := projectFields[8].Descriptor()
+	projectDescCreatedAt := projectFields[10].Descriptor()
 	// project.DefaultCreatedAt holds the default value on creation for the created_at field.
 	project.DefaultCreatedAt = projectDescCreatedAt.Default.(func() time.Time)
 	projectmemberFields := schema.ProjectMember{}.Fields()
@@ -326,6 +343,28 @@ func init() {
 	userDescCreatedAt := userFields[9].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
+	volumeFields := schema.Volume{}.Fields()
+	_ = volumeFields
+	// volumeDescAppliedGB is the schema descriptor for applied_gb field.
+	volumeDescAppliedGB := volumeFields[6].Descriptor()
+	// volume.DefaultAppliedGB holds the default value on creation for the applied_gb field.
+	volume.DefaultAppliedGB = volumeDescAppliedGB.Default.(int)
+	// volumeDescNode is the schema descriptor for node field.
+	volumeDescNode := volumeFields[7].Descriptor()
+	// volume.DefaultNode holds the default value on creation for the node field.
+	volume.DefaultNode = volumeDescNode.Default.(string)
+	// volumeDescVolid is the schema descriptor for volid field.
+	volumeDescVolid := volumeFields[9].Descriptor()
+	// volume.DefaultVolid holds the default value on creation for the volid field.
+	volume.DefaultVolid = volumeDescVolid.Default.(string)
+	// volumeDescDevice is the schema descriptor for device field.
+	volumeDescDevice := volumeFields[11].Descriptor()
+	// volume.DefaultDevice holds the default value on creation for the device field.
+	volume.DefaultDevice = volumeDescDevice.Default.(string)
+	// volumeDescCreatedAt is the schema descriptor for created_at field.
+	volumeDescCreatedAt := volumeFields[13].Descriptor()
+	// volume.DefaultCreatedAt holds the default value on creation for the created_at field.
+	volume.DefaultCreatedAt = volumeDescCreatedAt.Default.(func() time.Time)
 	webauthncredentialFields := schema.WebauthnCredential{}.Fields()
 	_ = webauthncredentialFields
 	// webauthncredentialDescCreatedAt is the schema descriptor for created_at field.

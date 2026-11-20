@@ -93,3 +93,14 @@ func TestBusRecoversFromSinkPanic(t *testing.T) {
 	bus.Close()
 	require.Len(t, good.events(), 1)
 }
+
+func TestEventResourceFields(t *testing.T) {
+	a := &recSink{}
+	bus := ext.NewBus(a)
+	e := ext.Event{Kind: ext.VolumeCreated, ProjectID: 1, ResourceType: "volume", ResourceID: 7, At: time.Now()}
+	bus.Publish(context.Background(), e)
+	bus.Close()
+	require.Equal(t, []ext.Event{e}, a.events())
+	require.Equal(t, []ext.EventKind{"volume.created", "volume.resized", "volume.deleted", "volume.usage"},
+		[]ext.EventKind{ext.VolumeCreated, ext.VolumeResized, ext.VolumeDeleted, ext.VolumeUsage})
+}

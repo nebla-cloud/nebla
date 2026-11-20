@@ -36,6 +36,10 @@ const (
 	FieldImportStorage = "import_storage"
 	// FieldFirewallEnabled holds the string denoting the firewall_enabled field in the database.
 	FieldFirewallEnabled = "firewall_enabled"
+	// FieldVolumeStorage holds the string denoting the volume_storage field in the database.
+	FieldVolumeStorage = "volume_storage"
+	// FieldVolumeStorageOk holds the string denoting the volume_storage_ok field in the database.
+	FieldVolumeStorageOk = "volume_storage_ok"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -92,6 +96,8 @@ var Columns = []string{
 	FieldIsoStorage,
 	FieldImportStorage,
 	FieldFirewallEnabled,
+	FieldVolumeStorage,
+	FieldVolumeStorageOk,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -121,6 +127,10 @@ var (
 	DefaultInsecureTLS bool
 	// DefaultImportStorage holds the default value on creation for the "import_storage" field.
 	DefaultImportStorage string
+	// DefaultVolumeStorage holds the default value on creation for the "volume_storage" field.
+	DefaultVolumeStorage string
+	// DefaultVolumeStorageOk holds the default value on creation for the "volume_storage_ok" field.
+	DefaultVolumeStorageOk bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -185,6 +195,16 @@ func ByImportStorage(opts ...sql.OrderTermOption) OrderOption {
 // ByFirewallEnabled orders the results by the firewall_enabled field.
 func ByFirewallEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFirewallEnabled, opts...).ToFunc()
+}
+
+// ByVolumeStorage orders the results by the volume_storage field.
+func ByVolumeStorage(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVolumeStorage, opts...).ToFunc()
+}
+
+// ByVolumeStorageOk orders the results by the volume_storage_ok field.
+func ByVolumeStorageOk(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVolumeStorageOk, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

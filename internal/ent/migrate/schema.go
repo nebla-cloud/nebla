@@ -492,6 +492,8 @@ var (
 		{Name: "iso_storage", Type: field.TypeString, Size: 2147483647},
 		{Name: "import_storage", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "firewall_enabled", Type: field.TypeBool, Nullable: true},
+		{Name: "volume_storage", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "volume_storage_ok", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
@@ -614,6 +616,8 @@ var (
 		{Name: "max_memory_mb", Type: field.TypeInt, Default: 0},
 		{Name: "max_disk_gb", Type: field.TypeInt, Default: 0},
 		{Name: "max_ips", Type: field.TypeInt, Default: 0},
+		{Name: "max_volumes", Type: field.TypeInt, Default: 0},
+		{Name: "max_volume_gb", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "created_by", Type: field.TypeInt64, Nullable: true},
 	}
@@ -625,7 +629,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "projects_users_creator",
-				Columns:    []*schema.Column{ProjectsColumns[8]},
+				Columns:    []*schema.Column{ProjectsColumns[10]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -634,7 +638,7 @@ var (
 			{
 				Name:    "projects_created_by_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ProjectsColumns[8]},
+				Columns: []*schema.Column{ProjectsColumns[10]},
 			},
 		},
 	}
@@ -887,6 +891,74 @@ var (
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
 	}
+	// VolumesColumns holds the columns for the "volumes" table.
+	VolumesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "labels", Type: field.TypeJSON},
+		{Name: "size_gb", Type: field.TypeInt},
+		{Name: "applied_gb", Type: field.TypeInt, Default: 0},
+		{Name: "node", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "storage", Type: field.TypeString, Size: 2147483647},
+		{Name: "volid", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "device", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"creating", "available", "attached", "deleting", "missing", "error"}, Default: "creating"},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+		{Name: "server_id", Type: field.TypeInt64, Nullable: true},
+	}
+	// VolumesTable holds the schema information for the "volumes" table.
+	VolumesTable = &schema.Table{
+		Name:       "volumes",
+		Columns:    VolumesColumns,
+		PrimaryKey: []*schema.Column{VolumesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "volumes_projects_project",
+				Columns:    []*schema.Column{VolumesColumns[11]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "volumes_locations_location",
+				Columns:    []*schema.Column{VolumesColumns[12]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "volumes_servers_server",
+				Columns:    []*schema.Column{VolumesColumns[13]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "volumes_project_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{VolumesColumns[11], VolumesColumns[1]},
+			},
+			{
+				Name:    "volumes_server_device_key",
+				Unique:  true,
+				Columns: []*schema.Column{VolumesColumns[13], VolumesColumns[8]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "server_id IS NOT NULL",
+				},
+			},
+			{
+				Name:    "volumes_location_node_idx",
+				Unique:  false,
+				Columns: []*schema.Column{VolumesColumns[12], VolumesColumns[5]},
+			},
+			{
+				Name:    "volumes_server_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{VolumesColumns[13]},
+			},
+		},
+	}
 	// WebauthnChallengesColumns holds the columns for the "webauthn_challenges" table.
 	WebauthnChallengesColumns = []*schema.Column{
 		{Name: "token_hash", Type: field.TypeBytes},
@@ -998,6 +1070,7 @@ var (
 		SessionsTable,
 		SettingsTable,
 		UsersTable,
+		VolumesTable,
 		WebauthnChallengesTable,
 		WebauthnCredentialsTable,
 		ServerTypeLocationsTable,
@@ -1038,6 +1111,9 @@ func init() {
 	ServersTable.ForeignKeys[2].RefTable = ServerTypesTable
 	ServersTable.ForeignKeys[3].RefTable = ImagesTable
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable
+	VolumesTable.ForeignKeys[0].RefTable = ProjectsTable
+	VolumesTable.ForeignKeys[1].RefTable = LocationsTable
+	VolumesTable.ForeignKeys[2].RefTable = ServersTable
 	WebauthnChallengesTable.ForeignKeys[0].RefTable = UsersTable
 	WebauthnCredentialsTable.ForeignKeys[0].RefTable = UsersTable
 	ServerTypeLocationsTable.ForeignKeys[0].RefTable = ServerTypesTable

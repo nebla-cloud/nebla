@@ -60,6 +60,8 @@ type Tx struct {
 	Setting *SettingClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// Volume is the client for interacting with the Volume builders.
+	Volume *VolumeClient
 	// WebauthnChallenge is the client for interacting with the WebauthnChallenge builders.
 	WebauthnChallenge *WebauthnChallengeClient
 	// WebauthnCredential is the client for interacting with the WebauthnCredential builders.
@@ -218,6 +220,7 @@ func (tx *Tx) init() {
 	tx.Session = NewSessionClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
 	tx.User = NewUserClient(tx.config)
+	tx.Volume = NewVolumeClient(tx.config)
 	tx.WebauthnChallenge = NewWebauthnChallengeClient(tx.config)
 	tx.WebauthnCredential = NewWebauthnCredentialClient(tx.config)
 }

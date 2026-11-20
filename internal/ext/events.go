@@ -14,14 +14,21 @@ const (
 	ServerDeleted     EventKind = "server.deleted"
 	ServerTypeChanged EventKind = "server.type_changed"
 	ServerUsage       EventKind = "server.usage"
+	VolumeCreated     EventKind = "volume.created"
+	VolumeResized     EventKind = "volume.resized"
+	VolumeDeleted     EventKind = "volume.deleted"
+	VolumeUsage       EventKind = "volume.usage"
 )
 
 type Event struct {
 	Kind      EventKind
 	ProjectID int64
-	ServerID  int64
-	At        time.Time
-	Data      map[string]any
+	// ServerID is set on server events for compatibility; ResourceType and ResourceID name the resource.
+	ServerID     int64
+	ResourceType string
+	ResourceID   int64
+	At           time.Time
+	Data         map[string]any
 }
 
 // Bus fans events out to sinks asynchronously.

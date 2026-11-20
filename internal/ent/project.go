@@ -30,6 +30,10 @@ type Project struct {
 	MaxDiskGB int `json:"max_disk_gb,omitempty"`
 	// MaxIps holds the value of the "max_ips" field.
 	MaxIps int `json:"max_ips,omitempty"`
+	// MaxVolumes holds the value of the "max_volumes" field.
+	MaxVolumes int `json:"max_volumes,omitempty"`
+	// MaxVolumeGB holds the value of the "max_volume_gb" field.
+	MaxVolumeGB int `json:"max_volume_gb,omitempty"`
 	// CreatedBy holds the value of the "created_by" field.
 	CreatedBy *int64 `json:"created_by,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -76,7 +80,7 @@ func (*Project) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case project.FieldID, project.FieldMaxServers, project.FieldMaxVcpu, project.FieldMaxMemoryMB, project.FieldMaxDiskGB, project.FieldMaxIps, project.FieldCreatedBy:
+		case project.FieldID, project.FieldMaxServers, project.FieldMaxVcpu, project.FieldMaxMemoryMB, project.FieldMaxDiskGB, project.FieldMaxIps, project.FieldMaxVolumes, project.FieldMaxVolumeGB, project.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
 		case project.FieldName:
 			values[i] = new(sql.NullString)
@@ -138,6 +142,18 @@ func (_m *Project) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field max_ips", values[i])
 			} else if value.Valid {
 				_m.MaxIps = int(value.Int64)
+			}
+		case project.FieldMaxVolumes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_volumes", values[i])
+			} else if value.Valid {
+				_m.MaxVolumes = int(value.Int64)
+			}
+		case project.FieldMaxVolumeGB:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_volume_gb", values[i])
+			} else if value.Valid {
+				_m.MaxVolumeGB = int(value.Int64)
 			}
 		case project.FieldCreatedBy:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -215,6 +231,12 @@ func (_m *Project) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("max_ips=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MaxIps))
+	builder.WriteString(", ")
+	builder.WriteString("max_volumes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MaxVolumes))
+	builder.WriteString(", ")
+	builder.WriteString("max_volume_gb=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MaxVolumeGB))
 	builder.WriteString(", ")
 	if v := _m.CreatedBy; v != nil {
 		builder.WriteString("created_by=")

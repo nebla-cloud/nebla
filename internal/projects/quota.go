@@ -14,26 +14,30 @@ import (
 // Quota limits a project's resources; 0 means unlimited.
 type Quota struct {
 	MaxServers, MaxVCPU, MaxMemoryMB, MaxDiskGB, MaxIPs int
+	MaxVolumes, MaxVolumeGB                             int
 }
 
 // Usage is an amount of project resources, current or requested.
 type Usage struct {
 	Servers, VCPU, MemoryMB, DiskGB, IPs int
+	Volumes, VolumeGB                    int
 }
 
 func quotaOf(p *ent.Project) Quota {
-	return Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps}
+	return Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps,
+		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB}
 }
 
 func (s *Service) SetQuota(ctx context.Context, projectID int64, q Quota) (Quota, error) {
-	for _, v := range []int{q.MaxServers, q.MaxVCPU, q.MaxMemoryMB, q.MaxDiskGB, q.MaxIPs} {
+	for _, v := range []int{q.MaxServers, q.MaxVCPU, q.MaxMemoryMB, q.MaxDiskGB, q.MaxIPs, q.MaxVolumes, q.MaxVolumeGB} {
 		if v < 0 {
 			return Quota{}, apierr.New(http.StatusUnprocessableEntity, "invalid_input", "quota values must be 0 or more")
 		}
 	}
 	p, err := s.db.Project.UpdateOneID(projectID).
 		SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).SetMaxMemoryMB(q.MaxMemoryMB).
-		SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).Save(ctx)
+		SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
+		SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).Save(ctx)
 	if err != nil {
 		return Quota{}, notFound(err)
 	}
@@ -73,6 +77,8 @@ func (s *Service) ReserveQuota(ctx context.Context, tx *ent.Client, projectID in
 		{"max_memory_mb", q.MaxMemoryMB, delta.MemoryMB, cur.MemoryMB + delta.MemoryMB},
 		{"max_disk_gb", q.MaxDiskGB, delta.DiskGB, cur.DiskGB + delta.DiskGB},
 		{"max_ips", q.MaxIPs, delta.IPs, cur.IPs + delta.IPs},
+		{"max_volumes", q.MaxVolumes, delta.Volumes, cur.Volumes + delta.Volumes},
+		{"max_volume_gb", q.MaxVolumeGB, delta.VolumeGB, cur.VolumeGB + delta.VolumeGB},
 	}
 	// Only growing dimensions are checked, so shrinking an over-quota project still works.
 	for _, c := range checks {

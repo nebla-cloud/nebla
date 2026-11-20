@@ -32,6 +32,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
@@ -713,6 +714,33 @@ func (f TraverseUser) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserQuery", q)
 }
 
+// The VolumeFunc type is an adapter to allow the use of ordinary function as a Querier.
+type VolumeFunc func(context.Context, *ent.VolumeQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f VolumeFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.VolumeQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.VolumeQuery", q)
+}
+
+// The TraverseVolume type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseVolume func(context.Context, *ent.VolumeQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseVolume) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseVolume) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.VolumeQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.VolumeQuery", q)
+}
+
 // The WebauthnChallengeFunc type is an adapter to allow the use of ordinary function as a Querier.
 type WebauthnChallengeFunc func(context.Context, *ent.WebauthnChallengeQuery) (ent.Value, error)
 
@@ -816,6 +844,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.SettingQuery, predicate.Setting, setting.OrderOption]{typ: ent.TypeSetting, tq: q}, nil
 	case *ent.UserQuery:
 		return &query[*ent.UserQuery, predicate.User, user.OrderOption]{typ: ent.TypeUser, tq: q}, nil
+	case *ent.VolumeQuery:
+		return &query[*ent.VolumeQuery, predicate.Volume, volume.OrderOption]{typ: ent.TypeVolume, tq: q}, nil
 	case *ent.WebauthnChallengeQuery:
 		return &query[*ent.WebauthnChallengeQuery, predicate.WebauthnChallenge, webauthnchallenge.OrderOption]{typ: ent.TypeWebauthnChallenge, tq: q}, nil
 	case *ent.WebauthnCredentialQuery:

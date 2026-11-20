@@ -85,6 +85,16 @@ func MaxIps(v int) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldMaxIps, v))
 }
 
+// MaxVolumes applies equality check predicate on the "max_volumes" field. It's identical to MaxVolumesEQ.
+func MaxVolumes(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxVolumes, v))
+}
+
+// MaxVolumeGB applies equality check predicate on the "max_volume_gb" field. It's identical to MaxVolumeGBEQ.
+func MaxVolumeGB(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxVolumeGB, v))
+}
+
 // CreatedBy applies equality check predicate on the "created_by" field. It's identical to CreatedByEQ.
 func CreatedBy(v int64) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldCreatedBy, v))
@@ -358,6 +368,86 @@ func MaxIpsLT(v int) predicate.Project {
 // MaxIpsLTE applies the LTE predicate on the "max_ips" field.
 func MaxIpsLTE(v int) predicate.Project {
 	return predicate.Project(sql.FieldLTE(FieldMaxIps, v))
+}
+
+// MaxVolumesEQ applies the EQ predicate on the "max_volumes" field.
+func MaxVolumesEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxVolumes, v))
+}
+
+// MaxVolumesNEQ applies the NEQ predicate on the "max_volumes" field.
+func MaxVolumesNEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldNEQ(FieldMaxVolumes, v))
+}
+
+// MaxVolumesIn applies the In predicate on the "max_volumes" field.
+func MaxVolumesIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldIn(FieldMaxVolumes, vs...))
+}
+
+// MaxVolumesNotIn applies the NotIn predicate on the "max_volumes" field.
+func MaxVolumesNotIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldNotIn(FieldMaxVolumes, vs...))
+}
+
+// MaxVolumesGT applies the GT predicate on the "max_volumes" field.
+func MaxVolumesGT(v int) predicate.Project {
+	return predicate.Project(sql.FieldGT(FieldMaxVolumes, v))
+}
+
+// MaxVolumesGTE applies the GTE predicate on the "max_volumes" field.
+func MaxVolumesGTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldGTE(FieldMaxVolumes, v))
+}
+
+// MaxVolumesLT applies the LT predicate on the "max_volumes" field.
+func MaxVolumesLT(v int) predicate.Project {
+	return predicate.Project(sql.FieldLT(FieldMaxVolumes, v))
+}
+
+// MaxVolumesLTE applies the LTE predicate on the "max_volumes" field.
+func MaxVolumesLTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldLTE(FieldMaxVolumes, v))
+}
+
+// MaxVolumeGBEQ applies the EQ predicate on the "max_volume_gb" field.
+func MaxVolumeGBEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxVolumeGB, v))
+}
+
+// MaxVolumeGBNEQ applies the NEQ predicate on the "max_volume_gb" field.
+func MaxVolumeGBNEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldNEQ(FieldMaxVolumeGB, v))
+}
+
+// MaxVolumeGBIn applies the In predicate on the "max_volume_gb" field.
+func MaxVolumeGBIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldIn(FieldMaxVolumeGB, vs...))
+}
+
+// MaxVolumeGBNotIn applies the NotIn predicate on the "max_volume_gb" field.
+func MaxVolumeGBNotIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldNotIn(FieldMaxVolumeGB, vs...))
+}
+
+// MaxVolumeGBGT applies the GT predicate on the "max_volume_gb" field.
+func MaxVolumeGBGT(v int) predicate.Project {
+	return predicate.Project(sql.FieldGT(FieldMaxVolumeGB, v))
+}
+
+// MaxVolumeGBGTE applies the GTE predicate on the "max_volume_gb" field.
+func MaxVolumeGBGTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldGTE(FieldMaxVolumeGB, v))
+}
+
+// MaxVolumeGBLT applies the LT predicate on the "max_volume_gb" field.
+func MaxVolumeGBLT(v int) predicate.Project {
+	return predicate.Project(sql.FieldLT(FieldMaxVolumeGB, v))
+}
+
+// MaxVolumeGBLTE applies the LTE predicate on the "max_volume_gb" field.
+func MaxVolumeGBLTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldLTE(FieldMaxVolumeGB, v))
 }
 
 // CreatedByEQ applies the EQ predicate on the "created_by" field.

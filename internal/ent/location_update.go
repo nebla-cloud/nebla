@@ -185,6 +185,34 @@ func (_u *LocationUpdate) ClearFirewallEnabled() *LocationUpdate {
 	return _u
 }
 
+// SetVolumeStorage sets the "volume_storage" field.
+func (_u *LocationUpdate) SetVolumeStorage(v string) *LocationUpdate {
+	_u.mutation.SetVolumeStorage(v)
+	return _u
+}
+
+// SetNillableVolumeStorage sets the "volume_storage" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableVolumeStorage(v *string) *LocationUpdate {
+	if v != nil {
+		_u.SetVolumeStorage(*v)
+	}
+	return _u
+}
+
+// SetVolumeStorageOk sets the "volume_storage_ok" field.
+func (_u *LocationUpdate) SetVolumeStorageOk(v bool) *LocationUpdate {
+	_u.mutation.SetVolumeStorageOk(v)
+	return _u
+}
+
+// SetNillableVolumeStorageOk sets the "volume_storage_ok" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableVolumeStorageOk(v *bool) *LocationUpdate {
+	if v != nil {
+		_u.SetVolumeStorageOk(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdate) SetUpdatedAt(v time.Time) *LocationUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -426,6 +454,12 @@ func (_u *LocationUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.FirewallEnabledCleared() {
 		_spec.ClearField(location.FieldFirewallEnabled, field.TypeBool)
+	}
+	if value, ok := _u.mutation.VolumeStorage(); ok {
+		_spec.SetField(location.FieldVolumeStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.VolumeStorageOk(); ok {
+		_spec.SetField(location.FieldVolumeStorageOk, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)
@@ -784,6 +818,34 @@ func (_u *LocationUpdateOne) ClearFirewallEnabled() *LocationUpdateOne {
 	return _u
 }
 
+// SetVolumeStorage sets the "volume_storage" field.
+func (_u *LocationUpdateOne) SetVolumeStorage(v string) *LocationUpdateOne {
+	_u.mutation.SetVolumeStorage(v)
+	return _u
+}
+
+// SetNillableVolumeStorage sets the "volume_storage" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableVolumeStorage(v *string) *LocationUpdateOne {
+	if v != nil {
+		_u.SetVolumeStorage(*v)
+	}
+	return _u
+}
+
+// SetVolumeStorageOk sets the "volume_storage_ok" field.
+func (_u *LocationUpdateOne) SetVolumeStorageOk(v bool) *LocationUpdateOne {
+	_u.mutation.SetVolumeStorageOk(v)
+	return _u
+}
+
+// SetNillableVolumeStorageOk sets the "volume_storage_ok" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableVolumeStorageOk(v *bool) *LocationUpdateOne {
+	if v != nil {
+		_u.SetVolumeStorageOk(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdateOne) SetUpdatedAt(v time.Time) *LocationUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1055,6 +1117,12 @@ func (_u *LocationUpdateOne) sqlSave(ctx context.Context) (_node *Location, err 
 	}
 	if _u.mutation.FirewallEnabledCleared() {
 		_spec.ClearField(location.FieldFirewallEnabled, field.TypeBool)
+	}
+	if value, ok := _u.mutation.VolumeStorage(); ok {
+		_spec.SetField(location.FieldVolumeStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.VolumeStorageOk(); ok {
+		_spec.SetField(location.FieldVolumeStorageOk, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)

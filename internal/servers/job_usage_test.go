@@ -44,3 +44,25 @@ func TestUsageEvents(t *testing.T) {
 	require.Equal(t, period, byID[b.ServerID].Data["period"])
 	require.Equal(t, "off", byID[b.ServerID].Data["status"])
 }
+
+func TestServerEventsCarryResource(t *testing.T) {
+	ctx := context.Background()
+	rec := &recorder{}
+	e := workerEnv(t, rec)
+	a := e.CreateServer("web", nil)
+	waitOK(t, e, a.ActionID)
+	o := opts(e)
+	o.Bus = ext.NewBus(rec)
+	w := servers.NewUsageWorker(o)
+	require.NoError(t, w.Work(ctx, &river.Job[servers.UsageArgs]{JobRow: &rivertype.JobRow{CreatedAt: time.Now()}}))
+	o.Bus.(*ext.Bus).Close()
+
+	kinds := map[ext.EventKind]bool{}
+	for _, ev := range rec.all() {
+		kinds[ev.Kind] = true
+		require.Equal(t, "server", ev.ResourceType, ev.Kind)
+		require.Equal(t, ev.ServerID, ev.ResourceID, ev.Kind)
+	}
+	require.True(t, kinds[ext.ServerCreated])
+	require.True(t, kinds[ext.ServerUsage])
+}

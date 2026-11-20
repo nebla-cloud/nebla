@@ -132,6 +132,34 @@ func (_c *LocationCreate) SetNillableFirewallEnabled(v *bool) *LocationCreate {
 	return _c
 }
 
+// SetVolumeStorage sets the "volume_storage" field.
+func (_c *LocationCreate) SetVolumeStorage(v string) *LocationCreate {
+	_c.mutation.SetVolumeStorage(v)
+	return _c
+}
+
+// SetNillableVolumeStorage sets the "volume_storage" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableVolumeStorage(v *string) *LocationCreate {
+	if v != nil {
+		_c.SetVolumeStorage(*v)
+	}
+	return _c
+}
+
+// SetVolumeStorageOk sets the "volume_storage_ok" field.
+func (_c *LocationCreate) SetVolumeStorageOk(v bool) *LocationCreate {
+	_c.mutation.SetVolumeStorageOk(v)
+	return _c
+}
+
+// SetNillableVolumeStorageOk sets the "volume_storage_ok" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableVolumeStorageOk(v *bool) *LocationCreate {
+	if v != nil {
+		_c.SetVolumeStorageOk(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *LocationCreate) SetCreatedAt(v time.Time) *LocationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -277,6 +305,14 @@ func (_c *LocationCreate) defaults() {
 		v := location.DefaultImportStorage
 		_c.mutation.SetImportStorage(v)
 	}
+	if _, ok := _c.mutation.VolumeStorage(); !ok {
+		v := location.DefaultVolumeStorage
+		_c.mutation.SetVolumeStorage(v)
+	}
+	if _, ok := _c.mutation.VolumeStorageOk(); !ok {
+		v := location.DefaultVolumeStorageOk
+		_c.mutation.SetVolumeStorageOk(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := location.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -318,6 +354,12 @@ func (_c *LocationCreate) check() error {
 	}
 	if _, ok := _c.mutation.ImportStorage(); !ok {
 		return &ValidationError{Name: "import_storage", err: errors.New(`ent: missing required field "Location.import_storage"`)}
+	}
+	if _, ok := _c.mutation.VolumeStorage(); !ok {
+		return &ValidationError{Name: "volume_storage", err: errors.New(`ent: missing required field "Location.volume_storage"`)}
+	}
+	if _, ok := _c.mutation.VolumeStorageOk(); !ok {
+		return &ValidationError{Name: "volume_storage_ok", err: errors.New(`ent: missing required field "Location.volume_storage_ok"`)}
 	}
 	return nil
 }
@@ -395,6 +437,14 @@ func (_c *LocationCreate) createSpec() (*Location, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FirewallEnabled(); ok {
 		_spec.SetField(location.FieldFirewallEnabled, field.TypeBool, value)
 		_node.FirewallEnabled = &value
+	}
+	if value, ok := _c.mutation.VolumeStorage(); ok {
+		_spec.SetField(location.FieldVolumeStorage, field.TypeString, value)
+		_node.VolumeStorage = value
+	}
+	if value, ok := _c.mutation.VolumeStorageOk(); ok {
+		_spec.SetField(location.FieldVolumeStorageOk, field.TypeBool, value)
+		_node.VolumeStorageOk = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(location.FieldCreatedAt, field.TypeTime, value)
@@ -658,6 +708,30 @@ func (u *LocationUpsert) ClearFirewallEnabled() *LocationUpsert {
 	return u
 }
 
+// SetVolumeStorage sets the "volume_storage" field.
+func (u *LocationUpsert) SetVolumeStorage(v string) *LocationUpsert {
+	u.Set(location.FieldVolumeStorage, v)
+	return u
+}
+
+// UpdateVolumeStorage sets the "volume_storage" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateVolumeStorage() *LocationUpsert {
+	u.SetExcluded(location.FieldVolumeStorage)
+	return u
+}
+
+// SetVolumeStorageOk sets the "volume_storage_ok" field.
+func (u *LocationUpsert) SetVolumeStorageOk(v bool) *LocationUpsert {
+	u.Set(location.FieldVolumeStorageOk, v)
+	return u
+}
+
+// UpdateVolumeStorageOk sets the "volume_storage_ok" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateVolumeStorageOk() *LocationUpsert {
+	u.SetExcluded(location.FieldVolumeStorageOk)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *LocationUpsert) SetUpdatedAt(v time.Time) *LocationUpsert {
 	u.Set(location.FieldUpdatedAt, v)
@@ -879,6 +953,34 @@ func (u *LocationUpsertOne) UpdateFirewallEnabled() *LocationUpsertOne {
 func (u *LocationUpsertOne) ClearFirewallEnabled() *LocationUpsertOne {
 	return u.Update(func(s *LocationUpsert) {
 		s.ClearFirewallEnabled()
+	})
+}
+
+// SetVolumeStorage sets the "volume_storage" field.
+func (u *LocationUpsertOne) SetVolumeStorage(v string) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetVolumeStorage(v)
+	})
+}
+
+// UpdateVolumeStorage sets the "volume_storage" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateVolumeStorage() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateVolumeStorage()
+	})
+}
+
+// SetVolumeStorageOk sets the "volume_storage_ok" field.
+func (u *LocationUpsertOne) SetVolumeStorageOk(v bool) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetVolumeStorageOk(v)
+	})
+}
+
+// UpdateVolumeStorageOk sets the "volume_storage_ok" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateVolumeStorageOk() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateVolumeStorageOk()
 	})
 }
 
@@ -1271,6 +1373,34 @@ func (u *LocationUpsertBulk) UpdateFirewallEnabled() *LocationUpsertBulk {
 func (u *LocationUpsertBulk) ClearFirewallEnabled() *LocationUpsertBulk {
 	return u.Update(func(s *LocationUpsert) {
 		s.ClearFirewallEnabled()
+	})
+}
+
+// SetVolumeStorage sets the "volume_storage" field.
+func (u *LocationUpsertBulk) SetVolumeStorage(v string) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetVolumeStorage(v)
+	})
+}
+
+// UpdateVolumeStorage sets the "volume_storage" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateVolumeStorage() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateVolumeStorage()
+	})
+}
+
+// SetVolumeStorageOk sets the "volume_storage_ok" field.
+func (u *LocationUpsertBulk) SetVolumeStorageOk(v bool) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetVolumeStorageOk(v)
+	})
+}
+
+// UpdateVolumeStorageOk sets the "volume_storage_ok" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateVolumeStorageOk() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateVolumeStorageOk()
 	})
 }
 

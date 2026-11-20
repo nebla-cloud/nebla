@@ -39,6 +39,10 @@ type Location struct {
 	ImportStorage string `json:"import_storage,omitempty"`
 	// FirewallEnabled holds the value of the "firewall_enabled" field.
 	FirewallEnabled *bool `json:"firewall_enabled,omitempty"`
+	// VolumeStorage holds the value of the "volume_storage" field.
+	VolumeStorage string `json:"volume_storage,omitempty"`
+	// VolumeStorageOk holds the value of the "volume_storage_ok" field.
+	VolumeStorageOk bool `json:"volume_storage_ok,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -107,11 +111,11 @@ func (*Location) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case location.FieldTokenSecret:
 			values[i] = new([]byte)
-		case location.FieldInsecureTLS, location.FieldFirewallEnabled:
+		case location.FieldInsecureTLS, location.FieldFirewallEnabled, location.FieldVolumeStorageOk:
 			values[i] = new(sql.NullBool)
 		case location.FieldID:
 			values[i] = new(sql.NullInt64)
-		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage:
+		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage, location.FieldVolumeStorage:
 			values[i] = new(sql.NullString)
 		case location.FieldCreatedAt, location.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -202,6 +206,18 @@ func (_m *Location) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.FirewallEnabled = new(bool)
 				*_m.FirewallEnabled = value.Bool
+			}
+		case location.FieldVolumeStorage:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field volume_storage", values[i])
+			} else if value.Valid {
+				_m.VolumeStorage = value.String
+			}
+		case location.FieldVolumeStorageOk:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field volume_storage_ok", values[i])
+			} else if value.Valid {
+				_m.VolumeStorageOk = value.Bool
 			}
 		case location.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -304,6 +320,12 @@ func (_m *Location) String() string {
 		builder.WriteString("firewall_enabled=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("volume_storage=")
+	builder.WriteString(_m.VolumeStorage)
+	builder.WriteString(", ")
+	builder.WriteString("volume_storage_ok=")
+	builder.WriteString(fmt.Sprintf("%v", _m.VolumeStorageOk))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

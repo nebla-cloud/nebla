@@ -100,6 +100,34 @@ func (_c *ProjectCreate) SetNillableMaxIps(v *int) *ProjectCreate {
 	return _c
 }
 
+// SetMaxVolumes sets the "max_volumes" field.
+func (_c *ProjectCreate) SetMaxVolumes(v int) *ProjectCreate {
+	_c.mutation.SetMaxVolumes(v)
+	return _c
+}
+
+// SetNillableMaxVolumes sets the "max_volumes" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableMaxVolumes(v *int) *ProjectCreate {
+	if v != nil {
+		_c.SetMaxVolumes(*v)
+	}
+	return _c
+}
+
+// SetMaxVolumeGB sets the "max_volume_gb" field.
+func (_c *ProjectCreate) SetMaxVolumeGB(v int) *ProjectCreate {
+	_c.mutation.SetMaxVolumeGB(v)
+	return _c
+}
+
+// SetNillableMaxVolumeGB sets the "max_volume_gb" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableMaxVolumeGB(v *int) *ProjectCreate {
+	if v != nil {
+		_c.SetMaxVolumeGB(*v)
+	}
+	return _c
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_c *ProjectCreate) SetCreatedBy(v int64) *ProjectCreate {
 	_c.mutation.SetCreatedBy(v)
@@ -223,6 +251,14 @@ func (_c *ProjectCreate) defaults() {
 		v := project.DefaultMaxIps
 		_c.mutation.SetMaxIps(v)
 	}
+	if _, ok := _c.mutation.MaxVolumes(); !ok {
+		v := project.DefaultMaxVolumes
+		_c.mutation.SetMaxVolumes(v)
+	}
+	if _, ok := _c.mutation.MaxVolumeGB(); !ok {
+		v := project.DefaultMaxVolumeGB
+		_c.mutation.SetMaxVolumeGB(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := project.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -248,6 +284,12 @@ func (_c *ProjectCreate) check() error {
 	}
 	if _, ok := _c.mutation.MaxIps(); !ok {
 		return &ValidationError{Name: "max_ips", err: errors.New(`ent: missing required field "Project.max_ips"`)}
+	}
+	if _, ok := _c.mutation.MaxVolumes(); !ok {
+		return &ValidationError{Name: "max_volumes", err: errors.New(`ent: missing required field "Project.max_volumes"`)}
+	}
+	if _, ok := _c.mutation.MaxVolumeGB(); !ok {
+		return &ValidationError{Name: "max_volume_gb", err: errors.New(`ent: missing required field "Project.max_volume_gb"`)}
 	}
 	return nil
 }
@@ -305,6 +347,14 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MaxIps(); ok {
 		_spec.SetField(project.FieldMaxIps, field.TypeInt, value)
 		_node.MaxIps = value
+	}
+	if value, ok := _c.mutation.MaxVolumes(); ok {
+		_spec.SetField(project.FieldMaxVolumes, field.TypeInt, value)
+		_node.MaxVolumes = value
+	}
+	if value, ok := _c.mutation.MaxVolumeGB(); ok {
+		_spec.SetField(project.FieldMaxVolumeGB, field.TypeInt, value)
+		_node.MaxVolumeGB = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(project.FieldCreatedAt, field.TypeTime, value)
@@ -497,6 +547,42 @@ func (u *ProjectUpsert) AddMaxIps(v int) *ProjectUpsert {
 	return u
 }
 
+// SetMaxVolumes sets the "max_volumes" field.
+func (u *ProjectUpsert) SetMaxVolumes(v int) *ProjectUpsert {
+	u.Set(project.FieldMaxVolumes, v)
+	return u
+}
+
+// UpdateMaxVolumes sets the "max_volumes" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateMaxVolumes() *ProjectUpsert {
+	u.SetExcluded(project.FieldMaxVolumes)
+	return u
+}
+
+// AddMaxVolumes adds v to the "max_volumes" field.
+func (u *ProjectUpsert) AddMaxVolumes(v int) *ProjectUpsert {
+	u.Add(project.FieldMaxVolumes, v)
+	return u
+}
+
+// SetMaxVolumeGB sets the "max_volume_gb" field.
+func (u *ProjectUpsert) SetMaxVolumeGB(v int) *ProjectUpsert {
+	u.Set(project.FieldMaxVolumeGB, v)
+	return u
+}
+
+// UpdateMaxVolumeGB sets the "max_volume_gb" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateMaxVolumeGB() *ProjectUpsert {
+	u.SetExcluded(project.FieldMaxVolumeGB)
+	return u
+}
+
+// AddMaxVolumeGB adds v to the "max_volume_gb" field.
+func (u *ProjectUpsert) AddMaxVolumeGB(v int) *ProjectUpsert {
+	u.Add(project.FieldMaxVolumeGB, v)
+	return u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (u *ProjectUpsert) SetCreatedBy(v int64) *ProjectUpsert {
 	u.Set(project.FieldCreatedBy, v)
@@ -682,6 +768,48 @@ func (u *ProjectUpsertOne) AddMaxIps(v int) *ProjectUpsertOne {
 func (u *ProjectUpsertOne) UpdateMaxIps() *ProjectUpsertOne {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxIps()
+	})
+}
+
+// SetMaxVolumes sets the "max_volumes" field.
+func (u *ProjectUpsertOne) SetMaxVolumes(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxVolumes(v)
+	})
+}
+
+// AddMaxVolumes adds v to the "max_volumes" field.
+func (u *ProjectUpsertOne) AddMaxVolumes(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxVolumes(v)
+	})
+}
+
+// UpdateMaxVolumes sets the "max_volumes" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateMaxVolumes() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxVolumes()
+	})
+}
+
+// SetMaxVolumeGB sets the "max_volume_gb" field.
+func (u *ProjectUpsertOne) SetMaxVolumeGB(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxVolumeGB(v)
+	})
+}
+
+// AddMaxVolumeGB adds v to the "max_volume_gb" field.
+func (u *ProjectUpsertOne) AddMaxVolumeGB(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxVolumeGB(v)
+	})
+}
+
+// UpdateMaxVolumeGB sets the "max_volume_gb" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateMaxVolumeGB() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxVolumeGB()
 	})
 }
 
@@ -1039,6 +1167,48 @@ func (u *ProjectUpsertBulk) AddMaxIps(v int) *ProjectUpsertBulk {
 func (u *ProjectUpsertBulk) UpdateMaxIps() *ProjectUpsertBulk {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxIps()
+	})
+}
+
+// SetMaxVolumes sets the "max_volumes" field.
+func (u *ProjectUpsertBulk) SetMaxVolumes(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxVolumes(v)
+	})
+}
+
+// AddMaxVolumes adds v to the "max_volumes" field.
+func (u *ProjectUpsertBulk) AddMaxVolumes(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxVolumes(v)
+	})
+}
+
+// UpdateMaxVolumes sets the "max_volumes" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateMaxVolumes() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxVolumes()
+	})
+}
+
+// SetMaxVolumeGB sets the "max_volume_gb" field.
+func (u *ProjectUpsertBulk) SetMaxVolumeGB(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxVolumeGB(v)
+	})
+}
+
+// AddMaxVolumeGB adds v to the "max_volume_gb" field.
+func (u *ProjectUpsertBulk) AddMaxVolumeGB(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxVolumeGB(v)
+	})
+}
+
+// UpdateMaxVolumeGB sets the "max_volume_gb" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateMaxVolumeGB() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxVolumeGB()
 	})
 }
 

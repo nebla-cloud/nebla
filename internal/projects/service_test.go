@@ -81,6 +81,43 @@ func TestQuotaExceeded(t *testing.T) {
 	require.NoError(t, reserve(projects.Usage{Servers: 1, VCPU: 64}), "0 limits are unlimited")
 }
 
+func TestQuotaVolumes(t *testing.T) {
+	ctx := context.Background()
+	existing := projects.Usage{Volumes: 1, VolumeGB: 50}
+	svc, _, sqlDB, u := setup(t, projects.Options{Hooks: projects.Hooks{
+		Usage: func(context.Context, *ent.Client, int64) (projects.Usage, error) { return existing, nil },
+	}})
+	p, err := svc.Create(ctx, u.ID, false, "Web")
+	require.NoError(t, err)
+	q, err := svc.SetQuota(ctx, p.ID, projects.Quota{MaxVolumes: 1, MaxVolumeGB: 60})
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxVolumes: 1, MaxVolumeGB: 60}, q)
+
+	reserve := func(d projects.Usage) error {
+		return db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+			return svc.ReserveQuota(ctx, etx, p.ID, d)
+		})
+	}
+	var e apierr.E
+	err = reserve(projects.Usage{Volumes: 1})
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, "quota_exceeded", e.Code)
+	require.Contains(t, e.Msg, "max_volumes")
+
+	err = reserve(projects.Usage{VolumeGB: 20})
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, "quota_exceeded", e.Code)
+	require.Contains(t, e.Msg, "max_volume_gb")
+
+	require.NoError(t, reserve(projects.Usage{VolumeGB: 10}))
+
+	for _, bad := range []projects.Quota{{MaxVolumes: -1}, {MaxVolumeGB: -1}} {
+		_, err = svc.SetQuota(ctx, p.ID, bad)
+		require.True(t, errors.As(err, &e), "got %v", err)
+		require.Equal(t, 422, e.Status)
+	}
+}
+
 func inviteToken(t *testing.T, link string) string {
 	t.Helper()
 	i := strings.LastIndex(link, "/")

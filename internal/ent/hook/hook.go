@@ -285,6 +285,18 @@ func (f UserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserMutation", m)
 }
 
+// The VolumeFunc type is an adapter to allow the use of ordinary
+// function as Volume mutator.
+type VolumeFunc func(context.Context, *ent.VolumeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f VolumeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.VolumeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VolumeMutation", m)
+}
+
 // The WebauthnChallengeFunc type is an adapter to allow the use of ordinary
 // function as WebauthnChallenge mutator.
 type WebauthnChallengeFunc func(context.Context, *ent.WebauthnChallengeMutation) (ent.Value, error)

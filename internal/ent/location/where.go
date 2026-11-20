@@ -110,6 +110,16 @@ func FirewallEnabled(v bool) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldFirewallEnabled, v))
 }
 
+// VolumeStorage applies equality check predicate on the "volume_storage" field. It's identical to VolumeStorageEQ.
+func VolumeStorage(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldVolumeStorage, v))
+}
+
+// VolumeStorageOk applies equality check predicate on the "volume_storage_ok" field. It's identical to VolumeStorageOkEQ.
+func VolumeStorageOk(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldVolumeStorageOk, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldCreatedAt, v))
@@ -708,6 +718,81 @@ func FirewallEnabledIsNil() predicate.Location {
 // FirewallEnabledNotNil applies the NotNil predicate on the "firewall_enabled" field.
 func FirewallEnabledNotNil() predicate.Location {
 	return predicate.Location(sql.FieldNotNull(FieldFirewallEnabled))
+}
+
+// VolumeStorageEQ applies the EQ predicate on the "volume_storage" field.
+func VolumeStorageEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldVolumeStorage, v))
+}
+
+// VolumeStorageNEQ applies the NEQ predicate on the "volume_storage" field.
+func VolumeStorageNEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldVolumeStorage, v))
+}
+
+// VolumeStorageIn applies the In predicate on the "volume_storage" field.
+func VolumeStorageIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldVolumeStorage, vs...))
+}
+
+// VolumeStorageNotIn applies the NotIn predicate on the "volume_storage" field.
+func VolumeStorageNotIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldVolumeStorage, vs...))
+}
+
+// VolumeStorageGT applies the GT predicate on the "volume_storage" field.
+func VolumeStorageGT(v string) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldVolumeStorage, v))
+}
+
+// VolumeStorageGTE applies the GTE predicate on the "volume_storage" field.
+func VolumeStorageGTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldVolumeStorage, v))
+}
+
+// VolumeStorageLT applies the LT predicate on the "volume_storage" field.
+func VolumeStorageLT(v string) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldVolumeStorage, v))
+}
+
+// VolumeStorageLTE applies the LTE predicate on the "volume_storage" field.
+func VolumeStorageLTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldVolumeStorage, v))
+}
+
+// VolumeStorageContains applies the Contains predicate on the "volume_storage" field.
+func VolumeStorageContains(v string) predicate.Location {
+	return predicate.Location(sql.FieldContains(FieldVolumeStorage, v))
+}
+
+// VolumeStorageHasPrefix applies the HasPrefix predicate on the "volume_storage" field.
+func VolumeStorageHasPrefix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasPrefix(FieldVolumeStorage, v))
+}
+
+// VolumeStorageHasSuffix applies the HasSuffix predicate on the "volume_storage" field.
+func VolumeStorageHasSuffix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasSuffix(FieldVolumeStorage, v))
+}
+
+// VolumeStorageEqualFold applies the EqualFold predicate on the "volume_storage" field.
+func VolumeStorageEqualFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldEqualFold(FieldVolumeStorage, v))
+}
+
+// VolumeStorageContainsFold applies the ContainsFold predicate on the "volume_storage" field.
+func VolumeStorageContainsFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldContainsFold(FieldVolumeStorage, v))
+}
+
+// VolumeStorageOkEQ applies the EQ predicate on the "volume_storage_ok" field.
+func VolumeStorageOkEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldVolumeStorageOk, v))
+}
+
+// VolumeStorageOkNEQ applies the NEQ predicate on the "volume_storage_ok" field.
+func VolumeStorageOkNEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldVolumeStorageOk, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

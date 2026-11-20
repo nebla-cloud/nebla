@@ -19,7 +19,8 @@ func legacyProject(t *testing.T, c *ent.Client, owner int64, q projects.Quota) i
 	t.Helper()
 	ctx := context.Background()
 	p, err := c.Project.Create().SetName("legacy").SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).
-		SetMaxMemoryMB(q.MaxMemoryMB).SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).Save(ctx)
+		SetMaxMemoryMB(q.MaxMemoryMB).SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
+		SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).Save(ctx)
 	require.NoError(t, err)
 	require.NoError(t, c.ProjectMember.Create().SetProjectID(p.ID).SetUserID(owner).SetRole(projects.RoleOwner).Exec(ctx))
 	return p.ID
@@ -29,7 +30,8 @@ func quotaOf(t *testing.T, c *ent.Client, id int64) projects.Quota {
 	t.Helper()
 	p, err := c.Project.Get(context.Background(), id)
 	require.NoError(t, err)
-	return projects.Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps}
+	return projects.Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps,
+		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB}
 }
 
 func TestBackfillAppliesDefaultToLegacy(t *testing.T) {
@@ -118,4 +120,44 @@ func TestBackfillCreatedByRunsOnce(t *testing.T) {
 	p, err := c.Project.Get(ctx, id)
 	require.NoError(t, err)
 	require.Nil(t, p.CreatedBy)
+}
+
+func TestBackfillVolumeQuota(t *testing.T) {
+	ctx := context.Background()
+	_, c, _, u := setup(t, projects.Options{})
+	admin, err := auth.New(c, ext.Defaults(nil).Registration).CreateUser(ctx, "admin@example.test", testutil.Password, "A", true)
+	require.NoError(t, err)
+	limited := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 9})
+	adminOwned := legacyProject(t, c, admin.ID, projects.Quota{MaxServers: 9})
+	unlimited := legacyProject(t, c, u.ID, projects.Quota{})
+	has := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 9, MaxVolumes: 2})
+	vq := projects.Quota{MaxVolumes: 5, MaxVolumeGB: 100}
+
+	n, err := projects.BackfillVolumeQuota(ctx, c, vq)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, projects.Quota{MaxServers: 9, MaxVolumes: 5, MaxVolumeGB: 100}, quotaOf(t, c, limited))
+	require.Equal(t, projects.Quota{MaxServers: 9}, quotaOf(t, c, adminOwned))
+	require.Equal(t, projects.Quota{}, quotaOf(t, c, unlimited))
+	require.Equal(t, projects.Quota{MaxServers: 9, MaxVolumes: 2}, quotaOf(t, c, has))
+
+	second := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 3})
+	n, err = projects.BackfillVolumeQuota(ctx, c, vq)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Equal(t, projects.Quota{MaxServers: 3}, quotaOf(t, c, second))
+}
+
+func TestBackfillVolumeQuotaSkipsZero(t *testing.T) {
+	ctx := context.Background()
+	_, c, _, u := setup(t, projects.Options{})
+	id := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 9})
+	n, err := projects.BackfillVolumeQuota(ctx, c, projects.Quota{MaxServers: 1})
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Zero(t, c.Setting.Query().CountX(ctx))
+	n, err = projects.BackfillVolumeQuota(ctx, c, projects.Quota{MaxVolumes: 5, MaxVolumeGB: 100})
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, 5, quotaOf(t, c, id).MaxVolumes)
 }

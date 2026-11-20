@@ -35,6 +35,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
@@ -120,6 +121,7 @@ func checkColumn(t, c string) error {
 			session.Table:            session.ValidColumn,
 			setting.Table:            setting.ValidColumn,
 			user.Table:               user.ValidColumn,
+			volume.Table:             volume.ValidColumn,
 			webauthnchallenge.Table:  webauthnchallenge.ValidColumn,
 			webauthncredential.Table: webauthncredential.ValidColumn,
 		})

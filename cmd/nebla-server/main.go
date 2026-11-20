@@ -98,6 +98,13 @@ func run() error {
 	if filled > 0 {
 		log.Info("backfilled default project quota", "count", filled)
 	}
+	filledVol, err := projects.BackfillVolumeQuota(ctx, client, cfg.DefaultQuota)
+	if err != nil {
+		return err
+	}
+	if filledVol > 0 {
+		log.Info("backfilled volume project quota", "count", filledVol)
+	}
 	n, err := runner.FailOrphanedActions(ctx)
 	if err != nil {
 		return err

@@ -27,7 +27,7 @@ type Config struct {
 	MaxProjectsPerUser int
 }
 
-var defaultQuota = projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5}
+var defaultQuota = projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 5, MaxVolumeGB: 100}
 
 func Load() (Config, error) {
 	c := Config{
@@ -75,13 +75,14 @@ func parseQuota(spec string) (projects.Quota, error) {
 	if strings.TrimSpace(spec) == "" {
 		return q, nil
 	}
-	fields := map[string]*int{"servers": &q.MaxServers, "vcpu": &q.MaxVCPU, "memory_mb": &q.MaxMemoryMB, "disk_gb": &q.MaxDiskGB, "ips": &q.MaxIPs}
+	fields := map[string]*int{"servers": &q.MaxServers, "vcpu": &q.MaxVCPU, "memory_mb": &q.MaxMemoryMB, "disk_gb": &q.MaxDiskGB, "ips": &q.MaxIPs,
+		"volumes": &q.MaxVolumes, "volume_gb": &q.MaxVolumeGB}
 	seen := map[string]bool{}
 	for _, part := range strings.Split(spec, ",") {
 		k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
 		dst := fields[k]
 		if !ok || dst == nil {
-			return q, fmt.Errorf("invalid entry %q, want key=value with keys servers, vcpu, memory_mb, disk_gb, ips", part)
+			return q, fmt.Errorf("invalid entry %q, want key=value with keys servers, vcpu, memory_mb, disk_gb, ips, volumes, volume_gb", part)
 		}
 		if seen[k] {
 			return q, fmt.Errorf("duplicate key %q", k)

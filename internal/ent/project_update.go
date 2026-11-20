@@ -149,6 +149,48 @@ func (_u *ProjectUpdate) AddMaxIps(v int) *ProjectUpdate {
 	return _u
 }
 
+// SetMaxVolumes sets the "max_volumes" field.
+func (_u *ProjectUpdate) SetMaxVolumes(v int) *ProjectUpdate {
+	_u.mutation.ResetMaxVolumes()
+	_u.mutation.SetMaxVolumes(v)
+	return _u
+}
+
+// SetNillableMaxVolumes sets the "max_volumes" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableMaxVolumes(v *int) *ProjectUpdate {
+	if v != nil {
+		_u.SetMaxVolumes(*v)
+	}
+	return _u
+}
+
+// AddMaxVolumes adds value to the "max_volumes" field.
+func (_u *ProjectUpdate) AddMaxVolumes(v int) *ProjectUpdate {
+	_u.mutation.AddMaxVolumes(v)
+	return _u
+}
+
+// SetMaxVolumeGB sets the "max_volume_gb" field.
+func (_u *ProjectUpdate) SetMaxVolumeGB(v int) *ProjectUpdate {
+	_u.mutation.ResetMaxVolumeGB()
+	_u.mutation.SetMaxVolumeGB(v)
+	return _u
+}
+
+// SetNillableMaxVolumeGB sets the "max_volume_gb" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableMaxVolumeGB(v *int) *ProjectUpdate {
+	if v != nil {
+		_u.SetMaxVolumeGB(*v)
+	}
+	return _u
+}
+
+// AddMaxVolumeGB adds value to the "max_volume_gb" field.
+func (_u *ProjectUpdate) AddMaxVolumeGB(v int) *ProjectUpdate {
+	_u.mutation.AddMaxVolumeGB(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdate) SetCreatedBy(v int64) *ProjectUpdate {
 	_u.mutation.SetCreatedBy(v)
@@ -309,6 +351,18 @@ func (_u *ProjectUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedMaxIps(); ok {
 		_spec.AddField(project.FieldMaxIps, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxVolumes(); ok {
+		_spec.SetField(project.FieldMaxVolumes, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxVolumes(); ok {
+		_spec.AddField(project.FieldMaxVolumes, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxVolumeGB(); ok {
+		_spec.SetField(project.FieldMaxVolumeGB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxVolumeGB(); ok {
+		_spec.AddField(project.FieldMaxVolumeGB, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -525,6 +579,48 @@ func (_u *ProjectUpdateOne) AddMaxIps(v int) *ProjectUpdateOne {
 	return _u
 }
 
+// SetMaxVolumes sets the "max_volumes" field.
+func (_u *ProjectUpdateOne) SetMaxVolumes(v int) *ProjectUpdateOne {
+	_u.mutation.ResetMaxVolumes()
+	_u.mutation.SetMaxVolumes(v)
+	return _u
+}
+
+// SetNillableMaxVolumes sets the "max_volumes" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableMaxVolumes(v *int) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetMaxVolumes(*v)
+	}
+	return _u
+}
+
+// AddMaxVolumes adds value to the "max_volumes" field.
+func (_u *ProjectUpdateOne) AddMaxVolumes(v int) *ProjectUpdateOne {
+	_u.mutation.AddMaxVolumes(v)
+	return _u
+}
+
+// SetMaxVolumeGB sets the "max_volume_gb" field.
+func (_u *ProjectUpdateOne) SetMaxVolumeGB(v int) *ProjectUpdateOne {
+	_u.mutation.ResetMaxVolumeGB()
+	_u.mutation.SetMaxVolumeGB(v)
+	return _u
+}
+
+// SetNillableMaxVolumeGB sets the "max_volume_gb" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableMaxVolumeGB(v *int) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetMaxVolumeGB(*v)
+	}
+	return _u
+}
+
+// AddMaxVolumeGB adds value to the "max_volume_gb" field.
+func (_u *ProjectUpdateOne) AddMaxVolumeGB(v int) *ProjectUpdateOne {
+	_u.mutation.AddMaxVolumeGB(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdateOne) SetCreatedBy(v int64) *ProjectUpdateOne {
 	_u.mutation.SetCreatedBy(v)
@@ -715,6 +811,18 @@ func (_u *ProjectUpdateOne) sqlSave(ctx context.Context) (_node *Project, err er
 	}
 	if value, ok := _u.mutation.AddedMaxIps(); ok {
 		_spec.AddField(project.FieldMaxIps, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxVolumes(); ok {
+		_spec.SetField(project.FieldMaxVolumes, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxVolumes(); ok {
+		_spec.AddField(project.FieldMaxVolumes, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxVolumeGB(); ok {
+		_spec.SetField(project.FieldMaxVolumeGB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxVolumeGB(); ok {
+		_spec.AddField(project.FieldMaxVolumeGB, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{
