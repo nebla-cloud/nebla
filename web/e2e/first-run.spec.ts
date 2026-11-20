@@ -23,6 +23,7 @@ test('first run to first server', async ({ page }) => {
 
   await step('Connect Proxmox').getByRole('link', { name: 'Connect' }).click()
   await page.getByRole('button', { name: 'Connect a location' }).click()
+  await page.getByRole('button', { name: 'Connect manually' }).click()
   await page.locator('input[name=name]').fill('home')
   await page.locator('input[name=url]').fill(harness.pve.url)
   await page.locator('input[name=token_id]').fill(harness.pve.token_id)
