@@ -2,6 +2,7 @@ package osimages_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,6 +23,7 @@ type barrier struct {
 	n       int
 	all     chan struct{}
 	timeout atomic.Bool
+	fail    map[string]bool
 }
 
 func (b *barrier) install(o *catalog.Options) {
@@ -42,6 +44,9 @@ type barrierClient struct {
 }
 
 func (c barrierClient) NodeVersion(ctx context.Context, node string) (string, error) {
+	if c.b.fail[node] {
+		return "", errors.New("node down")
+	}
 	if d := c.b.delay[node]; d > 0 {
 		time.Sleep(d)
 	}
@@ -80,4 +85,27 @@ func TestAvailabilityKeepsNodeOrder(t *testing.T) {
 	l, err := e.cat.GetLocation(context.Background(), loc)
 	require.NoError(t, err)
 	require.Equal(t, []string{"pve1"}, osimages.BuildNodes(e.svc, l))
+}
+
+func TestAvailabilitySkipsFailedNode(t *testing.T) {
+	b := &barrier{fail: map[string]bool{"pve1": true}}
+	e := buildEnvWith(t, false, b.install)
+	loc := e.location("eu-1", "local-lvm", "imp")
+	l, err := e.cat.GetLocation(context.Background(), loc)
+	require.NoError(t, err)
+	require.Equal(t, []string{"pve2"}, osimages.BuildNodes(e.svc, l))
+	list, err := e.svc.List(context.Background())
+	require.NoError(t, err)
+	require.True(t, locState(t, list, "debian-13", loc).Available)
+}
+
+func TestAvailabilityAllNodesFailed(t *testing.T) {
+	b := &barrier{fail: map[string]bool{"pve1": true, "pve2": true}}
+	e := buildEnvWith(t, false, b.install)
+	loc := e.location("eu-1", "local-lvm", "imp")
+	list, err := e.svc.List(context.Background())
+	require.NoError(t, err)
+	ls := locState(t, list, "debian-13", loc)
+	require.False(t, ls.Available)
+	require.Equal(t, "Proxmox is unreachable", ls.Reason)
 }
