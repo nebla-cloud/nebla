@@ -87,7 +87,7 @@ func init() {
 	consoletokenFields := schema.ConsoleToken{}.Fields()
 	_ = consoletokenFields
 	// consoletokenDescCreatedAt is the schema descriptor for created_at field.
-	consoletokenDescCreatedAt := consoletokenFields[7].Descriptor()
+	consoletokenDescCreatedAt := consoletokenFields[10].Descriptor()
 	// consoletoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	consoletoken.DefaultCreatedAt = consoletokenDescCreatedAt.Default.(func() time.Time)
 	ipallocationFields := schema.IPAllocation{}.Fields()

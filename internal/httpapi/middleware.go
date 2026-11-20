@@ -109,6 +109,8 @@ func requestFrom(ctx context.Context) *http.Request {
 type principal struct {
 	user  *auth.User
 	token *auth.APIToken
+	// session is the SHA-256 of the session cookie when user is set.
+	session []byte
 }
 
 // authenticate prefers an Authorization bearer token and falls back to the session cookie.
@@ -154,7 +156,7 @@ func (s *server) authenticateRaw(ctx context.Context, r *http.Request) (principa
 	if err != nil {
 		return principal{}, err
 	}
-	return principal{user: &u}, nil
+	return principal{user: &u, session: auth.HashSecret(c.Value)}, nil
 }
 
 // RequireUser needs a session; API tokens are rejected as unauthorized.

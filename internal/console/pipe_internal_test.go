@@ -50,7 +50,7 @@ func pipeEnv(t *testing.T, s *Service) string {
 			up.CloseNow()
 			return
 		}
-		s.pipe(b, up)
+		s.pipe(b, up, nil)
 	}))
 	t.Cleanup(proxy.Close)
 	return "ws" + strings.TrimPrefix(proxy.URL, "http")

@@ -159,6 +159,9 @@ var (
 		{Name: "ticket", Type: field.TypeString, Size: 2147483647},
 		{Name: "port", Type: field.TypeInt},
 		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "session_hash", Type: field.TypeBytes, Nullable: true},
+		{Name: "api_token_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "server_id", Type: field.TypeInt64},
 	}
@@ -170,7 +173,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "console_tokens_servers_server",
-				Columns:    []*schema.Column{ConsoleTokensColumns[7]},
+				Columns:    []*schema.Column{ConsoleTokensColumns[10]},
 				RefColumns: []*schema.Column{ServersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -184,7 +187,7 @@ var (
 			{
 				Name:    "console_tokens_server_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ConsoleTokensColumns[7]},
+				Columns: []*schema.Column{ConsoleTokensColumns[10]},
 			},
 		},
 	}
