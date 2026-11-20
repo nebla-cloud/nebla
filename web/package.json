@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "format": "prettier --write src",
     "typecheck": "vue-tsc -b",
-    "test": "vitest run"
+    "test": "vitest run --exclude 'e2e/**'",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource/onest": "5.3.1",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
     "@types/node": "24.19.2",
     "@vitejs/plugin-vue": "6.0.10",
     "@vue/eslint-config-typescript": "14.9.0",

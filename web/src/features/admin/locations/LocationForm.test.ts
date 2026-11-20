@@ -4,6 +4,7 @@ import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { mountApp } from '@/test/mount'
 import type { AdminLocation } from '@/api/types'
+import { catalogKey } from '../catalog/queries'
 import LocationForm from './LocationForm.vue'
 
 beforeEach(() => {
@@ -110,5 +111,15 @@ describe('LocationForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.text()).toContain("Proxmox didn't respond")
+  })
+
+  it('marks the OS image catalog stale once a location is saved', async () => {
+    server.use(http.post('*/v1/admin/locations', () => json(201, existing)))
+    const { wrapper, queryClient } = mountApp(LocationForm)
+    queryClient.setQueryData(catalogKey, [])
+    await fillCreate(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(queryClient.getQueryState(catalogKey)?.isInvalidated).toBe(true)
   })
 })

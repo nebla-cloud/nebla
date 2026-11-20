@@ -7,7 +7,7 @@ export default [
     path: 'locations',
     name: 'admin-locations',
     component: () => import('./LocationsPage.vue'),
-    meta: { nav: { label: 'Locations', order: 10 } },
+    meta: { side: 'admin', nav: { label: 'Locations', order: 10 } },
   },
   {
     path: 'locations/:locationId',

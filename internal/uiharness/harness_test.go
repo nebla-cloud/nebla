@@ -1,0 +1,89 @@
+//go:build uiharness
+
+package uiharness
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/Hexeption/nebla/internal/osimages"
+	"github.com/Hexeption/nebla/internal/testutil"
+)
+
+type pveOut struct {
+	URL           string `json:"url"`
+	TokenID       string `json:"token_id"`
+	TokenSecret   string `json:"token_secret"`
+	CAFingerprint string `json:"ca_fingerprint"`
+}
+
+type harnessOut struct {
+	URL string `json:"url"`
+	PVE pveOut `json:"pve"`
+	// FailChecksum arms the upstream to 404 the next checksum request on each POST.
+	FailChecksum string `json:"fail_checksum"`
+}
+
+// TestUIHarness serves the app until the stop file exists; run with -tags uiharness.
+func TestUIHarness(t *testing.T) {
+	outPath, stopPath := os.Getenv("NEBLA_UI_HARNESS_OUT"), os.Getenv("NEBLA_UI_HARNESS_STOP")
+	if outPath == "" || stopPath == "" {
+		t.Skip("set NEBLA_UI_HARNESS_OUT and NEBLA_UI_HARNESS_STOP")
+	}
+	sum := strings.Repeat("ab12", 32)
+	var failNext atomic.Int32
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/_harness/fail-checksum" && r.Method == http.MethodPost:
+			failNext.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		case r.URL.Path == "/debian/SHA512SUMS":
+			if n := failNext.Load(); n > 0 && failNext.CompareAndSwap(n, n-1) {
+				http.NotFound(w, r)
+				return
+			}
+			fmt.Fprintf(w, "%s  debian.qcow2\n", sum)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(up.Close)
+	entries := []osimages.Entry{{Key: "debian-13", Description: "Debian 13", OSFlavor: "debian", OSVersion: "13",
+		Dirs: []string{up.URL + "/debian/"}, ChecksumName: "SHA512SUMS", File: regexp.MustCompile(`^debian\.qcow2$`),
+		Algorithm: "sha512", Format: "qcow2"}}
+	app := testutil.NewAppWithWorkers(t, testutil.ServerWorkers, testutil.WithOSImages(entries, up.Client()))
+	app.SeedPVE()
+	for _, n := range []string{"pve1", "pve2"} {
+		app.PVE.AddStorage(n, "imp", []string{"import"}, false)
+	}
+
+	conn := app.PVE.Conn()
+	b, err := json.Marshal(harnessOut{URL: app.URL, FailChecksum: up.URL + "/_harness/fail-checksum",
+		PVE: pveOut{URL: conn.BaseURL, TokenID: conn.TokenID, TokenSecret: conn.Secret, CAFingerprint: conn.CAFingerprint}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp := filepath.Join(filepath.Dir(outPath), ".harness-out.tmp")
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(tmp, outPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("serving %s", app.URL)
+	for {
+		if _, err := os.Stat(stopPath); err == nil {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
