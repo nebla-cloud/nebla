@@ -1,6 +1,11 @@
 package osimages
 
-import "time"
+import (
+	"context"
+	"time"
+
+	"github.com/Hexeption/nebla/internal/catalog"
+)
 
 var ParseChecksums = parseChecksums
 
@@ -55,4 +60,13 @@ func SetLockedForeignLimit(d time.Duration) func() {
 	old := lockedForeignLimit
 	lockedForeignLimit = d
 	return func() { lockedForeignLimit = old }
+}
+
+// BuildNodes lists the build node of each availability target, in order.
+func BuildNodes(s *Service, loc catalog.Location) []string {
+	var out []string
+	for _, t := range s.availability(context.Background(), loc).targets {
+		out = append(out, t.BuildNode)
+	}
+	return out
 }

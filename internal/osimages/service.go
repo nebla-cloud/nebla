@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -132,21 +133,37 @@ func (s *Service) availability(ctx context.Context, loc catalog.Location) availa
 		s.o.Logger.Warn("catalog availability", "location_id", loc.ID, "err", err)
 		return availability{reason: reasonUnreachable}
 	}
+	var nodes []catalog.Node
+	for _, n := range loc.Nodes {
+		if n.Enabled && n.Status == "online" {
+			nodes = append(nodes, n)
+		}
+	}
+	type result struct {
+		ok, shared bool
+		err        error
+	}
+	res := make([]result, len(nodes))
+	var wg sync.WaitGroup
+	for i, n := range nodes {
+		wg.Go(func() {
+			ok, shared, err := nodeCheck(ctx, c, n.Name, n.DiskStorage(loc))
+			res[i] = result{ok, shared, err}
+		})
+	}
+	wg.Wait()
 	var out availability
 	failed, sharedSeen := false, false
-	for _, n := range loc.Nodes {
-		if !n.Enabled || n.Status != "online" {
-			continue
-		}
-		ok, shared, err := nodeCheck(ctx, c, n.Name, n.DiskStorage(loc))
-		if err != nil {
-			s.o.Logger.Warn("catalog availability", "location_id", loc.ID, "node", n.Name, "err", err)
+	for i, n := range nodes {
+		r := res[i]
+		if r.err != nil {
+			s.o.Logger.Warn("catalog availability", "location_id", loc.ID, "node", n.Name, "err", r.err)
 			failed = true
 			continue
 		}
 		switch {
-		case !ok:
-		case !shared:
+		case !r.ok:
+		case !r.shared:
 			out.targets = append(out.targets, target{Node: n.Name, BuildNode: n.Name})
 		case !sharedSeen:
 			sharedSeen = true
@@ -492,8 +509,12 @@ func (s *Service) List(ctx context.Context) ([]EntryState, error) {
 		if locs[i], err = s.o.Catalog.GetLocation(ctx, id); err != nil {
 			return nil, err
 		}
-		avs[i] = s.availability(ctx, locs[i])
 	}
+	var wg sync.WaitGroup
+	for i := range locs {
+		wg.Go(func() { avs[i] = s.availability(ctx, locs[i]) })
+	}
+	wg.Wait()
 	all, err := s.o.Ent.CatalogBuild.Query().Order(catalogbuild.ByNode()).All(ctx)
 	if err != nil {
 		return nil, err
