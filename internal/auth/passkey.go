@@ -318,14 +318,14 @@ func (p *Passkeys) FinishLogin(ctx context.Context, challengeID string, credenti
 		owner *ent.User
 		tok   string
 	)
-	// The credential row stays locked until the session exists, so Remove and other logins wait.
+	// Users are locked before credentials, as admin paths do; both stay locked until the session exists.
 	err = p.svc.inTx(ctx, func(tx *ent.Client) error {
 		var (
 			row   *ent.WebauthnCredential
 			dbErr error
 		)
 		handler := func(rawID, handle []byte) (webauthn.User, error) {
-			u, err := tx.User.Query().Where(user.WebauthnHandle(handle)).Only(ctx)
+			u, err := tx.User.Query().Where(user.WebauthnHandle(handle)).ForShare().Only(ctx)
 			if err == nil {
 				row, err = tx.WebauthnCredential.Query().
 					Where(webauthncredential.CredentialID(rawID), webauthncredential.UserID(u.ID)).
