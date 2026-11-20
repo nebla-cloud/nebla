@@ -5,9 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/apierr"
@@ -21,22 +26,51 @@ import (
 	"github.com/Hexeption/nebla/internal/osimages"
 	"github.com/Hexeption/nebla/internal/pve/fake"
 	"github.com/Hexeption/nebla/internal/testutil"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/require"
 )
 
 type env struct {
-	t   *testing.T
-	pve *fake.Server
-	sql *sql.DB
-	ent *ent.Client
-	cat *catalog.Service
-	svc *osimages.Service
+	t    *testing.T
+	pve  *fake.Server
+	pool *pgxpool.Pool
+	sql  *sql.DB
+	ent  *ent.Client
+	cat  *catalog.Service
+	svc  *osimages.Service
+	jobs *jobs.Jobs
+	// sums is the checksum the fake upstream serves per entry dir, e.g. "debian".
+	mu   sync.Mutex
+	sums map[string]string
 }
 
+var (
+	debianSum = strings.Repeat("ab12", 32)
+	almaSum   = strings.Repeat("cd34", 16)
+)
+
 // newEnv seeds pve1 and pve2 with an import storage "imp" and builds the service over two fake entries.
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return buildEnv(t, false) }
+
+// runEnv is newEnv with the build worker registered and the job runtime running.
+func runEnv(t *testing.T) *env { return buildEnv(t, true) }
+
+func buildEnv(t *testing.T, run bool) *env {
 	t.Helper()
-	upstream := httptest.NewServer(http.NotFoundHandler())
+	e := &env{t: t, sums: map[string]string{"debian": debianSum, "alma": almaSum}}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		switch r.URL.Path {
+		case "/debian/SHA512SUMS":
+			fmt.Fprintf(w, "%s  debian.qcow2\n", e.sums["debian"])
+		case "/alma/CHECKSUM":
+			fmt.Fprintf(w, "SHA256 (alma.qcow2) = %s\n", e.sums["alma"])
+		default:
+			http.NotFound(w, r)
+		}
+	}))
 	t.Cleanup(upstream.Close)
 	entries := []osimages.Entry{
 		{Key: "debian-13", Description: "Debian 13", OSFlavor: "debian", OSVersion: "13", Dirs: []string{upstream.URL + "/debian/"},
@@ -53,11 +87,21 @@ func newEnv(t *testing.T) *env {
 		pv.AddStorage(n, "imp", []string{"import", "iso"}, false)
 	}
 	cat := catalog.New(sqlDB, client, testutil.CatalogOptions(catalog.Hooks{}))
-	j, err := jobs.New(pool, sqlDB, nil)
-	require.NoError(t, err)
-	svc := osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: cat, Entries: entries})
+	svc := osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: cat, Entries: entries, HTTP: upstream.Client(),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	var j *jobs.Jobs
+	if run {
+		workers := river.NewWorkers()
+		osimages.Register(workers, svc)
+		j = testutil.StartJobs(t, pool, sqlDB, workers)
+	} else {
+		var err error
+		j, err = jobs.New(pool, sqlDB, nil)
+		require.NoError(t, err)
+	}
 	svc.SetJobs(j)
-	return &env{t: t, pve: pv, sql: sqlDB, ent: client, cat: cat, svc: svc}
+	e.pve, e.pool, e.sql, e.ent, e.cat, e.svc, e.jobs = pv, pool, sqlDB, client, cat, svc, j
+	return e
 }
 
 func (e *env) location(name, disk, imp string) int64 {

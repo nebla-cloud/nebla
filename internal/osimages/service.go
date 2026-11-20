@@ -67,6 +67,8 @@ type Options struct {
 type Service struct {
 	o    Options
 	jobs atomic.Pointer[jobs.Jobs]
+	// afterStep is a test hook run after each build step is saved.
+	afterStep func(buildID int64, step int)
 }
 
 func New(o Options) *Service {

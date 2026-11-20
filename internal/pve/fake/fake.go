@@ -266,7 +266,7 @@ func (s *Server) SetDown(down bool) {
 	s.down = down
 }
 
-// FailNext fails the next "METHOD path" ending in pattern: a failed task if it creates one, else an HTTP error.
+// FailNext fails the next "METHOD path" ending in pattern: a failed task if it creates one (unless 502-504), else an HTTP error.
 func (s *Server) FailNext(pattern string, status int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -373,7 +373,7 @@ func (s *Server) handle(mux *http.ServeMux, pattern string, taskEndpoint bool, h
 	method, path, _ := strings.Cut(pattern, " ")
 	mux.HandleFunc(method+" "+prefix+path, func(w http.ResponseWriter, r *http.Request) {
 		f, failed := s.takeFail(r)
-		if failed && !taskEndpoint {
+		if failed && (!taskEndpoint || f.status >= 502 && f.status <= 504) {
 			writeJSON(w, f.status, map[string]any{"data": nil, "message": fmt.Sprintf("injected failure (status %d)", f.status)})
 			return
 		}
