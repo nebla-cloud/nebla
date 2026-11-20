@@ -71,6 +71,7 @@ func BuildNodes(s *Service, loc catalog.Location) []string {
 	}
 	return out
 }
+
 func NewCleanupWorker(s *Service) *CleanupWorker { return &CleanupWorker{s: s} }
 
 func SetLogger(s *Service, l *slog.Logger) { s.o.Logger = l }
