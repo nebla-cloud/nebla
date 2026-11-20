@@ -1,9 +1,16 @@
 # Copy .env.example to .env next to this file and fill it in, then: docker compose up -d
+#
+# The panel runs the published image, pinned to a minor release. To upgrade, change the tag below (or set
+# NEBLA_IMAGE in .env) to the new release, then: docker compose pull && docker compose up -d
+# Migrations run on start. Patch releases are picked up by `docker compose pull` within the same minor tag.
+#
+# Developers: build from this checkout instead with
+#   NEBLA_IMAGE=nebla:dev docker compose up -d --build
 name: nebla
 
 services:
   panel:
-    image: ${NEBLA_IMAGE:-nebla:dev}
+    image: ${NEBLA_IMAGE:-ghcr.io/nebla-cloud/nebla:0.2}
     build:
       context: ..
     restart: unless-stopped
