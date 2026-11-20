@@ -31,6 +31,8 @@ type User struct {
 	TotpPendingSecret *string `json:"-"`
 	// TotpEnabled holds the value of the "totp_enabled" field.
 	TotpEnabled bool `json:"totp_enabled,omitempty"`
+	// WebauthnHandle holds the value of the "webauthn_handle" field.
+	WebauthnHandle *[]byte `json:"-"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt    time.Time `json:"created_at,omitempty"`
 	selectValues sql.SelectValues
@@ -41,6 +43,8 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case user.FieldWebauthnHandle:
+			values[i] = new([]byte)
 		case user.FieldIsAdmin, user.FieldTotpEnabled:
 			values[i] = new(sql.NullBool)
 		case user.FieldID:
@@ -114,6 +118,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.TotpEnabled = value.Bool
 			}
+		case user.FieldWebauthnHandle:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field webauthn_handle", values[i])
+			} else if value != nil {
+				_m.WebauthnHandle = value
+			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -173,6 +183,8 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("totp_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TotpEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("webauthn_handle=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

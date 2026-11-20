@@ -96,6 +96,12 @@ func (_c *UserCreate) SetNillableTotpEnabled(v *bool) *UserCreate {
 	return _c
 }
 
+// SetWebauthnHandle sets the "webauthn_handle" field.
+func (_c *UserCreate) SetWebauthnHandle(v []byte) *UserCreate {
+	_c.mutation.SetWebauthnHandle(v)
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserCreate) SetCreatedAt(v time.Time) *UserCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -242,6 +248,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TotpEnabled(); ok {
 		_spec.SetField(user.FieldTotpEnabled, field.TypeBool, value)
 		_node.TotpEnabled = value
+	}
+	if value, ok := _c.mutation.WebauthnHandle(); ok {
+		_spec.SetField(user.FieldWebauthnHandle, field.TypeBytes, value)
+		_node.WebauthnHandle = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
@@ -392,6 +402,24 @@ func (u *UserUpsert) SetTotpEnabled(v bool) *UserUpsert {
 // UpdateTotpEnabled sets the "totp_enabled" field to the value that was provided on create.
 func (u *UserUpsert) UpdateTotpEnabled() *UserUpsert {
 	u.SetExcluded(user.FieldTotpEnabled)
+	return u
+}
+
+// SetWebauthnHandle sets the "webauthn_handle" field.
+func (u *UserUpsert) SetWebauthnHandle(v []byte) *UserUpsert {
+	u.Set(user.FieldWebauthnHandle, v)
+	return u
+}
+
+// UpdateWebauthnHandle sets the "webauthn_handle" field to the value that was provided on create.
+func (u *UserUpsert) UpdateWebauthnHandle() *UserUpsert {
+	u.SetExcluded(user.FieldWebauthnHandle)
+	return u
+}
+
+// ClearWebauthnHandle clears the value of the "webauthn_handle" field.
+func (u *UserUpsert) ClearWebauthnHandle() *UserUpsert {
+	u.SetNull(user.FieldWebauthnHandle)
 	return u
 }
 
@@ -555,6 +583,27 @@ func (u *UserUpsertOne) SetTotpEnabled(v bool) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateTotpEnabled() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotpEnabled()
+	})
+}
+
+// SetWebauthnHandle sets the "webauthn_handle" field.
+func (u *UserUpsertOne) SetWebauthnHandle(v []byte) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetWebauthnHandle(v)
+	})
+}
+
+// UpdateWebauthnHandle sets the "webauthn_handle" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateWebauthnHandle() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateWebauthnHandle()
+	})
+}
+
+// ClearWebauthnHandle clears the value of the "webauthn_handle" field.
+func (u *UserUpsertOne) ClearWebauthnHandle() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearWebauthnHandle()
 	})
 }
 
@@ -884,6 +933,27 @@ func (u *UserUpsertBulk) SetTotpEnabled(v bool) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateTotpEnabled() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotpEnabled()
+	})
+}
+
+// SetWebauthnHandle sets the "webauthn_handle" field.
+func (u *UserUpsertBulk) SetWebauthnHandle(v []byte) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetWebauthnHandle(v)
+	})
+}
+
+// UpdateWebauthnHandle sets the "webauthn_handle" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateWebauthnHandle() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateWebauthnHandle()
+	})
+}
+
+// ClearWebauthnHandle clears the value of the "webauthn_handle" field.
+func (u *UserUpsertBulk) ClearWebauthnHandle() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearWebauthnHandle()
 	})
 }
 

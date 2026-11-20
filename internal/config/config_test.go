@@ -117,3 +117,20 @@ func TestLoadDefaultQuota(t *testing.T) {
 	_, err = config.Load()
 	require.ErrorContains(t, err, "PANEL_MAX_PROJECTS_PER_USER")
 }
+
+func TestPasskeyOrigin(t *testing.T) {
+	cases := map[string]string{
+		"http://localhost:8080":            "http://localhost:8080",
+		"https://panel.example.com":        "https://panel.example.com",
+		"https://panel.example.com:8443/x": "https://panel.example.com:8443",
+		"https://10.0.0.5":                 "",
+		"https://[::1]:8443":               "",
+		"http://panel.example.com":         "",
+		"http://127.0.0.1:8080":            "",
+		"https://panel.example.com:443":    "https://panel.example.com",
+		"http://localhost:80":              "http://localhost",
+	}
+	for in, want := range cases {
+		require.Equal(t, want, config.Config{BaseURL: in}.PasskeyOrigin(), in)
+	}
+}

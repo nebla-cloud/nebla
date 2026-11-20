@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nebla-cloud/nebla/internal/auth"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/config"
 	"github.com/nebla-cloud/nebla/internal/db"
@@ -70,8 +71,14 @@ func run() error {
 	reconcile.Register(workers, rec)
 	enr := enroll.New(sqlDB, client, enroll.Options{SecretKey: cfg.SecretKey, BaseURL: cfg.BaseURL, Catalog: cat, Logger: log})
 	enroll.Register(workers, enr)
+	passkeys, err := auth.NewPasskeys(client, auth.New(client, exts.Registration), cfg.PasskeyOrigin())
+	if err != nil {
+		return err
+	}
+	auth.RegisterPasskeyJobs(workers, passkeys)
 	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
-		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), enroll.SweepPeriodicJob()))
+		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), enroll.SweepPeriodicJob(),
+			auth.ChallengeCleanupPeriodicJob()))
 	if err != nil {
 		return err
 	}

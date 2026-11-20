@@ -11,6 +11,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
@@ -33,6 +34,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
+	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
 
 const (
@@ -64,6 +67,8 @@ const (
 	TypeSession            = "Session"
 	TypeSetting            = "Setting"
 	TypeUser               = "User"
+	TypeWebauthnChallenge  = "WebauthnChallenge"
+	TypeWebauthnCredential = "WebauthnCredential"
 )
 
 // APITokenMutation represents an operation that mutates the APIToken nodes in the graph.
@@ -17986,6 +17991,7 @@ type UserMutation struct {
 	totp_secret         *string
 	totp_pending_secret *string
 	totp_enabled        *bool
+	webauthn_handle     *[]byte
 	created_at          *time.Time
 	clearedFields       map[string]struct{}
 	done                bool
@@ -18375,6 +18381,55 @@ func (m *UserMutation) ResetTotpEnabled() {
 	m.totp_enabled = nil
 }
 
+// SetWebauthnHandle sets the "webauthn_handle" field.
+func (m *UserMutation) SetWebauthnHandle(b []byte) {
+	m.webauthn_handle = &b
+}
+
+// WebauthnHandle returns the value of the "webauthn_handle" field in the mutation.
+func (m *UserMutation) WebauthnHandle() (r []byte, exists bool) {
+	v := m.webauthn_handle
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWebauthnHandle returns the old "webauthn_handle" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldWebauthnHandle(ctx context.Context) (v *[]byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWebauthnHandle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWebauthnHandle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWebauthnHandle: %w", err)
+	}
+	return oldValue.WebauthnHandle, nil
+}
+
+// ClearWebauthnHandle clears the value of the "webauthn_handle" field.
+func (m *UserMutation) ClearWebauthnHandle() {
+	m.webauthn_handle = nil
+	m.clearedFields[user.FieldWebauthnHandle] = struct{}{}
+}
+
+// WebauthnHandleCleared returns if the "webauthn_handle" field was cleared in this mutation.
+func (m *UserMutation) WebauthnHandleCleared() bool {
+	_, ok := m.clearedFields[user.FieldWebauthnHandle]
+	return ok
+}
+
+// ResetWebauthnHandle resets all changes to the "webauthn_handle" field.
+func (m *UserMutation) ResetWebauthnHandle() {
+	m.webauthn_handle = nil
+	delete(m.clearedFields, user.FieldWebauthnHandle)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UserMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -18445,7 +18500,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 9)
 	if m.email != nil {
 		fields = append(fields, user.FieldEmail)
 	}
@@ -18466,6 +18521,9 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.totp_enabled != nil {
 		fields = append(fields, user.FieldTotpEnabled)
+	}
+	if m.webauthn_handle != nil {
+		fields = append(fields, user.FieldWebauthnHandle)
 	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
@@ -18492,6 +18550,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.TotpPendingSecret()
 	case user.FieldTotpEnabled:
 		return m.TotpEnabled()
+	case user.FieldWebauthnHandle:
+		return m.WebauthnHandle()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -18517,6 +18577,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldTotpPendingSecret(ctx)
 	case user.FieldTotpEnabled:
 		return m.OldTotpEnabled(ctx)
+	case user.FieldWebauthnHandle:
+		return m.OldWebauthnHandle(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -18577,6 +18639,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetTotpEnabled(v)
 		return nil
+	case user.FieldWebauthnHandle:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWebauthnHandle(v)
+		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -18620,6 +18689,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldTotpPendingSecret) {
 		fields = append(fields, user.FieldTotpPendingSecret)
 	}
+	if m.FieldCleared(user.FieldWebauthnHandle) {
+		fields = append(fields, user.FieldWebauthnHandle)
+	}
 	return fields
 }
 
@@ -18639,6 +18711,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldTotpPendingSecret:
 		m.ClearTotpPendingSecret()
+		return nil
+	case user.FieldWebauthnHandle:
+		m.ClearWebauthnHandle()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -18668,6 +18743,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldTotpEnabled:
 		m.ResetTotpEnabled()
+		return nil
+	case user.FieldWebauthnHandle:
+		m.ResetWebauthnHandle()
 		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -18722,4 +18800,1331 @@ func (m *UserMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *UserMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown User edge %s", name)
+}
+
+// WebauthnChallengeMutation represents an operation that mutates the WebauthnChallenge nodes in the graph.
+type WebauthnChallengeMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *[]byte
+	purpose       *webauthnchallenge.Purpose
+	session_data  *webauthn.SessionData
+	expires_at    *time.Time
+	clearedFields map[string]struct{}
+	user          *int64
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*WebauthnChallenge, error)
+	predicates    []predicate.WebauthnChallenge
+}
+
+var _ ent.Mutation = (*WebauthnChallengeMutation)(nil)
+
+// webauthnchallengeOption allows management of the mutation configuration using functional options.
+type webauthnchallengeOption func(*WebauthnChallengeMutation)
+
+// newWebauthnChallengeMutation creates new mutation for the WebauthnChallenge entity.
+func newWebauthnChallengeMutation(c config, op Op, opts ...webauthnchallengeOption) *WebauthnChallengeMutation {
+	m := &WebauthnChallengeMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeWebauthnChallenge,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withWebauthnChallengeID sets the ID field of the mutation.
+func withWebauthnChallengeID(id []byte) webauthnchallengeOption {
+	return func(m *WebauthnChallengeMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *WebauthnChallenge
+		)
+		m.oldValue = func(ctx context.Context) (*WebauthnChallenge, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().WebauthnChallenge.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withWebauthnChallenge sets the old WebauthnChallenge of the mutation.
+func withWebauthnChallenge(node *WebauthnChallenge) webauthnchallengeOption {
+	return func(m *WebauthnChallengeMutation) {
+		m.oldValue = func(context.Context) (*WebauthnChallenge, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m WebauthnChallengeMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m WebauthnChallengeMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of WebauthnChallenge entities.
+func (m *WebauthnChallengeMutation) SetID(id []byte) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *WebauthnChallengeMutation) ID() (id []byte, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *WebauthnChallengeMutation) IDs(ctx context.Context) ([][]byte, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return [][]byte{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().WebauthnChallenge.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetPurpose sets the "purpose" field.
+func (m *WebauthnChallengeMutation) SetPurpose(w webauthnchallenge.Purpose) {
+	m.purpose = &w
+}
+
+// Purpose returns the value of the "purpose" field in the mutation.
+func (m *WebauthnChallengeMutation) Purpose() (r webauthnchallenge.Purpose, exists bool) {
+	v := m.purpose
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPurpose returns the old "purpose" field's value of the WebauthnChallenge entity.
+// If the WebauthnChallenge object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnChallengeMutation) OldPurpose(ctx context.Context) (v webauthnchallenge.Purpose, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPurpose is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPurpose requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPurpose: %w", err)
+	}
+	return oldValue.Purpose, nil
+}
+
+// ResetPurpose resets all changes to the "purpose" field.
+func (m *WebauthnChallengeMutation) ResetPurpose() {
+	m.purpose = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *WebauthnChallengeMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *WebauthnChallengeMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the WebauthnChallenge entity.
+// If the WebauthnChallenge object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnChallengeMutation) OldUserID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ClearUserID clears the value of the "user_id" field.
+func (m *WebauthnChallengeMutation) ClearUserID() {
+	m.user = nil
+	m.clearedFields[webauthnchallenge.FieldUserID] = struct{}{}
+}
+
+// UserIDCleared returns if the "user_id" field was cleared in this mutation.
+func (m *WebauthnChallengeMutation) UserIDCleared() bool {
+	_, ok := m.clearedFields[webauthnchallenge.FieldUserID]
+	return ok
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *WebauthnChallengeMutation) ResetUserID() {
+	m.user = nil
+	delete(m.clearedFields, webauthnchallenge.FieldUserID)
+}
+
+// SetSessionData sets the "session_data" field.
+func (m *WebauthnChallengeMutation) SetSessionData(wd webauthn.SessionData) {
+	m.session_data = &wd
+}
+
+// SessionData returns the value of the "session_data" field in the mutation.
+func (m *WebauthnChallengeMutation) SessionData() (r webauthn.SessionData, exists bool) {
+	v := m.session_data
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionData returns the old "session_data" field's value of the WebauthnChallenge entity.
+// If the WebauthnChallenge object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnChallengeMutation) OldSessionData(ctx context.Context) (v webauthn.SessionData, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionData is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionData requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionData: %w", err)
+	}
+	return oldValue.SessionData, nil
+}
+
+// ResetSessionData resets all changes to the "session_data" field.
+func (m *WebauthnChallengeMutation) ResetSessionData() {
+	m.session_data = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *WebauthnChallengeMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *WebauthnChallengeMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the WebauthnChallenge entity.
+// If the WebauthnChallenge object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnChallengeMutation) OldExpiresAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *WebauthnChallengeMutation) ResetExpiresAt() {
+	m.expires_at = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *WebauthnChallengeMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[webauthnchallenge.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *WebauthnChallengeMutation) UserCleared() bool {
+	return m.UserIDCleared() || m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *WebauthnChallengeMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *WebauthnChallengeMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the WebauthnChallengeMutation builder.
+func (m *WebauthnChallengeMutation) Where(ps ...predicate.WebauthnChallenge) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the WebauthnChallengeMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *WebauthnChallengeMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.WebauthnChallenge, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *WebauthnChallengeMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *WebauthnChallengeMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (WebauthnChallenge).
+func (m *WebauthnChallengeMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *WebauthnChallengeMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.purpose != nil {
+		fields = append(fields, webauthnchallenge.FieldPurpose)
+	}
+	if m.user != nil {
+		fields = append(fields, webauthnchallenge.FieldUserID)
+	}
+	if m.session_data != nil {
+		fields = append(fields, webauthnchallenge.FieldSessionData)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, webauthnchallenge.FieldExpiresAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *WebauthnChallengeMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case webauthnchallenge.FieldPurpose:
+		return m.Purpose()
+	case webauthnchallenge.FieldUserID:
+		return m.UserID()
+	case webauthnchallenge.FieldSessionData:
+		return m.SessionData()
+	case webauthnchallenge.FieldExpiresAt:
+		return m.ExpiresAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *WebauthnChallengeMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case webauthnchallenge.FieldPurpose:
+		return m.OldPurpose(ctx)
+	case webauthnchallenge.FieldUserID:
+		return m.OldUserID(ctx)
+	case webauthnchallenge.FieldSessionData:
+		return m.OldSessionData(ctx)
+	case webauthnchallenge.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown WebauthnChallenge field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WebauthnChallengeMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case webauthnchallenge.FieldPurpose:
+		v, ok := value.(webauthnchallenge.Purpose)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPurpose(v)
+		return nil
+	case webauthnchallenge.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case webauthnchallenge.FieldSessionData:
+		v, ok := value.(webauthn.SessionData)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionData(v)
+		return nil
+	case webauthnchallenge.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnChallenge field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *WebauthnChallengeMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *WebauthnChallengeMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WebauthnChallengeMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown WebauthnChallenge numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *WebauthnChallengeMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(webauthnchallenge.FieldUserID) {
+		fields = append(fields, webauthnchallenge.FieldUserID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *WebauthnChallengeMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *WebauthnChallengeMutation) ClearField(name string) error {
+	switch name {
+	case webauthnchallenge.FieldUserID:
+		m.ClearUserID()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnChallenge nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *WebauthnChallengeMutation) ResetField(name string) error {
+	switch name {
+	case webauthnchallenge.FieldPurpose:
+		m.ResetPurpose()
+		return nil
+	case webauthnchallenge.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case webauthnchallenge.FieldSessionData:
+		m.ResetSessionData()
+		return nil
+	case webauthnchallenge.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnChallenge field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *WebauthnChallengeMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, webauthnchallenge.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *WebauthnChallengeMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case webauthnchallenge.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *WebauthnChallengeMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *WebauthnChallengeMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *WebauthnChallengeMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, webauthnchallenge.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *WebauthnChallengeMutation) EdgeCleared(name string) bool {
+	switch name {
+	case webauthnchallenge.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *WebauthnChallengeMutation) ClearEdge(name string) error {
+	switch name {
+	case webauthnchallenge.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnChallenge unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *WebauthnChallengeMutation) ResetEdge(name string) error {
+	switch name {
+	case webauthnchallenge.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnChallenge edge %s", name)
+}
+
+// WebauthnCredentialMutation represents an operation that mutates the WebauthnCredential nodes in the graph.
+type WebauthnCredentialMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	credential_id *[]byte
+	name          *string
+	aaguid        *[]byte
+	data          *webauthn.Credential
+	created_at    *time.Time
+	last_used_at  *time.Time
+	clearedFields map[string]struct{}
+	user          *int64
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*WebauthnCredential, error)
+	predicates    []predicate.WebauthnCredential
+}
+
+var _ ent.Mutation = (*WebauthnCredentialMutation)(nil)
+
+// webauthncredentialOption allows management of the mutation configuration using functional options.
+type webauthncredentialOption func(*WebauthnCredentialMutation)
+
+// newWebauthnCredentialMutation creates new mutation for the WebauthnCredential entity.
+func newWebauthnCredentialMutation(c config, op Op, opts ...webauthncredentialOption) *WebauthnCredentialMutation {
+	m := &WebauthnCredentialMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeWebauthnCredential,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withWebauthnCredentialID sets the ID field of the mutation.
+func withWebauthnCredentialID(id int64) webauthncredentialOption {
+	return func(m *WebauthnCredentialMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *WebauthnCredential
+		)
+		m.oldValue = func(ctx context.Context) (*WebauthnCredential, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().WebauthnCredential.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withWebauthnCredential sets the old WebauthnCredential of the mutation.
+func withWebauthnCredential(node *WebauthnCredential) webauthncredentialOption {
+	return func(m *WebauthnCredentialMutation) {
+		m.oldValue = func(context.Context) (*WebauthnCredential, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m WebauthnCredentialMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m WebauthnCredentialMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of WebauthnCredential entities.
+func (m *WebauthnCredentialMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *WebauthnCredentialMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *WebauthnCredentialMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().WebauthnCredential.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *WebauthnCredentialMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *WebauthnCredentialMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the WebauthnCredential entity.
+// If the WebauthnCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnCredentialMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *WebauthnCredentialMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetCredentialID sets the "credential_id" field.
+func (m *WebauthnCredentialMutation) SetCredentialID(b []byte) {
+	m.credential_id = &b
+}
+
+// CredentialID returns the value of the "credential_id" field in the mutation.
+func (m *WebauthnCredentialMutation) CredentialID() (r []byte, exists bool) {
+	v := m.credential_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCredentialID returns the old "credential_id" field's value of the WebauthnCredential entity.
+// If the WebauthnCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnCredentialMutation) OldCredentialID(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCredentialID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCredentialID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCredentialID: %w", err)
+	}
+	return oldValue.CredentialID, nil
+}
+
+// ResetCredentialID resets all changes to the "credential_id" field.
+func (m *WebauthnCredentialMutation) ResetCredentialID() {
+	m.credential_id = nil
+}
+
+// SetName sets the "name" field.
+func (m *WebauthnCredentialMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *WebauthnCredentialMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the WebauthnCredential entity.
+// If the WebauthnCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnCredentialMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *WebauthnCredentialMutation) ResetName() {
+	m.name = nil
+}
+
+// SetAaguid sets the "aaguid" field.
+func (m *WebauthnCredentialMutation) SetAaguid(b []byte) {
+	m.aaguid = &b
+}
+
+// Aaguid returns the value of the "aaguid" field in the mutation.
+func (m *WebauthnCredentialMutation) Aaguid() (r []byte, exists bool) {
+	v := m.aaguid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAaguid returns the old "aaguid" field's value of the WebauthnCredential entity.
+// If the WebauthnCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnCredentialMutation) OldAaguid(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAaguid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAaguid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAaguid: %w", err)
+	}
+	return oldValue.Aaguid, nil
+}
+
+// ClearAaguid clears the value of the "aaguid" field.
+func (m *WebauthnCredentialMutation) ClearAaguid() {
+	m.aaguid = nil
+	m.clearedFields[webauthncredential.FieldAaguid] = struct{}{}
+}
+
+// AaguidCleared returns if the "aaguid" field was cleared in this mutation.
+func (m *WebauthnCredentialMutation) AaguidCleared() bool {
+	_, ok := m.clearedFields[webauthncredential.FieldAaguid]
+	return ok
+}
+
+// ResetAaguid resets all changes to the "aaguid" field.
+func (m *WebauthnCredentialMutation) ResetAaguid() {
+	m.aaguid = nil
+	delete(m.clearedFields, webauthncredential.FieldAaguid)
+}
+
+// SetData sets the "data" field.
+func (m *WebauthnCredentialMutation) SetData(w webauthn.Credential) {
+	m.data = &w
+}
+
+// Data returns the value of the "data" field in the mutation.
+func (m *WebauthnCredentialMutation) Data() (r webauthn.Credential, exists bool) {
+	v := m.data
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldData returns the old "data" field's value of the WebauthnCredential entity.
+// If the WebauthnCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnCredentialMutation) OldData(ctx context.Context) (v webauthn.Credential, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldData is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldData requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldData: %w", err)
+	}
+	return oldValue.Data, nil
+}
+
+// ResetData resets all changes to the "data" field.
+func (m *WebauthnCredentialMutation) ResetData() {
+	m.data = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *WebauthnCredentialMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *WebauthnCredentialMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the WebauthnCredential entity.
+// If the WebauthnCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnCredentialMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *WebauthnCredentialMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetLastUsedAt sets the "last_used_at" field.
+func (m *WebauthnCredentialMutation) SetLastUsedAt(t time.Time) {
+	m.last_used_at = &t
+}
+
+// LastUsedAt returns the value of the "last_used_at" field in the mutation.
+func (m *WebauthnCredentialMutation) LastUsedAt() (r time.Time, exists bool) {
+	v := m.last_used_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastUsedAt returns the old "last_used_at" field's value of the WebauthnCredential entity.
+// If the WebauthnCredential object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WebauthnCredentialMutation) OldLastUsedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastUsedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastUsedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastUsedAt: %w", err)
+	}
+	return oldValue.LastUsedAt, nil
+}
+
+// ClearLastUsedAt clears the value of the "last_used_at" field.
+func (m *WebauthnCredentialMutation) ClearLastUsedAt() {
+	m.last_used_at = nil
+	m.clearedFields[webauthncredential.FieldLastUsedAt] = struct{}{}
+}
+
+// LastUsedAtCleared returns if the "last_used_at" field was cleared in this mutation.
+func (m *WebauthnCredentialMutation) LastUsedAtCleared() bool {
+	_, ok := m.clearedFields[webauthncredential.FieldLastUsedAt]
+	return ok
+}
+
+// ResetLastUsedAt resets all changes to the "last_used_at" field.
+func (m *WebauthnCredentialMutation) ResetLastUsedAt() {
+	m.last_used_at = nil
+	delete(m.clearedFields, webauthncredential.FieldLastUsedAt)
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *WebauthnCredentialMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[webauthncredential.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *WebauthnCredentialMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *WebauthnCredentialMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *WebauthnCredentialMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the WebauthnCredentialMutation builder.
+func (m *WebauthnCredentialMutation) Where(ps ...predicate.WebauthnCredential) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the WebauthnCredentialMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *WebauthnCredentialMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.WebauthnCredential, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *WebauthnCredentialMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *WebauthnCredentialMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (WebauthnCredential).
+func (m *WebauthnCredentialMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *WebauthnCredentialMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.user != nil {
+		fields = append(fields, webauthncredential.FieldUserID)
+	}
+	if m.credential_id != nil {
+		fields = append(fields, webauthncredential.FieldCredentialID)
+	}
+	if m.name != nil {
+		fields = append(fields, webauthncredential.FieldName)
+	}
+	if m.aaguid != nil {
+		fields = append(fields, webauthncredential.FieldAaguid)
+	}
+	if m.data != nil {
+		fields = append(fields, webauthncredential.FieldData)
+	}
+	if m.created_at != nil {
+		fields = append(fields, webauthncredential.FieldCreatedAt)
+	}
+	if m.last_used_at != nil {
+		fields = append(fields, webauthncredential.FieldLastUsedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *WebauthnCredentialMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case webauthncredential.FieldUserID:
+		return m.UserID()
+	case webauthncredential.FieldCredentialID:
+		return m.CredentialID()
+	case webauthncredential.FieldName:
+		return m.Name()
+	case webauthncredential.FieldAaguid:
+		return m.Aaguid()
+	case webauthncredential.FieldData:
+		return m.Data()
+	case webauthncredential.FieldCreatedAt:
+		return m.CreatedAt()
+	case webauthncredential.FieldLastUsedAt:
+		return m.LastUsedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *WebauthnCredentialMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case webauthncredential.FieldUserID:
+		return m.OldUserID(ctx)
+	case webauthncredential.FieldCredentialID:
+		return m.OldCredentialID(ctx)
+	case webauthncredential.FieldName:
+		return m.OldName(ctx)
+	case webauthncredential.FieldAaguid:
+		return m.OldAaguid(ctx)
+	case webauthncredential.FieldData:
+		return m.OldData(ctx)
+	case webauthncredential.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case webauthncredential.FieldLastUsedAt:
+		return m.OldLastUsedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown WebauthnCredential field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WebauthnCredentialMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case webauthncredential.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case webauthncredential.FieldCredentialID:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCredentialID(v)
+		return nil
+	case webauthncredential.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case webauthncredential.FieldAaguid:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAaguid(v)
+		return nil
+	case webauthncredential.FieldData:
+		v, ok := value.(webauthn.Credential)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetData(v)
+		return nil
+	case webauthncredential.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case webauthncredential.FieldLastUsedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastUsedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnCredential field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *WebauthnCredentialMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *WebauthnCredentialMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *WebauthnCredentialMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown WebauthnCredential numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *WebauthnCredentialMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(webauthncredential.FieldAaguid) {
+		fields = append(fields, webauthncredential.FieldAaguid)
+	}
+	if m.FieldCleared(webauthncredential.FieldLastUsedAt) {
+		fields = append(fields, webauthncredential.FieldLastUsedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *WebauthnCredentialMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *WebauthnCredentialMutation) ClearField(name string) error {
+	switch name {
+	case webauthncredential.FieldAaguid:
+		m.ClearAaguid()
+		return nil
+	case webauthncredential.FieldLastUsedAt:
+		m.ClearLastUsedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnCredential nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *WebauthnCredentialMutation) ResetField(name string) error {
+	switch name {
+	case webauthncredential.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case webauthncredential.FieldCredentialID:
+		m.ResetCredentialID()
+		return nil
+	case webauthncredential.FieldName:
+		m.ResetName()
+		return nil
+	case webauthncredential.FieldAaguid:
+		m.ResetAaguid()
+		return nil
+	case webauthncredential.FieldData:
+		m.ResetData()
+		return nil
+	case webauthncredential.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case webauthncredential.FieldLastUsedAt:
+		m.ResetLastUsedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnCredential field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *WebauthnCredentialMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, webauthncredential.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *WebauthnCredentialMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case webauthncredential.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *WebauthnCredentialMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *WebauthnCredentialMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *WebauthnCredentialMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, webauthncredential.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *WebauthnCredentialMutation) EdgeCleared(name string) bool {
+	switch name {
+	case webauthncredential.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *WebauthnCredentialMutation) ClearEdge(name string) error {
+	switch name {
+	case webauthncredential.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnCredential unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *WebauthnCredentialMutation) ResetEdge(name string) error {
+	switch name {
+	case webauthncredential.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown WebauthnCredential edge %s", name)
 }

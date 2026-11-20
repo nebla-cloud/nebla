@@ -32,6 +32,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
+	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -112,6 +114,8 @@ func checkColumn(t, c string) error {
 			session.Table:            session.ValidColumn,
 			setting.Table:            setting.ValidColumn,
 			user.Table:               user.ValidColumn,
+			webauthnchallenge.Table:  webauthnchallenge.ValidColumn,
+			webauthncredential.Table: webauthncredential.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

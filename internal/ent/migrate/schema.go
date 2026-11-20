@@ -753,6 +753,7 @@ var (
 		{Name: "totp_secret", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "totp_pending_secret", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "totp_enabled", Type: field.TypeBool, Default: false},
+		{Name: "webauthn_handle", Type: field.TypeBytes, Unique: true, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
 	// UsersTable holds the schema information for the "users" table.
@@ -760,6 +761,67 @@ var (
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
+	}
+	// WebauthnChallengesColumns holds the columns for the "webauthn_challenges" table.
+	WebauthnChallengesColumns = []*schema.Column{
+		{Name: "token_hash", Type: field.TypeBytes},
+		{Name: "purpose", Type: field.TypeEnum, Enums: []string{"register", "login"}},
+		{Name: "session_data", Type: field.TypeJSON},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeInt64, Nullable: true},
+	}
+	// WebauthnChallengesTable holds the schema information for the "webauthn_challenges" table.
+	WebauthnChallengesTable = &schema.Table{
+		Name:       "webauthn_challenges",
+		Columns:    WebauthnChallengesColumns,
+		PrimaryKey: []*schema.Column{WebauthnChallengesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "webauthn_challenges_users_user",
+				Columns:    []*schema.Column{WebauthnChallengesColumns[4]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "webauthn_challenges_expires_at_idx",
+				Unique:  false,
+				Columns: []*schema.Column{WebauthnChallengesColumns[3]},
+			},
+		},
+	}
+	// WebauthnCredentialsColumns holds the columns for the "webauthn_credentials" table.
+	WebauthnCredentialsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "credential_id", Type: field.TypeBytes, Unique: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "aaguid", Type: field.TypeBytes, Nullable: true},
+		{Name: "data", Type: field.TypeJSON},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// WebauthnCredentialsTable holds the schema information for the "webauthn_credentials" table.
+	WebauthnCredentialsTable = &schema.Table{
+		Name:       "webauthn_credentials",
+		Columns:    WebauthnCredentialsColumns,
+		PrimaryKey: []*schema.Column{WebauthnCredentialsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "webauthn_credentials_users_user",
+				Columns:    []*schema.Column{WebauthnCredentialsColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "webauthn_credentials_user_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{WebauthnCredentialsColumns[7]},
+			},
+		},
 	}
 	// ServerTypeLocationsColumns holds the columns for the "server_type_locations" table.
 	ServerTypeLocationsColumns = []*schema.Column{
@@ -808,6 +870,8 @@ var (
 		SessionsTable,
 		SettingsTable,
 		UsersTable,
+		WebauthnChallengesTable,
+		WebauthnCredentialsTable,
 		ServerTypeLocationsTable,
 	}
 )
@@ -841,6 +905,8 @@ func init() {
 	ServersTable.ForeignKeys[2].RefTable = ServerTypesTable
 	ServersTable.ForeignKeys[3].RefTable = ImagesTable
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable
+	WebauthnChallengesTable.ForeignKeys[0].RefTable = UsersTable
+	WebauthnCredentialsTable.ForeignKeys[0].RefTable = UsersTable
 	ServerTypeLocationsTable.ForeignKeys[0].RefTable = ServerTypesTable
 	ServerTypeLocationsTable.ForeignKeys[1].RefTable = LocationsTable
 }
