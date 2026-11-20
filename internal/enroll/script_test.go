@@ -210,7 +210,8 @@ func TestScriptPreflightUsedStopsBeforeChanges(t *testing.T) {
 	require.Equal(t, 1, r.code)
 	require.Contains(t, r.stderr, "This enrollment was already used.")
 	noWrites(t, r)
-	require.Equal(t, 1, r.count("curl", "-fsS"))
+	require.Equal(t, 1, r.count("curl", "-sS"))
+	require.NotContains(t, r.stderr, "curl: (22)")
 	require.False(t, r.has("pveum"))
 }
 
@@ -323,7 +324,7 @@ func TestScriptSendsTokenInConfig(t *testing.T) {
 	t.Parallel()
 	r := runScript(t, map[string]string{"STUB_EXPECT_TOKEN": "nbe_" + strings.Repeat("z", 43)})
 	require.Equal(t, 1, r.code)
-	require.Contains(t, r.stderr, "the panel refused this enrollment")
+	require.Contains(t, r.stderr, "the panel doesn't know this command")
 	noWrites(t, r)
 }
 

@@ -93,14 +93,11 @@ main() {
         token_name=${NEBLA_TOKEN_NAME:-}
     else
         rc=0
-        resp=$(curl -fsS --max-time 15 --config <(auth "$token") -w '\n%{http_code}' "$panel/v1/enroll/check") || rc=$?
-        if [ "$rc" = 22 ]; then
-            rc=0
-            resp=$(curl -sS --max-time 15 --config <(auth "$token") -w '\n%{http_code}' "$panel/v1/enroll/check") || rc=$?
-        fi
+        resp=$(curl -sS --max-time 15 --config <(auth "$token") -w '\n%{http_code}' "$panel/v1/enroll/check") || rc=$?
         [ "$rc" = 0 ] || die "can't reach $PANEL_URL; use \"The node can't reach this panel?\" on the enrollment page"
         code=${resp##*"$nl"}
         body=${resp%"$nl"*}
+        [ "$code" = 401 ] && die "the panel doesn't know this command; it was finished, cancelled or replaced. Get a new command in the panel"
         [ "$code" = 200 ] || die "the panel refused this enrollment: $(panel_msg "$body" "$code")"
         token_name=$(printf '%s\n' "$body" | sed -n 's/.*"token_name":[[:space:]]*"\(nebla-[a-z0-9-]*\)".*/\1/p')
     fi
