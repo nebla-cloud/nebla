@@ -586,3 +586,11 @@ func TestTemplateFormEncoding(t *testing.T) {
 		t.Fatalf("got %q\nwant %q", got, want)
 	}
 }
+
+func TestNormFP(t *testing.T) {
+	for in, want := range map[string]string{"ab:cd ef": "ABCDEF", "": "", "AB:CD": "ABCD"} {
+		if got := pve.NormFP(in); got != want {
+			t.Errorf("NormFP(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

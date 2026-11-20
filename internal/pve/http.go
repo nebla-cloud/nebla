@@ -40,7 +40,7 @@ func TLSConfig(c Conn) *tls.Config {
 	case c.InsecureTLS:
 		cfg.InsecureSkipVerify = true
 	case c.CAFingerprint != "":
-		want := normFP(c.CAFingerprint)
+		want := NormFP(c.CAFingerprint)
 		cfg.InsecureSkipVerify = true
 		cfg.VerifyPeerCertificate = func(raw [][]byte, _ [][]*x509.Certificate) error {
 			if len(raw) == 0 {
@@ -56,7 +56,8 @@ func TLSConfig(c Conn) *tls.Config {
 	return cfg
 }
 
-func normFP(s string) string {
+// NormFP upper-cases a certificate fingerprint and strips colons and spaces.
+func NormFP(s string) string {
 	return strings.ToUpper(strings.NewReplacer(":", "", " ", "").Replace(s))
 }
 
