@@ -27,5 +27,6 @@ export default defineConfig({
     { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['server-depth'] },
     { name: 'enroll', testMatch: /enroll\.spec\.ts/, dependencies: ['people'] },
     { name: 'passkeys', testMatch: /passkeys\.spec\.ts/, dependencies: ['enroll'] },
+    { name: 'admin', testMatch: /admin\.spec\.ts/, dependencies: ['passkeys'] },
   ],
 })

@@ -36,6 +36,8 @@ type harnessOut struct {
 	FailChecksum string `json:"fail_checksum"`
 	// AddToken registers a token with the fake Proxmox: POST {id, secret}.
 	AddToken string `json:"add_token"`
+	// FailNext fails the next fake Proxmox request ending in pattern: POST {pattern, status}.
+	FailNext string `json:"fail_next"`
 }
 
 // TestUIHarness serves the app until the stop file exists; run with -tags uiharness.
@@ -60,6 +62,17 @@ func TestUIHarness(t *testing.T) {
 				return
 			}
 			app.PVE.AddToken(in.ID, in.Secret)
+			w.WriteHeader(http.StatusNoContent)
+		case r.URL.Path == "/_harness/pve-fail-next" && r.Method == http.MethodPost:
+			var in struct {
+				Pattern string
+				Status  int
+			}
+			if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.Pattern == "" || in.Status == 0 {
+				http.Error(w, "bad body", http.StatusBadRequest)
+				return
+			}
+			app.PVE.FailNext(in.Pattern, in.Status)
 			w.WriteHeader(http.StatusNoContent)
 		case r.URL.Path == "/debian/SHA512SUMS":
 			if n := failNext.Load(); n > 0 && failNext.CompareAndSwap(n, n-1) {
@@ -90,7 +103,8 @@ func TestUIHarness(t *testing.T) {
 
 	conn := app.PVE.Conn()
 	b, err := json.Marshal(harnessOut{URL: app.URL, FailChecksum: up.URL + "/_harness/fail-checksum", AddToken: up.URL + "/_harness/pve-token",
-		PVE: pveOut{URL: conn.BaseURL, TokenID: conn.TokenID, TokenSecret: conn.Secret, CAFingerprint: conn.CAFingerprint}})
+		FailNext: up.URL + "/_harness/pve-fail-next",
+		PVE:      pveOut{URL: conn.BaseURL, TokenID: conn.TokenID, TokenSecret: conn.Secret, CAFingerprint: conn.CAFingerprint}})
 	if err != nil {
 		t.Fatal(err)
 	}
