@@ -150,7 +150,7 @@ func (j *Jobs) Stop(ctx context.Context) error {
 }
 
 const (
-	OrphanedCode    = "orphaned"
+	OrphanedCode    = actions.CodeOrphaned
 	OrphanedMessage = "the job running this action was lost; retry the request"
 	// Orphaned is a SQL condition on actions alias a: running, with no job left that can finish it.
 	Orphaned = `a.status = 'running' and a.finished is null and not exists (

@@ -22,9 +22,11 @@ const (
 // Resource is one resource an action touches, e.g. {ID: 7, Type: "server"}.
 type Resource = schema.ActionResource
 
+// Error is a failed action's outcome; Detail is admin-only technical text.
 type Error struct {
 	Code    string
 	Message string
+	Detail  string
 }
 
 type Action struct {
@@ -49,7 +51,8 @@ func toAction(a *ent.Action) Action {
 		out.Resources = []Resource{}
 	}
 	if a.ErrorCode != nil {
-		out.Error = &Error{Code: *a.ErrorCode, Message: deref(a.ErrorMessage)}
+		code := normalizeCode(*a.ErrorCode)
+		out.Error = &Error{Code: code, Message: Message(a.Command, code), Detail: deref(a.ErrorMessage)}
 	}
 	return out
 }
@@ -114,8 +117,21 @@ func Succeed(ctx context.Context, c *ent.Client, id int64) error {
 	return update(ctx, c, id, c.Action.Update().SetStatus(action.StatusSuccess).SetProgress(100).SetFinished(now()))
 }
 
-func Fail(ctx context.Context, c *ent.Client, id int64, code, msg string) error {
-	return update(ctx, c, id, c.Action.Update().SetStatus(action.StatusError).SetErrorCode(code).SetErrorMessage(msg).SetFinished(now()))
+// Fail finishes an action with a Code* kind and admin-only detail.
+func Fail(ctx context.Context, c *ent.Client, id int64, code, detail string) error {
+	return update(ctx, c, id, c.Action.Update().SetStatus(action.StatusError).SetErrorCode(code).SetErrorMessage(detail).SetFinished(now()))
+}
+
+// GetAny returns any project's action, for admins.
+func GetAny(ctx context.Context, c *ent.Client, id int64) (Action, error) {
+	a, err := c.Action.Get(ctx, id)
+	if ent.IsNotFound(err) {
+		return Action{}, errNotFound
+	}
+	if err != nil {
+		return Action{}, err
+	}
+	return toAction(a), nil
 }
 
 // Get returns a project's action; other projects' actions are not_found.
@@ -142,7 +158,15 @@ type ListFilter struct {
 func ValidStatus(s string) bool { return action.StatusValidator(action.Status(s)) == nil }
 
 func List(ctx context.Context, c *ent.Client, projectID int64, f ListFilter, page, perPage int) ([]Action, int, error) {
-	q := c.Action.Query().Where(action.ProjectID(projectID)).Where(f.Where...)
+	return ListAll(ctx, c, &projectID, f, page, perPage)
+}
+
+// ListAll lists actions across projects, or one project's when projectID is set; for admins.
+func ListAll(ctx context.Context, c *ent.Client, projectID *int64, f ListFilter, page, perPage int) ([]Action, int, error) {
+	q := c.Action.Query().Where(f.Where...)
+	if projectID != nil {
+		q = q.Where(action.ProjectID(*projectID))
+	}
 	if len(f.Statuses) > 0 {
 		st := make([]action.Status, len(f.Statuses))
 		for i, s := range f.Statuses {

@@ -158,7 +158,7 @@ func TestServerCreateWaitFailureNamesServer(t *testing.T) {
 			ids, _ := h.Env.App.Ent.Action.Query().IDs(ctx)
 			if len(ids) > 0 {
 				for _, id := range ids {
-					_ = actions.Fail(ctx, h.Env.App.Ent, id, "pve_error", "boom")
+					_ = actions.Fail(ctx, h.Env.App.Ent, id, actions.CodeFailed, "boom")
 				}
 				return
 			}
@@ -172,7 +172,7 @@ func TestServerCreateWaitFailureNamesServer(t *testing.T) {
 	_, errOut, code := h.run(createArgs("web1")...)
 	close(stop)
 	<-finished
-	if code != 1 || !regexp.MustCompile(`server \d+ was created, but:`).MatchString(errOut) || !strings.Contains(errOut, "boom") {
+	if code != 1 || !regexp.MustCompile(`server \d+ was created, but:`).MatchString(errOut) || !strings.Contains(errOut, "Couldn't create the server") {
 		t.Fatalf("got %d %q", code, errOut)
 	}
 }
