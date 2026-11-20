@@ -1,0 +1,17 @@
+#!/bin/bash
+{ printf 'pveum'; printf '\t%s' "$@"; printf '\n'; } >>"$STUB_LOG"
+list() {
+  out= sep=
+  for v in $2; do out="$out$sep{\"$1\":\"$v\",\"privsep\":0}"; sep=,; done
+  printf '[%s]\n' "$out"
+}
+case "$1 $2" in
+"role list") list roleid "${STUB_ROLES-Administrator PVEAdmin PVEAuditor}" ;;
+"user list") list userid "${STUB_USERS-root@pam}" ;;
+"user token")
+  case "$3" in
+  list) list tokenid "${STUB_TOKENS-}" ;;
+  add) printf '{"full-tokenid":"%s!%s","info":{"comment":"Nebla panel","privsep":"0"},"value":"%s"}\n' "$4" "$5" "$STUB_SECRET" ;;
+  esac ;;
+esac
+exit 0

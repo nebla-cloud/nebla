@@ -1,0 +1,3 @@
+#!/bin/bash
+{ printf 'id'; printf '\t%s' "$@"; printf '\n'; } >>"$STUB_LOG"
+echo "${STUB_UID:-0}"

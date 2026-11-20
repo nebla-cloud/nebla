@@ -1,0 +1,8 @@
+#!/bin/bash
+{ printf 'openssl'; printf '\t%s' "$@"; printf '\n'; } >>"$STUB_LOG"
+# The fake pem files hold the fingerprint itself.
+while [ $# -gt 0 ]; do
+  [ "$1" = -in ] && { echo "sha256 Fingerprint=$(cat "$2")"; exit 0; }
+  shift
+done
+exit 1
