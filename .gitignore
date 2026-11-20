@@ -2,3 +2,10 @@ bin/
 .DS_Store
 .idea/
 .env
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+web/test-results/
+web/playwright-report/
+web/auto-imports.d.ts
+web/components.d.ts

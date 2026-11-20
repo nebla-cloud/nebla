@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"io/fs"
@@ -188,7 +189,7 @@ func New(deps Deps) http.Handler {
 		})
 	}
 	r.Mount("/v1", api)
-	r.NotFound(spaHandler(web.Dist).ServeHTTP)
+	r.NotFound(spaHandler(web.Dist, web.Placeholder).ServeHTTP)
 	return r
 }
 
@@ -209,24 +210,36 @@ func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hoo
 	return p, c
 }
 
-func spaHandler(dist fs.FS) http.Handler {
+func spaHandler(dist fs.FS, placeholder []byte) http.Handler {
 	files := http.FileServerFS(dist)
+	_, err := fs.Stat(dist, "index.html")
+	built := err == nil
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			notFound(w, r)
 			return
 		}
+		if !built {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache")
+			http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(placeholder))
+			return
+		}
 		name := strings.TrimPrefix(r.URL.Path, "/")
-		if name != "" {
+		if name != "" && name != "index.html" {
 			if f, err := dist.Open(name); err == nil {
 				st, serr := f.Stat()
 				f.Close()
 				if serr == nil && !st.IsDir() {
+					if strings.HasPrefix(name, "assets/") {
+						w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+					}
 					files.ServeHTTP(w, r)
 					return
 				}
 			}
 		}
+		w.Header().Set("Cache-Control", "no-cache")
 		r2 := r.Clone(r.Context())
 		r2.URL.Path = "/"
 		files.ServeHTTP(w, r2)

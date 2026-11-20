@@ -10,3 +10,4 @@ docs
 **/.env
 Dockerfile
 .dockerignore
+web/node_modules
