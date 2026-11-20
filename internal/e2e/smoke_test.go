@@ -267,7 +267,6 @@ func TestSmoke(t *testing.T) {
 	require.Len(t, vms, 1)
 	fw, err := pc.FirewallOptions(context.Background(), vms[0].Node, vms[0].VMID)
 	require.NoError(t, err)
-	require.Equal(t, "ACCEPT", fw["policy_in"], "%v", fw)
 	require.Equal(t, "1", fw["enable"], "%v", fw)
 
 	var grant struct {

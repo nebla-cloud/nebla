@@ -33,6 +33,7 @@ type FakeVM struct {
 	Config   map[string]string
 	Firewall map[string]string
 	IPSets   map[string][]string
+	Rules    []pve.FirewallRule
 }
 
 type node struct {
@@ -59,6 +60,7 @@ type vm struct {
 	config   map[string]string
 	firewall map[string]string
 	ipsets   map[string][]string
+	rules    []pve.FirewallRule
 }
 
 type task struct {
@@ -97,6 +99,9 @@ type Server struct {
 	listDelay time.Duration
 	downloads []FakeDownload
 	failDl    []string
+
+	clusterFWOff bool
+	failRule     bool
 }
 
 // FakeDownload records one download-url request.
@@ -307,6 +312,20 @@ func (s *Server) FailNext(pattern string, status int) {
 	s.fails = append(s.fails, failure{pattern, status})
 }
 
+// SetClusterFirewall sets the datacenter firewall switch; it starts enabled.
+func (s *Server) SetClusterFirewall(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clusterFWOff = !enabled
+}
+
+// FailNextRuleWrite fails the next rule add or delete with a 500.
+func (s *Server) FailNextRuleWrite() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failRule = true
+}
+
 // Calls lists the requests received as "METHOD path".
 func (s *Server) Calls() []string {
 	s.mu.Lock()
@@ -333,6 +352,7 @@ func (s *Server) VM(vmid int) (FakeVM, bool) {
 	for k, val := range v.ipsets {
 		f.IPSets[k] = slices.Clone(val)
 	}
+	f.Rules = slices.Clone(v.rules)
 	return f, true
 }
 
@@ -834,6 +854,78 @@ func (s *Server) routes(mux *http.ServeMux) {
 		for k, val := range f {
 			v.firewall[k] = val
 		}
+		return nil, nil
+	})
+	s.handle(mux, "GET /cluster/firewall/options", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.clusterFWOff {
+			return map[string]any{}, nil
+		}
+		return map[string]any{"enable": 1}, nil
+	})
+	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/firewall/rules", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		out := []map[string]any{}
+		for i, x := range v.rules {
+			m := map[string]any{"pos": i, "type": x.Type, "action": x.Action, "enable": 0}
+			if x.Enable {
+				m["enable"] = 1
+			}
+			for k, val := range map[string]string{"iface": x.Iface, "proto": x.Proto, "dport": x.Dport, "source": x.Source, "dest": x.Dest, "comment": x.Comment} {
+				if val != "" {
+					m[k] = val
+				}
+			}
+			out = append(out, m)
+		}
+		return out, nil
+	})
+	s.handle(mux, "POST /nodes/{node}/qemu/{vmid}/firewall/rules", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		f := form(r)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		if s.failRule {
+			s.failRule = false
+			return nil, &apiErr{500, "injected rule write failure"}
+		}
+		if f["type"] != "in" && f["type"] != "out" || f["action"] == "" {
+			return nil, &apiErr{400, "parameter verification failed: type/action"}
+		}
+		rule := pve.FirewallRule{Type: f["type"], Action: f["action"], Iface: f["iface"], Proto: f["proto"], Dport: f["dport"],
+			Source: f["source"], Dest: f["dest"], Comment: f["comment"], Enable: f["enable"] == "1"}
+		pos := len(v.rules)
+		if p, err := strconv.Atoi(f["pos"]); err == nil && p >= 0 && p <= len(v.rules) {
+			pos = p
+		}
+		v.rules = slices.Insert(v.rules, pos, rule)
+		return nil, nil
+	})
+	s.handle(mux, "DELETE /nodes/{node}/qemu/{vmid}/firewall/rules/{pos}", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		if s.failRule {
+			s.failRule = false
+			return nil, &apiErr{500, "injected rule write failure"}
+		}
+		pos, err := strconv.Atoi(r.PathValue("pos"))
+		if err != nil || pos < 0 || pos >= len(v.rules) {
+			return nil, &apiErr{500, "no such rule"}
+		}
+		v.rules = slices.Delete(v.rules, pos, pos+1)
 		return nil, nil
 	})
 	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/firewall/ipset", false, func(r *http.Request, _ bool) (any, *apiErr) {

@@ -96,7 +96,7 @@ func TestSetFirewallIPSet(t *testing.T) {
 	if !slices.Equal(vm.IPSets["ipfilter-net0"], []string{"203.0.113.5", "2001:db8::1"}) || vm.Firewall["ipfilter"] != "1" {
 		t.Fatalf("vm = %+v", vm)
 	}
-	want := map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "policy_in": "ACCEPT", "policy_out": "ACCEPT"}
+	want := map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1"}
 	if !maps.Equal(vm.Firewall, want) {
 		t.Fatalf("firewall = %v", vm.Firewall)
 	}
@@ -592,5 +592,103 @@ func TestNormFP(t *testing.T) {
 		if got := pve.NormFP(in); got != want {
 			t.Errorf("NormFP(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestSetFirewallLeavesPolicies(t *testing.T) {
+	f, c := setup(t)
+	f.AddVM("pve1", 101, "a")
+	if err := c.SetFirewallOptions(ctx(t), "pve1", 101, map[string]string{"policy_in": "DROP"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFirewall(ctx(t), "pve1", 101, []netip.Addr{netip.MustParseAddr("10.0.0.5")}); err != nil {
+		t.Fatal(err)
+	}
+	vm, _ := f.VM(101)
+	want := map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "policy_in": "DROP"}
+	if !maps.Equal(vm.Firewall, want) || !slices.Equal(vm.IPSets["ipfilter-net0"], []string{"10.0.0.5"}) {
+		t.Fatalf("vm = %+v", vm)
+	}
+}
+
+func TestFirewallRulesRoundTrip(t *testing.T) {
+	f, c := setup(t)
+	f.AddVM("pve1", 101, "a")
+	for _, cm := range []string{"a", "b", "c"} {
+		n, err := c.FirewallRules(ctx(t), "pve1", 101)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = c.AddFirewallRule(ctx(t), "pve1", 101, pve.FirewallRule{Pos: len(n), Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "22", Comment: cm, Enable: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.DeleteFirewallRule(ctx(t), "pve1", 101, 1); err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.FirewallRules(ctx(t), "pve1", 101)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("rules = %+v, %v", got, err)
+	}
+	if got[0].Pos != 0 || got[0].Comment != "a" || got[1].Pos != 1 || got[1].Comment != "c" || !got[1].Enable || got[1].Dport != "22" {
+		t.Fatalf("rules = %+v", got)
+	}
+	if vm, _ := f.VM(101); len(vm.Rules) != 2 {
+		t.Fatalf("fake rules = %+v", vm.Rules)
+	}
+}
+
+func TestFailNextRuleWrite(t *testing.T) {
+	f, c := setup(t)
+	f.AddVM("pve1", 101, "a")
+	f.FailNextRuleWrite()
+	if err := c.AddFirewallRule(ctx(t), "pve1", 101, pve.FirewallRule{Type: "in", Action: "ACCEPT"}); err == nil {
+		t.Fatal("expected failure")
+	}
+	if err := c.AddFirewallRule(ctx(t), "pve1", 101, pve.FirewallRule{Type: "in", Action: "ACCEPT"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClusterFirewallEnabled(t *testing.T) {
+	f, c := setup(t)
+	on, err := c.ClusterFirewallEnabled(ctx(t))
+	if err != nil || !on {
+		t.Fatalf("default = %v, %v", on, err)
+	}
+	f.SetClusterFirewall(false)
+	on, err = c.ClusterFirewallEnabled(ctx(t))
+	if err != nil || on {
+		t.Fatalf("disabled = %v, %v", on, err)
+	}
+}
+
+func TestFirewallFormEncoding(t *testing.T) {
+	var got []string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got = append(got, r.Method+" "+r.URL.Path+" "+string(b))
+		w.Write([]byte(`{"data":null}`))
+	}))
+	defer srv.Close()
+	c := pve.New(pve.Conn{BaseURL: srv.URL, TokenID: "t", Secret: "s", InsecureTLS: true})
+	r := pve.FirewallRule{Pos: 2, Type: "in", Action: "ACCEPT", Iface: "net0", Proto: "tcp", Dport: "8000:8100", Source: "1.2.3.4", Dest: "5.6.7.8", Comment: "web", Enable: true}
+	if err := c.AddFirewallRule(ctx(t), "n1", 101, r); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteFirewallRule(ctx(t), "n1", 101, 2); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFirewallOptions(ctx(t), "n1", 101, map[string]string{"policy_in": "DROP"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"POST /api2/json/nodes/n1/qemu/101/firewall/rules action=ACCEPT&comment=web&dest=5.6.7.8&dport=8000%3A8100&enable=1&iface=net0&pos=2&proto=tcp&source=1.2.3.4&type=in",
+		"DELETE /api2/json/nodes/n1/qemu/101/firewall/rules/2 ",
+		"PUT /api2/json/nodes/n1/qemu/101/firewall/options policy_in=DROP",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %q", got)
 	}
 }

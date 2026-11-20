@@ -16,6 +16,13 @@ import (
 	"time"
 )
 
+// FirewallRule is one VM firewall rule as Proxmox lists it.
+type FirewallRule struct {
+	Pos                                                      int
+	Type, Action, Iface, Proto, Dport, Source, Dest, Comment string
+	Enable                                                   bool
+}
+
 // Conn holds the connection settings for one Proxmox endpoint.
 type Conn struct {
 	BaseURL, TokenID, Secret string
@@ -98,6 +105,12 @@ type Client interface {
 	ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error
 	SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error
 	FirewallOptions(ctx context.Context, node string, vmid int) (map[string]string, error)
+	SetFirewallOptions(ctx context.Context, node string, vmid int, kv map[string]string) error
+	FirewallRules(ctx context.Context, node string, vmid int) ([]FirewallRule, error)
+	// AddFirewallRule appends at r.Pos, which callers set to the current rule count.
+	AddFirewallRule(ctx context.Context, node string, vmid int, r FirewallRule) error
+	DeleteFirewallRule(ctx context.Context, node string, vmid, pos int) error
+	ClusterFirewallEnabled(ctx context.Context) (bool, error)
 	Power(ctx context.Context, node string, vmid int, op PowerOp) (UPID, error)
 	Destroy(ctx context.Context, node string, vmid int) (UPID, error)
 	UploadISO(ctx context.Context, node, storage, filename string, r io.Reader) error

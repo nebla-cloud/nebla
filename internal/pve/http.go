@@ -391,10 +391,67 @@ func (c *httpClient) ResizeDisk(ctx context.Context, node string, vmid int, disk
 	return c.do(ctx, http.MethodPut, vmPath(node, vmid)+"/resize", f, nil)
 }
 
+func (c *httpClient) SetFirewallOptions(ctx context.Context, node string, vmid int, kv map[string]string) error {
+	f := url.Values{}
+	for k, v := range kv {
+		f.Set(k, v)
+	}
+	return c.do(ctx, http.MethodPut, vmPath(node, vmid)+"/firewall/options", f, nil)
+}
+
+func (c *httpClient) FirewallRules(ctx context.Context, node string, vmid int) ([]FirewallRule, error) {
+	var raw []struct {
+		Pos     int    `json:"pos"`
+		Type    string `json:"type"`
+		Action  string `json:"action"`
+		Iface   string `json:"iface"`
+		Proto   string `json:"proto"`
+		Dport   string `json:"dport"`
+		Source  string `json:"source"`
+		Dest    string `json:"dest"`
+		Comment string `json:"comment"`
+		Enable  int    `json:"enable"`
+	}
+	if err := c.do(ctx, http.MethodGet, vmPath(node, vmid)+"/firewall/rules", nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]FirewallRule, len(raw))
+	for i, r := range raw {
+		out[i] = FirewallRule{Pos: r.Pos, Type: r.Type, Action: r.Action, Iface: r.Iface, Proto: r.Proto, Dport: r.Dport,
+			Source: r.Source, Dest: r.Dest, Comment: r.Comment, Enable: r.Enable == 1}
+	}
+	return out, nil
+}
+
+func (c *httpClient) AddFirewallRule(ctx context.Context, node string, vmid int, r FirewallRule) error {
+	f := url.Values{"type": {r.Type}, "action": {r.Action}, "enable": {"0"}, "pos": {strconv.Itoa(r.Pos)}}
+	if r.Enable {
+		f.Set("enable", "1")
+	}
+	for k, v := range map[string]string{"iface": r.Iface, "proto": r.Proto, "dport": r.Dport, "source": r.Source, "dest": r.Dest, "comment": r.Comment} {
+		if v != "" {
+			f.Set(k, v)
+		}
+	}
+	return c.do(ctx, http.MethodPost, vmPath(node, vmid)+"/firewall/rules", f, nil)
+}
+
+func (c *httpClient) DeleteFirewallRule(ctx context.Context, node string, vmid, pos int) error {
+	return c.do(ctx, http.MethodDelete, vmPath(node, vmid)+"/firewall/rules/"+strconv.Itoa(pos), nil, nil)
+}
+
+func (c *httpClient) ClusterFirewallEnabled(ctx context.Context) (bool, error) {
+	o, err := c.getMap(ctx, "/cluster/firewall/options")
+	if err != nil {
+		return false, err
+	}
+	return o["enable"] == "1", nil
+}
+
 func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error {
 	base := vmPath(node, vmid) + "/firewall"
-	// v1 has no user rules: isolation comes from ipfilter and macfilter, so both policies accept.
-	opts := url.Values{"enable": {"1"}, "ipfilter": {"1"}, "macfilter": {"1"}, "policy_in": {"ACCEPT"}, "policy_out": {"ACCEPT"}}
+	// Policies are the renderer's to write, not this call.
+	opts := url.Values{"enable": {"1"}, "ipfilter": {"1"}, "macfilter": {"1"}}
 	if err := c.do(ctx, http.MethodPut, base+"/options", opts, nil); err != nil {
 		return err
 	}
