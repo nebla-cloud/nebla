@@ -6,11 +6,25 @@ import UButton from '@nuxt/ui/components/Button.vue'
 import { errorMessage } from '@/api/errors'
 import EmptyState from '@/components/EmptyState.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
+import EnrollStartForm from './EnrollStartForm.vue'
 import LocationForm from './LocationForm.vue'
+import { useEnrollments } from './queries'
 
 const router = useRouter()
 const { data: locations, isPending, error } = useAdminLocations()
+const { data: enrollments } = useEnrollments()
 const creating = ref(false)
+const manual = ref(false)
+
+const open = () => {
+  manual.value = false
+  creating.value = true
+}
+
+function stateLabel(e: { state: string; expired: boolean }) {
+  if (e.expired) return 'Expired'
+  return e.state === 'reported' ? 'Ready to finish' : 'Waiting for setup'
+}
 
 function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? '' : 's'}`
@@ -27,9 +41,7 @@ function plural(n: number, word: string) {
           connect it.
         </p>
       </div>
-      <UButton v-if="!creating && locations?.length" @click="creating = true">
-        Connect a location
-      </UButton>
+      <UButton v-if="!creating && locations?.length" @click="open"> Connect a location </UButton>
     </header>
 
     <UAlert v-if="error" color="error" variant="subtle" :description="errorMessage(error)" />
@@ -37,10 +49,35 @@ function plural(n: number, word: string) {
     <section v-if="creating" class="rounded-lg border border-default p-4 sm:p-6">
       <h2 class="mb-4 text-lg font-bold tracking-tight text-highlighted">Connect a location</h2>
       <LocationForm
+        v-if="manual"
         @cancel="creating = false"
         @saved="(l) => router.push({ name: 'admin-location', params: { locationId: l.id } })"
       />
+      <EnrollStartForm
+        v-else
+        @cancel="creating = false"
+        @manual="manual = true"
+        @started="
+          (id) => router.push({ name: 'admin-location-enroll', params: { enrollmentId: id } })
+        "
+      />
     </section>
+
+    <ul
+      v-if="enrollments?.length"
+      class="flex flex-col divide-y divide-default rounded-lg border border-default"
+    >
+      <li v-for="e in enrollments" :key="e.id">
+        <RouterLink
+          :to="{ name: 'admin-location-enroll', params: { enrollmentId: e.id } }"
+          class="block px-4 py-3 hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          <span class="font-bold text-highlighted">{{ e.name }}</span>
+          <span v-if="e.location_id !== null" class="text-muted"> (re-run)</span>
+          <span class="text-muted"> · {{ stateLabel(e) }}</span>
+        </RouterLink>
+      </li>
+    </ul>
 
     <p v-else-if="isPending" class="text-muted">Loading locations</p>
 
@@ -49,7 +86,7 @@ function plural(n: number, word: string) {
       title="No locations yet"
       body="Connect a Proxmox cluster so people can create servers on it."
     >
-      <UButton @click="creating = true">Connect a location</UButton>
+      <UButton @click="open">Connect a location</UButton>
     </EmptyState>
 
     <ul
