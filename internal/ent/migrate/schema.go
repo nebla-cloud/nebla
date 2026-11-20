@@ -105,6 +105,7 @@ var (
 		{Name: "nonce", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "new_nonce", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "upid", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "build_node", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "file", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "checksum", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "new_file", Type: field.TypeString, Nullable: true, Size: 2147483647},
@@ -125,7 +126,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "catalog_builds_locations_location",
-				Columns:    []*schema.Column{CatalogBuildsColumns[20]},
+				Columns:    []*schema.Column{CatalogBuildsColumns[21]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -134,7 +135,7 @@ var (
 			{
 				Name:    "catalog_builds_key_location_node_key",
 				Unique:  true,
-				Columns: []*schema.Column{CatalogBuildsColumns[1], CatalogBuildsColumns[20], CatalogBuildsColumns[2]},
+				Columns: []*schema.Column{CatalogBuildsColumns[1], CatalogBuildsColumns[21], CatalogBuildsColumns[2]},
 			},
 		},
 	}

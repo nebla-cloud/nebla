@@ -43,8 +43,10 @@ var stepNames = map[int]string{stepResolve: "resolve", stepDownload: "download",
 	stepTemplate: "template", stepCleanup: "cleanup", stepFinalize: "finalize"}
 
 const (
-	// MaxAttempts caps a build's River attempts; the last one fails the row.
+	// MaxAttempts is the logical retry cap; River gets spareAttempts more that only fail the row.
 	MaxAttempts    = 5
+	spareAttempts  = 2
+	waitMargin     = 30 * time.Second
 	buildTimeout   = 12 * time.Minute
 	cleanupTimeout = 2 * time.Minute
 	// cleanupPending prefixes a job error whose failure cleanup must run again.
@@ -88,6 +90,11 @@ func (w *BuildWorker) Work(ctx context.Context, job *river.Job[BuildArgs]) error
 	b.entry, b.known = Lookup(w.s.o.Entries, row.CatalogKey)
 	if code, msg, ok := pendingCleanup(job.JobRow); ok {
 		return b.finish(ctx, code, msg, errors.New(msg))
+	}
+	if job.Attempt > MaxAttempts {
+		msg := fmt.Sprintf("build did not finish after %d attempts", MaxAttempts)
+		b.log.Error("catalog build attempts exhausted")
+		return b.finish(ctx, "build_failed", msg, errors.New(msg))
 	}
 	err = b.run(ctx)
 	var snooze *rivertype.JobSnoozeError
@@ -191,7 +198,7 @@ func (b *build) do(ctx context.Context, n int) error {
 	return fmt.Errorf("unknown step %d", n)
 }
 
-// connect loads the location and client and picks the build node; a shared row builds on the first eligible node.
+// connect loads the location and client and picks the build node once per build; a shared row takes the first eligible node.
 func (b *build) connect(ctx context.Context) error {
 	if b.pc != nil {
 		return nil
@@ -208,7 +215,9 @@ func (b *build) connect(ctx context.Context) error {
 		return err
 	}
 	node := b.row.Node
-	if node == "" {
+	if b.row.BuildNode != nil {
+		node = *b.row.BuildNode
+	} else if node == "" {
 		av := b.s.availability(ctx, loc)
 		i := slices.IndexFunc(av.targets, func(t target) bool { return t.Node == "" })
 		switch {
@@ -227,6 +236,9 @@ func (b *build) connect(ctx context.Context) error {
 		return permanent("node %s is no longer in the location", node)
 	}
 	b.loc, b.pc, b.node, b.disk = loc, pc, node, loc.Nodes[i].DiskStorage(loc)
+	if b.row.BuildNode == nil {
+		return b.save(ctx, func(u *ent.CatalogBuildUpdate) { u.SetBuildNode(node) })
+	}
 	return nil
 }
 
@@ -253,9 +265,21 @@ func (b *build) volid() string {
 	return fmt.Sprintf("%s:import/nebla-%s-%s-%d.%s", b.loc.ImportStorage, b.row.CatalogKey, sum[:min(12, len(sum))], b.row.ID, b.entry.Format)
 }
 
+// budgetFor is waitBudget, cut short so a wait ends before the job deadline.
+func budgetFor(ctx context.Context) time.Duration {
+	if dl, ok := ctx.Deadline(); ok {
+		return min(waitBudget, time.Until(dl)-waitMargin)
+	}
+	return waitBudget
+}
+
 // wait waits on a task within waitBudget, snoozing the job when the budget runs out first.
 func (b *build) wait(ctx context.Context, upid string) error {
-	wctx, cancel := context.WithTimeout(ctx, waitBudget)
+	budget := budgetFor(ctx)
+	if budget <= 0 {
+		return river.JobSnooze(snoozeFor)
+	}
+	wctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	err := b.pc.WaitTask(wctx, upidNode(upid), pve.UPID(upid))
 	if err != nil && wctx.Err() != nil && ctx.Err() == nil {
@@ -274,7 +298,7 @@ func (b *build) resolve(ctx context.Context) error {
 	if b.row.Vmid != nil && b.row.Checksum != nil && *b.row.Checksum == r.Checksum {
 		b.log.Info("catalog template already current")
 		return b.save(ctx, func(u *ent.CatalogBuildUpdate) {
-			u.SetStatus(catalogbuild.StatusReady).ClearErrorCode().ClearErrorMessage().ClearUpid().
+			u.SetStatus(catalogbuild.StatusReady).ClearErrorCode().ClearErrorMessage().ClearUpid().ClearBuildNode().
 				ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum()
 		})
 	}
@@ -395,15 +419,18 @@ func alreadyExists(err error) bool {
 // claim decides whether the VM at new_vmid is this build's: only its nonce tag proves it, read once no create holds it.
 func (b *build) claim(ctx context.Context) (bool, error) {
 	vmid, want := *b.row.NewVmid, b.tag(*b.row.NewNonce)
-	deadline := time.Now().Add(waitBudget)
+	deadline := time.Now().Add(budgetFor(ctx))
 	for {
 		v, found, err := findVM(ctx, b.pc, vmid)
-		if err != nil || !found {
+		if err != nil {
 			return false, err
+		}
+		if !found {
+			return false, transient("VM %d reported as existing but not listed yet", vmid)
 		}
 		cfg, err := b.pc.Config(ctx, v.Node, vmid)
 		if errors.Is(err, pve.ErrNotFound) {
-			return false, nil
+			return false, transient("VM %d reported as existing but has no config yet", vmid)
 		}
 		if err != nil {
 			return false, err
@@ -414,10 +441,9 @@ func (b *build) claim(ctx context.Context) (bool, error) {
 			return ours, nil
 		case !ours && cfg["tags"] != "":
 			return false, nil
-		case time.Now().After(deadline) && ours:
-			return false, river.JobSnooze(snoozeFor)
 		case time.Now().After(deadline):
-			return false, nil
+			// Locked and ours or untagged: it may be our create, so keep new_vmid and come back.
+			return false, river.JobSnooze(snoozeFor)
 		}
 		select {
 		case <-ctx.Done():
@@ -496,7 +522,7 @@ func (b *build) finalize(ctx context.Context) error {
 		if err := row.Update().SetStatus(catalogbuild.StatusReady).SetStep(stepFinalize).
 			SetVmid(*row.NewVmid).SetNonce(*row.NewNonce).SetFile(*row.NewFile).SetChecksum(*row.NewChecksum).SetBuiltAt(time.Now()).
 			ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid().ClearErrorCode().ClearErrorMessage().
-			Exec(ctx); err != nil {
+			ClearBuildNode().Exec(ctx); err != nil {
 			return err
 		}
 		switch {
@@ -531,7 +557,7 @@ func (b *build) finish(ctx context.Context, code, msg string, cause error) error
 	}
 	err := b.save(ctx, func(u *ent.CatalogBuildUpdate) {
 		u.SetStatus(catalogbuild.StatusFailed).SetErrorCode(code).SetErrorMessage(msg).
-			ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid()
+			ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid().ClearBuildNode()
 	})
 	switch {
 	case errors.Is(err, errStale):

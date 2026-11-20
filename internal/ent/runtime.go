@@ -73,11 +73,11 @@ func init() {
 	// catalogbuild.DefaultStep holds the default value on creation for the step field.
 	catalogbuild.DefaultStep = catalogbuildDescStep.Default.(int)
 	// catalogbuildDescCreatedAt is the schema descriptor for created_at field.
-	catalogbuildDescCreatedAt := catalogbuildFields[19].Descriptor()
+	catalogbuildDescCreatedAt := catalogbuildFields[20].Descriptor()
 	// catalogbuild.DefaultCreatedAt holds the default value on creation for the created_at field.
 	catalogbuild.DefaultCreatedAt = catalogbuildDescCreatedAt.Default.(func() time.Time)
 	// catalogbuildDescUpdatedAt is the schema descriptor for updated_at field.
-	catalogbuildDescUpdatedAt := catalogbuildFields[20].Descriptor()
+	catalogbuildDescUpdatedAt := catalogbuildFields[21].Descriptor()
 	// catalogbuild.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	catalogbuild.DefaultUpdatedAt = catalogbuildDescUpdatedAt.Default.(func() time.Time)
 	// catalogbuild.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

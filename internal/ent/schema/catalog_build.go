@@ -25,6 +25,7 @@ func (CatalogBuild) Fields() []ent.Field {
 		field.Text("nonce").Optional().Nillable(),
 		field.Text("new_nonce").Optional().Nillable(),
 		field.Text("upid").Optional().Nillable(),
+		field.Text("build_node").Optional().Nillable(),
 		field.Text("file").Optional().Nillable(),
 		field.Text("checksum").Optional().Nillable(),
 		field.Text("new_file").Optional().Nillable(),

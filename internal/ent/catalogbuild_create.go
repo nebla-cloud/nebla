@@ -147,6 +147,20 @@ func (_c *CatalogBuildCreate) SetNillableUpid(v *string) *CatalogBuildCreate {
 	return _c
 }
 
+// SetBuildNode sets the "build_node" field.
+func (_c *CatalogBuildCreate) SetBuildNode(v string) *CatalogBuildCreate {
+	_c.mutation.SetBuildNode(v)
+	return _c
+}
+
+// SetNillableBuildNode sets the "build_node" field if the given value is not nil.
+func (_c *CatalogBuildCreate) SetNillableBuildNode(v *string) *CatalogBuildCreate {
+	if v != nil {
+		_c.SetBuildNode(*v)
+	}
+	return _c
+}
+
 // SetFile sets the "file" field.
 func (_c *CatalogBuildCreate) SetFile(v string) *CatalogBuildCreate {
 	_c.mutation.SetFile(v)
@@ -449,6 +463,10 @@ func (_c *CatalogBuildCreate) createSpec() (*CatalogBuild, *sqlgraph.CreateSpec)
 		_spec.SetField(catalogbuild.FieldUpid, field.TypeString, value)
 		_node.Upid = &value
 	}
+	if value, ok := _c.mutation.BuildNode(); ok {
+		_spec.SetField(catalogbuild.FieldBuildNode, field.TypeString, value)
+		_node.BuildNode = &value
+	}
 	if value, ok := _c.mutation.File(); ok {
 		_spec.SetField(catalogbuild.FieldFile, field.TypeString, value)
 		_node.File = &value
@@ -687,6 +705,24 @@ func (u *CatalogBuildUpsert) UpdateUpid() *CatalogBuildUpsert {
 // ClearUpid clears the value of the "upid" field.
 func (u *CatalogBuildUpsert) ClearUpid() *CatalogBuildUpsert {
 	u.SetNull(catalogbuild.FieldUpid)
+	return u
+}
+
+// SetBuildNode sets the "build_node" field.
+func (u *CatalogBuildUpsert) SetBuildNode(v string) *CatalogBuildUpsert {
+	u.Set(catalogbuild.FieldBuildNode, v)
+	return u
+}
+
+// UpdateBuildNode sets the "build_node" field to the value that was provided on create.
+func (u *CatalogBuildUpsert) UpdateBuildNode() *CatalogBuildUpsert {
+	u.SetExcluded(catalogbuild.FieldBuildNode)
+	return u
+}
+
+// ClearBuildNode clears the value of the "build_node" field.
+func (u *CatalogBuildUpsert) ClearBuildNode() *CatalogBuildUpsert {
+	u.SetNull(catalogbuild.FieldBuildNode)
 	return u
 }
 
@@ -1063,6 +1099,27 @@ func (u *CatalogBuildUpsertOne) UpdateUpid() *CatalogBuildUpsertOne {
 func (u *CatalogBuildUpsertOne) ClearUpid() *CatalogBuildUpsertOne {
 	return u.Update(func(s *CatalogBuildUpsert) {
 		s.ClearUpid()
+	})
+}
+
+// SetBuildNode sets the "build_node" field.
+func (u *CatalogBuildUpsertOne) SetBuildNode(v string) *CatalogBuildUpsertOne {
+	return u.Update(func(s *CatalogBuildUpsert) {
+		s.SetBuildNode(v)
+	})
+}
+
+// UpdateBuildNode sets the "build_node" field to the value that was provided on create.
+func (u *CatalogBuildUpsertOne) UpdateBuildNode() *CatalogBuildUpsertOne {
+	return u.Update(func(s *CatalogBuildUpsert) {
+		s.UpdateBuildNode()
+	})
+}
+
+// ClearBuildNode clears the value of the "build_node" field.
+func (u *CatalogBuildUpsertOne) ClearBuildNode() *CatalogBuildUpsertOne {
+	return u.Update(func(s *CatalogBuildUpsert) {
+		s.ClearBuildNode()
 	})
 }
 
@@ -1632,6 +1689,27 @@ func (u *CatalogBuildUpsertBulk) UpdateUpid() *CatalogBuildUpsertBulk {
 func (u *CatalogBuildUpsertBulk) ClearUpid() *CatalogBuildUpsertBulk {
 	return u.Update(func(s *CatalogBuildUpsert) {
 		s.ClearUpid()
+	})
+}
+
+// SetBuildNode sets the "build_node" field.
+func (u *CatalogBuildUpsertBulk) SetBuildNode(v string) *CatalogBuildUpsertBulk {
+	return u.Update(func(s *CatalogBuildUpsert) {
+		s.SetBuildNode(v)
+	})
+}
+
+// UpdateBuildNode sets the "build_node" field to the value that was provided on create.
+func (u *CatalogBuildUpsertBulk) UpdateBuildNode() *CatalogBuildUpsertBulk {
+	return u.Update(func(s *CatalogBuildUpsert) {
+		s.UpdateBuildNode()
+	})
+}
+
+// ClearBuildNode clears the value of the "build_node" field.
+func (u *CatalogBuildUpsertBulk) ClearBuildNode() *CatalogBuildUpsertBulk {
+	return u.Update(func(s *CatalogBuildUpsert) {
+		s.ClearBuildNode()
 	})
 }
 

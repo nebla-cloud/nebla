@@ -243,7 +243,7 @@ func lockRows(ctx context.Context, etx *ent.Client, key string, locationID int64
 // restart puts a row back to building from step 0, dropping any in-flight build state.
 func restart(u *ent.CatalogBuildUpdateOne) *ent.CatalogBuildUpdateOne {
 	return u.SetStatus(catalogbuild.StatusBuilding).SetStep(0).ClearErrorCode().ClearErrorMessage().
-		ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid()
+		ClearNewVmid().ClearNewNonce().ClearNewFile().ClearNewChecksum().ClearUpid().ClearBuildNode()
 }
 
 func enqueueBuilds(ctx context.Context, j *jobs.Jobs, tx *sql.Tx, etx *ent.Client, ids []int64) error {

@@ -461,3 +461,151 @@ func TestPendingCleanupDestroysOnlyProvenVM(t *testing.T) {
 	_, ok = e.pve.VM(7001)
 	require.True(t, ok)
 }
+
+func TestExhaustedAttemptsFailRow(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.location("eu-1", "ceph", "imp")
+	_, err := e.svc.Enable(ctx, "debian-13", loc)
+	require.NoError(t, err)
+	row := e.rows("debian-13", loc)[0]
+	require.NoError(t, row.Update().SetStep(osimages.StepCreate).SetNewVmid(7000).SetNewNonce("aa").SetBuildNode("pve1").
+		SetNewFile("debian.qcow2").SetNewChecksum(debianSum).Exec(ctx))
+	e.pve.AddVM("pve1", 7000, "nebla-debian-13")
+	e.pve.SetVMConfig(7000, "tags", "nebla-tpl;"+osimages.TemplateTag(row.ID, "aa"))
+
+	job := &river.Job[osimages.BuildArgs]{JobRow: &rivertype.JobRow{ID: *row.RiverJobID, Attempt: osimages.MaxAttempts + 1,
+		MaxAttempts: osimages.MaxAttempts + 2}, Args: osimages.BuildArgs{BuildID: row.ID}}
+	var cancel *rivertype.JobCancelError
+	require.ErrorAs(t, osimages.NewBuildWorker(e.svc).Work(ctx, job), &cancel)
+	_, ok := e.pve.VM(7000)
+	require.False(t, ok)
+	r, err := e.ent.CatalogBuild.Get(ctx, row.ID)
+	require.NoError(t, err)
+	require.Equal(t, catalogbuild.StatusFailed, r.Status)
+	require.Equal(t, "build_failed", *r.ErrorCode)
+	require.Equal(t, "build did not finish after 5 attempts", *r.ErrorMessage)
+	require.Nil(t, r.NewVmid)
+	require.Nil(t, r.BuildNode)
+	require.Empty(t, e.pve.Downloads())
+}
+
+// adoptEnv puts a locked VM at the build's first vmid before create, then unlocks it as ours after delay.
+func adoptEnv(t *testing.T, tagged bool, delay time.Duration) (*env, *int) {
+	e := runEnv(t)
+	var once sync.Once
+	vmid := new(int)
+	osimages.SetAfterStep(e.svc, func(id int64, step int) {
+		if step != osimages.StepAllocate {
+			return
+		}
+		once.Do(func() {
+			r, err := e.ent.CatalogBuild.Get(context.Background(), id)
+			require.NoError(t, err)
+			*vmid = *r.NewVmid
+			tag := "nebla-tpl;" + osimages.TemplateTag(id, *r.NewNonce)
+			e.pve.AddVM("pve1", *vmid, "nebla-debian-13")
+			e.pve.SetVMConfig(*vmid, "lock", "create")
+			if tagged {
+				e.pve.SetVMConfig(*vmid, "tags", tag)
+			}
+			time.AfterFunc(delay, func() {
+				e.pve.SetVMConfig(*vmid, "tags", tag)
+				e.pve.SetVMConfig(*vmid, "lock", "")
+			})
+		})
+	})
+	return e, vmid
+}
+
+// requireAdopted checks the build took over vmid; posts is how many create requests Proxmox saw, all rejected after the first.
+func requireAdopted(t *testing.T, e *env, r *ent.CatalogBuild, vmid, posts int) {
+	t.Helper()
+	requireReady(t, r)
+	require.Equal(t, vmid, *r.Vmid)
+	require.Equal(t, []int{vmid}, e.tplVMs())
+	vm, _ := e.pve.VM(vmid)
+	require.True(t, vm.Template)
+	n := 0
+	for _, c := range e.pve.Calls() {
+		if c == "POST /nodes/pve1/qemu" {
+			n++
+		}
+	}
+	if posts > 0 {
+		require.Equal(t, posts, n)
+	}
+}
+
+func TestCreateAdoptsOwnLockedVM(t *testing.T) {
+	e, vmid := adoptEnv(t, true, 300*time.Millisecond)
+	loc := e.location("eu-1", "ceph", "imp")
+	r := e.enable("debian-13", loc)[0]
+	requireAdopted(t, e, r, *vmid, 1)
+}
+
+func TestCreateWaitsOnLockedUntaggedVM(t *testing.T) {
+	// Past the wait budget the job snoozes and keeps new_vmid rather than allocating again.
+	defer osimages.SetWaitBudget(50 * time.Millisecond)()
+	defer osimages.SetSnooze(10 * time.Millisecond)()
+	e, vmid := adoptEnv(t, false, 500*time.Millisecond)
+	loc := e.location("eu-1", "ceph", "imp")
+	r := e.enable("debian-13", loc)[0]
+	// Each resume re-posts create and gets "already exists" again.
+	requireAdopted(t, e, r, *vmid, 0)
+	var snoozes int
+	require.NoError(t, e.sql.QueryRow(`select coalesce((metadata->>'snoozes')::int, 0) from river_job where id = $1`, *r.RiverJobID).Scan(&snoozes))
+	require.GreaterOrEqual(t, snoozes, 1)
+}
+
+func TestBuildNodePersisted(t *testing.T) {
+	ctx := context.Background()
+	t.Run("set during the build and cleared after", func(t *testing.T) {
+		e := runEnv(t)
+		loc := e.location("eu-1", "local-lvm", "imp")
+		seen := map[string]string{}
+		var mu sync.Mutex
+		osimages.SetAfterStep(e.svc, func(id int64, step int) {
+			r, err := e.ent.CatalogBuild.Get(context.Background(), id)
+			require.NoError(t, err)
+			require.NotNil(t, r.BuildNode)
+			mu.Lock()
+			seen[r.Node] = *r.BuildNode
+			mu.Unlock()
+		})
+		for _, r := range e.enable("debian-13", loc) {
+			requireReady(t, r)
+			require.Nil(t, r.BuildNode)
+		}
+		require.Equal(t, map[string]string{"pve1": "pve1", "pve2": "pve2"}, seen)
+	})
+	t.Run("a saved node is reused", func(t *testing.T) {
+		e := newEnv(t)
+		loc := e.location("eu-1", "ceph", "imp")
+		_, err := e.svc.Enable(ctx, "debian-13", loc)
+		require.NoError(t, err)
+		row := e.rows("debian-13", loc)[0]
+		require.NoError(t, row.Update().SetBuildNode("pve2").Exec(ctx))
+		job := &river.Job[osimages.BuildArgs]{JobRow: &rivertype.JobRow{ID: *row.RiverJobID, Attempt: 1, MaxAttempts: 7},
+			Args: osimages.BuildArgs{BuildID: row.ID}}
+		require.NoError(t, osimages.NewBuildWorker(e.svc).Work(ctx, job))
+		r, err := e.ent.CatalogBuild.Get(ctx, row.ID)
+		require.NoError(t, err)
+		requireReady(t, r)
+		require.Equal(t, "pve2", e.pve.Downloads()[0].Node)
+		vm, _ := e.pve.VM(*r.Vmid)
+		require.Equal(t, "pve2", vm.Node)
+	})
+}
+
+func TestWaitBudgetClampedToDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	require.LessOrEqual(t, osimages.BudgetFor(ctx), time.Duration(0))
+	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel2()
+	require.Equal(t, 10*time.Minute, osimages.BudgetFor(ctx2))
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel3()
+	require.InDelta(t, float64(4*time.Minute+30*time.Second), float64(osimages.BudgetFor(ctx3)), float64(time.Second))
+}

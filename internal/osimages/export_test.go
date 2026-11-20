@@ -38,3 +38,5 @@ var Failure = failure
 func StepErr(step string, err error) error { return &stepError{step: step, err: err} }
 
 const CleanupPending = cleanupPending
+
+var BudgetFor = budgetFor

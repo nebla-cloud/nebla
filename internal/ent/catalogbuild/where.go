@@ -100,6 +100,11 @@ func Upid(v string) predicate.CatalogBuild {
 	return predicate.CatalogBuild(sql.FieldEQ(FieldUpid, v))
 }
 
+// BuildNode applies equality check predicate on the "build_node" field. It's identical to BuildNodeEQ.
+func BuildNode(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldEQ(FieldBuildNode, v))
+}
+
 // File applies equality check predicate on the "file" field. It's identical to FileEQ.
 func File(v string) predicate.CatalogBuild {
 	return predicate.CatalogBuild(sql.FieldEQ(FieldFile, v))
@@ -683,6 +688,81 @@ func UpidEqualFold(v string) predicate.CatalogBuild {
 // UpidContainsFold applies the ContainsFold predicate on the "upid" field.
 func UpidContainsFold(v string) predicate.CatalogBuild {
 	return predicate.CatalogBuild(sql.FieldContainsFold(FieldUpid, v))
+}
+
+// BuildNodeEQ applies the EQ predicate on the "build_node" field.
+func BuildNodeEQ(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldEQ(FieldBuildNode, v))
+}
+
+// BuildNodeNEQ applies the NEQ predicate on the "build_node" field.
+func BuildNodeNEQ(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldNEQ(FieldBuildNode, v))
+}
+
+// BuildNodeIn applies the In predicate on the "build_node" field.
+func BuildNodeIn(vs ...string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldIn(FieldBuildNode, vs...))
+}
+
+// BuildNodeNotIn applies the NotIn predicate on the "build_node" field.
+func BuildNodeNotIn(vs ...string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldNotIn(FieldBuildNode, vs...))
+}
+
+// BuildNodeGT applies the GT predicate on the "build_node" field.
+func BuildNodeGT(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldGT(FieldBuildNode, v))
+}
+
+// BuildNodeGTE applies the GTE predicate on the "build_node" field.
+func BuildNodeGTE(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldGTE(FieldBuildNode, v))
+}
+
+// BuildNodeLT applies the LT predicate on the "build_node" field.
+func BuildNodeLT(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldLT(FieldBuildNode, v))
+}
+
+// BuildNodeLTE applies the LTE predicate on the "build_node" field.
+func BuildNodeLTE(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldLTE(FieldBuildNode, v))
+}
+
+// BuildNodeContains applies the Contains predicate on the "build_node" field.
+func BuildNodeContains(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldContains(FieldBuildNode, v))
+}
+
+// BuildNodeHasPrefix applies the HasPrefix predicate on the "build_node" field.
+func BuildNodeHasPrefix(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldHasPrefix(FieldBuildNode, v))
+}
+
+// BuildNodeHasSuffix applies the HasSuffix predicate on the "build_node" field.
+func BuildNodeHasSuffix(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldHasSuffix(FieldBuildNode, v))
+}
+
+// BuildNodeIsNil applies the IsNil predicate on the "build_node" field.
+func BuildNodeIsNil() predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldIsNull(FieldBuildNode))
+}
+
+// BuildNodeNotNil applies the NotNil predicate on the "build_node" field.
+func BuildNodeNotNil() predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldNotNull(FieldBuildNode))
+}
+
+// BuildNodeEqualFold applies the EqualFold predicate on the "build_node" field.
+func BuildNodeEqualFold(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldEqualFold(FieldBuildNode, v))
+}
+
+// BuildNodeContainsFold applies the ContainsFold predicate on the "build_node" field.
+func BuildNodeContainsFold(v string) predicate.CatalogBuild {
+	return predicate.CatalogBuild(sql.FieldContainsFold(FieldBuildNode, v))
 }
 
 // FileEQ applies the EQ predicate on the "file" field.

@@ -178,6 +178,26 @@ func (_u *CatalogBuildUpdate) ClearUpid() *CatalogBuildUpdate {
 	return _u
 }
 
+// SetBuildNode sets the "build_node" field.
+func (_u *CatalogBuildUpdate) SetBuildNode(v string) *CatalogBuildUpdate {
+	_u.mutation.SetBuildNode(v)
+	return _u
+}
+
+// SetNillableBuildNode sets the "build_node" field if the given value is not nil.
+func (_u *CatalogBuildUpdate) SetNillableBuildNode(v *string) *CatalogBuildUpdate {
+	if v != nil {
+		_u.SetBuildNode(*v)
+	}
+	return _u
+}
+
+// ClearBuildNode clears the value of the "build_node" field.
+func (_u *CatalogBuildUpdate) ClearBuildNode() *CatalogBuildUpdate {
+	_u.mutation.ClearBuildNode()
+	return _u
+}
+
 // SetFile sets the "file" field.
 func (_u *CatalogBuildUpdate) SetFile(v string) *CatalogBuildUpdate {
 	_u.mutation.SetFile(v)
@@ -468,6 +488,12 @@ func (_u *CatalogBuildUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.UpidCleared() {
 		_spec.ClearField(catalogbuild.FieldUpid, field.TypeString)
 	}
+	if value, ok := _u.mutation.BuildNode(); ok {
+		_spec.SetField(catalogbuild.FieldBuildNode, field.TypeString, value)
+	}
+	if _u.mutation.BuildNodeCleared() {
+		_spec.ClearField(catalogbuild.FieldBuildNode, field.TypeString)
+	}
 	if value, ok := _u.mutation.File(); ok {
 		_spec.SetField(catalogbuild.FieldFile, field.TypeString, value)
 	}
@@ -690,6 +716,26 @@ func (_u *CatalogBuildUpdateOne) SetNillableUpid(v *string) *CatalogBuildUpdateO
 // ClearUpid clears the value of the "upid" field.
 func (_u *CatalogBuildUpdateOne) ClearUpid() *CatalogBuildUpdateOne {
 	_u.mutation.ClearUpid()
+	return _u
+}
+
+// SetBuildNode sets the "build_node" field.
+func (_u *CatalogBuildUpdateOne) SetBuildNode(v string) *CatalogBuildUpdateOne {
+	_u.mutation.SetBuildNode(v)
+	return _u
+}
+
+// SetNillableBuildNode sets the "build_node" field if the given value is not nil.
+func (_u *CatalogBuildUpdateOne) SetNillableBuildNode(v *string) *CatalogBuildUpdateOne {
+	if v != nil {
+		_u.SetBuildNode(*v)
+	}
+	return _u
+}
+
+// ClearBuildNode clears the value of the "build_node" field.
+func (_u *CatalogBuildUpdateOne) ClearBuildNode() *CatalogBuildUpdateOne {
+	_u.mutation.ClearBuildNode()
 	return _u
 }
 
@@ -1012,6 +1058,12 @@ func (_u *CatalogBuildUpdateOne) sqlSave(ctx context.Context) (_node *CatalogBui
 	}
 	if _u.mutation.UpidCleared() {
 		_spec.ClearField(catalogbuild.FieldUpid, field.TypeString)
+	}
+	if value, ok := _u.mutation.BuildNode(); ok {
+		_spec.SetField(catalogbuild.FieldBuildNode, field.TypeString, value)
+	}
+	if _u.mutation.BuildNodeCleared() {
+		_spec.ClearField(catalogbuild.FieldBuildNode, field.TypeString)
 	}
 	if value, ok := _u.mutation.File(); ok {
 		_spec.SetField(catalogbuild.FieldFile, field.TypeString, value)

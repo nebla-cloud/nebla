@@ -1800,6 +1800,7 @@ type CatalogBuildMutation struct {
 	nonce           *string
 	new_nonce       *string
 	upid            *string
+	build_node      *string
 	file            *string
 	checksum        *string
 	new_file        *string
@@ -2410,6 +2411,55 @@ func (m *CatalogBuildMutation) ResetUpid() {
 	delete(m.clearedFields, catalogbuild.FieldUpid)
 }
 
+// SetBuildNode sets the "build_node" field.
+func (m *CatalogBuildMutation) SetBuildNode(s string) {
+	m.build_node = &s
+}
+
+// BuildNode returns the value of the "build_node" field in the mutation.
+func (m *CatalogBuildMutation) BuildNode() (r string, exists bool) {
+	v := m.build_node
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBuildNode returns the old "build_node" field's value of the CatalogBuild entity.
+// If the CatalogBuild object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CatalogBuildMutation) OldBuildNode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBuildNode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBuildNode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBuildNode: %w", err)
+	}
+	return oldValue.BuildNode, nil
+}
+
+// ClearBuildNode clears the value of the "build_node" field.
+func (m *CatalogBuildMutation) ClearBuildNode() {
+	m.build_node = nil
+	m.clearedFields[catalogbuild.FieldBuildNode] = struct{}{}
+}
+
+// BuildNodeCleared returns if the "build_node" field was cleared in this mutation.
+func (m *CatalogBuildMutation) BuildNodeCleared() bool {
+	_, ok := m.clearedFields[catalogbuild.FieldBuildNode]
+	return ok
+}
+
+// ResetBuildNode resets all changes to the "build_node" field.
+func (m *CatalogBuildMutation) ResetBuildNode() {
+	m.build_node = nil
+	delete(m.clearedFields, catalogbuild.FieldBuildNode)
+}
+
 // SetFile sets the "file" field.
 func (m *CatalogBuildMutation) SetFile(s string) {
 	m.file = &s
@@ -2956,7 +3006,7 @@ func (m *CatalogBuildMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *CatalogBuildMutation) Fields() []string {
-	fields := make([]string, 0, 20)
+	fields := make([]string, 0, 21)
 	if m.catalog_key != nil {
 		fields = append(fields, catalogbuild.FieldCatalogKey)
 	}
@@ -2986,6 +3036,9 @@ func (m *CatalogBuildMutation) Fields() []string {
 	}
 	if m.upid != nil {
 		fields = append(fields, catalogbuild.FieldUpid)
+	}
+	if m.build_node != nil {
+		fields = append(fields, catalogbuild.FieldBuildNode)
 	}
 	if m.file != nil {
 		fields = append(fields, catalogbuild.FieldFile)
@@ -3045,6 +3098,8 @@ func (m *CatalogBuildMutation) Field(name string) (ent.Value, bool) {
 		return m.NewNonce()
 	case catalogbuild.FieldUpid:
 		return m.Upid()
+	case catalogbuild.FieldBuildNode:
+		return m.BuildNode()
 	case catalogbuild.FieldFile:
 		return m.File()
 	case catalogbuild.FieldChecksum:
@@ -3094,6 +3149,8 @@ func (m *CatalogBuildMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldNewNonce(ctx)
 	case catalogbuild.FieldUpid:
 		return m.OldUpid(ctx)
+	case catalogbuild.FieldBuildNode:
+		return m.OldBuildNode(ctx)
 	case catalogbuild.FieldFile:
 		return m.OldFile(ctx)
 	case catalogbuild.FieldChecksum:
@@ -3192,6 +3249,13 @@ func (m *CatalogBuildMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUpid(v)
+		return nil
+	case catalogbuild.FieldBuildNode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBuildNode(v)
 		return nil
 	case catalogbuild.FieldFile:
 		v, ok := value.(string)
@@ -3359,6 +3423,9 @@ func (m *CatalogBuildMutation) ClearedFields() []string {
 	if m.FieldCleared(catalogbuild.FieldUpid) {
 		fields = append(fields, catalogbuild.FieldUpid)
 	}
+	if m.FieldCleared(catalogbuild.FieldBuildNode) {
+		fields = append(fields, catalogbuild.FieldBuildNode)
+	}
 	if m.FieldCleared(catalogbuild.FieldFile) {
 		fields = append(fields, catalogbuild.FieldFile)
 	}
@@ -3411,6 +3478,9 @@ func (m *CatalogBuildMutation) ClearField(name string) error {
 		return nil
 	case catalogbuild.FieldUpid:
 		m.ClearUpid()
+		return nil
+	case catalogbuild.FieldBuildNode:
+		m.ClearBuildNode()
 		return nil
 	case catalogbuild.FieldFile:
 		m.ClearFile()
@@ -3473,6 +3543,9 @@ func (m *CatalogBuildMutation) ResetField(name string) error {
 		return nil
 	case catalogbuild.FieldUpid:
 		m.ResetUpid()
+		return nil
+	case catalogbuild.FieldBuildNode:
+		m.ResetBuildNode()
 		return nil
 	case catalogbuild.FieldFile:
 		m.ResetFile()
