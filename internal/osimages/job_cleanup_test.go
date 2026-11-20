@@ -1,9 +1,11 @@
 package osimages_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -49,8 +51,10 @@ func (e *env) cleanupJobs() []osimages.CleanupArgs {
 	return out
 }
 
-func (e *env) cleanupWork(a osimages.CleanupArgs) error {
-	job := &river.Job[osimages.CleanupArgs]{JobRow: &rivertype.JobRow{ID: 1, Attempt: 1, MaxAttempts: 25}, Args: a}
+func (e *env) cleanupWork(a osimages.CleanupArgs) error { return e.cleanupAttempt(a, 1) }
+
+func (e *env) cleanupAttempt(a osimages.CleanupArgs, attempt int) error {
+	job := &river.Job[osimages.CleanupArgs]{JobRow: &rivertype.JobRow{ID: 1, Attempt: attempt, MaxAttempts: 25}, Args: a}
 	return osimages.NewCleanupWorker(e.svc).Work(context.Background(), job)
 }
 
@@ -205,4 +209,21 @@ func TestDisableCleansOrphanVolume(t *testing.T) {
 	require.Equal(t, []osimages.CleanupArgs{{BuildID: row.ID, LocationID: loc, Node: "pve1", Volume: vol}}, jobs)
 	require.NoError(t, e.cleanupWork(jobs[0]))
 	require.False(t, e.volExists(vol))
+}
+
+func TestCleanupLogsWhenDiscarded(t *testing.T) {
+	e := newEnv(t)
+	var logs bytes.Buffer
+	osimages.SetLogger(e.svc, slog.New(slog.NewTextHandler(&logs, nil)))
+	loc := e.location("eu-1", "local-lvm", "imp")
+	e.failedHalfBuilt(loc)
+	e.pve.SetVMConfig(7000, "lock", "create")
+	_, err := e.svc.Disable(context.Background(), "debian-13", loc)
+	require.NoError(t, err)
+	a := e.cleanupJobs()[0]
+	require.Error(t, e.cleanupAttempt(a, 24))
+	require.NotContains(t, logs.String(), "level=ERROR")
+	require.Error(t, e.cleanupAttempt(a, 25))
+	require.Contains(t, logs.String(), "level=ERROR")
+	require.Contains(t, logs.String(), "vmid=7000")
 }

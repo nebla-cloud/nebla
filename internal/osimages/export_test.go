@@ -2,6 +2,7 @@ package osimages
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/Hexeption/nebla/internal/catalog"
@@ -71,3 +72,5 @@ func BuildNodes(s *Service, loc catalog.Location) []string {
 	return out
 }
 func NewCleanupWorker(s *Service) *CleanupWorker { return &CleanupWorker{s: s} }
+
+func SetLogger(s *Service, l *slog.Logger) { s.o.Logger = l }
