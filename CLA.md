@@ -38,7 +38,7 @@ patent, the patent licences You granted to that entity under this agreement end 
 
 You keep the copyright in Your Contributions. Apart from the licences granted above, You reserve all rights. The
 Maintainer will make every Contribution that is merged into the Project's public repository available under the GNU
-Affero General Public License v3.0 or a later version.
+Affero General Public License v3.0.
 
 ## 5. Your representations
 
