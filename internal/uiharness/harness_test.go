@@ -15,11 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/osimages"
-	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/testutil"
-	"golang.org/x/time/rate"
 )
 
 type pveOut struct {
