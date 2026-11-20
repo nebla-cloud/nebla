@@ -121,3 +121,14 @@ func TestWaitTimeout(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestWaitErrorWithoutCode(t *testing.T) {
+	a, _ := stubAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":9,"command":"start_server","status":"error","progress":0,"started":"2026-11-20T00:00:00Z","resources":[],"error":null}`)
+	})
+	_, err := a.Wait(context.Background(), io.Discard, false, 9)
+	if err == nil || err.Error() != "action start_server (9) failed: unknown error" {
+		t.Fatalf("err=%v", err)
+	}
+}

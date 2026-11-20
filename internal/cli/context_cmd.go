@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/Hexeption/nebla/internal/cli/apiclient"
 	"github.com/spf13/cobra"
@@ -167,8 +168,12 @@ func requireToken(s string) (string, error) {
 	return s, nil
 }
 
+var tokenCheckTimeout = 30 * time.Second
+
 // checkToken verifies the pair against the panel.
 func checkToken(ctx context.Context, env Env, t Target) error {
+	ctx, cancel := context.WithTimeout(ctx, tokenCheckTimeout)
+	defer cancel()
 	api, err := newAPI(env, t)
 	if err != nil {
 		return err

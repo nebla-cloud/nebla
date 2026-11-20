@@ -54,6 +54,8 @@ func TestResolveTargetPrecedence(t *testing.T) {
 		{"lone endpoint errors", map[string]string{"NEBLA_ENDPOINT": "https://env"}, "", Target{}, "NEBLA_ENDPOINT and NEBLA_TOKEN must be set together"},
 		{"NEBLA_CONTEXT", map[string]string{"NEBLA_CONTEXT": "b"}, "", Target{"https://b", "tb", "context b"}, ""},
 		{"unknown context", nil, "x", Target{}, `context "x" not found`},
+		{"env pair token trimmed", map[string]string{"NEBLA_ENDPOINT": "https://env", "NEBLA_TOKEN": " te\n"}, "", Target{"https://env", "te", "env"}, ""},
+		{"env pair blank token", map[string]string{"NEBLA_ENDPOINT": "https://env", "NEBLA_TOKEN": "  "}, "", Target{}, "no token given"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

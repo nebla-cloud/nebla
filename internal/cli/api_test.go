@@ -226,3 +226,44 @@ func TestListAllPages(t *testing.T) {
 		t.Fatalf("k=%+v err=%v", k, err)
 	}
 }
+
+func TestResolveNonJSON200(t *testing.T) {
+	a, _ := stubAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, "<html>panel</html>")
+	})
+	_, err := a.Server(context.Background(), "5")
+	if err == nil || !strings.Contains(err.Error(), "/v1/servers/5; is the endpoint a Nebla panel?") {
+		t.Fatalf("err=%v", err)
+	}
+	if _, err := a.Locations(context.Background()); err == nil || !strings.Contains(err.Error(), "is the endpoint a Nebla panel?") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestRetryAfterClamped(t *testing.T) {
+	res := &http.Response{Header: http.Header{"Retry-After": {"3600"}}}
+	if d := backoff(0, res); d != time.Minute {
+		t.Fatalf("d=%s", d)
+	}
+}
+
+func TestCheckTokenTimeout(t *testing.T) {
+	old := tokenCheckTimeout
+	tokenCheckTimeout = 50 * time.Millisecond
+	defer func() { tokenCheckTimeout = old }()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+	start := time.Now()
+	err := checkToken(context.Background(), Env{}, Target{Endpoint: srv.URL, Token: "tok"})
+	if err == nil || time.Since(start) > 5*time.Second {
+		t.Fatalf("err=%v after %s", err, time.Since(start))
+	}
+}

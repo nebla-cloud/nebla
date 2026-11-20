@@ -32,16 +32,16 @@ func (p Printer) Table(headers []string, rows [][]string) {
 
 // Object writes v as YAML when the format is yaml, otherwise as indented JSON.
 func (p Printer) Object(v any) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
 	if p.Format != "yaml" {
-		b, err = json.MarshalIndent(v, "", "  ")
+		b, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {
 			return err
 		}
 		_, err = fmt.Fprintf(p.Out, "%s\n", b)
+		return err
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
 		return err
 	}
 	var doc any

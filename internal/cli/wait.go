@@ -95,11 +95,14 @@ func (a *API) waitOne(ctx context.Context, w io.Writer, tty bool, id int64) (api
 			} else {
 				fmt.Fprintf(w, "%s: error\n", label)
 			}
-			code, msg := "", "unknown error"
+			e := APIError{}
 			if act.Error != nil {
-				code, msg = act.Error.Code, act.Error.Message
+				e.Code, e.Message = act.Error.Code, act.Error.Message
 			}
-			return act, fmt.Errorf("action %s failed: %s (%s)", label, msg, code)
+			if e.Message == "" {
+				e.Message = "unknown error"
+			}
+			return act, fmt.Errorf("action %s failed: %s", label, e.Error())
 		}
 		t := time.NewTimer(delay)
 		select {
