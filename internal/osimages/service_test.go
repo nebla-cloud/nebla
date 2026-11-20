@@ -40,9 +40,40 @@ type env struct {
 	cat  *catalog.Service
 	svc  *osimages.Service
 	jobs *jobs.Jobs
-	// sums is the checksum the fake upstream serves per entry dir, e.g. "debian".
-	mu   sync.Mutex
-	sums map[string]string
+	up   *upstream
+}
+
+// upstream serves checksum files for two fake entries; sums is keyed by entry dir, e.g. "debian".
+type upstream struct {
+	mu      sync.Mutex
+	sums    map[string]string
+	entries []osimages.Entry
+	client  *http.Client
+}
+
+func newUpstream(t *testing.T) *upstream {
+	u := &upstream{sums: map[string]string{"debian": debianSum, "alma": almaSum}}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u.mu.Lock()
+		defer u.mu.Unlock()
+		switch r.URL.Path {
+		case "/debian/SHA512SUMS":
+			fmt.Fprintf(w, "%s  debian.qcow2\n", u.sums["debian"])
+		case "/alma/CHECKSUM":
+			fmt.Fprintf(w, "SHA256 (alma.qcow2) = %s\n", u.sums["alma"])
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	u.client = srv.Client()
+	u.entries = []osimages.Entry{
+		{Key: "debian-13", Description: "Debian 13", OSFlavor: "debian", OSVersion: "13", Dirs: []string{srv.URL + "/debian/"},
+			ChecksumName: "SHA512SUMS", File: regexp.MustCompile(`^debian\.qcow2$`), Algorithm: "sha512", Format: "qcow2"},
+		{Key: "alma-10", Description: "AlmaLinux 10", OSFlavor: "alma", OSVersion: "10", Dirs: []string{srv.URL + "/alma/"},
+			ChecksumName: "CHECKSUM", File: regexp.MustCompile(`^alma\.qcow2$`), Algorithm: "sha256", Format: "qcow2", CPU: "x86-64-v3"},
+	}
+	return u
 }
 
 var (
@@ -58,26 +89,7 @@ func runEnv(t *testing.T) *env { return buildEnv(t, true) }
 
 func buildEnv(t *testing.T, run bool) *env {
 	t.Helper()
-	e := &env{t: t, sums: map[string]string{"debian": debianSum, "alma": almaSum}}
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		switch r.URL.Path {
-		case "/debian/SHA512SUMS":
-			fmt.Fprintf(w, "%s  debian.qcow2\n", e.sums["debian"])
-		case "/alma/CHECKSUM":
-			fmt.Fprintf(w, "SHA256 (alma.qcow2) = %s\n", e.sums["alma"])
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(upstream.Close)
-	entries := []osimages.Entry{
-		{Key: "debian-13", Description: "Debian 13", OSFlavor: "debian", OSVersion: "13", Dirs: []string{upstream.URL + "/debian/"},
-			ChecksumName: "SHA512SUMS", File: regexp.MustCompile(`^debian\.qcow2$`), Algorithm: "sha512", Format: "qcow2"},
-		{Key: "alma-10", Description: "AlmaLinux 10", OSFlavor: "alma", OSVersion: "10", Dirs: []string{upstream.URL + "/alma/"},
-			ChecksumName: "CHECKSUM", File: regexp.MustCompile(`^alma\.qcow2$`), Algorithm: "sha256", Format: "qcow2", CPU: "x86-64-v3"},
-	}
+	e := &env{t: t, up: newUpstream(t)}
 	pool := testutil.NewDB(t)
 	client, sqlDB := db.NewEnt(pool)
 	t.Cleanup(func() { client.Close() })
@@ -87,7 +99,7 @@ func buildEnv(t *testing.T, run bool) *env {
 		pv.AddStorage(n, "imp", []string{"import", "iso"}, false)
 	}
 	cat := catalog.New(sqlDB, client, testutil.CatalogOptions(catalog.Hooks{}))
-	svc := osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: cat, Entries: entries, HTTP: upstream.Client(),
+	svc := osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: cat, Entries: e.up.entries, HTTP: e.up.client,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	var j *jobs.Jobs
 	if run {

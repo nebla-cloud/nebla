@@ -52,6 +52,8 @@ type storage struct {
 }
 
 type vm struct {
+	// listAt hides the template flag from /cluster/resources until then.
+	listAt   time.Time
 	node     string
 	status   string
 	config   map[string]string
@@ -91,6 +93,7 @@ type Server struct {
 	rrd     []map[string]any
 
 	versions  map[string]string
+	listDelay time.Duration
 	downloads []FakeDownload
 	failDl    []string
 }
@@ -250,6 +253,13 @@ func (s *Server) SetNodeOffline(name string, offline bool) {
 	if n, ok := s.nodes[name]; ok {
 		n.offline = offline
 	}
+}
+
+// SetTemplateListDelay makes /cluster/resources list a converted VM as a template only d after conversion.
+func (s *Server) SetTemplateListDelay(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.listDelay = d
 }
 
 // SetTaskDelay keeps newly created tasks running for d before they finish.
@@ -568,6 +578,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		return s.newTask(v.node, "qmtemplate", id, nil, func() string {
 			v.config["template"] = "1"
+			v.listAt = time.Now().Add(s.listDelay)
 			return "OK"
 		}), nil
 	})
@@ -614,7 +625,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 				continue
 			}
 			tmpl := 0
-			if v.config["template"] == "1" {
+			if v.config["template"] == "1" && !time.Now().Before(v.listAt) {
 				tmpl = 1
 			}
 			out = append(out, map[string]any{"id": fmt.Sprintf("qemu/%d", id), "type": "qemu", "vmid": id, "node": v.node,
