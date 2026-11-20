@@ -17,7 +17,7 @@ export function useActionPoll(
 } {
   const qc = useQueryClient()
   const { projectId } = useCurrentProject()
-  const interval = opts.intervalMs ?? 1000
+  const interval = opts.intervalMs ?? 2000
   const query = useQuery(
     computed(() => ({
       queryKey: ['action', actionId.value],
@@ -58,7 +58,10 @@ export function useActionPoll(
           qc.invalidateQueries({ queryKey: ['server', projectId.value, r.id] }),
           qc.invalidateQueries({ queryKey: ['servers', projectId.value] }),
         ])
-      await Promise.all(invalidations)
+      await Promise.all([
+        ...invalidations,
+        qc.invalidateQueries({ queryKey: ['actions', projectId.value] }),
+      ])
       opts.onDone?.(a)
     },
   )

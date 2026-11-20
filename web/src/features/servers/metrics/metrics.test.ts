@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { formatPercent, formatRate, toSeries } from './metrics'
+import type uPlot from 'uplot'
+import { formatPercent, formatRate, readout, toSeries } from './metrics'
 
 describe('toSeries', () => {
   it('nulls stay null', () => {
@@ -60,5 +61,42 @@ describe('formatPercent', () => {
   it('rounds', () => {
     expect(formatPercent(42.4)).toBe('42%')
     expect(formatPercent(42.6)).toBe('43%')
+  })
+})
+
+describe('readout', () => {
+  const data = [
+    [1763632800, 1763632860],
+    [1536, null],
+    [0, 2048],
+  ] as unknown as uPlot.AlignedData
+
+  it('formats the time and each value at the cursor', () => {
+    expect(readout(data, 0, ['Read', 'Write'], formatRate, 'UTC')).toEqual({
+      time: '20 Nov, 10:00',
+      values: [
+        { label: 'Read', value: '1.5 KB/s' },
+        { label: 'Write', value: '0 B/s' },
+      ],
+    })
+  })
+
+  it('says no data for a gap', () => {
+    expect(readout(data, 1, ['Read', 'Write'], formatRate, 'UTC')?.values).toEqual([
+      { label: 'Read', value: 'No data' },
+      { label: 'Write', value: '2.0 KB/s' },
+    ])
+  })
+
+  it('is empty off the plot', () => {
+    expect(readout(data, null, ['Read', 'Write'], formatRate)).toBeNull()
+    expect(readout(data, 5, ['Read', 'Write'], formatRate)).toBeNull()
+  })
+
+  it('formats percent', () => {
+    const cpu = [[1763632800], [42.4]] as unknown as uPlot.AlignedData
+    expect(readout(cpu, 0, ['CPU'], formatPercent, 'UTC')?.values).toEqual([
+      { label: 'CPU', value: '42%' },
+    ])
   })
 })

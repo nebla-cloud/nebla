@@ -37,4 +37,18 @@ describe('validateLabels', () => {
     expect(formatLabel('backup', '')).toBe('backup')
     expect(formatLabel('env', 'prod')).toBe('env=prod')
   })
+
+  it('skips fully empty rows', () => {
+    const r = validateLabels([
+      { key: '', value: '' },
+      { key: 'env', value: 'prod' },
+      { key: '  ', value: ' ' },
+    ])
+    expect(r).toEqual({ ok: true, labels: { env: 'prod' } })
+  })
+
+  it('a value without a key is still an error', () => {
+    const r = validateLabels([{ key: '', value: 'prod' }])
+    expect(r.ok).toBe(false)
+  })
 })

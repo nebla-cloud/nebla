@@ -33,11 +33,10 @@ const toast = useToast()
 const qc = useQueryClient()
 const { projectId } = useCurrentProject()
 const serverId = computed(() => parseProjectId(route.params.serverId) ?? 0)
-const { data: server, error: loadError } = useServer(serverId)
-
 const actionId = ref<number | null>(null)
 const lastName = ref('')
 const { action, running, error: actionError } = useActionPoll(actionId, { onDone: finished })
+const { data: server, error: loadError } = useServer(serverId, running)
 provide(serverBusyKey, running)
 
 // The create page hands its create_server action over in history state.
@@ -64,7 +63,11 @@ async function adoptHandoff(id: number, sid: number) {
 
 function started(a: Action) {
   lastName.value = server.value?.name ?? ''
+  // Seed so the buttons lock now, and mark stale so the first poll still runs at once.
+  qc.setQueryData(['action', a.id], a)
+  void qc.invalidateQueries({ queryKey: ['action', a.id], refetchType: 'none' })
   actionId.value = a.id
+  void qc.invalidateQueries({ queryKey: ['actions', projectId.value] })
   if (
     (route.name === 'server-rebuild' || route.name === 'server-resize') &&
     (a.command === 'rebuild_server' || a.command === 'change_server_type')
@@ -92,6 +95,7 @@ watch(
     if (id === null) return
     void qc.invalidateQueries({ queryKey: ['server', projectId.value, serverId.value] })
     void qc.invalidateQueries({ queryKey: ['servers', projectId.value] })
+    void qc.invalidateQueries({ queryKey: ['actions', projectId.value] })
   },
 )
 

@@ -27,6 +27,8 @@
 :root {
   --ui-bg: #FBFCFD;
   --ui-primary: var(--color-ink-950);
+  /* red-500 is 3.7:1 on the light background; 700 reaches 6.2:1. */
+  --ui-error: var(--ui-color-error-700);
   --ui-radius: .5rem;
   --glow-a: var(--color-mint);
   --glow-b: var(--color-sky);
@@ -39,6 +41,8 @@
   --ui-bg-muted: #1A1E25;
   --ui-bg-elevated: #1F242C;
   --ui-primary: #F2F4F6;
+  /* Restated because the unlayered :root value would otherwise win; red-400 is 6.2:1 here. */
+  --ui-error: var(--ui-color-error-400);
   --glow-a: #1E5A49;
   --glow-b: #1F3F66;
   --glow-c: #5A2A3B;

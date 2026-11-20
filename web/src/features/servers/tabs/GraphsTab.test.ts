@@ -143,4 +143,12 @@ describe('GraphsTab', () => {
     expect(wrapper.text()).toContain('No graph data yet')
     expect(wrapper.text()).toContain('Metrics start after the first boot.')
   })
+
+  it('404 shows no data yet', async () => {
+    serveMetrics({ error: { code: 'not_found', message: 'No metrics for this server yet.' } }, 404)
+    const { wrapper } = await mountTab()
+    expect(wrapper.text()).toContain('No graph data yet')
+    expect(wrapper.text()).toContain('No metrics for this server yet.')
+    expect(wrapper.text()).not.toContain("Couldn't load graphs")
+  })
 })

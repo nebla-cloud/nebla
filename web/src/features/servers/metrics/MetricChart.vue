@@ -3,7 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useColorMode } from '@vueuse/core'
 import type uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
-import { formatPercent, formatRate } from './metrics'
+import { formatPercent, formatRate, readout, type Readout } from './metrics'
 
 const props = defineProps<{
   title: string
@@ -16,6 +16,7 @@ const SYNC_KEY = 'server-metrics'
 const HEIGHT = 180
 const el = ref<HTMLDivElement>()
 const mode = useColorMode()
+const hover = ref<Readout | null>(null)
 let chart: uPlot | null = null
 let observer: ResizeObserver | null = null
 
@@ -23,7 +24,7 @@ function ink(): { primary: string; secondary: string; grid: string; axis: string
   const dark = mode.value === 'dark'
   return {
     primary: dark ? '#F2F4F6' : '#15181D',
-    secondary: '#98A2AE',
+    secondary: dark ? '#98A2AE' : '#636D7A',
     grid: dark ? '#262B33' : '#EDF0F3',
     axis: dark ? '#98A2AE' : '#4E5763',
   }
@@ -45,6 +46,19 @@ async function build() {
       height: HEIGHT,
       legend: { show: false },
       cursor: { sync: { key: SYNC_KEY } },
+      // Synced charts fire this too, so all three read out the same moment.
+      hooks: {
+        setCursor: [
+          (u) => {
+            hover.value = readout(
+              u.data,
+              u.cursor.idx,
+              props.series.map((s) => s.label),
+              fmt,
+            )
+          },
+        ],
+      },
       scales: {
         y: {
           range: props.unit === 'percent' ? [0, 100] : (_u, _min, max) => [0, Math.max(max, 1024)],
@@ -59,7 +73,6 @@ async function build() {
           width: 2,
           spanGaps: false,
           points: { show: false },
-          value: (_u: uPlot, v: number | null) => (v == null ? '-' : fmt(v)),
         })),
       ],
     },
@@ -86,6 +99,7 @@ onBeforeUnmount(() => {
   observer?.disconnect()
   chart?.destroy()
   chart = null
+  hover.value = null
 })
 </script>
 
@@ -97,12 +111,22 @@ onBeforeUnmount(() => {
         <li v-for="s in series" :key="s.label" class="flex items-center gap-1">
           <span
             class="inline-block size-2 rounded-full"
-            :class="s.tone === 'primary' ? 'bg-ink-950 dark:bg-ink-50' : 'bg-ink-400'"
+            :class="
+              s.tone === 'primary' ? 'bg-ink-950 dark:bg-ink-50' : 'bg-ink-500 dark:bg-ink-400'
+            "
           />
           {{ s.label }}
         </li>
       </ul>
     </div>
+    <p class="mb-1 flex min-h-5 flex-wrap gap-x-3 text-xs tabular-nums">
+      <template v-if="hover">
+        <time class="text-muted">{{ hover.time }}</time>
+        <span v-for="v in hover.values" :key="v.label" class="text-default">
+          <template v-if="series.length > 1">{{ v.label }} </template>{{ v.value }}
+        </span>
+      </template>
+    </p>
     <div ref="el" class="w-full" role="img" :aria-label="`${title} over time`" />
   </section>
 </template>

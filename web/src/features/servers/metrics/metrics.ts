@@ -44,3 +44,35 @@ export function formatRate(bytesPerSec: number): string {
 export function formatPercent(n: number): string {
   return `${Math.round(n)}%`
 }
+
+export function formatTime(sec: number, timeZone?: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone,
+  }).format(sec * 1000)
+}
+
+export type Readout = { time: string; values: { label: string; value: string }[] }
+
+// What the hover line shows for the sample under the cursor.
+export function readout(
+  data: uPlot.AlignedData,
+  idx: number | null | undefined,
+  labels: string[],
+  fmt: (v: number) => string,
+  timeZone?: string,
+): Readout | null {
+  const x = idx == null ? undefined : data[0][idx]
+  if (x == null) return null
+  return {
+    time: formatTime(x, timeZone),
+    values: labels.map((label, i) => {
+      const v = data[i + 1]?.[idx!]
+      return { label, value: v == null ? 'No data' : fmt(v) }
+    }),
+  }
+}

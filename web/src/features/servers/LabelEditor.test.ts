@@ -64,4 +64,40 @@ describe('LabelEditor', () => {
     expect(wrapper.findAll('input[name^="key-"]')).toHaveLength(1)
     expect((wrapper.find('input[name="key-0"]').element as HTMLInputElement).value).toBe('team')
   })
+
+  it('bad key sends no PUT and keeps the rows', async () => {
+    let puts = 0
+    server.use(
+      http.put('*/v1/servers/1', () => {
+        puts++
+        return json(200, makeServer())
+      }),
+    )
+    const { wrapper } = await mountEditor({ env: 'prod' })
+    await wrapper.find('input[name="key-0"]').setValue('bad key')
+    await save(wrapper).trigger('click')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Keys use letters'))
+    await new Promise((r) => setTimeout(r, 30))
+    expect(puts).toBe(0)
+    expect((wrapper.find('input[name="key-0"]').element as HTMLInputElement).value).toBe('bad key')
+    expect((wrapper.find('input[name="value-0"]').element as HTMLInputElement).value).toBe('prod')
+  })
+
+  it('a blank row does not block the save', async () => {
+    let body: unknown
+    server.use(
+      http.put('*/v1/servers/1', async ({ request }) => {
+        body = await request.json()
+        return json(200, makeServer({ labels: { env: 'prod' } }))
+      }),
+    )
+    const { wrapper } = await mountEditor({ env: 'prod' })
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Add label')!
+      .trigger('click')
+    expect(wrapper.find('input[name="key-1"]').exists()).toBe(true)
+    await save(wrapper).trigger('click')
+    await vi.waitFor(() => expect(body).toEqual({ labels: { env: 'prod' } }))
+  })
 })

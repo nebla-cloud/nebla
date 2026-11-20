@@ -63,6 +63,7 @@ beforeEach(() => {
   document.body.innerHTML = ''
 })
 afterEach(() => {
+  vi.useRealTimers()
   document.body.innerHTML = ''
 })
 
@@ -362,6 +363,82 @@ describe('ServerDetailShell', () => {
     expect(polls).toBe(seen)
     expect(byText('Shut down')!.disabled).toBe(false)
     expect(byText('Reboot')!.disabled).toBe(false)
+  })
+
+  it('server poll pauses while an action runs and resumes after', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let serverCalls = 0
+    let actionCalls = 0
+    let done = false
+    server.use(
+      http.get('*/v1/projects/1', () =>
+        json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
+      ),
+      http.get('*/v1/servers/1', () => {
+        serverCalls++
+        return json(200, makeServer({ status: 'starting' }))
+      }),
+      http.get('*/v1/servers', () => json(200, emptyList)),
+      http.get('*/v1/actions/3', () => {
+        actionCalls++
+        return json(
+          200,
+          action({
+            id: 3,
+            ...(done ? { status: 'success', progress: 100, finished: '2026-11-20T10:01:00Z' } : {}),
+          }),
+        )
+      }),
+    )
+    const { wrapper } = await mountDetail('/p/1/servers/1', { actionId: 3 })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Rebooting'))
+    const seen = serverCalls
+    const polls = actionCalls
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(actionCalls).toBeGreaterThan(polls)
+    expect(serverCalls).toBe(seen)
+    done = true
+    await vi.advanceTimersByTimeAsync(2_500)
+    await vi.waitFor(() => expect(serverCalls).toBe(seen + 1))
+    await vi.advanceTimersByTimeAsync(3_500)
+    expect(serverCalls).toBeGreaterThanOrEqual(seen + 2)
+  })
+
+  it('a power action shows on the Activity tab without waiting for a poll', async () => {
+    serve(makeServer())
+    let started = false
+    server.use(
+      http.post('*/v1/servers/1/actions/reboot', () => {
+        started = true
+        return json(201, { action: action() })
+      }),
+      http.get('*/v1/actions/7', () => json(200, action())),
+      http.get('*/v1/servers/1/actions', () =>
+        json(200, {
+          actions: started ? [action()] : [],
+          meta: { pagination: { page: 1, per_page: 25, total_entries: started ? 1 : 0 } },
+        }),
+      ),
+    )
+    const { wrapper } = await mountDetail('/p/1/servers/1/activity')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Nothing has happened here yet'))
+    byText('Reboot')!.click()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Running 40%'), { timeout: 1000 })
+  })
+
+  it('power buttons lock as soon as an action starts', async () => {
+    serve(makeServer())
+    server.use(
+      http.post('*/v1/servers/1/actions/reboot', () => json(201, { action: action() })),
+      http.get('*/v1/actions/7', () => new Promise<never>(() => {})),
+    )
+    await mountDetail()
+    byText('Reboot')!.click()
+    await vi.waitFor(() => expect(byText('Reboot')!.disabled).toBe(true))
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(byText('Reboot')!.disabled).toBe(true)
+    expect(byText('Shut down')!.disabled).toBe(true)
   })
 
   it('delete requires typing the name and returns to list', async () => {

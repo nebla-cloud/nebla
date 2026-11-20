@@ -75,7 +75,7 @@ const hasData = computed(() =>
 )
 const noDataYet = computed(() => {
   const e = query.error.value
-  return e instanceof ApiError && e.status === 409
+  return e instanceof ApiError && (e.status === 409 || e.status === 404)
 })
 </script>
 
