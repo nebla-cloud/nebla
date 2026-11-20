@@ -88,6 +88,19 @@ type RRDPoint struct {
 	CPU, Mem, MaxMem, NetIn, NetOut, DiskRead, DiskWrite *float64
 }
 
+// StorageItem is one volume in a storage's content listing.
+type StorageItem struct {
+	Volid string
+	Size  int64 // bytes
+	VMID  int
+}
+
+// PendingItem is one row of a VM's pending config; Pending is the unapplied value.
+type PendingItem struct {
+	Key, Value, Pending string
+	Delete              int
+}
+
 type Client interface {
 	Version(ctx context.Context) (string, error)
 	NodeVersion(ctx context.Context, node string) (string, error)
@@ -103,6 +116,13 @@ type Client interface {
 	WaitTask(ctx context.Context, node string, upid UPID) error
 	Config(ctx context.Context, node string, vmid int) (map[string]string, error)
 	SetConfig(ctx context.Context, node string, vmid int, kv map[string]string) error
+	// SetConfigDigest is SetConfig that fails with ErrDigestMismatch when digest is stale.
+	SetConfigDigest(ctx context.Context, node string, vmid int, kv map[string]string, digest string) error
+	Pending(ctx context.Context, node string, vmid int) ([]PendingItem, error)
+	// AllocVolume creates a volume named filename owned by ownerVMID and returns its volid.
+	AllocVolume(ctx context.Context, node, storage string, ownerVMID int, filename string, sizeGB int) (string, error)
+	// StorageContent lists volumes; vmid <= 0 means no filter.
+	StorageContent(ctx context.Context, node, storage string, vmid int) ([]StorageItem, error)
 	ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error
 	SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error
 	// FirewallIPSet lists the IPFilterSet entries; ok is false when the set does not exist.
@@ -153,7 +173,18 @@ type Error struct {
 
 func (e *Error) Error() string { return fmt.Sprintf("pve: status %d: %s", e.Status, e.Message) }
 
-func (e *Error) Is(target error) bool { return target == ErrNotFound && e.notFound() }
+// ErrDigestMismatch means a config write carried a stale digest.
+var ErrDigestMismatch = errors.New("pve: config digest mismatch")
+
+func (e *Error) Is(target error) bool {
+	switch target {
+	case ErrNotFound:
+		return e.notFound()
+	case ErrDigestMismatch:
+		return strings.Contains(e.Message, "digest")
+	}
+	return false
+}
 
 func (e *Error) notFound() bool {
 	return e.Status == http.StatusNotFound || (e.Status >= 500 && strings.Contains(e.Message, "does not exist"))

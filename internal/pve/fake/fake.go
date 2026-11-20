@@ -51,6 +51,18 @@ type storage struct {
 	content []string
 	shared  bool
 	availMB int64
+	vols    map[string]*volume // allocated disk images by volid
+}
+
+type volume struct {
+	size int64 // bytes
+	vmid int
+}
+
+// pendingChange is a config change held back until the VM restarts.
+type pendingChange struct {
+	value string
+	del   bool
 }
 
 type vm struct {
@@ -62,6 +74,8 @@ type vm struct {
 	firewall map[string]string
 	ipsets   map[string][]string
 	rules    []pve.FirewallRule
+	rev      int // bumped on every config write; it is the digest
+	pending  map[string]pendingChange
 }
 
 type task struct {
@@ -78,6 +92,9 @@ type failure struct {
 
 // Server is the fake Proxmox endpoint.
 type Server struct {
+	// DenyDatastoreAllocate makes volume deletes fail with a 403 like a token without Datastore.Allocate.
+	DenyDatastoreAllocate bool
+
 	srv     *httptest.Server
 	tokenID string
 	secret  string
@@ -557,6 +574,61 @@ func failPtr(failed bool) *failure {
 	return nil
 }
 
+func digestOf(v *vm) string { return fmt.Sprintf("fake%d", v.rev) }
+
+func isVirtio(k string) bool {
+	n, ok := strings.CutPrefix(k, "virtio")
+	if !ok || n == "" {
+		return false
+	}
+	_, err := strconv.Atoi(n)
+	return err == nil
+}
+
+// diskHotplug reports whether hotplug includes disk; a missing key means Proxmox's default.
+func diskHotplug(v *vm) bool {
+	h, ok := v.config["hotplug"]
+	if !ok {
+		h = "network,disk,usb"
+	}
+	return slices.Contains(strings.Split(h, ","), "disk")
+}
+
+func (v *vm) setPending(k string, pc pendingChange) {
+	if v.pending == nil {
+		v.pending = map[string]pendingChange{}
+	}
+	v.pending[k] = pc
+}
+
+// storageOf returns the storage on nodeName holding volid; caller holds s.mu.
+func (s *Server) storageOf(nodeName, volid string) (*storage, bool) {
+	n, ok := s.nodes[nodeName]
+	if !ok {
+		return nil, false
+	}
+	id, _, _ := strings.Cut(volid, ":")
+	st, ok := n.storages[id]
+	if !ok || st.vols[volid] == nil {
+		return nil, false
+	}
+	return st, true
+}
+
+// dropOwnedVolumes removes volumes named vm-<vmid>-*; others stay, as in PVE. Caller holds s.mu.
+func (s *Server) dropOwnedVolumes(vmid int) {
+	pre := fmt.Sprintf("vm-%d-", vmid)
+	for _, n := range s.nodes {
+		for sid, st := range n.storages {
+			for id := range st.vols {
+				if strings.HasPrefix(id, sid+":"+pre) {
+					delete(st.vols, id)
+				}
+			}
+		}
+	}
+}
+
 func (s *Server) routes(mux *http.ServeMux) {
 	form := func(r *http.Request) map[string]string {
 		_ = r.ParseForm()
@@ -835,14 +907,31 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if e := locked(v, id); e != nil {
 			return nil, e
 		}
+		if d := f["digest"]; d != "" && d != digestOf(v) {
+			return nil, &apiErr{500, "detected modified configuration - file changed by other user? Try again. (digest mismatch)"}
+		}
+		hot := diskHotplug(v)
 		for k, val := range f {
-			if k != "delete" {
-				v.config[k] = val
+			if k == "delete" || k == "digest" {
+				continue
 			}
+			if isVirtio(k) && !hot {
+				v.setPending(k, pendingChange{value: val})
+				continue
+			}
+			v.config[k] = val
+			delete(v.pending, k)
 		}
 		for _, k := range strings.Split(f["delete"], ",") {
-			delete(v.config, strings.TrimSpace(k))
+			k = strings.TrimSpace(k)
+			if _, has := v.config[k]; has && isVirtio(k) && !hot {
+				v.setPending(k, pendingChange{del: true})
+				continue
+			}
+			delete(v.config, k)
+			delete(v.pending, k)
 		}
+		v.rev++
 		return nil, nil
 	}
 	s.handle(mux, "PUT /nodes/{node}/qemu/{vmid}/config", false, setConfig)
@@ -854,13 +943,44 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if e != nil {
 			return nil, e
 		}
-		out := map[string]any{"digest": "fake"}
+		out := map[string]any{"digest": digestOf(v)}
 		for k, val := range v.config {
 			if n, err := strconv.Atoi(val); err == nil && k != "name" {
 				out[k] = n
 			} else {
 				out[k] = val
 			}
+		}
+		return out, nil
+	})
+	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/pending", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		keys := map[string]bool{}
+		for k := range v.config {
+			keys[k] = true
+		}
+		for k := range v.pending {
+			keys[k] = true
+		}
+		out := []map[string]any{}
+		for _, k := range slices.Sorted(maps.Keys(keys)) {
+			row := map[string]any{"key": k}
+			if cur, ok := v.config[k]; ok {
+				row["value"] = cur
+			}
+			if pc, ok := v.pending[k]; ok {
+				if pc.del {
+					row["delete"] = 1
+				} else {
+					row["pending"] = pc.value
+				}
+			}
+			out = append(out, row)
 		}
 		return out, nil
 	})
@@ -888,10 +1008,16 @@ func (s *Server) routes(mux *http.ServeMux) {
 				keep = append(keep, p)
 			}
 		}
-		if newGB, _ := strconv.Atoi(strings.TrimSuffix(f["size"], "G")); newGB < oldGB {
+		newGB, _ := strconv.Atoi(strings.TrimSuffix(f["size"], "G"))
+		if newGB < oldGB {
 			return nil, &apiErr{500, "shrinking disks is not supported"}
 		}
 		v.config[f["disk"]] = strings.Join(keep, ",") + ",size=" + f["size"]
+		v.rev++
+		volid, _, _ := strings.Cut(cur, ",")
+		if st, ok := s.storageOf(v.node, volid); ok {
+			st.vols[volid].size = int64(newGB) << 30
+		}
 		return nil, nil
 	})
 	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/firewall/options", false, func(r *http.Request, _ bool) (any, *apiErr) {
@@ -1115,6 +1241,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		return s.newTask(v.node, "qmdestroy", id, failPtr(failed), func() string {
 			delete(s.vms, id)
+			s.dropOwnedVolumes(id)
 			return "OK"
 		}), nil
 	})
@@ -1158,6 +1285,53 @@ func (s *Server) routes(mux *http.ServeMux) {
 		s.volumes[st+":iso/"+fname] = data
 		return s.newTask(n.name, "imgcopy", 0, nil, nil), nil
 	})
+	s.handle(mux, "POST /nodes/{node}/storage/{storage}/content", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		f := form(r)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		n, e := nodeFor(r)
+		if e != nil {
+			return nil, e
+		}
+		st, ok := n.storages[r.PathValue("storage")]
+		if !ok {
+			return nil, &apiErr{500, "storage '" + r.PathValue("storage") + "' does not exist"}
+		}
+		vmid, _ := strconv.Atoi(f["vmid"])
+		gb, err := strconv.Atoi(strings.TrimSuffix(f["size"], "G"))
+		if vmid <= 0 || f["filename"] == "" || err != nil || gb <= 0 || !strings.HasSuffix(f["size"], "G") {
+			return nil, &apiErr{400, "parameter verification failed: vmid/filename/size"}
+		}
+		volid := r.PathValue("storage") + ":" + f["filename"]
+		if st.vols[volid] != nil {
+			return nil, &apiErr{500, "unable to create volume '" + volid + "': volume already exists"}
+		}
+		if st.vols == nil {
+			st.vols = map[string]*volume{}
+		}
+		st.vols[volid] = &volume{size: int64(gb) << 30, vmid: vmid}
+		return volid, nil
+	})
+	s.handle(mux, "GET /nodes/{node}/storage/{storage}/content", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		n, e := nodeFor(r)
+		if e != nil {
+			return nil, e
+		}
+		st, ok := n.storages[r.PathValue("storage")]
+		if !ok {
+			return nil, &apiErr{500, "storage '" + r.PathValue("storage") + "' does not exist"}
+		}
+		want, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+		out := []map[string]any{}
+		for _, id := range slices.Sorted(maps.Keys(st.vols)) {
+			if vol := st.vols[id]; want <= 0 || vol.vmid == want {
+				out = append(out, map[string]any{"volid": id, "size": vol.size, "vmid": vol.vmid, "format": "raw", "content": "images"})
+			}
+		}
+		return out, nil
+	})
 	s.handle(mux, "DELETE /nodes/{node}/storage/{storage}/content/{volid}", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -1168,6 +1342,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 		id := r.PathValue("volid")
 		if !strings.Contains(id, ":") {
 			id = r.PathValue("storage") + ":" + id
+		}
+		if s.DenyDatastoreAllocate {
+			return nil, &apiErr{403, "Permission check failed (/storage/" + r.PathValue("storage") + ", Datastore.Allocate)"}
+		}
+		if st, ok := n.storages[r.PathValue("storage")]; ok && st.vols[id] != nil {
+			delete(st.vols, id)
+			return s.newTask(n.name, "imgdel", 0, nil, nil), nil
 		}
 		if _, ok := s.volumes[id]; !ok {
 			return nil, &apiErr{500, "volume '" + id + "' does not exist"}

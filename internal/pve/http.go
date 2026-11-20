@@ -379,11 +379,83 @@ func (c *httpClient) getMap(ctx context.Context, path string) (map[string]string
 }
 
 func (c *httpClient) SetConfig(ctx context.Context, node string, vmid int, kv map[string]string) error {
+	return c.SetConfigDigest(ctx, node, vmid, kv, "")
+}
+
+func (c *httpClient) SetConfigDigest(ctx context.Context, node string, vmid int, kv map[string]string, digest string) error {
 	f := url.Values{}
 	for k, v := range kv {
 		f.Set(k, v)
 	}
+	if digest != "" {
+		f.Set("digest", digest)
+	}
 	return c.do(ctx, http.MethodPut, vmPath(node, vmid)+"/config", f, nil)
+}
+
+func (c *httpClient) Pending(ctx context.Context, node string, vmid int) ([]PendingItem, error) {
+	var raw []struct {
+		Key     string `json:"key"`
+		Value   any    `json:"value"`
+		Pending any    `json:"pending"`
+		Delete  num    `json:"delete"`
+	}
+	if err := c.do(ctx, http.MethodGet, vmPath(node, vmid)+"/pending", nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]PendingItem, len(raw))
+	for i, r := range raw {
+		out[i] = PendingItem{Key: r.Key, Value: anyString(r.Value), Pending: anyString(r.Pending), Delete: int(r.Delete)}
+	}
+	return out, nil
+}
+
+// anyString renders a decoded JSON scalar as Proxmox's string form; nil is "".
+func anyString(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	case float64:
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case bool:
+		return map[bool]string{true: "1", false: "0"}[t]
+	}
+	return fmt.Sprint(v)
+}
+
+func contentPath(node, storage string) string {
+	return "/nodes/" + url.PathEscape(node) + "/storage/" + url.PathEscape(storage) + "/content"
+}
+
+func (c *httpClient) AllocVolume(ctx context.Context, node, storage string, ownerVMID int, filename string, sizeGB int) (string, error) {
+	f := url.Values{"vmid": {strconv.Itoa(ownerVMID)}, "filename": {filename}, "size": {strconv.Itoa(sizeGB) + "G"}}
+	var volid string
+	if err := c.do(ctx, http.MethodPost, contentPath(node, storage), f, &volid); err != nil {
+		return "", err
+	}
+	return volid, nil
+}
+
+func (c *httpClient) StorageContent(ctx context.Context, node, storage string, vmid int) ([]StorageItem, error) {
+	var f url.Values
+	if vmid > 0 {
+		f = url.Values{"vmid": {strconv.Itoa(vmid)}}
+	}
+	var raw []struct {
+		Volid string `json:"volid"`
+		Size  num    `json:"size"`
+		VMID  num    `json:"vmid"`
+	}
+	if err := c.do(ctx, http.MethodGet, contentPath(node, storage), f, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]StorageItem, len(raw))
+	for i, r := range raw {
+		out[i] = StorageItem{Volid: r.Volid, Size: int64(r.Size), VMID: int(r.VMID)}
+	}
+	return out, nil
 }
 
 func (c *httpClient) ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error {

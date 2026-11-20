@@ -705,3 +705,77 @@ func TestFirewallIPSet(t *testing.T) {
 		t.Fatalf("set = %v, %v, %v", got, ok, err)
 	}
 }
+
+func stubClient(t *testing.T, h http.HandlerFunc) pve.Client {
+	t.Helper()
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	return pve.New(pve.Conn{BaseURL: srv.URL, TokenID: "root@pam!nebla", Secret: "s"})
+}
+
+func TestAllocVolumeForm(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.Method != http.MethodPost || r.URL.Path != "/api2/json/nodes/pve1/storage/local-lvm/content" {
+			t.Errorf("got %s %s", r.Method, r.URL.Path)
+		}
+		if r.PostForm.Encode() != "filename=vm-999999999-nb-vol-7&size=20G&vmid=999999999" {
+			t.Errorf("form = %s", r.PostForm.Encode())
+		}
+		fmt.Fprint(w, `{"data":"local-lvm:vm-999999999-nb-vol-7"}`)
+	})
+	volid, err := c.AllocVolume(ctx(t), "pve1", "local-lvm", 999999999, "vm-999999999-nb-vol-7", 20)
+	if err != nil || volid != "local-lvm:vm-999999999-nb-vol-7" {
+		t.Fatalf("volid = %q err=%v", volid, err)
+	}
+}
+
+func TestSetConfigDigestMismatch(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.PostForm.Get("digest") != "abc" || r.PostForm.Get("virtio1") != "x" {
+			t.Errorf("form = %s", r.PostForm.Encode())
+		}
+		w.WriteHeader(500)
+		fmt.Fprint(w, `{"data":null,"message":"detected modified configuration - file changed by other user? Try again. (digest mismatch)"}`)
+	})
+	err := c.SetConfigDigest(ctx(t), "pve1", 101, map[string]string{"virtio1": "x"}, "abc")
+	if !errors.Is(err, pve.ErrDigestMismatch) {
+		t.Fatalf("err = %v", err)
+	}
+	if errors.Is(err, pve.ErrNotFound) {
+		t.Fatal("digest error must not be not-found")
+	}
+}
+
+func TestStorageContentFilter(t *testing.T) {
+	var queries []string
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.RawQuery)
+		fmt.Fprint(w, `{"data":[{"volid":"local-lvm:vm-5-nb-vol-1","size":1073741824,"vmid":5},{"volid":"local-lvm:vm-6-disk-0","size":"2147483648","vmid":"6"}]}`)
+	})
+	items, err := c.StorageContent(ctx(t), "pve1", "local-lvm", 5)
+	if err != nil || len(items) != 2 || items[0] != (pve.StorageItem{Volid: "local-lvm:vm-5-nb-vol-1", Size: 1 << 30, VMID: 5}) || items[1].Size != 2<<30 || items[1].VMID != 6 {
+		t.Fatalf("items = %+v err=%v", items, err)
+	}
+	if _, err := c.StorageContent(ctx(t), "pve1", "local-lvm", 0); err != nil {
+		t.Fatal(err)
+	}
+	if queries[0] != "vmid=5" || queries[1] != "" {
+		t.Fatalf("queries = %q", queries)
+	}
+}
+
+func TestPending(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api2/json/nodes/pve1/qemu/101/pending" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"data":[{"key":"cores","value":2},{"key":"virtio1","pending":"local-lvm:vm-1-x"},{"key":"virtio2","value":"a","delete":1}]}`)
+	})
+	got, err := c.Pending(ctx(t), "pve1", 101)
+	want := []pve.PendingItem{{Key: "cores", Value: "2"}, {Key: "virtio1", Pending: "local-lvm:vm-1-x"}, {Key: "virtio2", Value: "a", Delete: 1}}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("got %+v err=%v", got, err)
+	}
+}
