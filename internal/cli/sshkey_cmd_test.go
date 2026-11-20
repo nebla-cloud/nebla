@@ -61,7 +61,7 @@ func TestSSHKeyListJSON(t *testing.T) {
 	}
 	out, _, code := h.run("-o", "json", "ssh-key", "list")
 	var keys []apiclient.SshKey
-	if code != 0 || json.Unmarshal([]byte(out), &keys) != nil || len(keys) != 1 {
+	if code != 0 || json.Unmarshal([]byte(out), &keys) != nil || len(keys) != 1 || keys[0].Name != "laptop" {
 		t.Fatalf("json: %d %q", code, out)
 	}
 }

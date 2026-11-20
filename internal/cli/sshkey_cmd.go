@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -32,11 +31,15 @@ func newSSHKeyCmd(a *app) *cobra.Command {
 				}
 				key = string(b)
 			}
+			key = strings.TrimSpace(key)
+			if key == "" {
+				return errors.New("public key is empty")
+			}
 			api, err := a.api()
 			if err != nil {
 				return err
 			}
-			res, err := api.C.PostSshKeysWithResponse(cmd.Context(), apiclient.PostSshKeysJSONRequestBody{Name: name, PublicKey: strings.TrimSpace(key)})
+			res, err := api.C.PostSshKeysWithResponse(cmd.Context(), apiclient.PostSshKeysJSONRequestBody{Name: name, PublicKey: key})
 			if err != nil {
 				return err
 			}
@@ -47,7 +50,7 @@ func newSSHKeyCmd(a *app) *cobra.Command {
 			if a.flags.output != "table" {
 				return a.printer().Object(k)
 			}
-			fmt.Fprintf(a.env.Stdout, "SSH key %d created\n", k.Id)
+			fmt.Fprintf(a.env.Stdout, "SSH key %s created\n", id64(k.Id))
 			return nil
 		},
 	}
@@ -56,38 +59,11 @@ func newSSHKeyCmd(a *app) *cobra.Command {
 	create.Flags().StringVar(&pubKeyFile, "public-key-from-file", "", "read the public key from a file")
 	_ = create.MarkFlagRequired("name")
 
-	var noHeader bool
-	list := &cobra.Command{
-		Use:   "list",
-		Short: "List SSH keys",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			api, err := a.api()
-			if err != nil {
-				return err
-			}
-			keys, err := api.SSHKeys(cmd.Context())
-			if err != nil {
-				return err
-			}
-			p := a.printer()
-			if a.flags.output != "table" {
-				if keys == nil {
-					keys = []apiclient.SshKey{}
-				}
-				return p.Object(keys)
-			}
-			p.NoHeader = noHeader
-			now := time.Now()
-			rows := make([][]string, 0, len(keys))
-			for _, k := range keys {
-				rows = append(rows, []string{strconv.FormatInt(k.Id, 10), k.Name, k.Fingerprint, age(k.Created, now)})
-			}
-			p.Table([]string{"ID", "NAME", "FINGERPRINT", "AGE"}, rows)
-			return nil
-		},
-	}
-	list.Flags().BoolVar(&noHeader, "no-header", false, "omit the table header")
+	list := listCmd(a, "list", "List SSH keys", []string{"ID", "NAME", "FINGERPRINT", "AGE"}, nil,
+		func(c *cobra.Command, api *API) ([]apiclient.SshKey, error) { return api.SSHKeys(c.Context()) },
+		func(k apiclient.SshKey) []string {
+			return []string{id64(k.Id), k.Name, k.Fingerprint, age(k.Created, time.Now())}
+		})
 
 	del := &cobra.Command{
 		Use:   "delete <ref>",

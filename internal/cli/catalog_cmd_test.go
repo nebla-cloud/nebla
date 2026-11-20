@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"encoding/json"
+
+	"github.com/Hexeption/nebla/internal/cli/apiclient"
 	"regexp"
 	"strings"
 	"testing"
@@ -23,5 +26,38 @@ func TestCatalogLists(t *testing.T) {
 	out, e, code = h.run("location", "list")
 	if code != 0 || !strings.Contains(out, "eu-1") {
 		t.Fatalf("location: %d %q %q", code, out, e)
+	}
+}
+
+func TestImageListUnknownLocation(t *testing.T) {
+	h := newHarness(t)
+	out, _, code := h.run("image", "list", "--location", "nowhere")
+	if code == 0 && strings.Contains(out, "ubuntu") {
+		t.Fatalf("unknown location listed ubuntu: %q", out)
+	}
+}
+
+func TestServerTypeListJSON(t *testing.T) {
+	h := newHarness(t)
+	out, e, code := h.run("-o", "json", "server-type", "list")
+	var types []apiclient.ServerType
+	if code != 0 || json.Unmarshal([]byte(out), &types) != nil || len(types) == 0 {
+		t.Fatalf("json: %d %q %q", code, out, e)
+	}
+	found := false
+	for _, s := range types {
+		found = found || s.Name == "small"
+	}
+	if !found {
+		t.Fatalf("no small in %q", out)
+	}
+}
+
+func TestMemoryString(t *testing.T) {
+	if got := memoryString(2048); got != "2 GB" {
+		t.Fatal(got)
+	}
+	if got := memoryString(1536); got != "1536 MB" {
+		t.Fatal(got)
 	}
 }
