@@ -88,9 +88,11 @@ func (e *adminEnv) role(t *testing.T, projectID, userID int64) string {
 func TestDeleteUser(t *testing.T) {
 	ctx := context.Background()
 	e := newAdminEnv(t)
-	requireAPIErr(t, e.svc.DeleteUser(ctx, e.admin.ID, e.admin.ID, false), http.StatusUnprocessableEntity, "self_admin_action")
+	ae := requireAPIErr(t, e.svc.DeleteUser(ctx, e.admin.ID, e.admin.ID, false), http.StatusUnprocessableEntity, "self_admin_action")
+	require.Equal(t, "Use your account page to change this for yourself.", ae.Msg)
 	other := e.user(t, "other@example.com", false)
-	requireAPIErr(t, e.svc.DeleteUser(ctx, other.ID, e.admin.ID, false), http.StatusConflict, "last_admin")
+	ae = requireAPIErr(t, e.svc.DeleteUser(ctx, other.ID, e.admin.ID, false), http.StatusConflict, "last_admin")
+	require.Equal(t, "The panel needs at least one admin.", ae.Msg)
 	requireAPIErr(t, e.svc.DeleteUser(ctx, e.admin.ID, 99999, false), http.StatusNotFound, "not_found")
 
 	u := e.user(t, "u@example.com", false)
@@ -217,7 +219,8 @@ func TestAdminDeleteProject(t *testing.T) {
 	e := newAdminEnv(t)
 	pid := e.project(t, e.owner.ID, "Web")
 	e.busy[pid] = true
-	requireAPIErr(t, e.svc.AdminDelete(ctx, pid), http.StatusConflict, "project_not_empty")
+	ae := requireAPIErr(t, e.svc.AdminDelete(ctx, pid), http.StatusConflict, "project_not_empty")
+	require.Equal(t, "Delete the project's servers first.", ae.Msg)
 	_, err := e.db.Project.Get(ctx, pid)
 	require.NoError(t, err)
 
@@ -254,4 +257,15 @@ func TestListAllUsageAndMembers(t *testing.T) {
 	require.Equal(t, c, ps[0].ID)
 	require.Equal(t, projects.Usage{}, ps[0].Usage)
 	require.Equal(t, 1, ps[0].MemberCount)
+}
+
+func TestDeleteUserOtherAdmin(t *testing.T) {
+	ctx := context.Background()
+	e := newAdminEnv(t)
+	other := e.user(t, "other-admin@example.com", true)
+	require.NoError(t, e.svc.DeleteUser(ctx, e.admin.ID, other.ID, false))
+	_, err := e.db.User.Get(ctx, other.ID)
+	require.True(t, ent.IsNotFound(err))
+	_, err = e.db.User.Get(ctx, e.admin.ID)
+	require.NoError(t, err)
 }

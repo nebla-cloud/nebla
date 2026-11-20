@@ -184,7 +184,7 @@ func (s *Service) ListUsers(ctx context.Context, page, perPage int) ([]User, int
 func mapCreateErr(err error) error {
 	var pe *pgconn.PgError
 	if errors.As(err, &pe) && pe.Code == "23505" {
-		return apierr.New(http.StatusConflict, "email_taken", "email is already registered")
+		return apierr.New(http.StatusConflict, "email_taken", "That email is already registered.")
 	}
 	return err
 }

@@ -86,6 +86,7 @@ func TestAdminUpdateUser(t *testing.T) {
 
 	_, err = e.svc.AdminUpdateUser(ctx, admin.ID, u.ID, "N", "TAKEN@example.com", false, "")
 	requireCode(t, err, http.StatusConflict, "email_taken")
+	require.EqualError(t, err, "email_taken: That email is already registered.")
 	_, err = e.svc.AdminUpdateUser(ctx, admin.ID, u.ID, "N", "not-an-email", false, "")
 	requireCode(t, err, http.StatusUnprocessableEntity, "invalid_input")
 	_, err = e.svc.AdminUpdateUser(ctx, admin.ID, u.ID, "  ", "n@example.com", false, "")

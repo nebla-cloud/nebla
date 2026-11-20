@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	ErrSelfAdminAction = apierr.New(http.StatusUnprocessableEntity, "self_admin_action", "use your account page to change this for yourself")
-	ErrLastAdmin       = apierr.New(http.StatusConflict, "last_admin", "the panel needs at least one admin")
+	ErrSelfAdminAction = apierr.New(http.StatusUnprocessableEntity, "self_admin_action", "Use your account page to change this for yourself.")
+	ErrLastAdmin       = apierr.New(http.StatusConflict, "last_admin", "The panel needs at least one admin.")
 	errUserNotFound    = apierr.New(http.StatusNotFound, "not_found", "not found")
 )
 
