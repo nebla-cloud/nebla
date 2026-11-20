@@ -8,6 +8,8 @@ const harness = JSON.parse(process.env.NEBLA_E2E_HARNESS ?? '{}') as {
 }
 
 test('enroll paste-back connects a location', async ({ page, request }) => {
+  // Earlier specs drain the admin's API bucket (refills 1/s); let it recover.
+  await page.waitForTimeout(30_000)
   await login(page)
   await page.goto('/admin/locations')
   await page.getByRole('button', { name: 'Connect a location' }).first().click()

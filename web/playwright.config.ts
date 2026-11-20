@@ -17,7 +17,6 @@ export default defineConfig({
   },
   projects: [
     { name: 'first-run', testMatch: /first-run\.spec\.ts/ },
-    { name: 'enroll', testMatch: /enroll\.spec\.ts/, dependencies: ['first-run'] },
     { name: 'catalog', testMatch: /catalog\.spec\.ts/, dependencies: ['first-run'] },
     {
       name: 'server-depth',
@@ -26,5 +25,6 @@ export default defineConfig({
     },
     // Needs the Home lab project that first-run creates; runs last so it can't disturb server specs.
     { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['server-depth'] },
+    { name: 'enroll', testMatch: /enroll\.spec\.ts/, dependencies: ['people'] },
   ],
 })
