@@ -169,7 +169,8 @@ func TestBlobRoundTrip(t *testing.T) {
 	raw, err := os.ReadFile("testdata/report-pve9.json")
 	require.NoError(t, err)
 	tok := "nbe_" + strings.Repeat("A", 43)
-	line := EncodeBlob(tok, raw)
+	line, err := EncodeBlob(tok, raw)
+	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(line, "nebla-enroll:v1:"))
 	got, body, err := DecodeBlob("  " + line + "\n")
 	require.NoError(t, err)
@@ -180,25 +181,41 @@ func TestBlobRoundTrip(t *testing.T) {
 	require.Equal(t, "pve1", r.Node)
 }
 
+func TestEncodeBlob(t *testing.T) {
+	line, err := EncodeBlob("nbe_new", []byte(`{"v":1,"enroll_token":"nbe_old"}`))
+	require.NoError(t, err)
+	tok, body, err := DecodeBlob(line)
+	require.NoError(t, err)
+	require.Equal(t, "nbe_new", tok)
+	require.JSONEq(t, `{"v":1}`, string(body))
+	for _, in := range []string{`[1]`, `null`, `nope`, ``} {
+		_, err := EncodeBlob("nbe_x", []byte(in))
+		require.Error(t, err, in)
+	}
+}
+
 func TestDecodeBlobRejects(t *testing.T) {
-	good := EncodeBlob("nbe_x", []byte(`{"v":1}`))
-	noTok := EncodeBlob("", []byte(`{"v":1}`))
-	noKey := blobPrefix + base64.RawURLEncoding.EncodeToString([]byte(`{"v":1}`))
-	big := blobPrefix + base64.RawURLEncoding.EncodeToString([]byte(`{"enroll_token":"nbe_x","pad":"`+strings.Repeat("a", maxReportBytes)+`"}`))
-	for name, line := range map[string]string{
-		"no token key": noKey,
-		"oversize":     big,
-		"wrong prefix": "nebla-enroll:v2:" + strings.TrimPrefix(good, "nebla-enroll:v1:"),
-		"bad base64":   "nebla-enroll:v1:!!!",
-		"no token":     noTok,
-		"not json":     "nebla-enroll:v1:" + "bm90IGpzb24",
-		"empty":        "",
+	good, err := EncodeBlob("nbe_x", []byte(`{"v":1}`))
+	require.NoError(t, err)
+	noTok, err := EncodeBlob("", []byte(`{"v":1}`))
+	require.NoError(t, err)
+	enc := func(s string) string { return blobPrefix + base64.RawURLEncoding.EncodeToString([]byte(s)) }
+	big := enc(`{"enroll_token":"nbe_x","pad":"` + strings.Repeat("a", maxReportBytes) + `"}`)
+	for name, c := range map[string]struct{ line, want string }{
+		"no token key": {enc(`{"v":1}`), "no enrollment token"},
+		"oversize":     {big, "too large"},
+		"wrong prefix": {"nebla-enroll:v2:" + strings.TrimPrefix(good, blobPrefix), "not an enrollment blob"},
+		"bad base64":   {blobPrefix + "!!!", "not valid base64"},
+		"no token":     {noTok, "no enrollment token"},
+		"not json":     {blobPrefix + "bm90IGpzb24", "does not contain a JSON report"},
+		"empty":        {"", "not an enrollment blob"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := DecodeBlob(line)
+			_, _, err := DecodeBlob(c.line)
 			var e apierr.E
 			require.True(t, errors.As(err, &e), "got %v", err)
 			require.Equal(t, "invalid_report", e.Code)
+			require.Contains(t, e.Msg, c.want)
 		})
 	}
 }
