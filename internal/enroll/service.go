@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -45,6 +46,8 @@ type Options struct {
 	LeafFingerprint func(ctx context.Context, url string) (string, error)
 	// Now defaults to time.Now.
 	Now func() time.Time
+	// Logger defaults to slog.Default().
+	Logger *slog.Logger
 }
 
 type Service struct {
@@ -84,6 +87,9 @@ func New(sqlDB *sql.DB, client *ent.Client, o Options) *Service {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.Logger == nil {
+		o.Logger = slog.Default()
+	}
 	box, err := crypto.NewBox(o.SecretKey)
 	return &Service{sql: sqlDB, db: client, box: box, boxErr: err, o: o}
 }
@@ -109,9 +115,13 @@ func notFound(err error) error {
 	return err
 }
 
-func isUnique(err error) bool {
+// uniqueKey returns the violated constraint of a unique violation, or "".
+func uniqueKey(err error) (string, bool) {
 	var pe *pgconn.PgError
-	return errors.As(err, &pe) && pe.Code == "23505"
+	if errors.As(err, &pe) && pe.Code == "23505" {
+		return pe.ConstraintName, true
+	}
+	return "", false
 }
 
 func (s *Service) now() time.Time { return s.o.Now() }
@@ -210,7 +220,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput, userID int64) (Cre
 		}
 		var err error
 		if row, err = c.Save(ctx); err != nil {
-			if isUnique(err) {
+			if key, ok := uniqueKey(err); ok {
+				if key == "location_enrollments_location_id_key" {
+					return stateErr("a re-run for this location is already in progress")
+				}
 				return errNameUsed
 			}
 			return notFound(err)
@@ -247,7 +260,7 @@ func (s *Service) NewToken(ctx context.Context, id int64) (Created, error) {
 
 // List returns rows the sweep has not reached yet, expired ones included.
 func (s *Service) List(ctx context.Context) ([]Enrollment, error) {
-	rows, err := s.db.LocationEnrollment.Query().Where(locationenrollment.ExpiresAtGT(s.now().Add(-sweepAfter))).
+	rows, err := s.db.LocationEnrollment.Query().Where(locationenrollment.ExpiresAtGTE(s.now().Add(-sweepAfter))).
 		Order(locationenrollment.ByID()).All(ctx)
 	if err != nil {
 		return nil, err

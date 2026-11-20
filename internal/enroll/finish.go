@@ -130,8 +130,9 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 	if err != nil {
 		return Finished{}, err
 	}
+	// The location is done; a leftover row is reclaimed by the sweep.
 	if err := s.db.LocationEnrollment.DeleteOneID(id).Exec(ctx); err != nil && !ent.IsNotFound(err) {
-		return Finished{}, err
+		s.o.Logger.ErrorContext(ctx, "enroll: delete finished enrollment", "enrollment_id", id, "err", err)
 	}
 	return Finished{Location: loc, Cleanup: cleanup}, nil
 }

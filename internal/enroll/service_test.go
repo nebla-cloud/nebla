@@ -143,11 +143,11 @@ func TestCreateAndCheck(t *testing.T) {
 	ctx := context.Background()
 	e := setup(t)
 	c := e.create(t, "home")
-	require.Regexp(t, `^nbe_[A-Za-z0-9_-]{43}$`, c.Token)
+	require.True(t, regexp.MustCompile(`^nbe_[A-Za-z0-9_-]{43}$`).MatchString(c.Token), "token format")
 	require.Regexp(t, `^nebla-home-[a-z0-9]{6}$`, c.TokenName)
 	require.Equal(t, "waiting", c.State)
-	require.Equal(t, enroll.Command(panelURL, c.Token), c.Command)
-	require.Equal(t, enroll.OfflineScript(panelURL, c.Token, c.TokenName), c.OfflineScript)
+	require.True(t, enroll.Command(panelURL, c.Token) == c.Command, "command")
+	require.True(t, enroll.OfflineScript(panelURL, c.Token, c.TokenName) == c.OfflineScript, "offline script")
 	require.Equal(t, e.now.Add(30*time.Minute), c.ExpiresAt.UTC())
 
 	got, err := e.svc.Check(ctx, c.Token)
@@ -280,7 +280,7 @@ func TestNewTokenInvalidatesOld(t *testing.T) {
 	e.advance(40 * time.Minute)
 	n, err := e.svc.NewToken(ctx, c.ID)
 	require.NoError(t, err)
-	require.NotEqual(t, c.Token, n.Token)
+	require.True(t, c.Token != n.Token, "new token differs")
 	require.NotEqual(t, c.TokenName, n.TokenName)
 	require.Regexp(t, regexp.MustCompile(`^nebla-home-[a-z0-9]{6}$`), n.TokenName)
 	require.Equal(t, e.now.Add(30*time.Minute), n.ExpiresAt.UTC())
@@ -314,6 +314,21 @@ func TestRerunReplacesLiveRerun(t *testing.T) {
 	requireCode(t, err, 401, "enrollment_invalid")
 	require.Equal(t, loc.ID, *e.row(t, second.ID).LocationID)
 
+	errs := make([]error, 8)
+	var wg sync.WaitGroup
+	for i := range errs {
+		wg.Go(func() { _, errs[i] = e.svc.Create(ctx, enroll.CreateInput{LocationID: &loc.ID}, e.userID) })
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			requireCode(t, err, 409, "enrollment_state")
+		}
+	}
+	n, err := e.ent.LocationEnrollment.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
 	missing := int64(9999)
 	_, err = e.svc.Create(ctx, enroll.CreateInput{LocationID: &missing}, e.userID)
 	requireCode(t, err, 404, "not_found")
@@ -329,7 +344,14 @@ func TestListAndDelete(t *testing.T) {
 	require.Len(t, list, 2)
 	require.NoError(t, e.svc.Delete(ctx, a.ID))
 	requireCode(t, e.svc.Delete(ctx, a.ID), 404, "not_found")
-	e.advance(30*time.Minute + 25*time.Hour)
+	e.advance(30*time.Minute + 24*time.Hour)
+	list, err = e.svc.List(ctx)
+	require.NoError(t, err)
+	require.Len(t, list, 1, "a row exactly 24h past expiry is listed until swept")
+	n, err := e.svc.Sweep(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	e.advance(time.Hour)
 	list, err = e.svc.List(ctx)
 	require.NoError(t, err)
 	require.Empty(t, list)
