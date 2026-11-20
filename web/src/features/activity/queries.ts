@@ -6,7 +6,7 @@ import type { Action } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
 
 const PER_PAGE = 25
-const POLL_MS = 3000
+export const POLL_MS = 3000
 
 export type ActionFilter = 'all' | 'running' | 'error'
 
