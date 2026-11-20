@@ -12,6 +12,8 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Hexeption/nebla/internal/ent/predicate"
 	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/projectmember"
+	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
 // ProjectUpdate is the builder for updating Project entities.
@@ -147,9 +149,90 @@ func (_u *ProjectUpdate) AddMaxIps(v int) *ProjectUpdate {
 	return _u
 }
 
+// SetCreatedBy sets the "created_by" field.
+func (_u *ProjectUpdate) SetCreatedBy(v int64) *ProjectUpdate {
+	_u.mutation.SetCreatedBy(v)
+	return _u
+}
+
+// SetNillableCreatedBy sets the "created_by" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableCreatedBy(v *int64) *ProjectUpdate {
+	if v != nil {
+		_u.SetCreatedBy(*v)
+	}
+	return _u
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (_u *ProjectUpdate) ClearCreatedBy() *ProjectUpdate {
+	_u.mutation.ClearCreatedBy()
+	return _u
+}
+
+// SetCreatorID sets the "creator" edge to the User entity by ID.
+func (_u *ProjectUpdate) SetCreatorID(id int64) *ProjectUpdate {
+	_u.mutation.SetCreatorID(id)
+	return _u
+}
+
+// SetNillableCreatorID sets the "creator" edge to the User entity by ID if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableCreatorID(id *int64) *ProjectUpdate {
+	if id != nil {
+		_u = _u.SetCreatorID(*id)
+	}
+	return _u
+}
+
+// SetCreator sets the "creator" edge to the User entity.
+func (_u *ProjectUpdate) SetCreator(v *User) *ProjectUpdate {
+	return _u.SetCreatorID(v.ID)
+}
+
+// AddMemberIDs adds the "members" edge to the ProjectMember entity by IDs.
+func (_u *ProjectUpdate) AddMemberIDs(ids ...int64) *ProjectUpdate {
+	_u.mutation.AddMemberIDs(ids...)
+	return _u
+}
+
+// AddMembers adds the "members" edges to the ProjectMember entity.
+func (_u *ProjectUpdate) AddMembers(v ...*ProjectMember) *ProjectUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMemberIDs(ids...)
+}
+
 // Mutation returns the ProjectMutation object of the builder.
 func (_u *ProjectUpdate) Mutation() *ProjectMutation {
 	return _u.mutation
+}
+
+// ClearCreator clears the "creator" edge to the User entity.
+func (_u *ProjectUpdate) ClearCreator() *ProjectUpdate {
+	_u.mutation.ClearCreator()
+	return _u
+}
+
+// ClearMembers clears all "members" edges to the ProjectMember entity.
+func (_u *ProjectUpdate) ClearMembers() *ProjectUpdate {
+	_u.mutation.ClearMembers()
+	return _u
+}
+
+// RemoveMemberIDs removes the "members" edge to ProjectMember entities by IDs.
+func (_u *ProjectUpdate) RemoveMemberIDs(ids ...int64) *ProjectUpdate {
+	_u.mutation.RemoveMemberIDs(ids...)
+	return _u
+}
+
+// RemoveMembers removes "members" edges to ProjectMember entities.
+func (_u *ProjectUpdate) RemoveMembers(v ...*ProjectMember) *ProjectUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMemberIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -226,6 +309,80 @@ func (_u *ProjectUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedMaxIps(); ok {
 		_spec.AddField(project.FieldMaxIps, field.TypeInt, value)
+	}
+	if _u.mutation.CreatorCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   project.CreatorTable,
+			Columns: []string{project.CreatorColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CreatorIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   project.CreatorTable,
+			Columns: []string{project.CreatorColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MembersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   project.MembersTable,
+			Columns: []string{project.MembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmember.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMembersIDs(); len(nodes) > 0 && !_u.mutation.MembersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   project.MembersTable,
+			Columns: []string{project.MembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmember.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MembersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   project.MembersTable,
+			Columns: []string{project.MembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmember.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
@@ -368,9 +525,90 @@ func (_u *ProjectUpdateOne) AddMaxIps(v int) *ProjectUpdateOne {
 	return _u
 }
 
+// SetCreatedBy sets the "created_by" field.
+func (_u *ProjectUpdateOne) SetCreatedBy(v int64) *ProjectUpdateOne {
+	_u.mutation.SetCreatedBy(v)
+	return _u
+}
+
+// SetNillableCreatedBy sets the "created_by" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableCreatedBy(v *int64) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetCreatedBy(*v)
+	}
+	return _u
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (_u *ProjectUpdateOne) ClearCreatedBy() *ProjectUpdateOne {
+	_u.mutation.ClearCreatedBy()
+	return _u
+}
+
+// SetCreatorID sets the "creator" edge to the User entity by ID.
+func (_u *ProjectUpdateOne) SetCreatorID(id int64) *ProjectUpdateOne {
+	_u.mutation.SetCreatorID(id)
+	return _u
+}
+
+// SetNillableCreatorID sets the "creator" edge to the User entity by ID if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableCreatorID(id *int64) *ProjectUpdateOne {
+	if id != nil {
+		_u = _u.SetCreatorID(*id)
+	}
+	return _u
+}
+
+// SetCreator sets the "creator" edge to the User entity.
+func (_u *ProjectUpdateOne) SetCreator(v *User) *ProjectUpdateOne {
+	return _u.SetCreatorID(v.ID)
+}
+
+// AddMemberIDs adds the "members" edge to the ProjectMember entity by IDs.
+func (_u *ProjectUpdateOne) AddMemberIDs(ids ...int64) *ProjectUpdateOne {
+	_u.mutation.AddMemberIDs(ids...)
+	return _u
+}
+
+// AddMembers adds the "members" edges to the ProjectMember entity.
+func (_u *ProjectUpdateOne) AddMembers(v ...*ProjectMember) *ProjectUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMemberIDs(ids...)
+}
+
 // Mutation returns the ProjectMutation object of the builder.
 func (_u *ProjectUpdateOne) Mutation() *ProjectMutation {
 	return _u.mutation
+}
+
+// ClearCreator clears the "creator" edge to the User entity.
+func (_u *ProjectUpdateOne) ClearCreator() *ProjectUpdateOne {
+	_u.mutation.ClearCreator()
+	return _u
+}
+
+// ClearMembers clears all "members" edges to the ProjectMember entity.
+func (_u *ProjectUpdateOne) ClearMembers() *ProjectUpdateOne {
+	_u.mutation.ClearMembers()
+	return _u
+}
+
+// RemoveMemberIDs removes the "members" edge to ProjectMember entities by IDs.
+func (_u *ProjectUpdateOne) RemoveMemberIDs(ids ...int64) *ProjectUpdateOne {
+	_u.mutation.RemoveMemberIDs(ids...)
+	return _u
+}
+
+// RemoveMembers removes "members" edges to ProjectMember entities.
+func (_u *ProjectUpdateOne) RemoveMembers(v ...*ProjectMember) *ProjectUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMemberIDs(ids...)
 }
 
 // Where appends a list predicates to the ProjectUpdate builder.
@@ -477,6 +715,80 @@ func (_u *ProjectUpdateOne) sqlSave(ctx context.Context) (_node *Project, err er
 	}
 	if value, ok := _u.mutation.AddedMaxIps(); ok {
 		_spec.AddField(project.FieldMaxIps, field.TypeInt, value)
+	}
+	if _u.mutation.CreatorCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   project.CreatorTable,
+			Columns: []string{project.CreatorColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CreatorIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   project.CreatorTable,
+			Columns: []string{project.CreatorColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MembersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   project.MembersTable,
+			Columns: []string{project.MembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmember.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMembersIDs(); len(nodes) > 0 && !_u.mutation.MembersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   project.MembersTable,
+			Columns: []string{project.MembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmember.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MembersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   project.MembersTable,
+			Columns: []string{project.MembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmember.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	_node = &Project{config: _u.config}

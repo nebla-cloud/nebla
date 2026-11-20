@@ -213,7 +213,7 @@ func init() {
 	// project.DefaultMaxIps holds the default value on creation for the max_ips field.
 	project.DefaultMaxIps = projectDescMaxIps.Default.(int)
 	// projectDescCreatedAt is the schema descriptor for created_at field.
-	projectDescCreatedAt := projectFields[7].Descriptor()
+	projectDescCreatedAt := projectFields[8].Descriptor()
 	// project.DefaultCreatedAt holds the default value on creation for the created_at field.
 	project.DefaultCreatedAt = projectDescCreatedAt.Default.(func() time.Time)
 	projectmemberFields := schema.ProjectMember{}.Fields()

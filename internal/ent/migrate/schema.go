@@ -432,12 +432,28 @@ var (
 		{Name: "max_disk_gb", Type: field.TypeInt, Default: 0},
 		{Name: "max_ips", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "created_by", Type: field.TypeInt64, Nullable: true},
 	}
 	// ProjectsTable holds the schema information for the "projects" table.
 	ProjectsTable = &schema.Table{
 		Name:       "projects",
 		Columns:    ProjectsColumns,
 		PrimaryKey: []*schema.Column{ProjectsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "projects_users_creator",
+				Columns:    []*schema.Column{ProjectsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "projects_created_by_idx",
+				Unique:  false,
+				Columns: []*schema.Column{ProjectsColumns[8]},
+			},
+		},
 	}
 	// ProjectMembersColumns holds the columns for the "project_members" table.
 	ProjectMembersColumns = []*schema.Column{
@@ -749,6 +765,7 @@ func init() {
 	InvitesTable.ForeignKeys[0].RefTable = ProjectsTable
 	InvitesTable.ForeignKeys[1].RefTable = UsersTable
 	NodesTable.ForeignKeys[0].RefTable = LocationsTable
+	ProjectsTable.ForeignKeys[0].RefTable = UsersTable
 	ProjectMembersTable.ForeignKeys[0].RefTable = ProjectsTable
 	ProjectMembersTable.ForeignKeys[1].RefTable = UsersTable
 	SSHKeysTable.ForeignKeys[0].RefTable = ProjectsTable

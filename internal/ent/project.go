@@ -10,6 +10,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/Hexeption/nebla/internal/ent/project"
+	"github.com/Hexeption/nebla/internal/ent/user"
 )
 
 // Project is the model entity for the Project schema.
@@ -29,9 +30,45 @@ type Project struct {
 	MaxDiskGB int `json:"max_disk_gb,omitempty"`
 	// MaxIps holds the value of the "max_ips" field.
 	MaxIps int `json:"max_ips,omitempty"`
+	// CreatedBy holds the value of the "created_by" field.
+	CreatedBy *int64 `json:"created_by,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
-	CreatedAt    time.Time `json:"created_at,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the ProjectQuery when eager-loading is set.
+	Edges        ProjectEdges `json:"edges"`
 	selectValues sql.SelectValues
+}
+
+// ProjectEdges holds the relations/edges for other nodes in the graph.
+type ProjectEdges struct {
+	// Creator holds the value of the creator edge.
+	Creator *User `json:"creator,omitempty"`
+	// Members holds the value of the members edge.
+	Members []*ProjectMember `json:"members,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [2]bool
+}
+
+// CreatorOrErr returns the Creator value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e ProjectEdges) CreatorOrErr() (*User, error) {
+	if e.Creator != nil {
+		return e.Creator, nil
+	} else if e.loadedTypes[0] {
+		return nil, &NotFoundError{label: user.Label}
+	}
+	return nil, &NotLoadedError{edge: "creator"}
+}
+
+// MembersOrErr returns the Members value or an error if the edge
+// was not loaded in eager-loading.
+func (e ProjectEdges) MembersOrErr() ([]*ProjectMember, error) {
+	if e.loadedTypes[1] {
+		return e.Members, nil
+	}
+	return nil, &NotLoadedError{edge: "members"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -39,7 +76,7 @@ func (*Project) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case project.FieldID, project.FieldMaxServers, project.FieldMaxVcpu, project.FieldMaxMemoryMB, project.FieldMaxDiskGB, project.FieldMaxIps:
+		case project.FieldID, project.FieldMaxServers, project.FieldMaxVcpu, project.FieldMaxMemoryMB, project.FieldMaxDiskGB, project.FieldMaxIps, project.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
 		case project.FieldName:
 			values[i] = new(sql.NullString)
@@ -102,6 +139,13 @@ func (_m *Project) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.MaxIps = int(value.Int64)
 			}
+		case project.FieldCreatedBy:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field created_by", values[i])
+			} else if value.Valid {
+				_m.CreatedBy = new(int64)
+				*_m.CreatedBy = value.Int64
+			}
 		case project.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -119,6 +163,16 @@ func (_m *Project) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (_m *Project) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
+}
+
+// QueryCreator queries the "creator" edge of the Project entity.
+func (_m *Project) QueryCreator() *UserQuery {
+	return NewProjectClient(_m.config).QueryCreator(_m)
+}
+
+// QueryMembers queries the "members" edge of the Project entity.
+func (_m *Project) QueryMembers() *ProjectMemberQuery {
+	return NewProjectClient(_m.config).QueryMembers(_m)
 }
 
 // Update returns a builder for updating this Project.
@@ -161,6 +215,11 @@ func (_m *Project) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("max_ips=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MaxIps))
+	builder.WriteString(", ")
+	if v := _m.CreatedBy; v != nil {
+		builder.WriteString("created_by=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
