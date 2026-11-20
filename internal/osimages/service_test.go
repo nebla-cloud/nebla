@@ -83,12 +83,13 @@ var (
 )
 
 // newEnv seeds pve1 and pve2 with an import storage "imp" and builds the service over two fake entries.
-func newEnv(t *testing.T) *env { return buildEnv(t, false) }
+func newEnv(t *testing.T) *env { return buildEnvWith(t, false, nil) }
 
 // runEnv is newEnv with the build worker registered and the job runtime running.
-func runEnv(t *testing.T) *env { return buildEnv(t, true) }
+func runEnv(t *testing.T) *env { return buildEnvWith(t, true, nil) }
 
-func buildEnv(t *testing.T, run bool) *env {
+// buildEnvWith is the env builder; tweak may adjust the catalog options.
+func buildEnvWith(t *testing.T, run bool, tweak func(*catalog.Options)) *env {
 	t.Helper()
 	e := &env{t: t, up: newUpstream(t)}
 	pool := testutil.NewDB(t)
@@ -99,7 +100,11 @@ func buildEnv(t *testing.T, run bool) *env {
 	for _, n := range []string{"pve1", "pve2"} {
 		pv.AddStorage(n, "imp", []string{"import", "iso"}, false)
 	}
-	cat := catalog.New(sqlDB, client, testutil.CatalogOptions(catalog.Hooks{}))
+	opts := testutil.CatalogOptions(catalog.Hooks{})
+	if tweak != nil {
+		tweak(&opts)
+	}
+	cat := catalog.New(sqlDB, client, opts)
 	svc := osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: cat, Entries: e.up.entries, HTTP: e.up.client,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	var j *jobs.Jobs
