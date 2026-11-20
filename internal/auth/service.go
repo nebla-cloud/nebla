@@ -210,7 +210,27 @@ func (s *Service) Login(ctx context.Context, email, pw, code string) (string, er
 			return "", errInvalidCreds
 		}
 	}
-	return s.newSession(ctx, u.ID)
+	var tok string
+	err = s.inTx(ctx, func(tx *ent.Client) error {
+		// Re-read under lock so a password or TOTP change that committed meanwhile wins.
+		cur, err := tx.User.Query().Where(user.ID(u.ID)).ForUpdate().Only(ctx)
+		if ent.IsNotFound(err) {
+			return errInvalidCreds
+		}
+		if err != nil {
+			return err
+		}
+		if cur.PasswordHash != u.PasswordHash || cur.TotpEnabled != u.TotpEnabled || !sameSecret(cur.TotpSecret, u.TotpSecret) {
+			return errInvalidCreds
+		}
+		tok, err = createSession(ctx, tx, u.ID)
+		return err
+	})
+	return tok, err
+}
+
+func sameSecret(a, b *string) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
 }
 
 // NewSession starts a session for an existing user.
