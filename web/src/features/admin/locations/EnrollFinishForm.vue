@@ -121,9 +121,13 @@ async function submit() {
       </tbody>
     </table>
 
+    <p v-if="!disks.length || !isos.length" class="text-sm text-error">
+      The node reported no usable storage for disks or ISOs. Check the node's storage and run setup
+      again.
+    </p>
     <UAlert v-if="formError" color="error" variant="subtle" :description="formError" />
     <div>
-      <UButton type="submit" :loading="finish.isPending.value">
+      <UButton type="submit" :disabled="!form.disk || !form.iso" :loading="finish.isPending.value">
         {{ rerun ? 'Save' : 'Connect location' }}
       </UButton>
     </div>

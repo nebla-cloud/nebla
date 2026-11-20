@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
-import { RouterView } from 'vue-router'
+import { RouterView, createRouter, createWebHistory } from 'vue-router'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
@@ -89,7 +89,13 @@ async function mountPage() {
 }
 
 const button = (
-  w: { findAll: (s: string) => { text: () => string; trigger: (e: string) => Promise<void> }[] },
+  w: {
+    findAll: (s: string) => {
+      text: () => string
+      trigger: (e: string) => Promise<void>
+      attributes: (n: string) => string | undefined
+    }[]
+  },
   label: string,
 ) => w.findAll('button').find((b) => b.text() === label)!
 
@@ -271,5 +277,93 @@ describe('EnrollPage', () => {
     await vi.waitFor(() => expect(deleted).toBe(true))
     await flushPromises()
     expect(router.currentRoute.value.name).toBe('admin-locations')
+  })
+
+  it('stops polling once reported', async () => {
+    remember()
+    let calls = 0
+    server.use(
+      http.get('*/v1/admin/location_enrollments/7', () => {
+        calls++
+        return json(200, enrollment({ state: 'reported', report }))
+      }),
+    )
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const { wrapper } = await mountPage()
+    await vi.waitFor(() => expect(wrapper.find('select[name=disk_storage]').exists()).toBe(true))
+    const seen = calls
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(calls).toBe(seen)
+  })
+
+  it('disables Connect when no disk storage was reported', async () => {
+    remember()
+    server.use(get(enrollment({ state: 'reported', report: { ...report, storages: [] } })))
+    const { wrapper } = await mountPage()
+    expect(wrapper.text()).toContain('reported no usable storage')
+    expect(button(wrapper, 'Connect location').attributes('disabled')).toBeDefined()
+  })
+
+  it('clears cleanup from history so a remount shows no alert', async () => {
+    const location = {
+      id: 3,
+      name: 'home',
+      description: '',
+      pve: {
+        url: 'https://x:8006',
+        token_id: 't',
+        has_secret: true,
+        ca_fingerprint: '',
+        insecure_tls: false,
+      },
+      disk_storage: 'a',
+      iso_storage: 'b',
+      import_storage: '',
+      nodes: [],
+      created: '2026-01-01T00:00:00Z',
+      updated: '2026-01-01T00:00:00Z',
+    }
+    server.use(
+      http.get('*/v1/admin/locations', () =>
+        json(200, {
+          locations: [location],
+          meta: { pagination: { page: 1, per_page: 50, total_entries: 1 } },
+        }),
+      ),
+    )
+    const stub = { render: () => null }
+    const mk = () =>
+      createRouter({
+        history: createWebHistory(),
+        routes: [
+          {
+            path: '/admin/locations/:locationId',
+            name: 'admin-location',
+            component: LocationDetailPage,
+          },
+          { path: '/admin/locations', name: 'admin-locations', component: stub },
+          { path: '/:pathMatch(.*)*', component: stub },
+        ],
+      })
+    const router = mk()
+    const first = mountApp(RouterView, { router })
+    mounted.push(first.wrapper)
+    await router.isReady()
+    await router.push({
+      name: 'admin-location',
+      params: { locationId: 3 },
+      state: { cleanup: ['pveum x'] },
+    })
+    await vi.waitFor(() =>
+      expect(first.wrapper.find('[data-testid=enroll-cleanup]').exists()).toBe(true),
+    )
+    expect(window.history.state.cleanup).toBeNull()
+    first.wrapper.unmount()
+    const router2 = mk()
+    await router2.push('/admin/locations/3')
+    const second = mountApp(RouterView, { router: router2 })
+    mounted.push(second.wrapper)
+    await vi.waitFor(() => expect(second.wrapper.text()).toContain('Nodes'))
+    expect(second.wrapper.find('[data-testid=enroll-cleanup]').exists()).toBe(false)
   })
 })

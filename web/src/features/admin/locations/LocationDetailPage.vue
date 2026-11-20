@@ -32,8 +32,8 @@ const override = ref<Record<number, string>>({})
 function readCleanup(): string[] {
   const c = (router.options.history.state as { cleanup?: unknown }).cleanup
   if (!Array.isArray(c)) return []
-  // Clear it so a later visit doesn't show the alert again.
-  void router.replace({ name: 'admin-location', params: route.params, state: {} })
+  // router.replace merges state, so null it in place to keep it from showing again.
+  window.history.replaceState({ ...window.history.state, cleanup: null }, '')
   return c.map(String)
 }
 
