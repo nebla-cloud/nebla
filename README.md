@@ -35,7 +35,8 @@ panel ships in the binary, and the `nebla` CLI works from a terminal (see [Statu
 3. Open the panel at your `PANEL_BASE_URL` (`http://localhost:8080` for a local run), create the first admin account,
    and follow Get Nebla ready. It walks you through connecting Proxmox, turning on OS images, adding server types and
    adding an IP pool. The API is described in [api/openapi.yaml](api/openapi.yaml).
-4. To use the panel from a terminal, see the [CLI guide](docs/cli.md).
+4. To use the panel from a terminal, install the CLI with `brew install nebla-cloud/tap/nebla` or a binary from
+   [GitHub Releases](https://github.com/nebla-cloud/nebla/releases). See the [CLI guide](docs/cli.md#install).
 
 ## Configuration
 

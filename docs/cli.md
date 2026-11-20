@@ -4,13 +4,35 @@
 
 ## Install
 
-From a checkout:
+With Homebrew on macOS or Linux:
 
 ```sh
-go install ./cmd/nebla
+brew install nebla-cloud/tap/nebla
 ```
 
-Or run `make build`, which writes `bin/nebla`.
+Or download the archive for your platform from [GitHub Releases](https://github.com/nebla-cloud/nebla/releases),
+along with `checksums.txt`. Builds exist for Linux, macOS and Windows on amd64 and arm64. Check the download, then put
+`nebla` on your `PATH`:
+
+```sh
+sha256sum --ignore-missing -c checksums.txt    # macOS: shasum -a 256 --ignore-missing -c checksums.txt
+tar -xzf nebla_*_linux_amd64.tar.gz nebla
+sudo install nebla /usr/local/bin/
+```
+
+The binaries are not signed. If you download by hand on macOS, run `xattr -d com.apple.quarantine nebla` before the
+first run. Homebrew does this for you.
+
+With Go:
+
+```sh
+go install github.com/nebla-cloud/nebla/cmd/nebla@latest
+```
+
+From a checkout, run `make build`, which writes `bin/nebla`.
+
+The CLI and the panel share version numbers. A CLI works best with a panel of the same version. `nebla version` prints
+the version, commit and build date.
 
 ## Contexts
 
