@@ -6,15 +6,10 @@ import '@fontsource/onest/800.css'
 import './assets/main.css'
 
 import { createApp } from 'vue'
-import { createRouter, createWebHistory } from 'vue-router'
 import ui from '@nuxt/ui/vue-plugin'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
-import BrandMark from './components/BrandMark.vue'
+import { queryClient } from './lib/queryClient'
+import { createAppRouter } from './router'
 
-const router = createRouter({
-  history: createWebHistory(),
-  routes: [{ path: '/:pathMatch(.*)*', component: BrandMark }],
-})
-
-createApp(App).use(router).use(ui).use(VueQueryPlugin).mount('#app')
+createApp(App).use(createAppRouter()).use(ui).use(VueQueryPlugin, { queryClient }).mount('#app')

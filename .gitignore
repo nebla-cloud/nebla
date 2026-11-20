@@ -7,5 +7,3 @@ web/dist/*
 !web/dist/.gitkeep
 web/test-results/
 web/playwright-report/
-web/auto-imports.d.ts
-web/components.d.ts

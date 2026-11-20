@@ -8,8 +8,6 @@ export default defineConfigWithVueTs(
       'dist/**',
       'node_modules/**',
       'src/api/schema.d.ts',
-      'auto-imports.d.ts',
-      'components.d.ts',
     ],
   },
   js.configs.recommended,
