@@ -29,6 +29,9 @@ func runServerAction(a *app, cmd *cobra.Command, wo *waitOpts, ref string, call 
 		if err != nil {
 			return err
 		}
+		if len(fin) == 0 {
+			return fmt.Errorf("no result for action %s", id64(act.Id))
+		}
 		act = fin[0]
 	}
 	if a.flags.output != "table" {
@@ -45,7 +48,7 @@ func runServerAction(a *app, cmd *cobra.Command, wo *waitOpts, ref string, call 
 func serverActionCmds(a *app) []*cobra.Command {
 	table := []struct {
 		use, short, past string
-		call             func(*API, *cobra.Command, int64) (*apiclient.ActionCreated, error)
+		call             actionCall
 	}{
 		{"poweron", "Power on a server", "powered on", func(api *API, c *cobra.Command, id int64) (*apiclient.ActionCreated, error) {
 			r, err := api.C.PoweronServerWithResponse(c.Context(), id)
