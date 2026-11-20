@@ -289,7 +289,7 @@ func (s *Service) deleteProject(ctx context.Context, projectID int64) error {
 			return err
 		}
 		if busy {
-			return apierr.New(http.StatusConflict, "project_not_empty", "delete the project's servers first")
+			return apierr.New(http.StatusConflict, "project_not_empty", "Delete the project's servers first.")
 		}
 		return tx.Project.DeleteOneID(projectID).Exec(ctx)
 	})
