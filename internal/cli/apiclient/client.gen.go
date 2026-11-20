@@ -38,6 +38,27 @@ func (e ActionStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminActionStatus.
+const (
+	AdminActionStatusError   AdminActionStatus = "error"
+	AdminActionStatusRunning AdminActionStatus = "running"
+	AdminActionStatusSuccess AdminActionStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the AdminActionStatus enum.
+func (e AdminActionStatus) Valid() bool {
+	switch e {
+	case AdminActionStatusError:
+		return true
+	case AdminActionStatusRunning:
+		return true
+	case AdminActionStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IpPoolFamily.
 const (
 	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
@@ -189,7 +210,10 @@ func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		Code    string `json:"code"`
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone or orphaned
+		Code string `json:"code"`
+
+		// Message Plain text safe to show members
 		Message string `json:"message"`
 	} `json:"error"`
 	Finished  *time.Time `json:"finished"`
@@ -205,6 +229,31 @@ type Action struct {
 
 // ActionStatus defines model for Action.Status.
 type ActionStatus string
+
+// AdminAction defines model for AdminAction.
+type AdminAction struct {
+	Command string `json:"command"`
+	Error   *struct {
+		Code string `json:"code"`
+
+		// Detail Technical cause (VMID, node, Proxmox message); admins only
+		Detail  string `json:"detail"`
+		Message string `json:"message"`
+	} `json:"error"`
+	Finished  *time.Time `json:"finished"`
+	Id        int64      `json:"id"`
+	Progress  int        `json:"progress"`
+	ProjectId int64      `json:"project_id"`
+	Resources []struct {
+		Id   int64  `json:"id"`
+		Type string `json:"type"`
+	} `json:"resources"`
+	Started time.Time         `json:"started"`
+	Status  AdminActionStatus `json:"status"`
+}
+
+// AdminActionStatus defines model for AdminAction.Status.
+type AdminActionStatus string
 
 // AdminImage defines model for AdminImage.
 type AdminImage struct {
@@ -736,6 +785,21 @@ type GetActionsParams struct {
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
+// GetAdminActionsParams defines parameters for GetAdminActions.
+type GetAdminActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// ProjectId Only this project's actions
+	ProjectId *int64 `form:"project_id,omitempty" json:"project_id,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetAdminImagesParams defines parameters for GetAdminImages.
 type GetAdminImagesParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -1064,6 +1128,16 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /actions/{id} (the `GetAction` operationId).
 	GetAction(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminActions List actions across projects, with technical error detail
+	//
+	// Corresponds with GET /admin/actions (the `GetAdminActions` operationId).
+	GetAdminActions(ctx context.Context, params *GetAdminActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminAction Get any action, with technical error detail
+	//
+	// Corresponds with GET /admin/actions/{id} (the `GetAdminAction` operationId).
+	GetAdminAction(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAdminCatalog List built-in OS image entries with per-location build state
 	//
@@ -1782,6 +1856,36 @@ func (c *Client) GetActions(ctx context.Context, params *GetActionsParams, reqEd
 // Corresponds with GET /actions/{id} (the `GetAction` operationId).
 func (c *Client) GetAction(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetActionRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAdminActions List actions across projects, with technical error detail
+//
+// Corresponds with GET /admin/actions (the `GetAdminActions` operationId).
+func (c *Client) GetAdminActions(ctx context.Context, params *GetAdminActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminActionsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAdminAction Get any action, with technical error detail
+//
+// Corresponds with GET /admin/actions/{id} (the `GetAdminAction` operationId).
+func (c *Client) GetAdminAction(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminActionRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -3735,6 +3839,142 @@ func NewGetActionRequest(server string, id ID) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/actions/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminActionsRequest constructs an http.Request for the GetAdminActions method
+func NewGetAdminActionsRequest(server string, params *GetAdminActionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/actions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ProjectId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "project_id", *params.ProjectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminActionRequest constructs an http.Request for the GetAdminAction method
+func NewGetAdminActionRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/actions/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7479,6 +7719,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /actions/{id} (the `GetAction` operationId).
 	GetActionWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetActionResponse, error)
 
+	// GetAdminActionsWithResponse List actions across projects, with technical error detail
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/actions (the `GetAdminActions` operationId).
+	GetAdminActionsWithResponse(ctx context.Context, params *GetAdminActionsParams, reqEditors ...RequestEditorFn) (*GetAdminActionsResponse, error)
+
+	// GetAdminActionWithResponse Get any action, with technical error detail
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/actions/{id} (the `GetAdminAction` operationId).
+	GetAdminActionWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetAdminActionResponse, error)
+
 	// GetAdminCatalogWithResponse List built-in OS image entries with per-location build state
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -8415,6 +8669,150 @@ func (r GetActionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetActionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminActionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Actions []AdminAction `json:"actions"`
+		Meta    Meta          `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAdminActionsResponse) GetJSON200() *struct {
+	Actions []AdminAction `json:"actions"`
+	Meta    Meta          `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAdminActionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetAdminActionsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetAdminActionsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetAdminActionsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAdminActionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminActionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminActionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminActionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminActionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AdminAction
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAdminActionResponse) GetJSON200() *AdminAction {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAdminActionResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetAdminActionResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetAdminActionResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetAdminActionResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAdminActionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminActionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminActionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminActionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -14525,6 +14923,32 @@ func (c *ClientWithResponses) GetActionWithResponse(ctx context.Context, id ID, 
 	return ParseGetActionResponse(rsp)
 }
 
+// GetAdminActionsWithResponse List actions across projects, with technical error detail
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/actions (the `GetAdminActions` operationId).
+func (c *ClientWithResponses) GetAdminActionsWithResponse(ctx context.Context, params *GetAdminActionsParams, reqEditors ...RequestEditorFn) (*GetAdminActionsResponse, error) {
+	rsp, err := c.GetAdminActions(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminActionsResponse(rsp)
+}
+
+// GetAdminActionWithResponse Get any action, with technical error detail
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/actions/{id} (the `GetAdminAction` operationId).
+func (c *ClientWithResponses) GetAdminActionWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetAdminActionResponse, error) {
+	rsp, err := c.GetAdminAction(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminActionResponse(rsp)
+}
+
 // GetAdminCatalogWithResponse List built-in OS image entries with per-location build state
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16097,6 +16521,117 @@ func ParseGetActionResponse(rsp *http.Response) (*GetActionResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminActionsResponse parses an HTTP response from a GetAdminActionsWithResponse call
+func ParseGetAdminActionsResponse(rsp *http.Response) (*GetAdminActionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminActionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Actions []AdminAction `json:"actions"`
+			Meta    Meta          `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminActionResponse parses an HTTP response from a GetAdminActionWithResponse call
+func ParseGetAdminActionResponse(rsp *http.Response) (*GetAdminActionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminActionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminAction
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error

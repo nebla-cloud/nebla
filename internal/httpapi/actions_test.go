@@ -90,3 +90,58 @@ func TestListActionsHTTP(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, res.StatusCode)
 	require.Equal(t, "not_found", errCode(t, app, res))
 }
+
+type adminAction struct {
+	ID        int64 `json:"id"`
+	ProjectID int64 `json:"project_id"`
+	Error     *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Detail  string `json:"detail"`
+	} `json:"error"`
+}
+
+func TestActionErrorDoesNotLeak(t *testing.T) {
+	ctx := context.Background()
+	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
+	s := e.CreateServer("web", nil)
+	detail := "clone: vm 4242 on pve-node-7: storage local-lvm: HTTP 500 qmclone"
+	require.NoError(t, actions.Fail(ctx, e.App.Ent, s.ActionID, actions.CodeServerMissing, detail))
+	leaks := []string{"4242", "pve-node-7", "local-lvm", "qmclone", "HTTP 500", "detail"}
+	id := strconv.FormatInt(s.ActionID, 10)
+	sid := strconv.FormatInt(s.ServerID, 10)
+	member := e.App.TokenClient(e.C.CreateToken(e.Project, "read"))
+	for _, c := range []*testutil.Client{e.C, member} {
+		for _, path := range []string{"/v1/actions", "/v1/actions/" + id, "/v1/servers/" + sid + "/actions"} {
+			res := c.Get(path)
+			b := body(res)
+			require.Equal(t, http.StatusOK, res.StatusCode, b)
+			require.Contains(t, b, `"server_missing"`, path)
+			for _, l := range leaks {
+				require.NotContains(t, b, l, path)
+			}
+		}
+	}
+
+	res := e.Admin.Get("/v1/admin/actions/" + id)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	one := decode[adminAction](t, e.App, res)
+	require.Equal(t, e.Project, one.ProjectID)
+	require.Equal(t, actions.CodeServerMissing, one.Error.Code)
+	require.Equal(t, actions.Message("create_server", actions.CodeServerMissing), one.Error.Message)
+	require.Equal(t, detail, one.Error.Detail)
+
+	res = e.Admin.Get("/v1/admin/actions?status=error&project_id=" + strconv.FormatInt(e.Project, 10))
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	list := decode[struct {
+		Actions []adminAction `json:"actions"`
+	}](t, e.App, res)
+	require.Len(t, list.Actions, 1)
+	require.Equal(t, s.ActionID, list.Actions[0].ID)
+	require.Equal(t, detail, list.Actions[0].Error.Detail)
+
+	require.Equal(t, http.StatusNotFound, e.Admin.Get("/v1/admin/actions/999999").StatusCode)
+	require.Equal(t, http.StatusUnauthorized, member.Get("/v1/admin/actions").StatusCode, "project tokens never reach admin ops")
+	e.App.CreateUser("u@example.com", false)
+	require.Equal(t, http.StatusForbidden, e.App.Login("u@example.com").Get("/v1/admin/actions/"+id).StatusCode)
+}

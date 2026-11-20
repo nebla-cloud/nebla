@@ -879,6 +879,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List actions across projects, with technical error detail */
+        get: operations["getAdminActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/actions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get any action, with technical error detail */
+        get: operations["getAdminAction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers": {
         parameters: {
             query?: never;
@@ -1239,8 +1275,35 @@ export interface components {
                 type: string;
             }[];
             error: {
+                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone or orphaned */
+                code: string;
+                /** @description Plain text safe to show members */
+                message: string;
+            } | null;
+            /** Format: date-time */
+            started: string;
+            /** Format: date-time */
+            finished: string | null;
+        };
+        AdminAction: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            project_id: number;
+            command: string;
+            /** @enum {string} */
+            status: "running" | "success" | "error";
+            progress: number;
+            resources: {
+                /** Format: int64 */
+                id: number;
+                type: string;
+            }[];
+            error: {
                 code: string;
                 message: string;
+                /** @description Technical cause (VMID, node, Proxmox message); admins only */
+                detail: string;
             } | null;
             /** Format: date-time */
             started: string;
@@ -3588,6 +3651,68 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getAdminActions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Only this project's actions */
+                project_id?: number;
+                /** @description Only actions in these statuses (running, success, error); repeat the parameter or separate with commas */
+                status?: string[];
+                /** @description id, id:asc or id:desc (default) */
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        actions: components["schemas"]["AdminAction"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getAdminAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAction"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
             404: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };

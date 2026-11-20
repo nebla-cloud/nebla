@@ -89,3 +89,42 @@ func (s *server) GetAction(ctx context.Context, req apigen.GetActionRequestObjec
 	}
 	return apigen.GetAction200JSONResponse(apiAction(a)), nil
 }
+
+func apiAdminAction(a actions.Action) apigen.AdminAction {
+	p := apiAction(a)
+	out := apigen.AdminAction{Id: p.Id, ProjectId: a.ProjectID, Command: p.Command, Status: apigen.AdminActionStatus(p.Status),
+		Progress: p.Progress, Resources: p.Resources, Started: p.Started, Finished: p.Finished}
+	if a.Error != nil {
+		out.Error = &struct {
+			Code    string `json:"code"`
+			Detail  string `json:"detail"`
+			Message string `json:"message"`
+		}{Code: a.Error.Code, Detail: a.Error.Detail, Message: a.Error.Message}
+	}
+	return out
+}
+
+func (s *server) GetAdminActions(ctx context.Context, req apigen.GetAdminActionsRequestObject) (apigen.GetAdminActionsResponseObject, error) {
+	f, err := actionFilter(req.Params.Status, req.Params.Sort)
+	if err != nil {
+		return nil, err
+	}
+	page, perPage := pageParams(req.Params.Page, req.Params.PerPage)
+	as, total, err := actions.ListAll(ctx, s.deps.Ent, req.Params.ProjectId, f, page, perPage)
+	if err != nil {
+		return nil, err
+	}
+	out := apigen.GetAdminActions200JSONResponse{Actions: make([]apigen.AdminAction, len(as)), Meta: meta(page, perPage, total)}
+	for i, a := range as {
+		out.Actions[i] = apiAdminAction(a)
+	}
+	return out, nil
+}
+
+func (s *server) GetAdminAction(ctx context.Context, req apigen.GetAdminActionRequestObject) (apigen.GetAdminActionResponseObject, error) {
+	a, err := actions.GetAny(ctx, s.deps.Ent, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.GetAdminAction200JSONResponse(apiAdminAction(a)), nil
+}
