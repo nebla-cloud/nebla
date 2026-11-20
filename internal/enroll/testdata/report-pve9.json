@@ -1,0 +1,13 @@
+{"v":1,"pve_version":"9.0.3","node":"pve1",
+ "token":{"full-tokenid":"nebla@pve!nebla-home-ab12cd","info":{"comment":"","expire":0,"privsep":0},"value":"3f2b8c1e-5d4a-4e7b-9a10-0c6d2e8f7a11"},
+ "cluster":[
+  {"type":"cluster","name":"homelab","nodes":2,"quorate":1,"version":3,"id":"cluster"},
+  {"type":"node","name":"pve1","id":"node/pve1","ip":"10.0.0.1","online":1,"local":1,"nodeid":1,"level":""},
+  {"type":"node","name":"pve2","id":"node/pve2","ip":"10.0.0.2","online":0,"local":0,"nodeid":2,"level":""}],
+ "storage":[
+  {"storage":"local","type":"dir","content":"iso,vztmpl,backup","shared":0},
+  {"storage":"local-lvm","type":"lvmthin","content":"images,rootdir"},
+  {"storage":"nfs-iso","type":"nfs","content":"iso,import","shared":1}],
+ "fingerprints":{"pve1":"AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA","pve2":"BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB"},
+ "nebla_iso":["local","nfs-iso"],
+ "extra":"ignored"}
