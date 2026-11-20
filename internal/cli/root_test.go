@@ -29,6 +29,20 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+func TestVersionWithBuildInfo(t *testing.T) {
+	v, c, d := Version, Commit, Date
+	t.Cleanup(func() { Version, Commit, Date = v, c, d })
+	Version, Commit, Date = "0.3.0", "abc1234", "2026-11-20"
+	code, stdout, _ := runCLI(t, "version")
+	if code != 0 || stdout != "nebla 0.3.0 (abc1234, 2026-11-20)\n" {
+		t.Fatalf("code=%d stdout=%q", code, stdout)
+	}
+	Date = ""
+	if _, stdout, _ = runCLI(t, "version"); stdout != "nebla 0.3.0 (abc1234)\n" {
+		t.Fatalf("stdout=%q", stdout)
+	}
+}
+
 func TestUnknownOutputFormat(t *testing.T) {
 	code, _, stderr := runCLI(t, "version", "-o", "xml")
 	if code != 1 || !strings.Contains(stderr, `invalid output format "xml"`) {
