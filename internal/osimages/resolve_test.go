@@ -137,3 +137,30 @@ func TestEntriesValid(t *testing.T) {
 	_, ok := osimages.Lookup(osimages.Entries(), "nope")
 	require.False(t, ok)
 }
+
+func resolveBody(t *testing.T, body string) (osimages.Resolved, error) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) }))
+	defer srv.Close()
+	e := osimages.Entry{Dirs: []string{srv.URL + "/"}, ChecksumName: "SUMS", File: regexp.MustCompile(`^X-.*\.qcow2$`), Algorithm: "sha256", Format: "qcow2"}
+	return osimages.Resolve(context.Background(), srv.Client(), e)
+}
+
+func TestResolveIgnoresOlderDatedBuild(t *testing.T) {
+	a, b := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	got, err := resolveBody(t, b+"  X-latest.qcow2\n"+b+"  X-20261101.qcow2\n"+a+"  X-20260901.qcow2\n")
+	require.NoError(t, err)
+	require.Equal(t, "X-20261101.qcow2", got.File)
+	require.Equal(t, b, got.Checksum)
+
+	got, err = resolveBody(t, b+"  X-latest.qcow2\n"+a+"  X-20261101.qcow2\n")
+	require.NoError(t, err)
+	require.Equal(t, "X-latest.qcow2", got.File)
+	require.Equal(t, b, got.Checksum)
+}
+
+func TestResolveSkipsWrongHashLength(t *testing.T) {
+	got, err := resolveBody(t, strings.Repeat("a", 40)+"  X-20261201.qcow2\n"+strings.Repeat("c", 64)+"  X-20261101.qcow2\n")
+	require.NoError(t, err)
+	require.Equal(t, "X-20261101.qcow2", got.File)
+}
