@@ -287,7 +287,6 @@ func (b *builder) configure(ctx context.Context) error {
 		"name":   b.row.Name,
 		"tags":   vmTags(b.row.ID),
 		"net0":   net0,
-		"agent":  "1",
 	}
 	cfg, err := b.pc.Config(ctx, b.row.Node, b.vmid())
 	if err != nil {
