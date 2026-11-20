@@ -177,6 +177,14 @@ func (c *httpClient) Version(ctx context.Context) (string, error) {
 	return v.Version, err
 }
 
+func (c *httpClient) NodeVersion(ctx context.Context, node string) (string, error) {
+	var v struct {
+		Version string `json:"version"`
+	}
+	err := c.do(ctx, http.MethodGet, "/nodes/"+url.PathEscape(node)+"/version", nil, &v)
+	return v.Version, err
+}
+
 func (c *httpClient) Nodes(ctx context.Context) ([]Node, error) {
 	var raw []struct {
 		Node   string `json:"node"`
@@ -270,6 +278,36 @@ func (c *httpClient) Clone(ctx context.Context, node string, tmpl int, p ClonePa
 		f.Set("description", p.Description)
 	}
 	return c.task(ctx, http.MethodPost, vmPath(node, tmpl)+"/clone", f)
+}
+
+func (c *httpClient) DownloadURL(ctx context.Context, node, storage string, p DownloadParams) (UPID, error) {
+	f := url.Values{"url": {p.URL}, "filename": {p.Filename}, "content": {p.Content}}
+	if p.Checksum != "" {
+		f.Set("checksum", p.Checksum)
+		f.Set("checksum-algorithm", p.Algorithm)
+	}
+	return c.task(ctx, http.MethodPost, "/nodes/"+url.PathEscape(node)+"/storage/"+url.PathEscape(storage)+"/download-url", f)
+}
+
+func (c *httpClient) CreateVM(ctx context.Context, node string, vmid int, kv map[string]string) (UPID, error) {
+	f := url.Values{}
+	for k, v := range kv {
+		f.Set(k, v)
+	}
+	f.Set("vmid", strconv.Itoa(vmid))
+	return c.task(ctx, http.MethodPost, "/nodes/"+url.PathEscape(node)+"/qemu", f)
+}
+
+func (c *httpClient) ConvertToTemplate(ctx context.Context, node string, vmid int) (UPID, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, vmPath(node, vmid)+"/template", nil, &raw); err != nil {
+		return "", err
+	}
+	var up string
+	if json.Unmarshal(raw, &up) != nil || !strings.HasPrefix(up, "UPID:") {
+		return "", nil
+	}
+	return UPID(up), nil
 }
 
 func (c *httpClient) task(ctx context.Context, method, path string, f url.Values) (UPID, error) {

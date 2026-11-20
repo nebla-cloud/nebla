@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"slices"
 	"strings"
@@ -463,5 +465,124 @@ func TestRRDGapsAreNil(t *testing.T) {
 		if p.CPU != nil || p.NetIn != nil || p.DiskRead != nil || p.NetOut != nil {
 			t.Fatalf("gap point = %+v", p)
 		}
+	}
+}
+
+func TestAtLeast(t *testing.T) {
+	for _, c := range []struct {
+		v      string
+		maj    int
+		min    int
+		expect bool
+	}{{"8.4.1", 8, 4, true}, {"8.3.5", 8, 4, false}, {"9.0", 8, 4, true}, {"garbage", 8, 4, false}} {
+		if got := pve.AtLeast(c.v, c.maj, c.min); got != c.expect {
+			t.Errorf("AtLeast(%q,%d,%d) = %v", c.v, c.maj, c.min, got)
+		}
+	}
+}
+
+func TestTemplateBuildCalls(t *testing.T) {
+	f, c := setup(t)
+	f.AddStorage("pve1", "local", []string{"iso", "import"}, false)
+	f.SetNodeVersion("pve1", "9.2.31")
+	if v, err := c.NodeVersion(ctx(t), "pve1"); err != nil || v != "9.2.31" {
+		t.Fatalf("version = %q err=%v", v, err)
+	}
+	dl := pve.DownloadParams{URL: "https://img.example/x.qcow2", Filename: "x.qcow2", Content: "import", Checksum: "abc", Algorithm: "sha256"}
+	up, err := c.DownloadURL(ctx(t), "pve1", "local", dl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx(t), "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.Volume("local:import/x.qcow2"); !ok {
+		t.Fatal("volume missing")
+	}
+	if d := f.Downloads(); len(d) != 1 || d[0].Checksum != "abc" || d[0].Algorithm != "sha256" || d[0].Storage != "local" {
+		t.Fatalf("downloads = %+v", d)
+	}
+	if _, err := c.DownloadURL(ctx(t), "pve1", "local", dl); err == nil {
+		t.Fatal("duplicate download accepted")
+	}
+
+	up, err = c.CreateVM(ctx(t), "pve1", 500, map[string]string{"name": "tpl", "tags": "nebla-tpl", "scsi0": "local-lvm:0,import-from=local:import/x.qcow2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx(t), "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	up, err = c.ConvertToTemplate(ctx(t), "pve1", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up == "" {
+		t.Fatal("expected a task id")
+	}
+	if err := c.WaitTask(ctx(t), "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	vm, ok := f.VM(500)
+	if !ok || !vm.Template || vm.Tags != "nebla-tpl" || vm.Config["scsi0"] != "local-lvm:vm-500-disk-0,size=3G" {
+		t.Fatalf("vm = %+v", vm)
+	}
+
+	up, err = c.CreateVM(ctx(t), "pve1", 501, map[string]string{"scsi0": "local-lvm:0,import-from=local:import/missing.qcow2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx(t), "pve1", up); !errors.Is(err, pve.ErrTaskFailed) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := c.CreateVM(ctx(t), "pve1", 500, nil); err == nil {
+		t.Fatal("duplicate vmid accepted")
+	}
+}
+
+func TestFailDownload(t *testing.T) {
+	f, c := setup(t)
+	f.AddStorage("pve1", "local", []string{"import"}, false)
+	f.FailDownload("bad.qcow2")
+	up, err := c.DownloadURL(ctx(t), "pve1", "local", pve.DownloadParams{URL: "https://x/bad.qcow2", Filename: "bad.qcow2", Content: "import"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = c.WaitTask(ctx(t), "pve1", up)
+	var te *pve.TaskError
+	if !errors.As(err, &te) || te.ExitStatus != "checksum mismatch" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestTemplateFormEncoding(t *testing.T) {
+	var got []string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got = append(got, r.Method+" "+r.URL.Path+" "+string(b))
+		w.Write([]byte(`{"data":null}`))
+	}))
+	defer srv.Close()
+	c := pve.New(pve.Conn{BaseURL: srv.URL, TokenID: "t", Secret: "s", InsecureTLS: true})
+	if _, err := c.DownloadURL(ctx(t), "n1", "local", pve.DownloadParams{URL: "https://x/y.img", Filename: "y.img", Content: "import", Checksum: "ff", Algorithm: "sha512"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.DownloadURL(ctx(t), "n1", "local", pve.DownloadParams{URL: "https://x/y.img", Filename: "y.img", Content: "import"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.CreateVM(ctx(t), "n1", 700, map[string]string{"name": "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if up, err := c.ConvertToTemplate(ctx(t), "n1", 700); err != nil || up != "" {
+		t.Fatalf("up=%q err=%v", up, err)
+	}
+	want := []string{
+		"POST /api2/json/nodes/n1/storage/local/download-url checksum=ff&checksum-algorithm=sha512&content=import&filename=y.img&url=https%3A%2F%2Fx%2Fy.img",
+		"POST /api2/json/nodes/n1/storage/local/download-url content=import&filename=y.img&url=https%3A%2F%2Fx%2Fy.img",
+		"POST /api2/json/nodes/n1/qemu name=a&vmid=700",
+		"POST /api2/json/nodes/n1/qemu/700/template ",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %q\nwant %q", got, want)
 	}
 }

@@ -89,7 +89,14 @@ type Server struct {
 	down    bool
 	seq     int
 	rrd     []map[string]any
+
+	versions  map[string]string
+	downloads []FakeDownload
+	failDl    []string
 }
+
+// FakeDownload records one download-url request.
+type FakeDownload struct{ Node, Storage, URL, Filename, Content, Checksum, Algorithm string }
 
 // New starts a fake PVE over TLS and stops it when the test ends.
 func New(t *testing.T) *Server {
@@ -175,6 +182,30 @@ func (s *Server) SetRRD(points []map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.rrd = points
+}
+
+// SetNodeVersion sets the pve-manager version a node reports (default 8.4.1).
+func (s *Server) SetNodeVersion(node, v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.versions == nil {
+		s.versions = map[string]string{}
+	}
+	s.versions[node] = v
+}
+
+// Downloads lists the download-url requests received.
+func (s *Server) Downloads() []FakeDownload {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.downloads)
+}
+
+// FailDownload ends the next download whose URL contains urlSubstring with a checksum mismatch.
+func (s *Server) FailDownload(urlSubstring string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failDl = append(s.failDl, urlSubstring)
 }
 
 func (s *Server) DeleteVM(vmid int) {
@@ -424,6 +455,121 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 	s.handle(mux, "GET /version", false, func(*http.Request, bool) (any, *apiErr) {
 		return map[string]any{"version": "8.4.1", "release": "8.4", "repoid": "fake"}, nil
+	})
+	s.handle(mux, "GET /nodes/{node}/version", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if _, e := nodeFor(r); e != nil {
+			return nil, e
+		}
+		v := s.versions[r.PathValue("node")]
+		if v == "" {
+			v = "8.4.1"
+		}
+		return map[string]any{"version": v, "release": v, "repoid": "fake"}, nil
+	})
+	s.handle(mux, "POST /nodes/{node}/storage/{storage}/download-url", true, func(r *http.Request, failed bool) (any, *apiErr) {
+		f := form(r)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		n, e := nodeFor(r)
+		if e != nil {
+			return nil, e
+		}
+		st, ok := n.storages[r.PathValue("storage")]
+		if !ok {
+			return nil, &apiErr{500, "storage '" + r.PathValue("storage") + "' does not exist"}
+		}
+		if f["url"] == "" || f["filename"] == "" || f["content"] != "import" {
+			return nil, &apiErr{400, "parameter verification failed: url/filename/content"}
+		}
+		if !slices.Contains(st.content, "import") {
+			return nil, &apiErr{500, "storage '" + r.PathValue("storage") + "' does not support content type 'import'"}
+		}
+		id := r.PathValue("storage") + ":import/" + f["filename"]
+		if _, dup := s.volumes[id]; dup {
+			return nil, &apiErr{500, "volume '" + id + "' already exists"}
+		}
+		s.downloads = append(s.downloads, FakeDownload{Node: n.name, Storage: r.PathValue("storage"), URL: f["url"], Filename: f["filename"],
+			Content: f["content"], Checksum: f["checksum"], Algorithm: f["checksum-algorithm"]})
+		if i := slices.IndexFunc(s.failDl, func(sub string) bool { return strings.Contains(f["url"], sub) }); i >= 0 {
+			s.failDl = slices.Delete(s.failDl, i, i+1)
+			failed = true
+		}
+		if failed {
+			up := s.newTask(n.name, "download", 0, nil, func() string { return "checksum mismatch" })
+			return up, nil
+		}
+		return s.newTask(n.name, "download", 0, nil, func() string {
+			s.volumes[id] = []byte(f["url"])
+			return "OK"
+		}), nil
+	})
+	s.handle(mux, "POST /nodes/{node}/qemu", true, func(r *http.Request, failed bool) (any, *apiErr) {
+		f := form(r)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		n, e := nodeFor(r)
+		if e != nil {
+			return nil, e
+		}
+		id, _ := strconv.Atoi(f["vmid"])
+		if id == 0 {
+			return nil, &apiErr{400, "parameter verification failed: vmid"}
+		}
+		if _, dup := s.vms[id]; dup {
+			return nil, &apiErr{500, fmt.Sprintf("unable to create VM %d: config file already exists", id)}
+		}
+		if failed {
+			return s.newTask(n.name, "qmcreate", id, failPtr(true), nil), nil
+		}
+		cfg := map[string]string{"lock": "create"}
+		nv := &vm{node: n.name, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{}, config: cfg}
+		s.vms[id] = nv
+		return s.newTask(n.name, "qmcreate", id, nil, func() string {
+			if s.vms[id] != nv {
+				return fmt.Sprintf("ERROR: unable to create VM %d: config file already exists", id)
+			}
+			full := map[string]string{}
+			for k, val := range f {
+				if k != "vmid" {
+					full[k] = val
+				}
+			}
+			if sc, ok := full["scsi0"]; ok {
+				disk, rest, _ := strings.Cut(sc, ",")
+				for _, p := range strings.Split(rest, ",") {
+					if vol, ok := strings.CutPrefix(p, "import-from="); ok {
+						if _, ok := s.volumes[vol]; !ok {
+							delete(s.vms, id)
+							return fmt.Sprintf("ERROR: volume '%s' does not exist", vol)
+						}
+					}
+				}
+				store, _, _ := strings.Cut(disk, ":")
+				full["scsi0"] = fmt.Sprintf("%s:vm-%d-disk-0,size=3G", store, id)
+			}
+			nv.config = full
+			return "OK"
+		}), nil
+	})
+	s.handle(mux, "POST /nodes/{node}/qemu/{vmid}/template", true, func(r *http.Request, failed bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, id, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		if e := locked(v, id); e != nil {
+			return nil, e
+		}
+		if failed {
+			return s.newTask(v.node, "qmtemplate", id, failPtr(true), nil), nil
+		}
+		return s.newTask(v.node, "qmtemplate", id, nil, func() string {
+			v.config["template"] = "1"
+			return "OK"
+		}), nil
 	})
 	s.handle(mux, "GET /nodes", false, func(*http.Request, bool) (any, *apiErr) {
 		s.mu.Lock()

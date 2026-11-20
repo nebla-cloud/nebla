@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -65,6 +66,9 @@ type CloneParams struct {
 	Description string
 }
 
+// DownloadParams describes a storage download-url request.
+type DownloadParams struct{ URL, Filename, Content, Checksum, Algorithm string }
+
 type VNCTicket struct {
 	Port         int
 	Ticket, User string
@@ -78,11 +82,16 @@ type RRDPoint struct {
 
 type Client interface {
 	Version(ctx context.Context) (string, error)
+	NodeVersion(ctx context.Context, node string) (string, error)
 	Nodes(ctx context.Context) ([]Node, error)
 	Storages(ctx context.Context, node string) ([]Storage, error)
 	VMs(ctx context.Context) ([]VM, error)
 	NextID(ctx context.Context) (int, error)
 	Clone(ctx context.Context, node string, tmpl int, p CloneParams) (UPID, error)
+	DownloadURL(ctx context.Context, node, storage string, p DownloadParams) (UPID, error)
+	CreateVM(ctx context.Context, node string, vmid int, kv map[string]string) (UPID, error)
+	// ConvertToTemplate returns "" when Proxmox answers without a task.
+	ConvertToTemplate(ctx context.Context, node string, vmid int) (UPID, error)
 	WaitTask(ctx context.Context, node string, upid UPID) error
 	Config(ctx context.Context, node string, vmid int) (map[string]string, error)
 	SetConfig(ctx context.Context, node string, vmid int, kv map[string]string) error
@@ -97,6 +106,24 @@ type Client interface {
 	VNCWebsocketURL(node string, vmid int, t VNCTicket) string
 	RRD(ctx context.Context, node string, vmid int, timeframe string) ([]RRDPoint, error)
 	AuthHeader() http.Header
+}
+
+// AtLeast reports whether a major.minor[.patch] version is at least major.minor; false if unparsable.
+func AtLeast(version string, major, minor int) bool {
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 {
+		if len(parts) == 1 {
+			parts = append(parts, "0")
+		} else {
+			return false
+		}
+	}
+	ma, err1 := strconv.Atoi(parts[0])
+	mi, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return ma > major || (ma == major && mi >= minor)
 }
 
 var ErrNotFound = errors.New("pve: not found")
