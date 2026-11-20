@@ -56,10 +56,12 @@ func TestFailure(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code, detail := servers.Failure(tt.err)
+			f := servers.Classify(tt.err)
+			code, detail := f.Code, f.Detail
 			require.Equal(t, tt.code, code)
 			require.Equal(t, tt.err.Error(), detail)
-			code, detail = servers.Failure(servers.StepError("clone", tt.err))
+			f = servers.Classify(servers.StepError("clone", tt.err))
+			code, detail = f.Code, f.Detail
 			require.Equal(t, tt.code, code)
 			require.Equal(t, "clone: "+tt.err.Error(), detail)
 		})
