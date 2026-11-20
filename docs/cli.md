@@ -4,11 +4,13 @@
 
 ## Install
 
+From a checkout:
+
 ```sh
-go install github.com/Hexeption/nebla/cmd/nebla@latest
+go install ./cmd/nebla
 ```
 
-Or build it from a checkout with `make build`, which writes `bin/nebla`.
+Or run `make build`, which writes `bin/nebla`.
 
 ## Contexts
 
@@ -98,7 +100,7 @@ table header.
 ## server ssh
 
 `server ssh <server>` runs your system `ssh`. It uses the server's IPv4 address, or IPv6 with `--ipv6` or when the
-server has no IPv4. Arguments after `--` are passed to `ssh`. Without `-u`, the user comes from the image's OS:
+server has no IPv4. Arguments after `--` are ssh options, placed before the host (for example `-- -A -L 8080:localhost:80`). They are not a remote command. Without `-u`, the user comes from the image's OS:
 
 | Image OS | User |
 | --- | --- |
