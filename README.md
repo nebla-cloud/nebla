@@ -28,9 +28,14 @@ panel ships in the binary, and the `nebla` CLI works from a terminal (see [Statu
    ```sh
    cp deploy/.env.example deploy/.env
    # Fill in PANEL_BASE_URL, PANEL_SECRET_KEY (openssl rand -base64 48) and POSTGRES_PASSWORD.
-   docker compose -f deploy/compose.yaml up -d --build
+   docker compose -f deploy/compose.yaml up -d
    curl -fs localhost:8080/v1/healthz
    ```
+
+   This runs the published image `ghcr.io/nebla-cloud/nebla:0.2`. To upgrade to a later minor release, change the
+   tag in `deploy/compose.yaml` (or set `NEBLA_IMAGE` in `deploy/.env`), then run
+   `docker compose -f deploy/compose.yaml pull` and `up -d` again. To build from your checkout instead, run
+   `NEBLA_IMAGE=nebla:dev docker compose -f deploy/compose.yaml up -d --build`.
 
 3. Open the panel at your `PANEL_BASE_URL` (`http://localhost:8080` for a local run), create the first admin account,
    and follow Get Nebla ready. It walks you through connecting Proxmox, turning on OS images, adding server types and
