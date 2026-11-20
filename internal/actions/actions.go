@@ -30,16 +30,18 @@ type Error struct {
 }
 
 type Action struct {
-	ID         int64
-	ProjectID  int64
-	Command    string
-	Status     string
-	Progress   int
-	Resources  []Resource
-	Error      *Error
-	Started    time.Time
-	Finished   *time.Time
-	RiverJobID *int64
+	ID        int64
+	ProjectID int64
+	// ProjectName is set only by the admin reads, GetAny and ListAll.
+	ProjectName string
+	Command     string
+	Status      string
+	Progress    int
+	Resources   []Resource
+	Error       *Error
+	Started     time.Time
+	Finished    *time.Time
+	RiverJobID  *int64
 }
 
 var errNotFound = apierr.New(http.StatusNotFound, "not_found", "not found")
@@ -124,14 +126,22 @@ func Fail(ctx context.Context, c *ent.Client, id int64, code, detail string) err
 
 // GetAny returns any project's action, for admins.
 func GetAny(ctx context.Context, c *ent.Client, id int64) (Action, error) {
-	a, err := c.Action.Get(ctx, id)
+	a, err := c.Action.Query().Where(action.ID(id)).WithProject().Only(ctx)
 	if ent.IsNotFound(err) {
 		return Action{}, errNotFound
 	}
 	if err != nil {
 		return Action{}, err
 	}
-	return toAction(a), nil
+	return withName(a), nil
+}
+
+func withName(a *ent.Action) Action {
+	out := toAction(a)
+	if p := a.Edges.Project; p != nil {
+		out.ProjectName = p.Name
+	}
+	return out
 }
 
 // Get returns a project's action; other projects' actions are not_found.
@@ -158,12 +168,16 @@ type ListFilter struct {
 func ValidStatus(s string) bool { return action.StatusValidator(action.Status(s)) == nil }
 
 func List(ctx context.Context, c *ent.Client, projectID int64, f ListFilter, page, perPage int) ([]Action, int, error) {
-	return ListAll(ctx, c, &projectID, f, page, perPage)
+	return list(ctx, c.Action.Query(), &projectID, f, page, perPage, toAction)
 }
 
 // ListAll lists actions across projects, or one project's when projectID is set; for admins.
 func ListAll(ctx context.Context, c *ent.Client, projectID *int64, f ListFilter, page, perPage int) ([]Action, int, error) {
-	q := c.Action.Query().Where(f.Where...)
+	return list(ctx, c.Action.Query().WithProject(), projectID, f, page, perPage, withName)
+}
+
+func list(ctx context.Context, q *ent.ActionQuery, projectID *int64, f ListFilter, page, perPage int, conv func(*ent.Action) Action) ([]Action, int, error) {
+	q = q.Where(f.Where...)
 	if projectID != nil {
 		q = q.Where(action.ProjectID(*projectID))
 	}
@@ -189,7 +203,7 @@ func ListAll(ctx context.Context, c *ent.Client, projectID *int64, f ListFilter,
 	}
 	out := make([]Action, len(rows))
 	for i, r := range rows {
-		out[i] = toAction(r)
+		out[i] = conv(r)
 	}
 	return out, total, nil
 }

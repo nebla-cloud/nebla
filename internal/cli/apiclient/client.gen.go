@@ -260,11 +260,12 @@ type AdminAction struct {
 		Detail  string `json:"detail"`
 		Message string `json:"message"`
 	} `json:"error"`
-	Finished  *time.Time `json:"finished"`
-	Id        int64      `json:"id"`
-	Progress  int        `json:"progress"`
-	ProjectId int64      `json:"project_id"`
-	Resources []struct {
+	Finished    *time.Time `json:"finished"`
+	Id          int64      `json:"id"`
+	Progress    int        `json:"progress"`
+	ProjectId   int64      `json:"project_id"`
+	ProjectName string     `json:"project_name"`
+	Resources   []struct {
 		Id   int64  `json:"id"`
 		Type string `json:"type"`
 	} `json:"resources"`
@@ -304,15 +305,47 @@ type AdminLocation struct {
 
 // AdminProject defines model for AdminProject.
 type AdminProject struct {
-	Id         int64  `json:"id"`
-	Name       string `json:"name"`
-	OwnerEmail string `json:"owner_email"`
-	Quota      Quota  `json:"quota"`
+	Created     time.Time    `json:"created"`
+	Id          int64        `json:"id"`
+	MemberCount int          `json:"member_count"`
+	Name        string       `json:"name"`
+	OwnerEmail  string       `json:"owner_email"`
+	Quota       Quota        `json:"quota"`
+	Usage       ProjectUsage `json:"usage"`
+}
+
+// AdminProjectDetail defines model for AdminProjectDetail.
+type AdminProjectDetail struct {
+	Created     time.Time    `json:"created"`
+	Id          int64        `json:"id"`
+	MemberCount int          `json:"member_count"`
+	Members     []Member     `json:"members"`
+	Name        string       `json:"name"`
+	OwnerEmail  string       `json:"owner_email"`
+	Quota       Quota        `json:"quota"`
+	Usage       ProjectUsage `json:"usage"`
 }
 
 // AdminSettings defines model for AdminSettings.
 type AdminSettings struct {
 	SelfSignup bool `json:"self_signup"`
+}
+
+// AdminUser defines model for AdminUser.
+type AdminUser struct {
+	Email        string `json:"email"`
+	Id           int64  `json:"id"`
+	IsAdmin      bool   `json:"is_admin"`
+	Name         string `json:"name"`
+	PasskeyCount int    `json:"passkey_count"`
+	TotpEnabled  bool   `json:"totp_enabled"`
+}
+
+// AdminUserInput defines model for AdminUserInput.
+type AdminUserInput struct {
+	Email   string `json:"email"`
+	IsAdmin bool   `json:"is_admin"`
+	Name    string `json:"name"`
 }
 
 // ApiToken defines model for ApiToken.
@@ -1013,6 +1046,18 @@ type PostAdminUsersJSONBody struct {
 	Password string `json:"password"`
 }
 
+// DeleteAdminUserParams defines parameters for DeleteAdminUser.
+type DeleteAdminUserParams struct {
+	// TakeOver Make the caller owner of projects the user is the only owner of
+	TakeOver *bool `form:"take_over,omitempty" json:"take_over,omitempty"`
+}
+
+// PostAdminUserPasswordJSONBody defines parameters for PostAdminUserPassword.
+type PostAdminUserPasswordJSONBody struct {
+	Password       string `json:"password"`
+	RemovePasskeys bool   `json:"remove_passkeys"`
+}
+
 // PostAuthLoginJSONBody defines parameters for PostAuthLogin.
 type PostAuthLoginJSONBody struct {
 	Email    string  `json:"email"`
@@ -1170,6 +1215,12 @@ type PutAdminSettingsJSONRequestBody = AdminSettings
 
 // PostAdminUsersJSONRequestBody defines body for PostAdminUsers for application/json ContentType.
 type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
+
+// PutAdminUserJSONRequestBody defines body for PutAdminUser for application/json ContentType.
+type PutAdminUserJSONRequestBody = AdminUserInput
+
+// PostAdminUserPasswordJSONRequestBody defines body for PostAdminUserPassword for application/json ContentType.
+type PostAdminUserPasswordJSONRequestBody PostAdminUserPasswordJSONBody
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
@@ -1575,6 +1626,16 @@ type ClientInterface interface {
 	// Corresponds with GET /admin/projects (the `GetAdminProjects` operationId).
 	GetAdminProjects(ctx context.Context, params *GetAdminProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteAdminProject Delete any project that has no servers
+	//
+	// Corresponds with DELETE /admin/projects/{id} (the `DeleteAdminProject` operationId).
+	DeleteAdminProject(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminProject Get any project with its members and usage
+	//
+	// Corresponds with GET /admin/projects/{id} (the `GetAdminProject` operationId).
+	GetAdminProject(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PutAdminProjectQuotaWithBody Set a project's quota (0 = unlimited)
 	//
 	// Takes any type of body and a specified content type.
@@ -1669,6 +1730,49 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /admin/users (the `PostAdminUsers` operationId).
 	PostAdminUsers(ctx context.Context, body PostAdminUsersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAdminUser Delete a user
+	//
+	// Corresponds with DELETE /admin/users/{id} (the `DeleteAdminUser` operationId).
+	DeleteAdminUser(ctx context.Context, id ID, params *DeleteAdminUserParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutAdminUserWithBody Update a user's name, email and admin flag
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+	PutAdminUserWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutAdminUser Update a user's name, email and admin flag
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+	PutAdminUser(ctx context.Context, id ID, body PutAdminUserJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAdminUserPasskeys Remove all of a user's passkeys and sign them out
+	//
+	// Corresponds with DELETE /admin/users/{id}/passkeys (the `DeleteAdminUserPasskeys` operationId).
+	DeleteAdminUserPasskeys(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminUserPasswordWithBody Set a user's password and sign them out
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+	PostAdminUserPasswordWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminUserPassword Set a user's password and sign them out
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+	PostAdminUserPassword(ctx context.Context, id ID, body PostAdminUserPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAdminUserTotp Turn off a user's two-factor and sign them out
+	//
+	// Corresponds with DELETE /admin/users/{id}/totp (the `DeleteAdminUserTotp` operationId).
+	DeleteAdminUserTotp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostAuthLoginWithBody Log in and set the session cookie
 	//
@@ -2918,6 +3022,36 @@ func (c *Client) GetAdminProjects(ctx context.Context, params *GetAdminProjectsP
 	return c.Client.Do(req)
 }
 
+// DeleteAdminProject Delete any project that has no servers
+//
+// Corresponds with DELETE /admin/projects/{id} (the `DeleteAdminProject` operationId).
+func (c *Client) DeleteAdminProject(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAdminProjectRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAdminProject Get any project with its members and usage
+//
+// Corresponds with GET /admin/projects/{id} (the `GetAdminProject` operationId).
+func (c *Client) GetAdminProject(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminProjectRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // PutAdminProjectQuotaWithBody Set a project's quota (0 = unlimited)
 //
 // Takes any type of body and a specified content type.
@@ -3153,6 +3287,119 @@ func (c *Client) PostAdminUsersWithBody(ctx context.Context, contentType string,
 // Corresponds with POST /admin/users (the `PostAdminUsers` operationId).
 func (c *Client) PostAdminUsers(ctx context.Context, body PostAdminUsersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostAdminUsersRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteAdminUser Delete a user
+//
+// Corresponds with DELETE /admin/users/{id} (the `DeleteAdminUser` operationId).
+func (c *Client) DeleteAdminUser(ctx context.Context, id ID, params *DeleteAdminUserParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAdminUserRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutAdminUserWithBody Update a user's name, email and admin flag
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+func (c *Client) PutAdminUserWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutAdminUserRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutAdminUser Update a user's name, email and admin flag
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+func (c *Client) PutAdminUser(ctx context.Context, id ID, body PutAdminUserJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutAdminUserRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteAdminUserPasskeys Remove all of a user's passkeys and sign them out
+//
+// Corresponds with DELETE /admin/users/{id}/passkeys (the `DeleteAdminUserPasskeys` operationId).
+func (c *Client) DeleteAdminUserPasskeys(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAdminUserPasskeysRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminUserPasswordWithBody Set a user's password and sign them out
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+func (c *Client) PostAdminUserPasswordWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminUserPasswordRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminUserPassword Set a user's password and sign them out
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+func (c *Client) PostAdminUserPassword(ctx context.Context, id ID, body PostAdminUserPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminUserPasswordRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteAdminUserTotp Turn off a user's two-factor and sign them out
+//
+// Corresponds with DELETE /admin/users/{id}/totp (the `DeleteAdminUserTotp` operationId).
+func (c *Client) DeleteAdminUserTotp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAdminUserTotpRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -6127,6 +6374,74 @@ func NewGetAdminProjectsRequest(server string, params *GetAdminProjectsParams) (
 	return req, nil
 }
 
+// NewDeleteAdminProjectRequest constructs an http.Request for the DeleteAdminProject method
+func NewDeleteAdminProjectRequest(server string, id ProjectID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminProjectRequest constructs an http.Request for the GetAdminProject method
+func NewGetAdminProjectRequest(server string, id ProjectID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/projects/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPutAdminProjectQuotaRequest calls the generic PutAdminProjectQuota builder with application/json body
 func NewPutAdminProjectQuotaRequest(server string, id ProjectID, body PutAdminProjectQuotaJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6564,6 +6879,229 @@ func NewPostAdminUsersRequestWithBody(server string, contentType string, body io
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAdminUserRequest constructs an http.Request for the DeleteAdminUser method
+func NewDeleteAdminUserRequest(server string, id ID, params *DeleteAdminUserParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/users/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.TakeOver != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "take_over", *params.TakeOver, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutAdminUserRequest calls the generic PutAdminUser builder with application/json body
+func NewPutAdminUserRequest(server string, id ID, body PutAdminUserJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutAdminUserRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutAdminUserRequestWithBody constructs an http.Request for the PutAdminUser method, with any body, and a specified content type
+func NewPutAdminUserRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/users/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAdminUserPasskeysRequest constructs an http.Request for the DeleteAdminUserPasskeys method
+func NewDeleteAdminUserPasskeysRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/users/%s/passkeys", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostAdminUserPasswordRequest calls the generic PostAdminUserPassword builder with application/json body
+func NewPostAdminUserPasswordRequest(server string, id ID, body PostAdminUserPasswordJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostAdminUserPasswordRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPostAdminUserPasswordRequestWithBody constructs an http.Request for the PostAdminUserPassword method, with any body, and a specified content type
+func NewPostAdminUserPasswordRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/users/%s/password", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAdminUserTotpRequest constructs an http.Request for the DeleteAdminUserTotp method
+func NewDeleteAdminUserTotpRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/users/%s/totp", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -9625,6 +10163,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /admin/projects (the `GetAdminProjects` operationId).
 	GetAdminProjectsWithResponse(ctx context.Context, params *GetAdminProjectsParams, reqEditors ...RequestEditorFn) (*GetAdminProjectsResponse, error)
 
+	// DeleteAdminProjectWithResponse Delete any project that has no servers
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/projects/{id} (the `DeleteAdminProject` operationId).
+	DeleteAdminProjectWithResponse(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*DeleteAdminProjectResponse, error)
+
+	// GetAdminProjectWithResponse Get any project with its members and usage
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/projects/{id} (the `GetAdminProject` operationId).
+	GetAdminProjectWithResponse(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*GetAdminProjectResponse, error)
+
 	// PutAdminProjectQuotaWithBodyWithResponse Set a project's quota (0 = unlimited)
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -9729,6 +10281,55 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /admin/users (the `PostAdminUsers` operationId).
 	PostAdminUsersWithResponse(ctx context.Context, body PostAdminUsersJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminUsersResponse, error)
+
+	// DeleteAdminUserWithResponse Delete a user
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/users/{id} (the `DeleteAdminUser` operationId).
+	DeleteAdminUserWithResponse(ctx context.Context, id ID, params *DeleteAdminUserParams, reqEditors ...RequestEditorFn) (*DeleteAdminUserResponse, error)
+
+	// PutAdminUserWithBodyWithResponse Update a user's name, email and admin flag
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+	PutAdminUserWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAdminUserResponse, error)
+
+	// PutAdminUserWithResponse Update a user's name, email and admin flag
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+	PutAdminUserWithResponse(ctx context.Context, id ID, body PutAdminUserJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAdminUserResponse, error)
+
+	// DeleteAdminUserPasskeysWithResponse Remove all of a user's passkeys and sign them out
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/users/{id}/passkeys (the `DeleteAdminUserPasskeys` operationId).
+	DeleteAdminUserPasskeysWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteAdminUserPasskeysResponse, error)
+
+	// PostAdminUserPasswordWithBodyWithResponse Set a user's password and sign them out
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+	PostAdminUserPasswordWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminUserPasswordResponse, error)
+
+	// PostAdminUserPasswordWithResponse Set a user's password and sign them out
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+	PostAdminUserPasswordWithResponse(ctx context.Context, id ID, body PostAdminUserPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminUserPasswordResponse, error)
+
+	// DeleteAdminUserTotpWithResponse Turn off a user's two-factor and sign them out
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/users/{id}/totp (the `DeleteAdminUserTotp` operationId).
+	DeleteAdminUserTotpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteAdminUserTotpResponse, error)
 
 	// PostAuthLoginWithBodyWithResponse Log in and set the session cookie
 	//
@@ -12841,6 +13442,144 @@ func (r GetAdminProjectsResponse) ContentType() string {
 	return ""
 }
 
+type DeleteAdminProjectResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteAdminProjectResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteAdminProjectResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteAdminProjectResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteAdminProjectResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteAdminProjectResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteAdminProjectResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAdminProjectResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAdminProjectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteAdminProjectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminProjectResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AdminProjectDetail
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAdminProjectResponse) GetJSON200() *AdminProjectDetail {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAdminProjectResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetAdminProjectResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetAdminProjectResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetAdminProjectResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAdminProjectResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminProjectResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminProjectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminProjectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PutAdminProjectQuotaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13405,8 +14144,8 @@ type GetAdminUsersResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *struct {
-		Meta  Meta   `json:"meta"`
-		Users []User `json:"users"`
+		Meta  Meta        `json:"meta"`
+		Users []AdminUser `json:"users"`
 	}
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
@@ -13418,8 +14157,8 @@ type GetAdminUsersResponse struct {
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r GetAdminUsersResponse) GetJSON200() *struct {
-	Meta  Meta   `json:"meta"`
-	Users []User `json:"users"`
+	Meta  Meta        `json:"meta"`
+	Users []AdminUser `json:"users"`
 } {
 	return r.JSON200
 }
@@ -13472,7 +14211,7 @@ type PostAdminUsersResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *User
+	JSON201 *AdminUser
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -13486,7 +14225,7 @@ type PostAdminUsersResponse struct {
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r PostAdminUsersResponse) GetJSON201() *User {
+func (r PostAdminUsersResponse) GetJSON201() *AdminUser {
 	return r.JSON201
 }
 
@@ -13538,6 +14277,372 @@ func (r PostAdminUsersResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostAdminUsersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteAdminUserResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteAdminUserResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteAdminUserResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteAdminUserResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteAdminUserResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r DeleteAdminUserResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteAdminUserResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteAdminUserResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAdminUserResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAdminUserResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteAdminUserResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutAdminUserResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AdminUser
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutAdminUserResponse) GetJSON200() *AdminUser {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutAdminUserResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PutAdminUserResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PutAdminUserResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PutAdminUserResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutAdminUserResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutAdminUserResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutAdminUserResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutAdminUserResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutAdminUserResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutAdminUserResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteAdminUserPasskeysResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteAdminUserPasskeysResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteAdminUserPasskeysResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteAdminUserPasskeysResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r DeleteAdminUserPasskeysResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteAdminUserPasskeysResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteAdminUserPasskeysResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAdminUserPasskeysResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAdminUserPasskeysResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteAdminUserPasskeysResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostAdminUserPasswordResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostAdminUserPasswordResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostAdminUserPasswordResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostAdminUserPasswordResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostAdminUserPasswordResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostAdminUserPasswordResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostAdminUserPasswordResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostAdminUserPasswordResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostAdminUserPasswordResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostAdminUserPasswordResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteAdminUserTotpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteAdminUserTotpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteAdminUserTotpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteAdminUserTotpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r DeleteAdminUserTotpResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteAdminUserTotpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteAdminUserTotpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAdminUserTotpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAdminUserTotpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteAdminUserTotpResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -18689,6 +19794,32 @@ func (c *ClientWithResponses) GetAdminProjectsWithResponse(ctx context.Context, 
 	return ParseGetAdminProjectsResponse(rsp)
 }
 
+// DeleteAdminProjectWithResponse Delete any project that has no servers
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/projects/{id} (the `DeleteAdminProject` operationId).
+func (c *ClientWithResponses) DeleteAdminProjectWithResponse(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*DeleteAdminProjectResponse, error) {
+	rsp, err := c.DeleteAdminProject(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAdminProjectResponse(rsp)
+}
+
+// GetAdminProjectWithResponse Get any project with its members and usage
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/projects/{id} (the `GetAdminProject` operationId).
+func (c *ClientWithResponses) GetAdminProjectWithResponse(ctx context.Context, id ProjectID, reqEditors ...RequestEditorFn) (*GetAdminProjectResponse, error) {
+	rsp, err := c.GetAdminProject(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminProjectResponse(rsp)
+}
+
 // PutAdminProjectQuotaWithBodyWithResponse Set a project's quota (0 = unlimited)
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -18882,6 +20013,97 @@ func (c *ClientWithResponses) PostAdminUsersWithResponse(ctx context.Context, bo
 		return nil, err
 	}
 	return ParsePostAdminUsersResponse(rsp)
+}
+
+// DeleteAdminUserWithResponse Delete a user
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/users/{id} (the `DeleteAdminUser` operationId).
+func (c *ClientWithResponses) DeleteAdminUserWithResponse(ctx context.Context, id ID, params *DeleteAdminUserParams, reqEditors ...RequestEditorFn) (*DeleteAdminUserResponse, error) {
+	rsp, err := c.DeleteAdminUser(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAdminUserResponse(rsp)
+}
+
+// PutAdminUserWithBodyWithResponse Update a user's name, email and admin flag
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+func (c *ClientWithResponses) PutAdminUserWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutAdminUserResponse, error) {
+	rsp, err := c.PutAdminUserWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutAdminUserResponse(rsp)
+}
+
+// PutAdminUserWithResponse Update a user's name, email and admin flag
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/users/{id} (the `PutAdminUser` operationId).
+func (c *ClientWithResponses) PutAdminUserWithResponse(ctx context.Context, id ID, body PutAdminUserJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAdminUserResponse, error) {
+	rsp, err := c.PutAdminUser(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutAdminUserResponse(rsp)
+}
+
+// DeleteAdminUserPasskeysWithResponse Remove all of a user's passkeys and sign them out
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/users/{id}/passkeys (the `DeleteAdminUserPasskeys` operationId).
+func (c *ClientWithResponses) DeleteAdminUserPasskeysWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteAdminUserPasskeysResponse, error) {
+	rsp, err := c.DeleteAdminUserPasskeys(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAdminUserPasskeysResponse(rsp)
+}
+
+// PostAdminUserPasswordWithBodyWithResponse Set a user's password and sign them out
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+func (c *ClientWithResponses) PostAdminUserPasswordWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminUserPasswordResponse, error) {
+	rsp, err := c.PostAdminUserPasswordWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminUserPasswordResponse(rsp)
+}
+
+// PostAdminUserPasswordWithResponse Set a user's password and sign them out
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/users/{id}/password (the `PostAdminUserPassword` operationId).
+func (c *ClientWithResponses) PostAdminUserPasswordWithResponse(ctx context.Context, id ID, body PostAdminUserPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminUserPasswordResponse, error) {
+	rsp, err := c.PostAdminUserPassword(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminUserPasswordResponse(rsp)
+}
+
+// DeleteAdminUserTotpWithResponse Turn off a user's two-factor and sign them out
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/users/{id}/totp (the `DeleteAdminUserTotp` operationId).
+func (c *ClientWithResponses) DeleteAdminUserTotpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteAdminUserTotpResponse, error) {
+	rsp, err := c.DeleteAdminUserTotp(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAdminUserTotpResponse(rsp)
 }
 
 // PostAuthLoginWithBodyWithResponse Log in and set the session cookie
@@ -22029,6 +23251,117 @@ func ParseGetAdminProjectsResponse(rsp *http.Response) (*GetAdminProjectsRespons
 	return response, nil
 }
 
+// ParseDeleteAdminProjectResponse parses an HTTP response from a DeleteAdminProjectWithResponse call
+func ParseDeleteAdminProjectResponse(rsp *http.Response) (*DeleteAdminProjectResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAdminProjectResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminProjectResponse parses an HTTP response from a GetAdminProjectWithResponse call
+func ParseGetAdminProjectResponse(rsp *http.Response) (*GetAdminProjectResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminProjectResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminProjectDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePutAdminProjectQuotaResponse parses an HTTP response from a PutAdminProjectQuotaWithResponse call
 func ParsePutAdminProjectQuotaResponse(rsp *http.Response) (*PutAdminProjectQuotaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -22487,8 +23820,8 @@ func ParseGetAdminUsersResponse(rsp *http.Response) (*GetAdminUsersResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Meta  Meta   `json:"meta"`
-			Users []User `json:"users"`
+			Meta  Meta        `json:"meta"`
+			Users []AdminUser `json:"users"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -22536,7 +23869,7 @@ func ParsePostAdminUsersResponse(rsp *http.Response) (*PostAdminUsersResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest User
+		var dest AdminUser
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -22562,6 +23895,309 @@ func ParsePostAdminUsersResponse(rsp *http.Response) (*PostAdminUsersResponse, e
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAdminUserResponse parses an HTTP response from a DeleteAdminUserWithResponse call
+func ParseDeleteAdminUserResponse(rsp *http.Response) (*DeleteAdminUserResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAdminUserResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutAdminUserResponse parses an HTTP response from a PutAdminUserWithResponse call
+func ParsePutAdminUserResponse(rsp *http.Response) (*PutAdminUserResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutAdminUserResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminUser
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAdminUserPasskeysResponse parses an HTTP response from a DeleteAdminUserPasskeysWithResponse call
+func ParseDeleteAdminUserPasskeysResponse(rsp *http.Response) (*DeleteAdminUserPasskeysResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAdminUserPasskeysResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostAdminUserPasswordResponse parses an HTTP response from a PostAdminUserPasswordWithResponse call
+func ParsePostAdminUserPasswordResponse(rsp *http.Response) (*PostAdminUserPasswordResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostAdminUserPasswordResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAdminUserTotpResponse parses an HTTP response from a DeleteAdminUserTotpWithResponse call
+func ParseDeleteAdminUserTotpResponse(rsp *http.Response) (*DeleteAdminUserTotpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAdminUserTotpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error

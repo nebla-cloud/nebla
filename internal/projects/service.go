@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
-
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/auth"
 	"github.com/nebla-cloud/nebla/internal/ent"
@@ -225,46 +223,6 @@ func (s *Service) Create(ctx context.Context, userID int64, isAdmin bool, name s
 	return toProject(p, RoleOwner), nil
 }
 
-// AdminProject is a project with its first owner's email, for the admin list.
-type AdminProject struct {
-	ID         int64
-	Name       string
-	Quota      Quota
-	OwnerEmail string
-}
-
-// ListAll returns one page of every project ordered by id, plus the total count.
-func (s *Service) ListAll(ctx context.Context, page, perPage int) ([]AdminProject, int, error) {
-	total, err := s.db.Project.Query().Count(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-	rows, err := s.db.Project.Query().Order(project.ByID()).Offset((page - 1) * perPage).Limit(perPage).All(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-	ids := make([]int64, len(rows))
-	for i, r := range rows {
-		ids[i] = r.ID
-	}
-	owners, err := s.db.ProjectMember.Query().Where(projectmember.ProjectIDIn(ids...), projectmember.Role(RoleOwner)).
-		WithUser().Order(projectmember.ByUserID(sql.OrderDesc())).All(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-	email := map[int64]string{}
-	for _, m := range owners {
-		if m.Edges.User != nil {
-			email[m.ProjectID] = m.Edges.User.Email // descending order leaves the lowest user id last
-		}
-	}
-	out := make([]AdminProject, len(rows))
-	for i, r := range rows {
-		out[i] = AdminProject{ID: r.ID, Name: r.Name, Quota: quotaOf(r), OwnerEmail: email[r.ID]}
-	}
-	return out, total, nil
-}
-
 func (s *Service) List(ctx context.Context, userID int64) ([]Project, error) {
 	ms, err := s.db.ProjectMember.Query().Where(projectmember.UserID(userID)).
 		WithProject().Order(projectmember.ByProjectID()).All(ctx)
@@ -317,6 +275,11 @@ func (s *Service) Delete(ctx context.Context, userID, projectID int64) error {
 	if _, err := s.require(ctx, userID, projectID, RoleOwner); err != nil {
 		return err
 	}
+	return s.deleteProject(ctx, projectID)
+}
+
+// deleteProject locks the project and deletes it unless it still has servers.
+func (s *Service) deleteProject(ctx context.Context, projectID int64) error {
 	return withTx(ctx, s.db, func(tx *ent.Client) error {
 		if _, err := tx.Project.Query().Where(project.ID(projectID)).ForUpdate().Only(ctx); err != nil {
 			return notFound(err)

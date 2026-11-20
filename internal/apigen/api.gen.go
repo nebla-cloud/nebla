@@ -260,11 +260,12 @@ type AdminAction struct {
 		Detail  string `json:"detail"`
 		Message string `json:"message"`
 	} `json:"error"`
-	Finished  *time.Time `json:"finished"`
-	Id        int64      `json:"id"`
-	Progress  int        `json:"progress"`
-	ProjectId int64      `json:"project_id"`
-	Resources []struct {
+	Finished    *time.Time `json:"finished"`
+	Id          int64      `json:"id"`
+	Progress    int        `json:"progress"`
+	ProjectId   int64      `json:"project_id"`
+	ProjectName string     `json:"project_name"`
+	Resources   []struct {
 		Id   int64  `json:"id"`
 		Type string `json:"type"`
 	} `json:"resources"`
@@ -304,15 +305,47 @@ type AdminLocation struct {
 
 // AdminProject defines model for AdminProject.
 type AdminProject struct {
-	Id         int64  `json:"id"`
-	Name       string `json:"name"`
-	OwnerEmail string `json:"owner_email"`
-	Quota      Quota  `json:"quota"`
+	Created     time.Time    `json:"created"`
+	Id          int64        `json:"id"`
+	MemberCount int          `json:"member_count"`
+	Name        string       `json:"name"`
+	OwnerEmail  string       `json:"owner_email"`
+	Quota       Quota        `json:"quota"`
+	Usage       ProjectUsage `json:"usage"`
+}
+
+// AdminProjectDetail defines model for AdminProjectDetail.
+type AdminProjectDetail struct {
+	Created     time.Time    `json:"created"`
+	Id          int64        `json:"id"`
+	MemberCount int          `json:"member_count"`
+	Members     []Member     `json:"members"`
+	Name        string       `json:"name"`
+	OwnerEmail  string       `json:"owner_email"`
+	Quota       Quota        `json:"quota"`
+	Usage       ProjectUsage `json:"usage"`
 }
 
 // AdminSettings defines model for AdminSettings.
 type AdminSettings struct {
 	SelfSignup bool `json:"self_signup"`
+}
+
+// AdminUser defines model for AdminUser.
+type AdminUser struct {
+	Email        string `json:"email"`
+	Id           int64  `json:"id"`
+	IsAdmin      bool   `json:"is_admin"`
+	Name         string `json:"name"`
+	PasskeyCount int    `json:"passkey_count"`
+	TotpEnabled  bool   `json:"totp_enabled"`
+}
+
+// AdminUserInput defines model for AdminUserInput.
+type AdminUserInput struct {
+	Email   string `json:"email"`
+	IsAdmin bool   `json:"is_admin"`
+	Name    string `json:"name"`
 }
 
 // ApiToken defines model for ApiToken.
@@ -1013,6 +1046,18 @@ type PostAdminUsersJSONBody struct {
 	Password string `json:"password"`
 }
 
+// DeleteAdminUserParams defines parameters for DeleteAdminUser.
+type DeleteAdminUserParams struct {
+	// TakeOver Make the caller owner of projects the user is the only owner of
+	TakeOver *bool `form:"take_over,omitempty" json:"take_over,omitempty"`
+}
+
+// PostAdminUserPasswordJSONBody defines parameters for PostAdminUserPassword.
+type PostAdminUserPasswordJSONBody struct {
+	Password       string `json:"password"`
+	RemovePasskeys bool   `json:"remove_passkeys"`
+}
+
 // PostAuthLoginJSONBody defines parameters for PostAuthLogin.
 type PostAuthLoginJSONBody struct {
 	Email    string  `json:"email"`
@@ -1170,6 +1215,12 @@ type PutAdminSettingsJSONRequestBody = AdminSettings
 
 // PostAdminUsersJSONRequestBody defines body for PostAdminUsers for application/json ContentType.
 type PostAdminUsersJSONRequestBody PostAdminUsersJSONBody
+
+// PutAdminUserJSONRequestBody defines body for PutAdminUser for application/json ContentType.
+type PutAdminUserJSONRequestBody = AdminUserInput
+
+// PostAdminUserPasswordJSONRequestBody defines body for PostAdminUserPassword for application/json ContentType.
+type PostAdminUserPasswordJSONRequestBody PostAdminUserPasswordJSONBody
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody PostAuthLoginJSONBody
@@ -1347,6 +1398,12 @@ type ServerInterface interface {
 	// GetAdminProjects List all projects
 	// (GET /admin/projects)
 	GetAdminProjects(w http.ResponseWriter, r *http.Request, params GetAdminProjectsParams)
+	// DeleteAdminProject Delete any project that has no servers
+	// (DELETE /admin/projects/{id})
+	DeleteAdminProject(w http.ResponseWriter, r *http.Request, id ProjectID)
+	// GetAdminProject Get any project with its members and usage
+	// (GET /admin/projects/{id})
+	GetAdminProject(w http.ResponseWriter, r *http.Request, id ProjectID)
 	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
 	// (PUT /admin/projects/{id}/quota)
 	PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID)
@@ -1377,6 +1434,21 @@ type ServerInterface interface {
 	// PostAdminUsers Create a user
 	// (POST /admin/users)
 	PostAdminUsers(w http.ResponseWriter, r *http.Request)
+	// DeleteAdminUser Delete a user
+	// (DELETE /admin/users/{id})
+	DeleteAdminUser(w http.ResponseWriter, r *http.Request, id ID, params DeleteAdminUserParams)
+	// PutAdminUser Update a user's name, email and admin flag
+	// (PUT /admin/users/{id})
+	PutAdminUser(w http.ResponseWriter, r *http.Request, id ID)
+	// DeleteAdminUserPasskeys Remove all of a user's passkeys and sign them out
+	// (DELETE /admin/users/{id}/passkeys)
+	DeleteAdminUserPasskeys(w http.ResponseWriter, r *http.Request, id ID)
+	// PostAdminUserPassword Set a user's password and sign them out
+	// (POST /admin/users/{id}/password)
+	PostAdminUserPassword(w http.ResponseWriter, r *http.Request, id ID)
+	// DeleteAdminUserTotp Turn off a user's two-factor and sign them out
+	// (DELETE /admin/users/{id}/totp)
+	DeleteAdminUserTotp(w http.ResponseWriter, r *http.Request, id ID)
 	// PostAuthLogin Log in and set the session cookie
 	// (POST /auth/login)
 	PostAuthLogin(w http.ResponseWriter, r *http.Request)
@@ -1776,6 +1848,18 @@ func (_ Unimplemented) GetAdminProjects(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// DeleteAdminProject Delete any project that has no servers
+// (DELETE /admin/projects/{id})
+func (_ Unimplemented) DeleteAdminProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminProject Get any project with its members and usage
+// (GET /admin/projects/{id})
+func (_ Unimplemented) GetAdminProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // PutAdminProjectQuota Set a project's quota (0 = unlimited)
 // (PUT /admin/projects/{id}/quota)
 func (_ Unimplemented) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID) {
@@ -1833,6 +1917,36 @@ func (_ Unimplemented) GetAdminUsers(w http.ResponseWriter, r *http.Request, par
 // PostAdminUsers Create a user
 // (POST /admin/users)
 func (_ Unimplemented) PostAdminUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminUser Delete a user
+// (DELETE /admin/users/{id})
+func (_ Unimplemented) DeleteAdminUser(w http.ResponseWriter, r *http.Request, id ID, params DeleteAdminUserParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutAdminUser Update a user's name, email and admin flag
+// (PUT /admin/users/{id})
+func (_ Unimplemented) PutAdminUser(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminUserPasskeys Remove all of a user's passkeys and sign them out
+// (DELETE /admin/users/{id}/passkeys)
+func (_ Unimplemented) DeleteAdminUserPasskeys(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostAdminUserPassword Set a user's password and sign them out
+// (POST /admin/users/{id}/password)
+func (_ Unimplemented) PostAdminUserPassword(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminUserTotp Turn off a user's two-factor and sign them out
+// (DELETE /admin/users/{id}/totp)
+func (_ Unimplemented) DeleteAdminUserTotp(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3255,6 +3369,58 @@ func (siw *ServerInterfaceWrapper) GetAdminProjects(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteAdminProject operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminProject(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProject operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProject(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProjectID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProject(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PutAdminProjectQuota operation middleware
 func (siw *ServerInterfaceWrapper) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request) {
 
@@ -3498,6 +3664,152 @@ func (siw *ServerInterfaceWrapper) PostAdminUsers(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAdminUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAdminUserParams
+
+	// ------------- Optional query parameter "take_over" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "take_over", r.URL.Query(), &params.TakeOver, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "take_over"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "take_over", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminUser(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) PutAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminUserPasskeys operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminUserPasskeys(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminUserPasskeys(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAdminUserPassword operation middleware
+func (siw *ServerInterfaceWrapper) PostAdminUserPassword(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAdminUserPassword(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminUserTotp operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminUserTotp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminUserTotp(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5373,7 +5685,28 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/admin/users", wrapper.PostAdminUsers)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/users/{id}", wrapper.DeleteAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/admin/users/{id}", wrapper.PutAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/admin/users/{id}/password", wrapper.PostAdminUserPassword)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/users/{id}/totp", wrapper.DeleteAdminUserTotp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/users/{id}/passkeys", wrapper.DeleteAdminUserPasskeys)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/admin/projects", wrapper.GetAdminProjects)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/admin/projects/{id}", wrapper.DeleteAdminProject)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/admin/projects/{id}", wrapper.GetAdminProject)
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/admin/projects/{id}/quota", wrapper.PutAdminProjectQuota)
@@ -8666,6 +8999,176 @@ func (response GetAdminProjectsdefaultJSONResponse) VisitGetAdminProjectsRespons
 	return err
 }
 
+type DeleteAdminProjectRequestObject struct {
+	Id ProjectID `json:"id"`
+}
+
+type DeleteAdminProjectResponseObject interface {
+	VisitDeleteAdminProjectResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminProject204Response struct {
+}
+
+func (response DeleteAdminProject204Response) VisitDeleteAdminProjectResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminProject401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminProject401JSONResponse) VisitDeleteAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProject403JSONResponse Error
+
+func (response DeleteAdminProject403JSONResponse) VisitDeleteAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProject404JSONResponse Error
+
+func (response DeleteAdminProject404JSONResponse) VisitDeleteAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProject409JSONResponse Error
+
+func (response DeleteAdminProject409JSONResponse) VisitDeleteAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminProjectdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminProjectdefaultJSONResponse) VisitDeleteAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectRequestObject struct {
+	Id ProjectID `json:"id"`
+}
+
+type GetAdminProjectResponseObject interface {
+	VisitGetAdminProjectResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProject200JSONResponse AdminProjectDetail
+
+func (response GetAdminProject200JSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProject401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetAdminProject401JSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProject403JSONResponse Error
+
+func (response GetAdminProject403JSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProject404JSONResponse Error
+
+func (response GetAdminProject404JSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProjectdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetAdminProjectdefaultJSONResponse) VisitGetAdminProjectResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PutAdminProjectQuotaRequestObject struct {
 	Id   ProjectID `json:"id"`
 	Body *PutAdminProjectQuotaJSONRequestBody
@@ -9346,8 +9849,8 @@ type GetAdminUsersResponseObject interface {
 }
 
 type GetAdminUsers200JSONResponse struct {
-	Meta  Meta   `json:"meta"`
-	Users []User `json:"users"`
+	Meta  Meta        `json:"meta"`
+	Users []AdminUser `json:"users"`
 }
 
 func (response GetAdminUsers200JSONResponse) VisitGetAdminUsersResponse(w http.ResponseWriter) error {
@@ -9415,7 +9918,7 @@ type PostAdminUsersResponseObject interface {
 	VisitPostAdminUsersResponse(w http.ResponseWriter) error
 }
 
-type PostAdminUsers201JSONResponse User
+type PostAdminUsers201JSONResponse AdminUser
 
 func (response PostAdminUsers201JSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
 
@@ -9491,6 +9994,488 @@ type PostAdminUsersdefaultJSONResponse struct {
 }
 
 func (response PostAdminUsersdefaultJSONResponse) VisitPostAdminUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserRequestObject struct {
+	Id     ID `json:"id"`
+	Params DeleteAdminUserParams
+}
+
+type DeleteAdminUserResponseObject interface {
+	VisitDeleteAdminUserResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminUser204Response struct {
+}
+
+func (response DeleteAdminUser204Response) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminUser401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminUser401JSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUser403JSONResponse Error
+
+func (response DeleteAdminUser403JSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUser404JSONResponse Error
+
+func (response DeleteAdminUser404JSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUser409JSONResponse Error
+
+func (response DeleteAdminUser409JSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUser422JSONResponse Error
+
+func (response DeleteAdminUser422JSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminUserdefaultJSONResponse) VisitDeleteAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminUserRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutAdminUserJSONRequestBody
+}
+
+type PutAdminUserResponseObject interface {
+	VisitPutAdminUserResponse(w http.ResponseWriter) error
+}
+
+type PutAdminUser200JSONResponse AdminUser
+
+func (response PutAdminUser200JSONResponse) VisitPutAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminUser401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutAdminUser401JSONResponse) VisitPutAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminUser403JSONResponse Error
+
+func (response PutAdminUser403JSONResponse) VisitPutAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminUser404JSONResponse Error
+
+func (response PutAdminUser404JSONResponse) VisitPutAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminUser409JSONResponse Error
+
+func (response PutAdminUser409JSONResponse) VisitPutAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminUser422JSONResponse Error
+
+func (response PutAdminUser422JSONResponse) VisitPutAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAdminUserdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutAdminUserdefaultJSONResponse) VisitPutAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPasskeysRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteAdminUserPasskeysResponseObject interface {
+	VisitDeleteAdminUserPasskeysResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminUserPasskeys204Response struct {
+}
+
+func (response DeleteAdminUserPasskeys204Response) VisitDeleteAdminUserPasskeysResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminUserPasskeys401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminUserPasskeys401JSONResponse) VisitDeleteAdminUserPasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPasskeys403JSONResponse Error
+
+func (response DeleteAdminUserPasskeys403JSONResponse) VisitDeleteAdminUserPasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPasskeys404JSONResponse Error
+
+func (response DeleteAdminUserPasskeys404JSONResponse) VisitDeleteAdminUserPasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPasskeys422JSONResponse Error
+
+func (response DeleteAdminUserPasskeys422JSONResponse) VisitDeleteAdminUserPasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserPasskeysdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminUserPasskeysdefaultJSONResponse) VisitDeleteAdminUserPasskeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUserPasswordRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PostAdminUserPasswordJSONRequestBody
+}
+
+type PostAdminUserPasswordResponseObject interface {
+	VisitPostAdminUserPasswordResponse(w http.ResponseWriter) error
+}
+
+type PostAdminUserPassword204Response struct {
+}
+
+func (response PostAdminUserPassword204Response) VisitPostAdminUserPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostAdminUserPassword401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostAdminUserPassword401JSONResponse) VisitPostAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUserPassword403JSONResponse Error
+
+func (response PostAdminUserPassword403JSONResponse) VisitPostAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUserPassword404JSONResponse Error
+
+func (response PostAdminUserPassword404JSONResponse) VisitPostAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUserPassword422JSONResponse Error
+
+func (response PostAdminUserPassword422JSONResponse) VisitPostAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAdminUserPassworddefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostAdminUserPassworddefaultJSONResponse) VisitPostAdminUserPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserTotpRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteAdminUserTotpResponseObject interface {
+	VisitDeleteAdminUserTotpResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminUserTotp204Response struct {
+}
+
+func (response DeleteAdminUserTotp204Response) VisitDeleteAdminUserTotpResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminUserTotp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteAdminUserTotp401JSONResponse) VisitDeleteAdminUserTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserTotp403JSONResponse Error
+
+func (response DeleteAdminUserTotp403JSONResponse) VisitDeleteAdminUserTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserTotp404JSONResponse Error
+
+func (response DeleteAdminUserTotp404JSONResponse) VisitDeleteAdminUserTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserTotp422JSONResponse Error
+
+func (response DeleteAdminUserTotp422JSONResponse) VisitDeleteAdminUserTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminUserTotpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteAdminUserTotpdefaultJSONResponse) VisitDeleteAdminUserTotpResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -15023,6 +16008,12 @@ type StrictServerInterface interface {
 	// GetAdminProjects List all projects
 	// (GET /admin/projects)
 	GetAdminProjects(ctx context.Context, request GetAdminProjectsRequestObject) (GetAdminProjectsResponseObject, error)
+	// DeleteAdminProject Delete any project that has no servers
+	// (DELETE /admin/projects/{id})
+	DeleteAdminProject(ctx context.Context, request DeleteAdminProjectRequestObject) (DeleteAdminProjectResponseObject, error)
+	// GetAdminProject Get any project with its members and usage
+	// (GET /admin/projects/{id})
+	GetAdminProject(ctx context.Context, request GetAdminProjectRequestObject) (GetAdminProjectResponseObject, error)
 	// PutAdminProjectQuota Set a project's quota (0 = unlimited)
 	// (PUT /admin/projects/{id}/quota)
 	PutAdminProjectQuota(ctx context.Context, request PutAdminProjectQuotaRequestObject) (PutAdminProjectQuotaResponseObject, error)
@@ -15053,6 +16044,21 @@ type StrictServerInterface interface {
 	// PostAdminUsers Create a user
 	// (POST /admin/users)
 	PostAdminUsers(ctx context.Context, request PostAdminUsersRequestObject) (PostAdminUsersResponseObject, error)
+	// DeleteAdminUser Delete a user
+	// (DELETE /admin/users/{id})
+	DeleteAdminUser(ctx context.Context, request DeleteAdminUserRequestObject) (DeleteAdminUserResponseObject, error)
+	// PutAdminUser Update a user's name, email and admin flag
+	// (PUT /admin/users/{id})
+	PutAdminUser(ctx context.Context, request PutAdminUserRequestObject) (PutAdminUserResponseObject, error)
+	// DeleteAdminUserPasskeys Remove all of a user's passkeys and sign them out
+	// (DELETE /admin/users/{id}/passkeys)
+	DeleteAdminUserPasskeys(ctx context.Context, request DeleteAdminUserPasskeysRequestObject) (DeleteAdminUserPasskeysResponseObject, error)
+	// PostAdminUserPassword Set a user's password and sign them out
+	// (POST /admin/users/{id}/password)
+	PostAdminUserPassword(ctx context.Context, request PostAdminUserPasswordRequestObject) (PostAdminUserPasswordResponseObject, error)
+	// DeleteAdminUserTotp Turn off a user's two-factor and sign them out
+	// (DELETE /admin/users/{id}/totp)
+	DeleteAdminUserTotp(ctx context.Context, request DeleteAdminUserTotpRequestObject) (DeleteAdminUserTotpResponseObject, error)
 	// PostAuthLogin Log in and set the session cookie
 	// (POST /auth/login)
 	PostAuthLogin(ctx context.Context, request PostAuthLoginRequestObject) (PostAuthLoginResponseObject, error)
@@ -16209,6 +17215,58 @@ func (sh *strictHandler) GetAdminProjects(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// DeleteAdminProject operation middleware
+func (sh *strictHandler) DeleteAdminProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request DeleteAdminProjectRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminProject(ctx, request.(DeleteAdminProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminProjectResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProject operation middleware
+func (sh *strictHandler) GetAdminProject(w http.ResponseWriter, r *http.Request, id ProjectID) {
+	var request GetAdminProjectRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProject(ctx, request.(GetAdminProjectRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProject")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProjectResponseObject); ok {
+		if err := validResponse.VisitGetAdminProjectResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PutAdminProjectQuota operation middleware
 func (sh *strictHandler) PutAdminProjectQuota(w http.ResponseWriter, r *http.Request, id ProjectID) {
 	var request PutAdminProjectQuotaRequestObject
@@ -16489,6 +17547,151 @@ func (sh *strictHandler) PostAdminUsers(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAdminUsersResponseObject); ok {
 		if err := validResponse.VisitPostAdminUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminUser operation middleware
+func (sh *strictHandler) DeleteAdminUser(w http.ResponseWriter, r *http.Request, id ID, params DeleteAdminUserParams) {
+	var request DeleteAdminUserRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminUser(ctx, request.(DeleteAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminUserResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAdminUser operation middleware
+func (sh *strictHandler) PutAdminUser(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutAdminUserRequestObject
+
+	request.Id = id
+
+	var body PutAdminUserJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAdminUser(ctx, request.(PutAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAdminUserResponseObject); ok {
+		if err := validResponse.VisitPutAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminUserPasskeys operation middleware
+func (sh *strictHandler) DeleteAdminUserPasskeys(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteAdminUserPasskeysRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminUserPasskeys(ctx, request.(DeleteAdminUserPasskeysRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminUserPasskeys")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminUserPasskeysResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminUserPasskeysResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAdminUserPassword operation middleware
+func (sh *strictHandler) PostAdminUserPassword(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PostAdminUserPasswordRequestObject
+
+	request.Id = id
+
+	var body PostAdminUserPasswordJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAdminUserPassword(ctx, request.(PostAdminUserPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAdminUserPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAdminUserPasswordResponseObject); ok {
+		if err := validResponse.VisitPostAdminUserPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminUserTotp operation middleware
+func (sh *strictHandler) DeleteAdminUserTotp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteAdminUserTotpRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminUserTotp(ctx, request.(DeleteAdminUserTotpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminUserTotp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminUserTotpResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminUserTotpResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
