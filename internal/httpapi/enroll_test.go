@@ -10,11 +10,14 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/nebla-cloud/nebla/internal/enroll"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 const enrollSecret = "3f2b8c1e-5d4a-4e7b-9a10-0c6d2e8f7a11"
@@ -277,6 +280,22 @@ func TestEnrollRateLimit(t *testing.T) {
 	res = enrollReq(t, app, http.MethodGet, "/v1/enroll.sh", "", nil)
 	require.Equal(t, http.StatusTooManyRequests, res.StatusCode)
 	res.Body.Close()
+}
+
+func TestEnrollGeneralLimitWithAuthHeader(t *testing.T) {
+	lim := ratelimit.New(rate.Every(time.Hour), 2)
+	app := testutil.NewApp(t, func(d *httpapi.Deps) { d.APILimiter = lim })
+	for i := range 2 {
+		res := enrollReq(t, app, http.MethodGet, "/v1/enroll/check", "Bearer x", nil)
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode, i)
+		res.Body.Close()
+	}
+	res := enrollReq(t, app, http.MethodGet, "/v1/enroll/check", "Bearer x", nil)
+	require.Equal(t, http.StatusTooManyRequests, res.StatusCode)
+	// enrollLimit has burst 10, so this 429 is the general limiter.
+	require.Equal(t, "0", res.Header.Get("RateLimit-Remaining"))
+	require.NotEmpty(t, res.Header.Get("Retry-After"))
+	require.Equal(t, "rate_limit_exceeded", errCode(t, app, res))
 }
 
 type syncBuffer struct {

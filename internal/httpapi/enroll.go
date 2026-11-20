@@ -19,7 +19,7 @@ var (
 	errEnrollInvalid = apierr.New(http.StatusUnauthorized, "enrollment_invalid", "enrollment token is not valid")
 )
 
-// enrollAllow applies the per-IP enroll limiter and returns 429 with Retry-After when it is empty.
+// enrollAllow applies the per-IP enroll limiter.
 func (s *server) enrollAllow(ctx context.Context) error {
 	r := requestFrom(ctx)
 	if r == nil {
@@ -35,7 +35,7 @@ func (s *server) enrollAllow(ctx context.Context) error {
 	return apierr.New(http.StatusTooManyRequests, "rate_limit_exceeded", "too many requests")
 }
 
-// enrollToken reads the Authorization: Enroll header; anything else is enrollment_invalid.
+// enrollToken reads the Authorization: Enroll header.
 func enrollToken(ctx context.Context) (string, error) {
 	r := requestFrom(ctx)
 	if r == nil {

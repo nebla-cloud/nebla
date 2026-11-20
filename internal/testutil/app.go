@@ -79,8 +79,12 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 		deps.Config.BaseURL = "http://" + srv.Listener.Addr().String()
 	}
 	if deps.Enroll == nil {
+		log := deps.Logger
+		if log == nil {
+			log = slog.New(slog.NewTextHandler(io.Discard, nil))
+		}
 		deps.Enroll = enroll.New(sqlDB, client, enroll.Options{SecretKey: deps.Config.SecretKey, BaseURL: deps.Config.BaseURL,
-			Catalog: deps.Catalog, Logger: deps.Logger})
+			Catalog: deps.Catalog, Logger: log})
 	}
 	if deps.Bus == nil {
 		deps.Bus = ext.NewBus(deps.Ext.WithDefaults(nil).BillingSink)
