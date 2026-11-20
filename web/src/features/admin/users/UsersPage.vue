@@ -1,0 +1,223 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import UAlert from '@nuxt/ui/components/Alert.vue'
+import UBadge from '@nuxt/ui/components/Badge.vue'
+import UButton from '@nuxt/ui/components/Button.vue'
+import UDropdownMenu from '@nuxt/ui/components/DropdownMenu.vue'
+import { useToast } from '@nuxt/ui/composables/useToast'
+import { errorMessage } from '@/api/errors'
+import AdminPager from '@/components/AdminPager.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import { useSession } from '@/lib/session'
+import DeleteUserModal from './DeleteUserModal.vue'
+import ResetPasswordModal from './ResetPasswordModal.vue'
+import UserFormModal from './UserFormModal.vue'
+import {
+  PER_PAGE,
+  useAdminUsers,
+  useDisableTotp,
+  useRemovePasskeys,
+  type AdminUser,
+} from './queries'
+
+const route = useRoute()
+const router = useRouter()
+const toast = useToast()
+const { me } = useSession()
+
+const page = computed(() => Math.max(1, Number.parseInt(String(route.query.page ?? '1'), 10) || 1))
+const { data, isPending, error: loadError } = useAdminUsers(page)
+const users = computed(() => data.value?.users ?? [])
+const total = computed(() => data.value?.meta.pagination.total_entries ?? 0)
+
+const disableTotp = useDisableTotp()
+const removePasskeys = useRemovePasskeys()
+
+const formOpen = ref(false)
+const editing = ref<AdminUser | undefined>()
+const resetOpen = ref(false)
+const totpOpen = ref(false)
+const passkeysOpen = ref(false)
+const deleteOpen = ref(false)
+const target = ref<AdminUser | null>(null)
+
+const label = (u: AdminUser) => u.name || u.email
+const isSelf = (u: AdminUser) => u.id === me.value?.id
+
+function openForm(u?: AdminUser) {
+  editing.value = u
+  formOpen.value = true
+}
+
+function act(u: AdminUser, open: { value: boolean }) {
+  target.value = u
+  open.value = true
+}
+
+function menu(u: AdminUser) {
+  const items = [{ label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => openForm(u) }]
+  if (isSelf(u)) return [items]
+  items.push({
+    label: 'Reset password',
+    icon: 'i-lucide-key-round',
+    onSelect: () => act(u, resetOpen),
+  })
+  if (u.totp_enabled) {
+    items.push({
+      label: 'Turn off two-factor',
+      icon: 'i-lucide-shield-off',
+      onSelect: () => act(u, totpOpen),
+    })
+  }
+  if (u.passkey_count > 0) {
+    items.push({
+      label: 'Remove passkeys',
+      icon: 'i-lucide-fingerprint',
+      onSelect: () => act(u, passkeysOpen),
+    })
+  }
+  return [
+    items,
+    [
+      {
+        label: 'Delete',
+        icon: 'i-lucide-trash-2',
+        color: 'error',
+        onSelect: () => act(u, deleteOpen),
+      },
+    ],
+  ]
+}
+
+function setPage(p: number) {
+  void router.push({ query: { ...route.query, page: String(p) } })
+}
+
+async function run(
+  fn: (id: number) => Promise<unknown>,
+  close: () => void,
+  done: (u: AdminUser) => string,
+) {
+  const u = target.value
+  if (!u) return
+  try {
+    await fn(u.id)
+    toast.add({ title: done(u), color: 'success' })
+    close()
+  } catch (e) {
+    toast.add({ title: errorMessage(e), color: 'error' })
+  }
+}
+</script>
+
+<template>
+  <div class="flex flex-col gap-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-col gap-1">
+        <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Users</h1>
+        <p class="text-sm text-muted">
+          There's no email from here. Send them their password yourself.
+        </p>
+      </div>
+      <UButton icon="i-lucide-user-plus" @click="openForm()">New user</UButton>
+    </div>
+
+    <UAlert
+      v-if="loadError"
+      color="error"
+      variant="subtle"
+      :description="errorMessage(loadError)"
+    />
+    <p v-else-if="isPending" class="text-muted">Loading users…</p>
+    <EmptyState v-else-if="!users.length" title="No users" body="Nobody has an account yet." />
+    <div v-else class="overflow-hidden rounded-lg border border-default">
+      <table class="block w-full text-left text-sm sm:table">
+        <thead class="hidden bg-elevated text-muted sm:table-header-group">
+          <tr>
+            <th class="px-4 py-2.5 font-medium">Name</th>
+            <th class="px-4 py-2.5 font-medium">Email</th>
+            <th class="px-4 py-2.5 font-medium">Admin</th>
+            <th class="px-4 py-2.5 font-medium">Two-factor</th>
+            <th class="px-4 py-2.5 font-medium">Passkeys</th>
+            <th class="px-4 py-2.5"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody class="block divide-y divide-default sm:table-row-group">
+          <tr
+            v-for="u in users"
+            :key="u.id"
+            class="relative flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:table-row sm:px-0 sm:py-0"
+          >
+            <td class="min-w-0 font-semibold text-highlighted sm:table-cell sm:px-4 sm:py-3">
+              {{ label(u) }}
+              <span v-if="isSelf(u)" class="font-normal text-muted">(you)</span>
+            </td>
+            <td class="order-last basis-full truncate text-muted sm:table-cell sm:px-4 sm:py-3">
+              {{ u.email }}
+            </td>
+            <td class="sm:table-cell sm:px-4 sm:py-3">
+              <UBadge v-if="u.is_admin" color="primary" variant="subtle">Admin</UBadge>
+            </td>
+            <td class="text-muted sm:table-cell sm:px-4 sm:py-3">
+              <span class="sm:hidden">Two-factor </span>{{ u.totp_enabled ? 'On' : 'Off' }}
+            </td>
+            <td data-col="passkeys" class="text-muted sm:table-cell sm:px-4 sm:py-3">
+              <template v-if="u.passkey_count > 0">
+                <span class="sm:hidden">Passkeys </span>{{ u.passkey_count }}
+              </template>
+            </td>
+            <td
+              class="absolute right-3 top-2.5 sm:static sm:table-cell sm:px-4 sm:py-3 sm:text-right"
+            >
+              <UDropdownMenu :items="menu(u)" :content="{ align: 'end' }">
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-ellipsis"
+                  :aria-label="`Actions for ${label(u)}`"
+                />
+              </UDropdownMenu>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <AdminPager :page="page" :per-page="PER_PAGE" :total="total" @update:page="setPage" />
+
+    <UserFormModal v-model:open="formOpen" :user="editing" />
+    <ResetPasswordModal v-model:open="resetOpen" :user="target" />
+    <DeleteUserModal v-model:open="deleteOpen" :user="target" />
+    <ConfirmDialog
+      v-model:open="totpOpen"
+      :title="`Turn off two-factor for ${target ? label(target) : ''}?`"
+      body="They'll log in with just their password and can turn it back on from their account page."
+      confirm-label="Turn off two-factor"
+      danger
+      :loading="disableTotp.isPending.value"
+      @confirm="
+        run(
+          (id) => disableTotp.mutateAsync(id),
+          () => (totpOpen = false),
+          (u) => `Two-factor is off for ${label(u)}`,
+        )
+      "
+    />
+    <ConfirmDialog
+      v-model:open="passkeysOpen"
+      :title="`Remove passkeys for ${target ? label(target) : ''}?`"
+      body="They'll sign in with their password (and two-factor code, if it's on) until they add a new passkey."
+      confirm-label="Remove passkeys"
+      danger
+      :loading="removePasskeys.isPending.value"
+      @confirm="
+        run(
+          (id) => removePasskeys.mutateAsync(id),
+          () => (passkeysOpen = false),
+          (u) => `Removed passkeys for ${label(u)}`,
+        )
+      "
+    />
+  </div>
+</template>
