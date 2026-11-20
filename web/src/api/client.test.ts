@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
-import { api, onUnauthorized, setProjectId } from './client'
+import { testRouter } from '@/test/mount'
+import { api, onUnauthorized, redirectOnUnauthorized, setProjectId } from './client'
 import { ApiError, errorMessage, unwrap } from './errors'
 
 describe('api client', () => {
@@ -57,5 +58,24 @@ describe('api client', () => {
       "Nebla's background jobs aren't running. Check the server logs.",
     )
     expect(errorMessage(new ApiError(409, 'conflict', 'name taken'))).toBe('name taken')
+  })
+
+  it('401 redirects once with next', async () => {
+    const router = testRouter([
+      { path: '/login', name: 'login', component: { render: () => null } },
+    ])
+    await router.push('/p/1/servers?x=1')
+    const replace = vi.spyOn(router, 'replace')
+    const cleared = vi.fn()
+    redirectOnUnauthorized(router, cleared)
+    const body = { error: { code: 'unauthorized', message: 'no' } }
+    server.use(http.get('*/v1/servers', () => json(401, body)))
+    await Promise.all([api.GET('/servers'), api.GET('/servers')])
+    await Promise.all(replace.mock.results.map((r) => r.value))
+    await api.GET('/servers')
+    expect(replace).toHaveBeenCalledOnce()
+    expect(replace).toHaveBeenCalledWith({ name: 'login', query: { next: '/p/1/servers?x=1' } })
+    expect(router.currentRoute.value.query.next).toBe('/p/1/servers?x=1')
+    expect(cleared).toHaveBeenCalledOnce()
   })
 })

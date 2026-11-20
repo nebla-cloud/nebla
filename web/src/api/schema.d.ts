@@ -1135,8 +1135,16 @@ export interface components {
             name: string;
             role: components["schemas"]["Role"];
             quota: components["schemas"]["Quota"];
+            usage: components["schemas"]["ProjectUsage"];
             /** Format: date-time */
             created: string;
+        };
+        ProjectUsage: {
+            servers: number;
+            vcpu: number;
+            memory_mb: number;
+            disk_gb: number;
+            ips: number;
         };
         AdminProject: {
             /** Format: int64 */
@@ -1199,6 +1207,8 @@ export interface components {
             self_signup: boolean;
         };
         UiManifest: {
+            setup_required: boolean;
+            signup_enabled: boolean;
             branding: {
                 product_name: string;
                 logo_url: string;
@@ -1317,11 +1327,22 @@ export interface components {
             /** Format: date-time */
             updated: string;
         };
+        LocationRef: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            description: string;
+        };
         Location: {
             /** Format: int64 */
             id: number;
             name: string;
             description: string;
+            /** @description Whether the location has a free address of each family */
+            networks: {
+                ipv4: boolean;
+                ipv6: boolean;
+            };
         };
         ServerTypeInput: {
             name: string;
@@ -1521,7 +1542,7 @@ export interface components {
             name: string;
             /** @enum {string} */
             status: "initializing" | "starting" | "running" | "stopping" | "off" | "rebuilding" | "deleting" | "missing" | "error";
-            location: components["schemas"]["Location"];
+            location: components["schemas"]["LocationRef"];
             server_type: components["schemas"]["ServerType"];
             image: components["schemas"]["Image"];
             public_net: {

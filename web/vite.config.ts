@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [
     vue(),
     ui({
+      autoImport: false,
+      components: false,
+      icon: { clientBundle: { scan: true } },
       ui: {
         colors: { primary: 'ink', neutral: 'ink' },
         button: { slots: { base: 'font-semibold' } },
