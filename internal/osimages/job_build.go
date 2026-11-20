@@ -69,8 +69,11 @@ type BuildWorker struct {
 	s *Service
 }
 
-// Register adds the catalog build worker.
-func Register(w *river.Workers, s *Service) { river.AddWorker(w, &BuildWorker{s: s}) }
+// Register adds the catalog build and retire workers.
+func Register(w *river.Workers, s *Service) {
+	river.AddWorker(w, &BuildWorker{s: s})
+	river.AddWorker(w, &RetireWorker{s: s})
+}
 
 func (*BuildWorker) Timeout(*river.Job[BuildArgs]) time.Duration { return buildTimeout }
 

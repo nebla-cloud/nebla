@@ -40,3 +40,5 @@ func StepErr(step string, err error) error { return &stepError{step: step, err: 
 const CleanupPending = cleanupPending
 
 var BudgetFor = budgetFor
+
+func NewRetireWorker(s *Service) *RetireWorker { return &RetireWorker{s: s} }

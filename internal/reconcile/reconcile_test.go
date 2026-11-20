@@ -771,3 +771,21 @@ func TestRescueRestoresActualDiskSize(t *testing.T) {
 	expectOrphaned(t, e, act)
 	require.Equal(t, 40, get(t, e, id).DiskGB, "the grown disk is kept")
 }
+
+func TestReconcileIgnoresTemplateBuildVMs(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	logs := &lockedBuffer{}
+	r := newReconciler(e, slog.New(slog.NewTextHandler(logs, nil)))
+	row, _ := running(t, e, "web")
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	e.App.PVE.AddVM("pve1", 600, "building")
+	require.NoError(t, pc.SetConfig(ctx, "pve1", 600, map[string]string{"tags": "nebla-tpl;nebla-tpl-1-ab"}))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.NotContains(t, logs.String(), "vmid=600")
+	require.Equal(t, server.StatusRunning, get(t, e, row.ID).Status)
+	_, ok := e.App.PVE.VM(600)
+	require.True(t, ok)
+}
