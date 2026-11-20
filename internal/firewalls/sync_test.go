@@ -2,6 +2,8 @@ package firewalls
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -162,4 +164,110 @@ func TestSyncResumesAfterFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	converged(t, s, b)
+}
+
+func TestSyncRepairsEditedRule(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	a := Render([]Rule{
+		{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("192.0.2.0/24")},
+		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: pfx("0.0.0.0/0")},
+	}, true)
+	if err := Sync(ctx, pc, node, vmid, a); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a hand edit that widens rule 0 but keeps its comment.
+	edited := a.Rules[0]
+	edited.Source = "0.0.0.0/0"
+	if err := pc.DeleteFirewallRule(ctx, node, vmid, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := pc.AddFirewallRule(ctx, node, vmid, edited); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ := pc.FirewallRules(ctx, node, vmid)
+	opts, _ := pc.FirewallOptions(ctx, node, vmid)
+	if InSync(cur, opts, a) {
+		t.Fatal("InSync missed an edited rule")
+	}
+	s.OnFirewallWrite(func() {
+		v, _ := s.VM(vmid)
+		if v.Firewall["policy_in"] != "DROP" {
+			t.Errorf("repair opened the VM: %v", v.Firewall)
+		}
+		have := map[string]int{}
+		for _, r := range v.Rules {
+			have[r.Comment]++
+		}
+		for _, r := range a.Rules {
+			if have[r.Comment] == 0 {
+				t.Errorf("rule %s missing mid-repair", r.Comment)
+			}
+		}
+	})
+	if err := Sync(ctx, pc, node, vmid, a); err != nil {
+		t.Fatal(err)
+	}
+	s.OnFirewallWrite(nil)
+	v, _ := s.VM(vmid)
+	if len(v.Rules) != 2 || !slices.ContainsFunc(v.Rules, func(r pve.FirewallRule) bool { return r == a.Rules[0] }) {
+		t.Fatalf("edited rule not repaired: %+v", v.Rules)
+	}
+	cur, _ = pc.FirewallRules(ctx, node, vmid)
+	opts, _ = pc.FirewallOptions(ctx, node, vmid)
+	if !InSync(cur, opts, a) {
+		t.Fatal("InSync false after repair")
+	}
+}
+
+func TestInSync(t *testing.T) {
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	live := func() []pve.FirewallRule {
+		out := slices.Clone(d.Rules)
+		for i := range out {
+			out[i].Pos = i
+		}
+		return out
+	}
+	opts := maps.Clone(d.Options)
+	if !InSync(live(), opts, d) {
+		t.Fatal("identical state reported out of sync")
+	}
+	mut := map[string]func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string){
+		"source": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			rs[0].Source = "10.0.0.0/8"
+			return rs, o
+		},
+		"dport": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			rs[0].Dport = ""
+			return rs, o
+		},
+		"type": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			rs[1].Type = "out"
+			return rs, o
+		},
+		"disabled": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			rs[1].Enable = false
+			return rs, o
+		},
+		"missing": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			return rs[:1], o
+		},
+		"duplicate": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			return append(rs, rs[0]), o
+		},
+		"foreign": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			return append(rs, pve.FirewallRule{Pos: 2, Type: "in", Action: "ACCEPT", Enable: true}), o
+		},
+		"policy": func(rs []pve.FirewallRule, o map[string]string) ([]pve.FirewallRule, map[string]string) {
+			o["policy_in"] = "ACCEPT"
+			return rs, o
+		},
+	}
+	for name, m := range mut {
+		rs, o := m(live(), maps.Clone(opts))
+		if InSync(rs, o, d) {
+			t.Errorf("%s: drift not detected", name)
+		}
+	}
 }

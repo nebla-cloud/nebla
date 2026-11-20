@@ -32,7 +32,7 @@ type Desired struct {
 	Rules   []pve.FirewallRule
 }
 
-// Render maps a server's effective rules to its desired Proxmox firewall state.
+// Render maps effective rules, given in position order per firewall, to the desired Proxmox state.
 func Render(rules []Rule, anyFirewall bool) Desired {
 	d := Desired{Options: map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "ndp": "1", "radv": "0", "dhcp": "0",
 		"policy_in": "ACCEPT", "policy_out": "ACCEPT"}}
