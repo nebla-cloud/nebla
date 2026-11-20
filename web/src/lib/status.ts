@@ -1,15 +1,15 @@
 import type { Server } from '@/api/types'
 
-export type StatusTone = 'success' | 'neutral' | 'error'
+export type StatusTone = 'success' | 'busy' | 'neutral' | 'error'
 
 const statuses: Record<Server['status'], { label: string; tone: StatusTone; pulse: boolean }> = {
   running: { label: 'Running', tone: 'success', pulse: false },
   off: { label: 'Off', tone: 'neutral', pulse: false },
-  initializing: { label: 'Initializing', tone: 'neutral', pulse: true },
-  starting: { label: 'Starting', tone: 'neutral', pulse: true },
-  stopping: { label: 'Stopping', tone: 'neutral', pulse: true },
-  rebuilding: { label: 'Rebuilding', tone: 'neutral', pulse: true },
-  deleting: { label: 'Deleting', tone: 'neutral', pulse: true },
+  initializing: { label: 'Initializing', tone: 'busy', pulse: true },
+  starting: { label: 'Starting', tone: 'busy', pulse: true },
+  stopping: { label: 'Stopping', tone: 'busy', pulse: true },
+  rebuilding: { label: 'Rebuilding', tone: 'busy', pulse: true },
+  deleting: { label: 'Deleting', tone: 'busy', pulse: true },
   missing: { label: 'Missing', tone: 'error', pulse: false },
   error: { label: 'Error', tone: 'error', pulse: false },
 }

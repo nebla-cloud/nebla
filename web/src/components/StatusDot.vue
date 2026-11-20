@@ -6,9 +6,10 @@ import { serverStatus } from '@/lib/status'
 const props = defineProps<{ status: Server['status'] }>()
 const s = computed(() => serverStatus(props.status))
 const tone = {
-  success: 'bg-success',
-  neutral: 'bg-ink-500 dark:bg-ink-400',
-  error: 'bg-error',
+  success: 'bg-[var(--nb-run)]',
+  busy: 'bg-[var(--nb-busy)]',
+  neutral: 'bg-[var(--nb-off)]',
+  error: 'bg-[var(--nb-err)]',
 }
 </script>
 
