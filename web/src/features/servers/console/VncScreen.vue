@@ -21,9 +21,16 @@ function typeText(text: string): boolean {
   const r = rfb
   if (!r || closed) return false
   for (const k of keys) {
-    if (k.shift) r.sendKey(XK_SHIFT_L, 'ShiftLeft', true)
-    r.sendKey(k.keysym, null)
-    if (k.shift) r.sendKey(XK_SHIFT_L, 'ShiftLeft', false)
+    if (!k.shift) {
+      r.sendKey(k.keysym, null)
+      continue
+    }
+    r.sendKey(XK_SHIFT_L, 'ShiftLeft', true)
+    try {
+      r.sendKey(k.keysym, null)
+    } finally {
+      r.sendKey(XK_SHIFT_L, 'ShiftLeft', false)
+    }
   }
   return true
 }

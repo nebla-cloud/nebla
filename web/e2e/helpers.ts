@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 
 // Infrastructure words that must never reach a project page.
-export const LEAKS = /vmid|local-lvm|vmbr|pve1|pve2|ceph|imp\b|proxmox/i
+export const LEAKS = /vmid|local-lvm|vmbr|pve1|pve2|ceph|\bimp\b|proxmox/i
 
 export async function expectNoLeaks(page: Page) {
   expect(await page.content()).not.toMatch(LEAKS)

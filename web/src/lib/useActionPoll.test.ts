@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
+import { ApiError } from '@/api/errors'
 import { testQueryClient, testRouter, withSetup } from '@/test/mount'
 import { useActionPoll } from './useActionPoll'
 
@@ -119,6 +120,31 @@ describe('useActionPoll', () => {
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled())
     expect(result.action.value?.status).toBe('success')
     expect(errors).not.toContain('too many requests')
+  })
+
+  it('polls every 2 s by default and backs off 5x on a rate limit', async () => {
+    sequence([action('running', 10)])
+    const { queryClient } = await inProject(() => useActionPoll(ref(5)))
+    const q = () => queryClient.getQueryCache().find({ queryKey: ['action', 5] })!
+    await vi.waitFor(() => expect(q().state.data).toBeTruthy())
+    const interval = q().observers[0]!.options.refetchInterval as (x: unknown) => unknown
+    expect(interval(q())).toBe(2000)
+    const limited = {
+      state: {
+        data: undefined,
+        error: new ApiError(429, 'rate_limit_exceeded', 'too many requests'),
+      },
+    }
+    expect(interval(limited)).toBe(10_000)
+  })
+
+  it('success invalidates the project activity', async () => {
+    sequence([action('running', 10), action('success', 100)])
+    const onDone = vi.fn()
+    const { queryClient } = await inProject(() => useActionPoll(ref(5), { onDone, intervalMs: 10 }))
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['actions', 3] })
   })
 
   it('does nothing without an action id', async () => {

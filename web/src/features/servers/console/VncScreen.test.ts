@@ -87,6 +87,19 @@ describe('VncScreen', () => {
     )
   })
 
+  it('releases shift even if a shifted key fails', () => {
+    const { vm, rfb } = mountScreen()
+    type Send = (s: number, c: string | null, d?: boolean) => void
+    const r = rfb as unknown as { sendKey: Send }
+    const send = r.sendKey.bind(rfb)
+    r.sendKey = (s, c, d) => {
+      if (s === 0x41) throw new Error('socket closed')
+      send(s, c, d)
+    }
+    expect(() => vm.typeText('A')).toThrow('socket closed')
+    expect(rfb.keys).toEqual([SHIFT_DOWN, SHIFT_UP])
+  })
+
   it('sends Return and Tab for newlines and tabs', () => {
     const { vm, rfb } = mountScreen()
     vm.typeText('a\tb\r\n')

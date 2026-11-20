@@ -3,21 +3,22 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { Action } from '@/api/types'
 import { actionTitle } from '@/components/actionLabel'
-import { useServers } from '@/features/servers/queries'
+import { useCurrentProject } from '@/lib/project'
+import { useServerNames } from '@/features/servers/queries'
 
 const props = defineProps<{ actions: Action[]; showResource: boolean }>()
 
-const { data: servers } = useServers()
-const names = computed(() => new Map((servers.value ?? []).map((s) => [s.id, s.name])))
+const { projectId } = useCurrentProject()
+const { data: index } = useServerNames(computed(() => props.showResource))
 
 function status(a: Action): string {
   if (a.status === 'running') return `Running ${Math.round(a.progress)}%`
   return a.status === 'success' ? 'Done' : 'Failed'
 }
 
-function tone(a: Action): string {
-  if (a.status === 'error') return 'text-error'
-  return a.status === 'running' ? 'text-warning' : 'text-success'
+function dot(a: Action): string {
+  if (a.status === 'error') return 'bg-error'
+  return a.status === 'running' ? 'bg-warning motion-safe:animate-pulse' : 'bg-success'
 }
 
 function relative(iso: string): string {
@@ -34,10 +35,16 @@ function duration(a: Action): string {
   return s < 60 ? `${s} s` : `${Math.round(s / 60)} min`
 }
 
-function serverOf(a: Action): { id: number; label: string } | null {
+function serverOf(a: Action): { id: number; label: string; found: boolean } | null {
   const r = a.resources.find((x) => x.type === 'server')
   if (!r) return null
-  return { id: r.id, label: names.value.get(r.id) ?? (servers.value ? 'Deleted server' : `Server ${r.id}`) }
+  const name = index.value?.names.get(r.id)
+  if (name !== undefined) return { id: r.id, label: name, found: true }
+  return {
+    id: r.id,
+    label: index.value?.complete ? 'Deleted server' : `Server ${r.id}`,
+    found: false,
+  }
 }
 const rows = computed(() => props.actions.map((a) => ({ a, srv: serverOf(a) })))
 </script>
@@ -47,13 +54,24 @@ const rows = computed(() => props.actions.map((a) => ({ a, srv: serverOf(a) })))
     <li v-for="{ a, srv } in rows" :key="a.id" class="flex flex-col gap-1 px-4 py-3">
       <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span class="font-medium text-highlighted">{{ actionTitle(a.command) }}</span>
-        <RouterLink
-          v-if="showResource && srv"
-          :to="{ name: 'server', params: { serverId: srv.id } }"
-          class="text-sm text-primary hover:underline"
-          >{{ srv.label }}</RouterLink
-        >
-        <span class="text-sm font-medium" :class="tone(a)">{{ status(a) }}</span>
+        <template v-if="showResource && srv">
+          <RouterLink
+            v-if="srv.found"
+            :to="{ name: 'server', params: { projectId, serverId: srv.id } }"
+            class="text-sm text-primary hover:underline"
+            >{{ srv.label }}</RouterLink
+          >
+          <span v-else class="text-sm text-muted">{{ srv.label }}</span>
+        </template>
+        <span class="inline-flex items-center gap-1.5 text-sm font-medium text-default">
+          <span
+            data-status-dot
+            aria-hidden="true"
+            class="size-2 shrink-0 rounded-full"
+            :class="dot(a)"
+          />
+          {{ status(a) }}
+        </span>
         <span class="ms-auto flex gap-3 text-sm text-muted">
           <time :datetime="a.started" :title="new Date(a.started).toLocaleString('en-GB')">{{
             relative(a.started)
