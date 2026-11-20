@@ -25,16 +25,18 @@ var errUnauthorized = apierr.New(http.StatusUnauthorized, "unauthorized", "authe
 
 // publicOps are the operations that need no authentication.
 var publicOps = map[string]bool{
-	"GetHealthz":       true,
-	"GetUiManifest":    true,
-	"PostSetup":        true,
-	"PostAuthLogin":    true,
-	"PostSignup":       true,
-	"PostInviteAccept": true,
-	"GetInvite":        true,
-	"GetEnrollScript":  true,
-	"GetEnrollCheck":   true,
-	"PostEnrollReport": true,
+	"GetHealthz":            true,
+	"GetUiManifest":         true,
+	"PostSetup":             true,
+	"PostAuthLogin":         true,
+	"PostAuthPasskeyBegin":  true,
+	"PostAuthPasskeyFinish": true,
+	"PostSignup":            true,
+	"PostInviteAccept":      true,
+	"GetInvite":             true,
+	"GetEnrollScript":       true,
+	"GetEnrollCheck":        true,
+	"PostEnrollReport":      true,
 }
 
 // adminOps need a panel admin; TestAdminOpsMatchSpec keeps it equal to the spec's /admin/ paths.

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -53,6 +54,11 @@ func NewApp(t *testing.T, opts ...func(*httpapi.Deps)) *App {
 	return NewAppWithWorkers(t, nil, opts...)
 }
 
+const localhostBase = "http://localhost:auto"
+
+// Localhost serves the app at http://localhost:<port>, where passkeys work; it sets Config.BaseURL and App.URL.
+func Localhost(d *httpapi.Deps) { d.Config.BaseURL = localhostBase }
+
 // WorkerSetup registers River workers; deps already has Pool, SQL and Ent, and pve is the app's fake Proxmox.
 type WorkerSetup func(w *river.Workers, deps *httpapi.Deps, pve *fake.Server)
 
@@ -75,8 +81,12 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 			Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	}
 	srv := httptest.NewUnstartedServer(nil)
+	_, port, _ := net.SplitHostPort(srv.Listener.Addr().String())
 	if deps.Config.BaseURL == "" {
 		deps.Config.BaseURL = "http://" + srv.Listener.Addr().String()
+	}
+	if deps.Config.BaseURL == localhostBase {
+		deps.Config.BaseURL = "http://localhost:" + port
 	}
 	if deps.Enroll == nil {
 		log := deps.Logger
@@ -103,7 +113,11 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 	srv.Config.Handler = httpapi.New(deps)
 	srv.Start()
 	t.Cleanup(srv.Close)
-	return &App{URL: srv.URL, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration),
+	url := srv.URL
+	if deps.Config.BaseURL == "http://localhost:"+port {
+		url = deps.Config.BaseURL
+	}
+	return &App{URL: url, Pool: pool, SQL: sqlDB, Ent: client, Auth: auth.New(client, ext.Defaults(nil).Registration),
 		PVE: pve, Catalog: deps.Catalog, Jobs: deps.Jobs, t: t}
 }
 
