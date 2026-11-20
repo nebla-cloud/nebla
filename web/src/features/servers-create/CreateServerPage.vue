@@ -179,7 +179,7 @@ async function submit() {
   try {
     const res = unwrap(await api.POST('/servers', { body }))
     qc.setQueryData(['action', res.action.id], res.action)
-    qc.setQueryData(['server', res.server.id], res.server)
+    qc.setQueryData(['server', projectId.value, res.server.id], res.server)
     void qc.invalidateQueries({ queryKey: ['servers', projectId.value] })
     void qc.invalidateQueries({ queryKey: ['project', projectId.value] })
     await router.push({

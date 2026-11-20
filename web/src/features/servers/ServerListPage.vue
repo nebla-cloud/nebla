@@ -7,6 +7,7 @@ import { errorMessage } from '@/api/errors'
 import EmptyState from '@/components/EmptyState.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import { useCurrentProject } from '@/lib/project'
+import { serverStatus } from '@/lib/status'
 import { useServers } from './queries'
 
 const { projectId } = useCurrentProject()
@@ -43,7 +44,9 @@ const { data: servers, isPending, error } = useServers()
           >
             <span>{{ s.image.name }}</span>
             <span>{{ s.server_type.name }}</span>
-            <span>{{ s.status === 'off' ? 'Off' : (s.public_net.ipv4?.ip ?? '—') }}</span>
+            <span>{{
+              s.status === 'running' ? (s.public_net.ipv4?.ip ?? '—') : serverStatus(s.status).label
+            }}</span>
             <span>{{ s.location.name }}</span>
           </span>
         </RouterLink>

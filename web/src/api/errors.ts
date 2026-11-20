@@ -11,7 +11,7 @@ export class ApiError extends Error {
 }
 
 const friendly: Record<string, string> = {
-  pve_unreachable: "Proxmox didn't respond. Try again in a moment.",
+  pve_unreachable: "The server's host didn't respond. Try again in a moment.",
   service_unavailable: "Nebla's background jobs aren't running. Check the server logs.",
 }
 

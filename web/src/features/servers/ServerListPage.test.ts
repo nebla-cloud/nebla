@@ -54,6 +54,17 @@ describe('ServerListPage', () => {
     expect(wrapper.text()).not.toContain('203.0.113.10')
   })
 
+  it('non-running shows status word', async () => {
+    server.use(
+      http.get('*/v1/servers', () =>
+        json(200, { servers: [makeServer({ status: 'initializing' })], meta }),
+      ),
+    )
+    const { wrapper } = await mountList()
+    expect(wrapper.text()).toContain('Initializing')
+    expect(wrapper.text()).not.toContain('203.0.113.10')
+  })
+
   it('list polls while a server is initializing and stops after', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'setTimeout', 'clearInterval', 'clearTimeout'] })
     let calls = 0

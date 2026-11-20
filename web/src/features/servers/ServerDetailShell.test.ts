@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
+import { RouterView, type HistoryState } from 'vue-router'
 import { mountApp, testRouter } from '@/test/mount'
 import type { Action, Server } from '@/api/types'
 import { makeServer } from './fixtures'
-import ServerDetailPage from './ServerDetailPage.vue'
+import routes from './routes'
 
 function action(over: Partial<Action> = {}): Action {
   return {
@@ -21,23 +22,29 @@ function action(over: Partial<Action> = {}): Action {
   }
 }
 
+const emptyList = { servers: [], meta: { pagination: { page: 1, per_page: 50, total_entries: 0 } } }
+
 function serve(s: Server) {
   server.use(
     http.get('*/v1/projects/1', () =>
       json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
     ),
-    http.get('*/v1/servers/1', () => json(200, s)),
+    http.get(`*/v1/servers/${s.id}`, () => json(200, s)),
   )
 }
 
-async function mountDetail() {
+async function mountDetail(path = '/p/1/servers/1', state?: HistoryState) {
   const router = testRouter([
-    { path: '/p/:projectId/servers', name: 'servers', component: ServerDetailPage },
-    { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerDetailPage },
+    {
+      path: '/p/:projectId',
+      component: RouterView,
+      children: [{ path: 'servers/new', name: 'server-new', component: RouterView }, ...routes],
+    },
   ])
-  await router.push('/p/1/servers/1')
-  const res = mountApp(ServerDetailPage, { router })
+  await router.push({ path, state })
+  const res = mountApp(RouterView, { router })
   await vi.waitFor(() => expect(res.wrapper.text()).not.toContain('Loading server'))
+  await flushPromises()
   return { ...res, router }
 }
 
@@ -59,7 +66,98 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('ServerDetailPage', () => {
+describe('ServerDetailShell', () => {
+  it('child route renders its tab', async () => {
+    serve(makeServer({ id: 5 }))
+    const { wrapper } = await mountDetail('/p/1/servers/5/rebuild')
+    expect(wrapper.text()).toContain('Coming soon')
+    const current = wrapper.find('nav[aria-label="Server sections"] a[aria-current="page"]')
+    expect(current.text()).toBe('Rebuild')
+  })
+
+  it('tab bar links keep the server', async () => {
+    serve(makeServer({ id: 5 }))
+    const { wrapper } = await mountDetail('/p/1/servers/5')
+    const links = wrapper
+      .findAll('nav[aria-label="Server sections"] a')
+      .map((a) => [a.text(), a.attributes('href')])
+    expect(links).toEqual([
+      ['Overview', '/p/1/servers/5'],
+      ['Graphs', '/p/1/servers/5/graphs'],
+      ['Console', '/p/1/servers/5/console'],
+      ['Rebuild', '/p/1/servers/5/rebuild'],
+      ['Resize', '/p/1/servers/5/resize'],
+      ['Activity', '/p/1/servers/5/activity'],
+    ])
+  })
+
+  it('header and chips stay across tabs', async () => {
+    serve(makeServer({ id: 5 }))
+    const { wrapper, router } = await mountDetail('/p/1/servers/5')
+    for (const tab of ['', '/graphs', '/console', '/rebuild', '/resize', '/activity']) {
+      await router.push(`/p/1/servers/5${tab}`)
+      await flushPromises()
+      expect(wrapper.find('h1').text()).toBe('web1')
+      expect(wrapper.text()).toContain('Running')
+      expect(byText('Shut down')).toBeTruthy()
+      expect(byText('Reboot')).toBeTruthy()
+    }
+  })
+
+  it('breadcrumb links back to the server list', async () => {
+    serve(makeServer())
+    const { wrapper } = await mountDetail()
+    const crumb = wrapper.find('nav[aria-label="Breadcrumb"]')
+    expect(crumb.find('a').attributes('href')).toBe('/p/1/servers')
+    expect(crumb.find('[aria-current="page"]').text()).toBe('web1')
+  })
+
+  it('handoff ignored for another server', async () => {
+    serve(makeServer({ id: 5 }))
+    let polled = false
+    server.use(
+      http.get('*/v1/actions/3', () => {
+        polled = true
+        return json(
+          200,
+          action({ id: 3, command: 'create_server', resources: [{ id: 9, type: 'server' }] }),
+        )
+      }),
+    )
+    const { wrapper, router } = await mountDetail('/p/1/servers/5', { actionId: 3 })
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(polled).toBe(true)
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Creating')
+    expect(router.options.history.state.actionId ?? null).toBeNull()
+  })
+
+  it('create shows created toast', async () => {
+    serve(makeServer({ id: 5, status: 'initializing' }))
+    let polls = 0
+    server.use(
+      http.get('*/v1/actions/3', () => {
+        polls++
+        const done = polls > 1
+        return json(
+          200,
+          action({
+            id: 3,
+            command: 'create_server',
+            resources: [{ id: 5, type: 'server' }],
+            ...(done ? { status: 'success', progress: 100, finished: '2026-11-20T10:01:00Z' } : {}),
+          }),
+        )
+      }),
+      http.get('*/v1/servers', () => json(200, emptyList)),
+    )
+    const { wrapper, router } = await mountDetail('/p/1/servers/5', { actionId: 3 })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Creating'))
+    expect(router.options.history.state.actionId ?? null).toBeNull()
+    await vi.waitFor(() => expect(toastText()).toContain('web1 created'), { timeout: 4000 })
+  })
+
   it('detail power actions by status', async () => {
     serve(
       makeServer({
@@ -88,6 +186,23 @@ describe('ServerDetailPage', () => {
     expect(byText('Shut down')).toBeUndefined()
     expect(byText('Reboot')).toBeUndefined()
     expect(document.body.querySelector('button[aria-label="More power actions"]')).toBeNull()
+  })
+
+  it('error server offers Power on and Power off', async () => {
+    serve(makeServer({ status: 'error' }))
+    await mountDetail()
+    expect(byText('Power on')!.disabled).toBe(false)
+    expect(byText('Power off')!.disabled).toBe(false)
+    expect(byText('Shut down')).toBeUndefined()
+  })
+
+  it('missing server shows Power on disabled with a reason', async () => {
+    serve(makeServer({ status: 'missing' }))
+    await mountDetail()
+    const on = byText('Power on')!
+    expect(on.disabled).toBe(true)
+    expect(on.getAttribute('title')).toBe("Nebla can't find this server right now")
+    expect(byText('Power off')).toBeUndefined()
   })
 
   it('transitional status disables every power action', async () => {
@@ -166,12 +281,7 @@ describe('ServerDetailPage', () => {
       http.get('*/v1/actions/8', () =>
         json(200, action({ id: 8, command: 'delete_server', status: 'success', progress: 100 })),
       ),
-      http.get('*/v1/servers', () =>
-        json(200, {
-          servers: [],
-          meta: { pagination: { page: 1, per_page: 50, total_entries: 0 } },
-        }),
-      ),
+      http.get('*/v1/servers', () => json(200, emptyList)),
     )
     const { router } = await mountDetail()
     byText('Delete server')!.click()
@@ -200,12 +310,7 @@ describe('ServerDetailPage', () => {
         bodies.push(body)
         return json(200, makeServer({ name: body.name }))
       }),
-      http.get('*/v1/servers', () =>
-        json(200, {
-          servers: [],
-          meta: { pagination: { page: 1, per_page: 50, total_entries: 0 } },
-        }),
-      ),
+      http.get('*/v1/servers', () => json(200, emptyList)),
     )
     const { wrapper } = await mountDetail()
     byText('Rename')!.click()
