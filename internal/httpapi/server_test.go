@@ -60,6 +60,29 @@ func TestSPAAssetsAreImmutable(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "<title>Nebla</title>")
 }
 
+func TestSPAMissingAssetIs404(t *testing.T) {
+	dist := fstest.MapFS{
+		"index.html":        {Data: []byte("<!doctype html><title>Nebla</title>")},
+		"assets/app-abc.js": {Data: []byte("console.log(1)")},
+	}
+	h := httpapi.SPAHandler(dist, []byte("placeholder"))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/assets/app-old.js", nil))
+	require.Equal(t, 404, rec.Code)
+	require.NotContains(t, rec.Header().Get("Cache-Control"), "immutable")
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/assets/app-abc.js", nil))
+	require.Equal(t, 200, rec.Code)
+	require.Contains(t, rec.Header().Get("Cache-Control"), "immutable")
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/servers/12", nil))
+	require.Equal(t, 200, rec.Code)
+	require.Contains(t, rec.Body.String(), "<title>Nebla</title>")
+}
+
 func TestSPAPlaceholderWhenUnbuilt(t *testing.T) {
 	ph := []byte("<!doctype html><title>Nebla</title>unbuilt")
 	rec := httptest.NewRecorder()
