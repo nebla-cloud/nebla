@@ -52,10 +52,4 @@ export default [
       },
     ],
   },
-  {
-    path: 'servers/:serverId/console/window',
-    name: 'server-console-window',
-    component: () => import('./console/ConsoleWindowPage.vue'),
-    meta: { side: 'project' },
-  },
 ] satisfies RouteRecordRaw[]
