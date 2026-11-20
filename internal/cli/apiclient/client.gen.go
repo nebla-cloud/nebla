@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	stdjson "encoding/json"
+
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -89,6 +91,24 @@ func (e IpPoolInputFamily) Valid() bool {
 	case IpPoolInputFamilyIpv4:
 		return true
 	case IpPoolInputFamilyIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LocationEnrollmentState.
+const (
+	Reported LocationEnrollmentState = "reported"
+	Waiting  LocationEnrollmentState = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the LocationEnrollmentState enum.
+func (e LocationEnrollmentState) Valid() bool {
+	switch e {
+	case Reported:
+		return true
+	case Waiting:
 		return true
 	default:
 		return false
@@ -366,6 +386,41 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
+// EnrollCheck defines model for EnrollCheck.
+type EnrollCheck struct {
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Location The location name
+	Location  string `json:"location"`
+	TokenName string `json:"token_name"`
+}
+
+// EnrollmentReport defines model for EnrollmentReport.
+type EnrollmentReport struct {
+	Node       string                    `json:"node"`
+	Nodes      []EnrollmentReportNode    `json:"nodes"`
+	PveVersion string                    `json:"pve_version"`
+	Storages   []EnrollmentReportStorage `json:"storages"`
+	TokenId    string                    `json:"token_id"`
+}
+
+// EnrollmentReportNode defines model for EnrollmentReportNode.
+type EnrollmentReportNode struct {
+	Fingerprint string `json:"fingerprint"`
+	Ip          string `json:"ip"`
+	Name        string `json:"name"`
+	Online      bool   `json:"online"`
+}
+
+// EnrollmentReportStorage defines model for EnrollmentReportStorage.
+type EnrollmentReportStorage struct {
+	Content  []string `json:"content"`
+	Id       string   `json:"id"`
+	NeblaIso bool     `json:"nebla_iso"`
+	Shared   bool     `json:"shared"`
+	Type     string   `json:"type"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Error struct {
@@ -471,6 +526,55 @@ type Location struct {
 		Ipv4 bool `json:"ipv4"`
 		Ipv6 bool `json:"ipv6"`
 	} `json:"networks"`
+}
+
+// LocationEnrollment defines model for LocationEnrollment.
+type LocationEnrollment struct {
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	Expired     bool      `json:"expired"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	Id          int64     `json:"id"`
+
+	// LocationId Set for a re-run of an existing location
+	LocationId *int64                  `json:"location_id"`
+	Name       string                  `json:"name"`
+	Report     *EnrollmentReport       `json:"report"`
+	State      LocationEnrollmentState `json:"state"`
+	TokenName  string                  `json:"token_name"`
+}
+
+// LocationEnrollmentState defines model for LocationEnrollment.State.
+type LocationEnrollmentState string
+
+// LocationEnrollmentCreated The token, command and offline script are shown only in this response
+type LocationEnrollmentCreated struct {
+	Command       string             `json:"command"`
+	Enrollment    LocationEnrollment `json:"enrollment"`
+	OfflineScript string             `json:"offline_script"`
+	Token         string             `json:"token"`
+}
+
+// LocationEnrollmentFinish defines model for LocationEnrollmentFinish.
+type LocationEnrollmentFinish struct {
+	DiskStorage   string  `json:"disk_storage"`
+	ImportStorage *string `json:"import_storage,omitempty"`
+	IsoStorage    string  `json:"iso_storage"`
+	Url           string  `json:"url"`
+}
+
+// LocationEnrollmentFinished defines model for LocationEnrollmentFinished.
+type LocationEnrollmentFinished struct {
+	// Cleanup Optional pveum commands for the admin to run on the node
+	Cleanup  []string      `json:"cleanup"`
+	Location AdminLocation `json:"location"`
+}
+
+// LocationEnrollmentInput Exactly one of name (a new location) or location_id (a re-run)
+type LocationEnrollmentInput struct {
+	Description *string `json:"description,omitempty"`
+	LocationId  *int64  `json:"location_id,omitempty"`
+	Name        *string `json:"name,omitempty"`
 }
 
 // LocationInput defines model for LocationInput.
@@ -835,6 +939,11 @@ type GetAdminIpPoolsParams struct {
 	LocationId *int64   `form:"location_id,omitempty" json:"location_id,omitempty"`
 }
 
+// PostAdminLocationEnrollmentReportJSONBody defines parameters for PostAdminLocationEnrollmentReport.
+type PostAdminLocationEnrollmentReportJSONBody struct {
+	Blob string `json:"blob"`
+}
+
 // GetAdminLocationsParams defines parameters for GetAdminLocations.
 type GetAdminLocationsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -873,6 +982,9 @@ type PostAuthLoginJSONBody struct {
 	Password string  `json:"password"`
 	TotpCode *string `json:"totp_code,omitempty"`
 }
+
+// PostEnrollReportJSONBody defines parameters for PostEnrollReport.
+type PostEnrollReportJSONBody = stdjson.RawMessage
 
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
@@ -989,6 +1101,15 @@ type PostAdminIpPoolsJSONRequestBody = IpPoolInput
 // PutAdminIpPoolJSONRequestBody defines body for PutAdminIpPool for application/json ContentType.
 type PutAdminIpPoolJSONRequestBody = IpPoolInput
 
+// PostAdminLocationEnrollmentsJSONRequestBody defines body for PostAdminLocationEnrollments for application/json ContentType.
+type PostAdminLocationEnrollmentsJSONRequestBody = LocationEnrollmentInput
+
+// PostAdminLocationEnrollmentFinishJSONRequestBody defines body for PostAdminLocationEnrollmentFinish for application/json ContentType.
+type PostAdminLocationEnrollmentFinishJSONRequestBody = LocationEnrollmentFinish
+
+// PostAdminLocationEnrollmentReportJSONRequestBody defines body for PostAdminLocationEnrollmentReport for application/json ContentType.
+type PostAdminLocationEnrollmentReportJSONRequestBody PostAdminLocationEnrollmentReportJSONBody
+
 // PostAdminLocationsJSONRequestBody defines body for PostAdminLocations for application/json ContentType.
 type PostAdminLocationsJSONRequestBody = LocationInput
 
@@ -1024,6 +1145,9 @@ type PostAuthTotpEnrollJSONRequestBody = TotpEnroll
 
 // PostAuthTotpVerifyJSONRequestBody defines body for PostAuthTotpVerify for application/json ContentType.
 type PostAuthTotpVerifyJSONRequestBody = TotpCode
+
+// PostEnrollReportJSONRequestBody defines body for PostEnrollReport for application/json ContentType.
+type PostEnrollReportJSONRequestBody = PostEnrollReportJSONBody
 
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
@@ -1273,6 +1397,68 @@ type ClientInterface interface {
 	// Corresponds with PUT /admin/ip_pools/{id} (the `PutAdminIpPool` operationId).
 	PutAdminIpPool(ctx context.Context, id ID, body PutAdminIpPoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAdminLocationEnrollments List enrollments the sweep has not removed yet
+	//
+	// Corresponds with GET /admin/location_enrollments (the `GetAdminLocationEnrollments` operationId).
+	GetAdminLocationEnrollments(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminLocationEnrollmentsWithBody Start enrolling a new location (name) or re-run an existing one (location_id)
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+	PostAdminLocationEnrollmentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminLocationEnrollments Start enrolling a new location (name) or re-run an existing one (location_id)
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+	PostAdminLocationEnrollments(ctx context.Context, body PostAdminLocationEnrollmentsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteAdminLocationEnrollment Cancel an enrollment and drop its sealed secret
+	//
+	// Corresponds with DELETE /admin/location_enrollments/{id} (the `DeleteAdminLocationEnrollment` operationId).
+	DeleteAdminLocationEnrollment(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAdminLocationEnrollment Get an enrollment and, once reported, its report
+	//
+	// Corresponds with GET /admin/location_enrollments/{id} (the `GetAdminLocationEnrollment` operationId).
+	GetAdminLocationEnrollment(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminLocationEnrollmentFinishWithBody Pin the node certificate and create or update the location
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+	PostAdminLocationEnrollmentFinishWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminLocationEnrollmentFinish Pin the node certificate and create or update the location
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+	PostAdminLocationEnrollmentFinish(ctx context.Context, id ID, body PostAdminLocationEnrollmentFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminLocationEnrollmentReportWithBody Store the report line pasted back from the offline script
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+	PostAdminLocationEnrollmentReportWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminLocationEnrollmentReport Store the report line pasted back from the offline script
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+	PostAdminLocationEnrollmentReport(ctx context.Context, id ID, body PostAdminLocationEnrollmentReportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostAdminLocationEnrollmentToken Issue a new token and command for a waiting enrollment
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/token (the `PostAdminLocationEnrollmentToken` operationId).
+	PostAdminLocationEnrollmentToken(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAdminLocations List locations with their Proxmox connection and nodes
 	//
 	// Corresponds with GET /admin/locations (the `GetAdminLocations` operationId).
@@ -1495,6 +1681,36 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /auth/totp/verify (the `PostAuthTotpVerify` operationId).
 	PostAuthTotpVerify(ctx context.Context, body PostAuthTotpVerifyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEnrollScript The online Proxmox setup script, as plain text so a browser shows it
+	//
+	// Corresponds with GET /enroll.sh (the `GetEnrollScript` operationId).
+	GetEnrollScript(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEnrollCheck Check an enrollment token before the setup script changes anything
+	//
+	// Needs the `Authorization: Enroll <token>` header.
+	//
+	// Corresponds with GET /enroll/check (the `GetEnrollCheck` operationId).
+	GetEnrollCheck(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostEnrollReportWithBody The setup script's report of the new token, nodes and storages
+	//
+	// Needs the `Authorization: Enroll <token>` header.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+	PostEnrollReportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostEnrollReport The setup script's report of the new token, nodes and storages
+	//
+	// Needs the `Authorization: Enroll <token>` header.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+	PostEnrollReport(ctx context.Context, body PostEnrollReportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealthz Liveness check; pings the database
 	//
@@ -2243,6 +2459,168 @@ func (c *Client) PutAdminIpPool(ctx context.Context, id ID, body PutAdminIpPoolJ
 	return c.Client.Do(req)
 }
 
+// GetAdminLocationEnrollments List enrollments the sweep has not removed yet
+//
+// Corresponds with GET /admin/location_enrollments (the `GetAdminLocationEnrollments` operationId).
+func (c *Client) GetAdminLocationEnrollments(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminLocationEnrollmentsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminLocationEnrollmentsWithBody Start enrolling a new location (name) or re-run an existing one (location_id)
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+func (c *Client) PostAdminLocationEnrollmentsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminLocationEnrollmentsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminLocationEnrollments Start enrolling a new location (name) or re-run an existing one (location_id)
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+func (c *Client) PostAdminLocationEnrollments(ctx context.Context, body PostAdminLocationEnrollmentsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminLocationEnrollmentsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteAdminLocationEnrollment Cancel an enrollment and drop its sealed secret
+//
+// Corresponds with DELETE /admin/location_enrollments/{id} (the `DeleteAdminLocationEnrollment` operationId).
+func (c *Client) DeleteAdminLocationEnrollment(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteAdminLocationEnrollmentRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAdminLocationEnrollment Get an enrollment and, once reported, its report
+//
+// Corresponds with GET /admin/location_enrollments/{id} (the `GetAdminLocationEnrollment` operationId).
+func (c *Client) GetAdminLocationEnrollment(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAdminLocationEnrollmentRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminLocationEnrollmentFinishWithBody Pin the node certificate and create or update the location
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+func (c *Client) PostAdminLocationEnrollmentFinishWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminLocationEnrollmentFinishRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminLocationEnrollmentFinish Pin the node certificate and create or update the location
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+func (c *Client) PostAdminLocationEnrollmentFinish(ctx context.Context, id ID, body PostAdminLocationEnrollmentFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminLocationEnrollmentFinishRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminLocationEnrollmentReportWithBody Store the report line pasted back from the offline script
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+func (c *Client) PostAdminLocationEnrollmentReportWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminLocationEnrollmentReportRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminLocationEnrollmentReport Store the report line pasted back from the offline script
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+func (c *Client) PostAdminLocationEnrollmentReport(ctx context.Context, id ID, body PostAdminLocationEnrollmentReportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminLocationEnrollmentReportRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostAdminLocationEnrollmentToken Issue a new token and command for a waiting enrollment
+//
+// Corresponds with POST /admin/location_enrollments/{id}/token (the `PostAdminLocationEnrollmentToken` operationId).
+func (c *Client) PostAdminLocationEnrollmentToken(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostAdminLocationEnrollmentTokenRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetAdminLocations List locations with their Proxmox connection and nodes
 //
 // Corresponds with GET /admin/locations (the `GetAdminLocations` operationId).
@@ -2806,6 +3184,76 @@ func (c *Client) PostAuthTotpVerifyWithBody(ctx context.Context, contentType str
 // Corresponds with POST /auth/totp/verify (the `PostAuthTotpVerify` operationId).
 func (c *Client) PostAuthTotpVerify(ctx context.Context, body PostAuthTotpVerifyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostAuthTotpVerifyRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetEnrollScript The online Proxmox setup script, as plain text so a browser shows it
+//
+// Corresponds with GET /enroll.sh (the `GetEnrollScript` operationId).
+func (c *Client) GetEnrollScript(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEnrollScriptRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetEnrollCheck Check an enrollment token before the setup script changes anything
+//
+// Needs the `Authorization: Enroll <token>` header.
+//
+// Corresponds with GET /enroll/check (the `GetEnrollCheck` operationId).
+func (c *Client) GetEnrollCheck(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEnrollCheckRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostEnrollReportWithBody The setup script's report of the new token, nodes and storages
+//
+// Needs the `Authorization: Enroll <token>` header.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+func (c *Client) PostEnrollReportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostEnrollReportRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostEnrollReport The setup script's report of the new token, nodes and storages
+//
+// Needs the `Authorization: Enroll <token>` header.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+func (c *Client) PostEnrollReport(ctx context.Context, body PostEnrollReportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostEnrollReportRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4740,6 +5188,269 @@ func NewPutAdminIpPoolRequestWithBody(server string, id ID, contentType string, 
 	return req, nil
 }
 
+// NewGetAdminLocationEnrollmentsRequest constructs an http.Request for the GetAdminLocationEnrollments method
+func NewGetAdminLocationEnrollmentsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/location_enrollments")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostAdminLocationEnrollmentsRequest calls the generic PostAdminLocationEnrollments builder with application/json body
+func NewPostAdminLocationEnrollmentsRequest(server string, body PostAdminLocationEnrollmentsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostAdminLocationEnrollmentsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostAdminLocationEnrollmentsRequestWithBody constructs an http.Request for the PostAdminLocationEnrollments method, with any body, and a specified content type
+func NewPostAdminLocationEnrollmentsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/location_enrollments")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteAdminLocationEnrollmentRequest constructs an http.Request for the DeleteAdminLocationEnrollment method
+func NewDeleteAdminLocationEnrollmentRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/location_enrollments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetAdminLocationEnrollmentRequest constructs an http.Request for the GetAdminLocationEnrollment method
+func NewGetAdminLocationEnrollmentRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/location_enrollments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostAdminLocationEnrollmentFinishRequest calls the generic PostAdminLocationEnrollmentFinish builder with application/json body
+func NewPostAdminLocationEnrollmentFinishRequest(server string, id ID, body PostAdminLocationEnrollmentFinishJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostAdminLocationEnrollmentFinishRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPostAdminLocationEnrollmentFinishRequestWithBody constructs an http.Request for the PostAdminLocationEnrollmentFinish method, with any body, and a specified content type
+func NewPostAdminLocationEnrollmentFinishRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/location_enrollments/%s/finish", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostAdminLocationEnrollmentReportRequest calls the generic PostAdminLocationEnrollmentReport builder with application/json body
+func NewPostAdminLocationEnrollmentReportRequest(server string, id ID, body PostAdminLocationEnrollmentReportJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostAdminLocationEnrollmentReportRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPostAdminLocationEnrollmentReportRequestWithBody constructs an http.Request for the PostAdminLocationEnrollmentReport method, with any body, and a specified content type
+func NewPostAdminLocationEnrollmentReportRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/location_enrollments/%s/report", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPostAdminLocationEnrollmentTokenRequest constructs an http.Request for the PostAdminLocationEnrollmentToken method
+func NewPostAdminLocationEnrollmentTokenRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/location_enrollments/%s/token", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAdminLocationsRequest constructs an http.Request for the GetAdminLocations method
 func NewGetAdminLocationsRequest(server string, params *GetAdminLocationsParams) (*http.Request, error) {
 	var err error
@@ -5724,6 +6435,100 @@ func NewPostAuthTotpVerifyRequestWithBody(server string, contentType string, bod
 	}
 
 	operationPath := fmt.Sprintf("/auth/totp/verify")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetEnrollScriptRequest constructs an http.Request for the GetEnrollScript method
+func NewGetEnrollScriptRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/enroll.sh")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetEnrollCheckRequest constructs an http.Request for the GetEnrollCheck method
+func NewGetEnrollCheckRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/enroll/check")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostEnrollReportRequest calls the generic PostEnrollReport builder with application/json body
+func NewPostEnrollReportRequest(server string, body PostEnrollReportJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostEnrollReportRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostEnrollReportRequestWithBody constructs an http.Request for the PostEnrollReport method, with any body, and a specified content type
+func NewPostEnrollReportRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/enroll/report")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8117,6 +8922,76 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /admin/ip_pools/{id} (the `PutAdminIpPool` operationId).
 	PutAdminIpPoolWithResponse(ctx context.Context, id ID, body PutAdminIpPoolJSONRequestBody, reqEditors ...RequestEditorFn) (*PutAdminIpPoolResponse, error)
 
+	// GetAdminLocationEnrollmentsWithResponse List enrollments the sweep has not removed yet
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/location_enrollments (the `GetAdminLocationEnrollments` operationId).
+	GetAdminLocationEnrollmentsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAdminLocationEnrollmentsResponse, error)
+
+	// PostAdminLocationEnrollmentsWithBodyWithResponse Start enrolling a new location (name) or re-run an existing one (location_id)
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+	PostAdminLocationEnrollmentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentsResponse, error)
+
+	// PostAdminLocationEnrollmentsWithResponse Start enrolling a new location (name) or re-run an existing one (location_id)
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+	PostAdminLocationEnrollmentsWithResponse(ctx context.Context, body PostAdminLocationEnrollmentsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentsResponse, error)
+
+	// DeleteAdminLocationEnrollmentWithResponse Cancel an enrollment and drop its sealed secret
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/location_enrollments/{id} (the `DeleteAdminLocationEnrollment` operationId).
+	DeleteAdminLocationEnrollmentWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteAdminLocationEnrollmentResponse, error)
+
+	// GetAdminLocationEnrollmentWithResponse Get an enrollment and, once reported, its report
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/location_enrollments/{id} (the `GetAdminLocationEnrollment` operationId).
+	GetAdminLocationEnrollmentWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetAdminLocationEnrollmentResponse, error)
+
+	// PostAdminLocationEnrollmentFinishWithBodyWithResponse Pin the node certificate and create or update the location
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+	PostAdminLocationEnrollmentFinishWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentFinishResponse, error)
+
+	// PostAdminLocationEnrollmentFinishWithResponse Pin the node certificate and create or update the location
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+	PostAdminLocationEnrollmentFinishWithResponse(ctx context.Context, id ID, body PostAdminLocationEnrollmentFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentFinishResponse, error)
+
+	// PostAdminLocationEnrollmentReportWithBodyWithResponse Store the report line pasted back from the offline script
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+	PostAdminLocationEnrollmentReportWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentReportResponse, error)
+
+	// PostAdminLocationEnrollmentReportWithResponse Store the report line pasted back from the offline script
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+	PostAdminLocationEnrollmentReportWithResponse(ctx context.Context, id ID, body PostAdminLocationEnrollmentReportJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentReportResponse, error)
+
+	// PostAdminLocationEnrollmentTokenWithResponse Issue a new token and command for a waiting enrollment
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/location_enrollments/{id}/token (the `PostAdminLocationEnrollmentToken` operationId).
+	PostAdminLocationEnrollmentTokenWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentTokenResponse, error)
+
 	// GetAdminLocationsWithResponse List locations with their Proxmox connection and nodes
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -8361,6 +9236,40 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /auth/totp/verify (the `PostAuthTotpVerify` operationId).
 	PostAuthTotpVerifyWithResponse(ctx context.Context, body PostAuthTotpVerifyJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAuthTotpVerifyResponse, error)
+
+	// GetEnrollScriptWithResponse The online Proxmox setup script, as plain text so a browser shows it
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /enroll.sh (the `GetEnrollScript` operationId).
+	GetEnrollScriptWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEnrollScriptResponse, error)
+
+	// GetEnrollCheckWithResponse Check an enrollment token before the setup script changes anything
+	//
+	// Needs the `Authorization: Enroll <token>` header.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /enroll/check (the `GetEnrollCheck` operationId).
+	GetEnrollCheckWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEnrollCheckResponse, error)
+
+	// PostEnrollReportWithBodyWithResponse The setup script's report of the new token, nodes and storages
+	//
+	// Needs the `Authorization: Enroll <token>` header.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+	PostEnrollReportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostEnrollReportResponse, error)
+
+	// PostEnrollReportWithResponse The setup script's report of the new token, nodes and storages
+	//
+	// Needs the `Authorization: Enroll <token>` header.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+	PostEnrollReportWithResponse(ctx context.Context, body PostEnrollReportJSONRequestBody, reqEditors ...RequestEditorFn) (*PostEnrollReportResponse, error)
 
 	// GetHealthzWithResponse Liveness check; pings the database
 	//
@@ -10178,6 +11087,542 @@ func (r PutAdminIpPoolResponse) ContentType() string {
 	return ""
 }
 
+type GetAdminLocationEnrollmentsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Enrollments []LocationEnrollment `json:"enrollments"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAdminLocationEnrollmentsResponse) GetJSON200() *struct {
+	Enrollments []LocationEnrollment `json:"enrollments"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAdminLocationEnrollmentsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetAdminLocationEnrollmentsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetAdminLocationEnrollmentsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAdminLocationEnrollmentsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminLocationEnrollmentsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminLocationEnrollmentsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminLocationEnrollmentsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostAdminLocationEnrollmentsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *LocationEnrollmentCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostAdminLocationEnrollmentsResponse) GetJSON201() *LocationEnrollmentCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostAdminLocationEnrollmentsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostAdminLocationEnrollmentsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostAdminLocationEnrollmentsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostAdminLocationEnrollmentsResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostAdminLocationEnrollmentsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostAdminLocationEnrollmentsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostAdminLocationEnrollmentsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostAdminLocationEnrollmentsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostAdminLocationEnrollmentsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostAdminLocationEnrollmentsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteAdminLocationEnrollmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteAdminLocationEnrollmentResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteAdminLocationEnrollmentResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteAdminLocationEnrollmentResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteAdminLocationEnrollmentResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteAdminLocationEnrollmentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteAdminLocationEnrollmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteAdminLocationEnrollmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteAdminLocationEnrollmentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetAdminLocationEnrollmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LocationEnrollment
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAdminLocationEnrollmentResponse) GetJSON200() *LocationEnrollment {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAdminLocationEnrollmentResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetAdminLocationEnrollmentResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetAdminLocationEnrollmentResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetAdminLocationEnrollmentResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAdminLocationEnrollmentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAdminLocationEnrollmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAdminLocationEnrollmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAdminLocationEnrollmentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostAdminLocationEnrollmentFinishResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LocationEnrollmentFinished
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON410 the response for an HTTP 410 `application/json` response
+	JSON410 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSON200() *LocationEnrollmentFinished {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON410 returns the response for an HTTP 410 `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSON410() *Error {
+	return r.JSON410
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostAdminLocationEnrollmentFinishResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostAdminLocationEnrollmentFinishResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostAdminLocationEnrollmentFinishResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostAdminLocationEnrollmentFinishResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostAdminLocationEnrollmentFinishResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostAdminLocationEnrollmentReportResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LocationEnrollment
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON410 the response for an HTTP 410 `application/json` response
+	JSON410 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSON200() *LocationEnrollment {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON410 returns the response for an HTTP 410 `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSON410() *Error {
+	return r.JSON410
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostAdminLocationEnrollmentReportResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostAdminLocationEnrollmentReportResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostAdminLocationEnrollmentReportResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostAdminLocationEnrollmentReportResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostAdminLocationEnrollmentReportResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostAdminLocationEnrollmentTokenResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LocationEnrollmentCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostAdminLocationEnrollmentTokenResponse) GetJSON200() *LocationEnrollmentCreated {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostAdminLocationEnrollmentTokenResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostAdminLocationEnrollmentTokenResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostAdminLocationEnrollmentTokenResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostAdminLocationEnrollmentTokenResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostAdminLocationEnrollmentTokenResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostAdminLocationEnrollmentTokenResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostAdminLocationEnrollmentTokenResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostAdminLocationEnrollmentTokenResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostAdminLocationEnrollmentTokenResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetAdminLocationsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11762,6 +13207,206 @@ func (r PostAuthTotpVerifyResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostAuthTotpVerifyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetEnrollScriptResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetEnrollScriptResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetEnrollScriptResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetEnrollScriptResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEnrollScriptResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEnrollScriptResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetEnrollScriptResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetEnrollCheckResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EnrollCheck
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON410 the response for an HTTP 410 `application/json` response
+	JSON410 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetEnrollCheckResponse) GetJSON200() *EnrollCheck {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetEnrollCheckResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetEnrollCheckResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON410 returns the response for an HTTP 410 `application/json` response
+func (r GetEnrollCheckResponse) GetJSON410() *Error {
+	return r.JSON410
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetEnrollCheckResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetEnrollCheckResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetEnrollCheckResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEnrollCheckResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEnrollCheckResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetEnrollCheckResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostEnrollReportResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON410 the response for an HTTP 410 `application/json` response
+	JSON410 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PostEnrollReportResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostEnrollReportResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostEnrollReportResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON410 returns the response for an HTTP 410 `application/json` response
+func (r PostEnrollReportResponse) GetJSON410() *Error {
+	return r.JSON410
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r PostEnrollReportResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostEnrollReportResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostEnrollReportResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostEnrollReportResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostEnrollReportResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostEnrollReportResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15662,6 +17307,136 @@ func (c *ClientWithResponses) PutAdminIpPoolWithResponse(ctx context.Context, id
 	return ParsePutAdminIpPoolResponse(rsp)
 }
 
+// GetAdminLocationEnrollmentsWithResponse List enrollments the sweep has not removed yet
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/location_enrollments (the `GetAdminLocationEnrollments` operationId).
+func (c *ClientWithResponses) GetAdminLocationEnrollmentsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAdminLocationEnrollmentsResponse, error) {
+	rsp, err := c.GetAdminLocationEnrollments(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminLocationEnrollmentsResponse(rsp)
+}
+
+// PostAdminLocationEnrollmentsWithBodyWithResponse Start enrolling a new location (name) or re-run an existing one (location_id)
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+func (c *ClientWithResponses) PostAdminLocationEnrollmentsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentsResponse, error) {
+	rsp, err := c.PostAdminLocationEnrollmentsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminLocationEnrollmentsResponse(rsp)
+}
+
+// PostAdminLocationEnrollmentsWithResponse Start enrolling a new location (name) or re-run an existing one (location_id)
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/location_enrollments (the `PostAdminLocationEnrollments` operationId).
+func (c *ClientWithResponses) PostAdminLocationEnrollmentsWithResponse(ctx context.Context, body PostAdminLocationEnrollmentsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentsResponse, error) {
+	rsp, err := c.PostAdminLocationEnrollments(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminLocationEnrollmentsResponse(rsp)
+}
+
+// DeleteAdminLocationEnrollmentWithResponse Cancel an enrollment and drop its sealed secret
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/location_enrollments/{id} (the `DeleteAdminLocationEnrollment` operationId).
+func (c *ClientWithResponses) DeleteAdminLocationEnrollmentWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteAdminLocationEnrollmentResponse, error) {
+	rsp, err := c.DeleteAdminLocationEnrollment(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteAdminLocationEnrollmentResponse(rsp)
+}
+
+// GetAdminLocationEnrollmentWithResponse Get an enrollment and, once reported, its report
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/location_enrollments/{id} (the `GetAdminLocationEnrollment` operationId).
+func (c *ClientWithResponses) GetAdminLocationEnrollmentWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetAdminLocationEnrollmentResponse, error) {
+	rsp, err := c.GetAdminLocationEnrollment(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAdminLocationEnrollmentResponse(rsp)
+}
+
+// PostAdminLocationEnrollmentFinishWithBodyWithResponse Pin the node certificate and create or update the location
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+func (c *ClientWithResponses) PostAdminLocationEnrollmentFinishWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentFinishResponse, error) {
+	rsp, err := c.PostAdminLocationEnrollmentFinishWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminLocationEnrollmentFinishResponse(rsp)
+}
+
+// PostAdminLocationEnrollmentFinishWithResponse Pin the node certificate and create or update the location
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/location_enrollments/{id}/finish (the `PostAdminLocationEnrollmentFinish` operationId).
+func (c *ClientWithResponses) PostAdminLocationEnrollmentFinishWithResponse(ctx context.Context, id ID, body PostAdminLocationEnrollmentFinishJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentFinishResponse, error) {
+	rsp, err := c.PostAdminLocationEnrollmentFinish(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminLocationEnrollmentFinishResponse(rsp)
+}
+
+// PostAdminLocationEnrollmentReportWithBodyWithResponse Store the report line pasted back from the offline script
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+func (c *ClientWithResponses) PostAdminLocationEnrollmentReportWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentReportResponse, error) {
+	rsp, err := c.PostAdminLocationEnrollmentReportWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminLocationEnrollmentReportResponse(rsp)
+}
+
+// PostAdminLocationEnrollmentReportWithResponse Store the report line pasted back from the offline script
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/location_enrollments/{id}/report (the `PostAdminLocationEnrollmentReport` operationId).
+func (c *ClientWithResponses) PostAdminLocationEnrollmentReportWithResponse(ctx context.Context, id ID, body PostAdminLocationEnrollmentReportJSONRequestBody, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentReportResponse, error) {
+	rsp, err := c.PostAdminLocationEnrollmentReport(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminLocationEnrollmentReportResponse(rsp)
+}
+
+// PostAdminLocationEnrollmentTokenWithResponse Issue a new token and command for a waiting enrollment
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/location_enrollments/{id}/token (the `PostAdminLocationEnrollmentToken` operationId).
+func (c *ClientWithResponses) PostAdminLocationEnrollmentTokenWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*PostAdminLocationEnrollmentTokenResponse, error) {
+	rsp, err := c.PostAdminLocationEnrollmentToken(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostAdminLocationEnrollmentTokenResponse(rsp)
+}
+
 // GetAdminLocationsWithResponse List locations with their Proxmox connection and nodes
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16115,6 +17890,64 @@ func (c *ClientWithResponses) PostAuthTotpVerifyWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParsePostAuthTotpVerifyResponse(rsp)
+}
+
+// GetEnrollScriptWithResponse The online Proxmox setup script, as plain text so a browser shows it
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /enroll.sh (the `GetEnrollScript` operationId).
+func (c *ClientWithResponses) GetEnrollScriptWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEnrollScriptResponse, error) {
+	rsp, err := c.GetEnrollScript(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEnrollScriptResponse(rsp)
+}
+
+// GetEnrollCheckWithResponse Check an enrollment token before the setup script changes anything
+//
+// Needs the `Authorization: Enroll <token>` header.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /enroll/check (the `GetEnrollCheck` operationId).
+func (c *ClientWithResponses) GetEnrollCheckWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetEnrollCheckResponse, error) {
+	rsp, err := c.GetEnrollCheck(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEnrollCheckResponse(rsp)
+}
+
+// PostEnrollReportWithBodyWithResponse The setup script's report of the new token, nodes and storages
+//
+// Needs the `Authorization: Enroll <token>` header.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+func (c *ClientWithResponses) PostEnrollReportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostEnrollReportResponse, error) {
+	rsp, err := c.PostEnrollReportWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostEnrollReportResponse(rsp)
+}
+
+// PostEnrollReportWithResponse The setup script's report of the new token, nodes and storages
+//
+// Needs the `Authorization: Enroll <token>` header.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
+func (c *ClientWithResponses) PostEnrollReportWithResponse(ctx context.Context, body PostEnrollReportJSONRequestBody, reqEditors ...RequestEditorFn) (*PostEnrollReportResponse, error) {
+	rsp, err := c.PostEnrollReport(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostEnrollReportResponse(rsp)
 }
 
 // GetHealthzWithResponse Liveness check; pings the database
@@ -18050,6 +19883,438 @@ func ParsePutAdminIpPoolResponse(rsp *http.Response) (*PutAdminIpPoolResponse, e
 	return response, nil
 }
 
+// ParseGetAdminLocationEnrollmentsResponse parses an HTTP response from a GetAdminLocationEnrollmentsWithResponse call
+func ParseGetAdminLocationEnrollmentsResponse(rsp *http.Response) (*GetAdminLocationEnrollmentsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminLocationEnrollmentsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Enrollments []LocationEnrollment `json:"enrollments"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostAdminLocationEnrollmentsResponse parses an HTTP response from a PostAdminLocationEnrollmentsWithResponse call
+func ParsePostAdminLocationEnrollmentsResponse(rsp *http.Response) (*PostAdminLocationEnrollmentsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostAdminLocationEnrollmentsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest LocationEnrollmentCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteAdminLocationEnrollmentResponse parses an HTTP response from a DeleteAdminLocationEnrollmentWithResponse call
+func ParseDeleteAdminLocationEnrollmentResponse(rsp *http.Response) (*DeleteAdminLocationEnrollmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteAdminLocationEnrollmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAdminLocationEnrollmentResponse parses an HTTP response from a GetAdminLocationEnrollmentWithResponse call
+func ParseGetAdminLocationEnrollmentResponse(rsp *http.Response) (*GetAdminLocationEnrollmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAdminLocationEnrollmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LocationEnrollment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostAdminLocationEnrollmentFinishResponse parses an HTTP response from a PostAdminLocationEnrollmentFinishWithResponse call
+func ParsePostAdminLocationEnrollmentFinishResponse(rsp *http.Response) (*PostAdminLocationEnrollmentFinishResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostAdminLocationEnrollmentFinishResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LocationEnrollmentFinished
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON410 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostAdminLocationEnrollmentReportResponse parses an HTTP response from a PostAdminLocationEnrollmentReportWithResponse call
+func ParsePostAdminLocationEnrollmentReportResponse(rsp *http.Response) (*PostAdminLocationEnrollmentReportResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostAdminLocationEnrollmentReportResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LocationEnrollment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON410 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostAdminLocationEnrollmentTokenResponse parses an HTTP response from a PostAdminLocationEnrollmentTokenWithResponse call
+func ParsePostAdminLocationEnrollmentTokenResponse(rsp *http.Response) (*PostAdminLocationEnrollmentTokenResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostAdminLocationEnrollmentTokenResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LocationEnrollmentCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetAdminLocationsResponse parses an HTTP response from a GetAdminLocationsWithResponse call
 func ParseGetAdminLocationsResponse(rsp *http.Response) (*GetAdminLocationsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19297,6 +21562,164 @@ func ParsePostAuthTotpVerifyResponse(rsp *http.Response) (*PostAuthTotpVerifyRes
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEnrollScriptResponse parses an HTTP response from a GetEnrollScriptWithResponse call
+func ParseGetEnrollScriptResponse(rsp *http.Response) (*GetEnrollScriptResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEnrollScriptResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEnrollCheckResponse parses an HTTP response from a GetEnrollCheckWithResponse call
+func ParseGetEnrollCheckResponse(rsp *http.Response) (*GetEnrollCheckResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEnrollCheckResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnrollCheck
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON410 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostEnrollReportResponse parses an HTTP response from a PostEnrollReportWithResponse call
+func ParsePostEnrollReportResponse(rsp *http.Response) (*PostEnrollReportResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostEnrollReportResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON410 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error

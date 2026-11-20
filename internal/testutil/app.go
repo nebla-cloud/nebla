@@ -19,6 +19,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/auth"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/config"
+	"github.com/nebla-cloud/nebla/internal/enroll"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
@@ -73,6 +74,14 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 		deps.OSImages = osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: deps.Catalog,
 			Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	}
+	srv := httptest.NewUnstartedServer(nil)
+	if deps.Config.BaseURL == "" {
+		deps.Config.BaseURL = "http://" + srv.Listener.Addr().String()
+	}
+	if deps.Enroll == nil {
+		deps.Enroll = enroll.New(sqlDB, client, enroll.Options{SecretKey: deps.Config.SecretKey, BaseURL: deps.Config.BaseURL,
+			Catalog: deps.Catalog, Logger: deps.Logger})
+	}
 	if deps.Bus == nil {
 		deps.Bus = ext.NewBus(deps.Ext.WithDefaults(nil).BillingSink)
 		t.Cleanup(deps.Bus.Close)
@@ -80,16 +89,13 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 	if deps.Jobs == nil {
 		workers := river.NewWorkers()
 		osimages.Register(workers, deps.OSImages)
+		enroll.Register(workers, deps.Enroll)
 		if setup != nil {
 			setup(workers, &deps, pve)
 		}
 		deps.Jobs = StartJobs(t, pool, sqlDB, workers)
 	}
 	deps.OSImages.SetJobs(deps.Jobs)
-	srv := httptest.NewUnstartedServer(nil)
-	if deps.Config.BaseURL == "" {
-		deps.Config.BaseURL = "http://" + srv.Listener.Addr().String()
-	}
 	srv.Config.Handler = httpapi.New(deps)
 	srv.Start()
 	t.Cleanup(srv.Close)

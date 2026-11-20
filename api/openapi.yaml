@@ -585,6 +585,62 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /enroll.sh:
+    get:
+      operationId: getEnrollScript
+      tags: [enrollment]
+      summary: The online Proxmox setup script, as plain text so a browser shows it
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            text/plain; charset=utf-8:
+              schema: { type: string }
+        "429": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /enroll/check:
+    get:
+      operationId: getEnrollCheck
+      tags: [enrollment]
+      summary: Check an enrollment token before the setup script changes anything
+      description: "Needs the `Authorization: Enroll <token>` header."
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnrollCheck" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /enroll/report:
+    post:
+      operationId: postEnrollReport
+      tags: [enrollment]
+      summary: The setup script's report of the new token, nodes and storages
+      description: "Needs the `Authorization: Enroll <token>` header."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              x-go-type: stdjson.RawMessage
+              x-go-type-import: { name: stdjson, path: encoding/json }
+      responses:
+        "204": { description: No content }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
   /invites/{token}/accept:
     post:
       operationId: postInviteAccept
@@ -818,6 +874,146 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/location_enrollments:
+    get:
+      operationId: getAdminLocationEnrollments
+      tags: [enrollment]
+      summary: List enrollments the sweep has not removed yet
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enrollments]
+                properties:
+                  enrollments:
+                    type: array
+                    items: { $ref: "#/components/schemas/LocationEnrollment" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postAdminLocationEnrollments
+      tags: [enrollment]
+      summary: Start enrolling a new location (name) or re-run an existing one (location_id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocationEnrollmentInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationEnrollmentCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/location_enrollments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getAdminLocationEnrollment
+      tags: [enrollment]
+      summary: Get an enrollment and, once reported, its report
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationEnrollment" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAdminLocationEnrollment
+      tags: [enrollment]
+      summary: Cancel an enrollment and drop its sealed secret
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/location_enrollments/{id}/token:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: postAdminLocationEnrollmentToken
+      tags: [enrollment]
+      summary: Issue a new token and command for a waiting enrollment
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationEnrollmentCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/location_enrollments/{id}/report:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: postAdminLocationEnrollmentReport
+      tags: [enrollment]
+      summary: Store the report line pasted back from the offline script
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blob]
+              properties:
+                blob: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationEnrollment" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /admin/location_enrollments/{id}/finish:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: postAdminLocationEnrollmentFinish
+      tags: [enrollment]
+      summary: Pin the node certificate and create or update the location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocationEnrollmentFinish" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LocationEnrollmentFinished" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "410": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
   /admin/server_types:
@@ -2175,6 +2371,96 @@ components:
           items: { $ref: "#/components/schemas/Node" }
         created: { type: string, format: date-time }
         updated: { type: string, format: date-time }
+    EnrollCheck:
+      type: object
+      required: [token_name, location, expires_at]
+      properties:
+        token_name: { type: string }
+        location: { type: string, description: The location name }
+        expires_at: { type: string, format: date-time }
+    EnrollmentReport:
+      type: object
+      required: [pve_version, node, token_id, nodes, storages]
+      properties:
+        pve_version: { type: string }
+        node: { type: string }
+        token_id: { type: string }
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/EnrollmentReportNode" }
+        storages:
+          type: array
+          items: { $ref: "#/components/schemas/EnrollmentReportStorage" }
+    EnrollmentReportNode:
+      type: object
+      required: [name, ip, online, fingerprint]
+      properties:
+        name: { type: string }
+        ip: { type: string }
+        online: { type: boolean }
+        fingerprint: { type: string }
+    EnrollmentReportStorage:
+      type: object
+      required: [id, type, content, shared, nebla_iso]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        content:
+          type: array
+          items: { type: string }
+        shared: { type: boolean }
+        nebla_iso: { type: boolean }
+    LocationEnrollment:
+      type: object
+      required: [id, name, description, location_id, token_name, state, expired, expires_at, created, report]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        location_id: { type: integer, format: int64, nullable: true, description: Set for a re-run of an existing location }
+        token_name: { type: string }
+        state:
+          type: string
+          enum: [waiting, reported]
+        expired: { type: boolean }
+        expires_at: { type: string, format: date-time }
+        created: { type: string, format: date-time }
+        report:
+          allOf: [{ $ref: "#/components/schemas/EnrollmentReport" }]
+          nullable: true
+    LocationEnrollmentInput:
+      type: object
+      description: Exactly one of name (a new location) or location_id (a re-run)
+      properties:
+        name: { type: string }
+        description: { type: string }
+        location_id: { type: integer, format: int64 }
+    LocationEnrollmentCreated:
+      type: object
+      description: The token, command and offline script are shown only in this response
+      required: [enrollment, token, command, offline_script]
+      properties:
+        enrollment: { $ref: "#/components/schemas/LocationEnrollment" }
+        token: { type: string }
+        command: { type: string }
+        offline_script: { type: string }
+    LocationEnrollmentFinish:
+      type: object
+      required: [url, disk_storage, iso_storage]
+      properties:
+        url: { type: string }
+        disk_storage: { type: string }
+        iso_storage: { type: string }
+        import_storage: { type: string }
+    LocationEnrollmentFinished:
+      type: object
+      required: [location, cleanup]
+      properties:
+        location: { $ref: "#/components/schemas/AdminLocation" }
+        cleanup:
+          type: array
+          description: Optional pveum commands for the admin to run on the node
+          items: { type: string }
     LocationRef:
       type: object
       required: [id, name, description]
