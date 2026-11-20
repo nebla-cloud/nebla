@@ -17,6 +17,7 @@ export default defineConfig({
   },
   projects: [
     { name: 'first-run', testMatch: /first-run\.spec\.ts/ },
+    { name: 'enroll', testMatch: /enroll\.spec\.ts/, dependencies: ['first-run'] },
     { name: 'catalog', testMatch: /catalog\.spec\.ts/, dependencies: ['first-run'] },
     {
       name: 'server-depth',
