@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Hexeption/nebla/internal/apierr"
@@ -203,4 +205,30 @@ func TestAdminProjectsUnlimited(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, projects.Quota{}, p.Quota)
 	}
+}
+
+func TestProjectCapConcurrentCreate(t *testing.T) {
+	ctx := context.Background()
+	svc, _, _, u := setup(t, projects.Options{MaxOwnedProjects: 1})
+	const n = 8
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Go(func() { _, errs[i] = svc.Create(ctx, u.ID, false, fmt.Sprintf("p%d", i)) })
+	}
+	wg.Wait()
+	ok := 0
+	for _, err := range errs {
+		if err == nil {
+			ok++
+			continue
+		}
+		var ae apierr.E
+		require.ErrorAs(t, err, &ae)
+		require.Equal(t, "quota_exceeded", ae.Code)
+	}
+	require.Equal(t, 1, ok)
+	list, err := svc.List(ctx, u.ID)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
 }
