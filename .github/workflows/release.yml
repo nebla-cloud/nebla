@@ -44,7 +44,7 @@ jobs:
             org.opencontainers.image.title=Nebla
             org.opencontainers.image.description=Open-source cloud console for Proxmox VE
             org.opencontainers.image.licenses=AGPL-3.0-only
-            org.opencontainers.image.url=https://nebla.io
+            org.opencontainers.image.url=https://nebla.dev
       - uses: docker/build-push-action@v7
         with:
           context: .

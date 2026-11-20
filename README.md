@@ -17,7 +17,7 @@
 Nebla is an open-source cloud console for Proxmox VE. Users get projects, API tokens, SSH keys and servers with fixed
 types, images and IP pools, with quotas and tenant isolation built in. Nebla drives Proxmox only through its API, runs as
 one container next to Postgres and installs nothing on the host. The core is AGPL-3.0 with no limit on nodes. The web
-panel and the `nebla` CLI are in progress (see [Status](#status)). More at [nebla.io](https://nebla.io).
+panel and the `nebla` CLI are in progress (see [Status](#status)). More at [nebla.dev](https://nebla.dev).
 
 ## Quick start
 

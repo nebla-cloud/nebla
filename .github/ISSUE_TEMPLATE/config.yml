@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/nebla-cloud/nebla/discussions
     about: Ask questions and talk through ideas in GitHub Discussions.
   - name: Documentation
-    url: https://nebla.io/docs
+    url: https://nebla.dev/docs
     about: Install guide, Proxmox setup, configuration and API.
