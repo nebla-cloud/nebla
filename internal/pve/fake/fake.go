@@ -102,6 +102,7 @@ type Server struct {
 
 	clusterFWOff bool
 	failRule     bool
+	onFWWrite    func()
 }
 
 // FakeDownload records one download-url request.
@@ -326,6 +327,13 @@ func (s *Server) FailNextRuleWrite() {
 	s.failRule = true
 }
 
+// OnFirewallWrite runs fn after each successful VM firewall rule or options write.
+func (s *Server) OnFirewallWrite(fn func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onFWWrite = fn
+}
+
 // Calls lists the requests received as "METHOD path".
 func (s *Server) Calls() []string {
 	s.mu.Lock()
@@ -447,6 +455,14 @@ func (s *Server) handle(mux *http.ServeMux, pattern string, taskEndpoint bool, h
 		if e != nil {
 			writeJSON(w, e.status, map[string]any{"data": nil, "message": e.msg})
 			return
+		}
+		if r.Method != http.MethodGet && (strings.HasSuffix(path, "/firewall/options") || strings.Contains(path, "/firewall/rules")) {
+			s.mu.Lock()
+			fn := s.onFWWrite
+			s.mu.Unlock()
+			if fn != nil {
+				fn()
+			}
 		}
 		writeJSON(w, 200, map[string]any{"data": data})
 	})
