@@ -1,9 +1,10 @@
 #!/bin/bash
 { printf 'curl'; printf '\t%s' "$@"; printf '\n'; } >>"$STUB_LOG"
-fail=0 w= url=
+fail=0 w= url= auth=
 while [ $# -gt 0 ]; do
   case "$1" in
   -w) w=$2; shift ;;
+  --config) auth=$(sed -n 's/^header = "Authorization: Enroll \(.*\)"$/\1/p' "$2"); shift ;;
   -H | --max-time | --data-binary) shift ;;
   --*) ;;
   -*) case "$1" in *f*) fail=1 ;; esac ;;
@@ -25,6 +26,7 @@ if [ "$code" = 000 ]; then
   echo "curl: (7) Failed to connect to panel.test port 443" >&2
   exit 7
 fi
+[ "$auth" = "$STUB_EXPECT_TOKEN" ] || code=401
 if [ "$code" -ge 400 ]; then
   body='{"error":{"code":"enrollment_used","message":"This enrollment was already used."}}'
   if [ $fail = 1 ]; then
