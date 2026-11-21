@@ -16,6 +16,8 @@ export function formatDate(iso: string): string {
   return dateFormat.format(new Date(iso))
 }
 
-export function typeSpec(t: ServerType): string {
+export function typeSpec<T extends Pick<ServerType, 'cores' | 'memory_mb' | 'disk_gb'>>(
+  t: T,
+): string {
   return `${t.cores} vCPU, ${formatMemory(t.memory_mb)}, ${t.disk_gb} GB`
 }
