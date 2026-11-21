@@ -232,6 +232,11 @@ func (c *crashPVE) VMs(ctx context.Context) ([]pve.VM, error) {
 	return v, c.after(err)
 }
 
+func (c *crashPVE) GuestExists(ctx context.Context, vmid int) (bool, error) {
+	v, err := c.Client.GuestExists(ctx, vmid)
+	return v, c.after(err)
+}
+
 func (c *crashPVE) Config(ctx context.Context, node string, vmid int) (map[string]string, error) {
 	v, err := c.Client.Config(ctx, node, vmid)
 	return v, c.after(err)
@@ -474,6 +479,16 @@ func TestResizeFailureRevertsSize(t *testing.T) {
 	require.Equal(t, 10, r.SizeGB, "quota is given back")
 	require.Equal(t, 10, r.AppliedGB)
 	require.Equal(t, volume.StatusAttached, r.Status)
+
+	// The disk grew although the call failed: keep the new size and record it.
+	act, err = e.svc.Resize(ctx, e.Project, v.ID, 20)
+	require.NoError(t, err)
+	got = e.finish(t, taskFail(e, o), act)
+	require.Equal(t, actions.StatusError, got.Status)
+	r = e.row(t, v.ID)
+	require.Equal(t, 20, r.SizeGB)
+	require.Equal(t, 20, r.AppliedGB)
+	require.EqualValues(t, int64(20)<<30, e.disks(t, v.ID)[0].Size)
 }
 
 func TestReservedVMIDGuard(t *testing.T) {
@@ -489,6 +504,13 @@ func TestReservedVMIDGuard(t *testing.T) {
 	err = volumes.ReservedVMIDGuard(ctx, pc)
 	require.ErrorContains(t, err, "a VM occupies reserved VMID 999999999")
 	require.Equal(t, actions.CodeFailed, servers.Classify(err).Code)
+	e.App.PVE.DeleteVM(vref.OwnerVMID)
+	require.NoError(t, volumes.ReservedVMIDGuard(ctx, pc))
+
+	// QEMU and LXC share VMIDs, so a container there would own the volumes too.
+	e.App.PVE.AddContainer("pve2", vref.OwnerVMID)
+	err = volumes.ReservedVMIDGuard(ctx, pc)
+	require.ErrorContains(t, err, "a VM occupies reserved VMID 999999999")
 
 	v, act, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "data", SizeGB: 10, Location: "eu-1"})
 	require.NoError(t, err)
@@ -509,11 +531,51 @@ func TestDeleteVolume404IsDone(t *testing.T) {
 	rec := &recorder{}
 	o := e.opts(rec)
 	id := e.put(t, e.Project, "gone", "pve1", "local-lvm", 10, nil, "")
+	// Real Proxmox may fail freeing a missing volume with something other than a 404.
+	e.App.PVE.FailNext("/storage/local-lvm/content/local-lvm:"+vref.Name(id), http.StatusInternalServerError)
 	act, err := e.svc.Delete(ctx, e.Project, id)
 	e.ok(t, o, act, err)
 	_, err = e.App.Ent.Volume.Get(ctx, id)
 	require.True(t, ent.IsNotFound(err))
 	require.Equal(t, []ext.EventKind{ext.VolumeDeleted}, rec.kinds())
+}
+
+// taskFailPVE runs the delete or resize, then reports its task as failed.
+type taskFailPVE struct{ pve.Client }
+
+func (c *taskFailPVE) DeleteVolume(ctx context.Context, node, storage, volid string) error {
+	if err := c.Client.DeleteVolume(ctx, node, storage, volid); err != nil {
+		return err
+	}
+	return &pve.TaskError{UPID: "UPID:x", ExitStatus: "lvremove failed"}
+}
+
+func (c *taskFailPVE) ResizeDisk(ctx context.Context, node string, vmid int, disk string, gb int) error {
+	if err := c.Client.ResizeDisk(ctx, node, vmid, disk, gb); err != nil {
+		return err
+	}
+	return &pve.Error{Status: http.StatusBadRequest, Message: "resize reported failure"}
+}
+
+func taskFail(e *env, o volumes.WorkerOptions) volumes.WorkerOptions {
+	return volumes.SetPVE(o, func(ctx context.Context, loc int64) (pve.Client, error) {
+		pc, err := e.App.Catalog.ProxmoxFor(ctx, loc)
+		return &taskFailPVE{pc}, err
+	})
+}
+
+func TestDeleteVolumeTaskErrorButGone(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.pinPVE1(t)
+	o := e.opts(nil)
+	v, act, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "data", SizeGB: 10, Location: "eu-1"})
+	e.ok(t, o, act, err)
+	act, err = e.svc.Delete(ctx, e.Project, v.ID)
+	e.ok(t, taskFail(e, o), act, err)
+	require.Empty(t, e.disks(t, v.ID))
+	_, err = e.App.Ent.Volume.Get(ctx, v.ID)
+	require.True(t, ent.IsNotFound(err))
 }
 
 func TestDeleteVolumeForbidden(t *testing.T) {

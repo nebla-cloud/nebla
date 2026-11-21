@@ -107,6 +107,8 @@ type Client interface {
 	Nodes(ctx context.Context) ([]Node, error)
 	Storages(ctx context.Context, node string) ([]Storage, error)
 	VMs(ctx context.Context) ([]VM, error)
+	// GuestExists reports whether any guest, QEMU or LXC, holds vmid in the cluster.
+	GuestExists(ctx context.Context, vmid int) (bool, error)
 	NextID(ctx context.Context) (int, error)
 	Clone(ctx context.Context, node string, tmpl int, p CloneParams) (UPID, error)
 	DownloadURL(ctx context.Context, node, storage string, p DownloadParams) (UPID, error)

@@ -19,7 +19,7 @@ var Commands = []string{KindCreateVolume, KindAttachVolume, KindDetachVolume, Ki
 
 // RescueOrphaned fails orphaned volume actions and repairs volume rows no running action will settle.
 // It returns how many actions it failed.
-func RescueOrphaned(ctx context.Context, c *ent.Client, sqlDB *sql.DB) (int, error) {
+func RescueOrphaned(ctx context.Context, _ *ent.Client, sqlDB *sql.DB) (int, error) {
 	n := 0
 	err := db.WithTx(ctx, sqlDB, func(tx *sql.Tx, etx *ent.Client) error {
 		n = 0
@@ -49,8 +49,10 @@ func RescueOrphaned(ctx context.Context, c *ent.Client, sqlDB *sql.DB) (int, err
 			return err
 		}
 		for _, a := range resizes {
-			// A lost resize gives its quota back unless the disk already grew.
-			err := etx.Volume.Update().Where(volume.ID(a.VolumeID), volume.SizeGB(a.SizeGB), volume.AppliedGBLT(a.SizeGB)).
+			// A lost resize of a detached volume never touched the disk, so its quota goes back.
+			// An attached one may have grown; it keeps size_gb rather than guessing without Proxmox.
+			err := etx.Volume.Update().Where(volume.ID(a.VolumeID), volume.SizeGB(a.SizeGB), volume.AppliedGBLT(a.SizeGB),
+				volume.ServerIDIsNil()).
 				SetSizeGB(a.PrevSizeGB).Exec(ctx)
 			if err != nil {
 				return err

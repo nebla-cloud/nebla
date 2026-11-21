@@ -3,7 +3,6 @@ package volumes
 import (
 	"context"
 	"database/sql"
-	"slices"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
@@ -110,11 +109,11 @@ func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.
 		if !alreadyExists(err) {
 			return nil, servers.StepError("allocate volume", err)
 		}
-		items, lerr := pc.StorageContent(ctx, node, row.Storage, vref.OwnerVMID)
+		_, ok, lerr := diskPresent(ctx, pc, node, row.Storage, row.ID)
 		if lerr != nil {
 			return nil, servers.StepError("list storage", lerr)
 		}
-		if !slices.ContainsFunc(items, func(it pve.StorageItem) bool { return it.Volid == row.Storage+":"+name }) {
+		if !ok {
 			return nil, servers.StepError("allocate volume", err)
 		}
 	}

@@ -103,6 +103,7 @@ type Server struct {
 	mu      sync.Mutex
 	nodes   map[string]*node
 	vms     map[int]*vm
+	cts     map[int]string // LXC containers: vmid to node
 	tasks   map[string]*task
 	volumes map[string][]byte
 	tickets map[string]bool
@@ -133,7 +134,7 @@ type FakeDownload struct{ Node, Storage, URL, Filename, Content, Checksum, Algor
 func New(t *testing.T) *Server {
 	t.Helper()
 	s := &Server{tokenID: "root@pam!nebla", secret: "fake-secret", nodes: map[string]*node{},
-		vms: map[int]*vm{}, tasks: map[string]*task{}, volumes: map[string][]byte{}, tickets: map[string]bool{}}
+		vms: map[int]*vm{}, cts: map[int]string{}, tasks: map[string]*task{}, volumes: map[string][]byte{}, tickets: map[string]bool{}}
 	mux := http.NewServeMux()
 	s.routes(mux)
 	s.srv = httptest.NewTLSServer(s.wrap(mux))
@@ -222,6 +223,13 @@ func (s *Server) SetVMIPSet(vmid int, name string, cidrs []string) {
 	defer s.mu.Unlock()
 	s.sweep()
 	s.vms[vmid].ipsets[name] = slices.Clone(cidrs)
+}
+
+// AddContainer lists an LXC container at vmid; only /cluster/resources shows it.
+func (s *Server) AddContainer(nodeName string, vmid int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cts[vmid] = nodeName
 }
 
 // AddVM adds a stopped, non-template VM with a scsi0 disk.
@@ -829,6 +837,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 			}
 			out = append(out, map[string]any{"id": fmt.Sprintf("qemu/%d", id), "type": "qemu", "vmid": id, "node": v.node,
 				"name": v.config["name"], "status": v.status, "tags": v.config["tags"], "template": tmpl})
+		}
+		for id, n := range s.cts {
+			out = append(out, map[string]any{"id": fmt.Sprintf("lxc/%d", id), "type": "lxc", "vmid": id, "node": n,
+				"name": fmt.Sprintf("ct%d", id), "status": "running", "template": 0})
 		}
 		sort.Slice(out, func(i, j int) bool { return out[i]["vmid"].(int) < out[j]["vmid"].(int) })
 		return out, nil

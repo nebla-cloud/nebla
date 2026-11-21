@@ -73,18 +73,50 @@ func (w *ResizeVolumeWorker) Work(ctx context.Context, job *river.Job[ResizeVolu
 		w.o.publish(ctx, ext.VolumeResized, row, a.SizeGB, attached)
 		return nil
 	}
-	// A resize that never reached the disk gives the extra GB, and so the quota, back.
+	// A resize that never reached the disk gives the extra GB, and so the quota, back; one that did is recorded.
 	fail := func(ctx context.Context, f servers.Failure) error {
 		cur, err := w.o.Ent.Volume.Get(ctx, row.ID)
 		if err != nil {
 			return err
 		}
 		if a.PrevSizeGB > 0 && cur.SizeGB == a.SizeGB && cur.AppliedGB < a.SizeGB {
-			if err := cur.Update().SetSizeGB(a.PrevSizeGB).Exec(ctx); err != nil {
+			grown, err := w.grown(ctx, cur, a.SizeGB)
+			if err != nil {
+				return err
+			}
+			u := cur.Update().SetSizeGB(a.PrevSizeGB)
+			if grown {
+				u = cur.Update().SetAppliedGB(a.SizeGB)
+			}
+			if err := u.Exec(ctx); err != nil {
 				return err
 			}
 		}
 		return failAction(ctx, w.o.Ent, a.ActionID, f)
 	}
 	return w.o.contract(job.JobRow, "resize", act, row.ID, run, fail).Work(ctx)
+}
+
+// grown reports whether row's disk is already sizeGB; a detached volume's disk is never touched by resize.
+func (w *ResizeVolumeWorker) grown(ctx context.Context, row *ent.Volume, sizeGB int) (bool, error) {
+	if row.ServerID == nil {
+		return false, nil
+	}
+	srv, err := w.o.Ent.Server.Get(ctx, *row.ServerID)
+	if err != nil && !ent.IsNotFound(err) {
+		return false, err
+	}
+	pc, err := w.o.pveFor(ctx, row.LocationID)
+	if err != nil {
+		return false, err
+	}
+	node, err := w.o.storageNode(ctx, row, srv)
+	if err != nil {
+		return false, err
+	}
+	it, ok, err := diskPresent(ctx, pc, node, row.Storage, row.ID)
+	if err != nil {
+		return false, err
+	}
+	return ok && it.Size >= int64(sizeGB)<<30, nil
 }

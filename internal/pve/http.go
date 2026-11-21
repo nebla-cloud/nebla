@@ -249,6 +249,21 @@ func (c *httpClient) VMs(ctx context.Context) ([]VM, error) {
 	return out, nil
 }
 
+func (c *httpClient) GuestExists(ctx context.Context, vmid int) (bool, error) {
+	var raw []struct {
+		VMID num `json:"vmid"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/cluster/resources", url.Values{"type": {"vm"}}, &raw); err != nil {
+		return false, err
+	}
+	for _, r := range raw {
+		if int(r.VMID) == vmid {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (c *httpClient) NextID(ctx context.Context) (int, error) {
 	var n num
 	if err := c.do(ctx, http.MethodGet, "/cluster/nextid", nil, &n); err != nil {

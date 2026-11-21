@@ -153,3 +153,22 @@ func TestFakeNoDiskHotplug(t *testing.T) {
 		t.Fatalf("not detached: %v", v.Config)
 	}
 }
+
+func TestFakeGuestExistsSeesContainers(t *testing.T) {
+	ctx := context.Background()
+	s, c := volEnv(t)
+	s.AddContainer("pve1", 999999999)
+	for vmid, want := range map[int]bool{101: true, 999999999: true, 102: false} {
+		got, err := c.GuestExists(ctx, vmid)
+		if err != nil || got != want {
+			t.Fatalf("GuestExists(%d) = %v, %v; want %v", vmid, got, err, want)
+		}
+	}
+	vms, err := c.VMs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(vms, func(v pve.VM) bool { return v.VMID == 999999999 }) {
+		t.Fatal("VMs lists only QEMU guests")
+	}
+}

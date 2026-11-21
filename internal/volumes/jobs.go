@@ -119,15 +119,29 @@ func ReservedVMIDGuard(ctx context.Context, pc pve.Client) error {
 	return err
 }
 
+// guard checks every guest type, since QEMU and LXC share VMIDs, and returns the QEMU listing.
 func guard(ctx context.Context, pc pve.Client) ([]pve.VM, error) {
-	vms, err := pc.VMs(ctx)
+	taken, err := pc.GuestExists(ctx, vref.OwnerVMID)
 	if err != nil {
 		return nil, err
 	}
-	if slices.ContainsFunc(vms, func(v pve.VM) bool { return v.VMID == vref.OwnerVMID }) {
+	if taken {
 		return nil, servers.Permanent("a VM occupies reserved VMID %d", vref.OwnerVMID)
 	}
-	return vms, nil
+	return pc.VMs(ctx)
+}
+
+// diskPresent reports whether the storage lists volume id's disk under its exact name.
+func diskPresent(ctx context.Context, pc pve.Client, node, storage string, id int64) (pve.StorageItem, bool, error) {
+	items, err := pc.StorageContent(ctx, node, storage, vref.OwnerVMID)
+	if err != nil {
+		return pve.StorageItem{}, false, err
+	}
+	i := slices.IndexFunc(items, func(it pve.StorageItem) bool { return it.Volid == storage+":"+vref.Name(id) })
+	if i < 0 {
+		return pve.StorageItem{}, false, nil
+	}
+	return items[i], true, nil
 }
 
 // serverVM finds srv's VM in vms; only a VM carrying the server's tags counts.

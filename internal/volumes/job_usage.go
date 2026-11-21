@@ -47,7 +47,7 @@ func NewUsageWorker(o WorkerOptions) *UsageWorker {
 
 func (*UsageWorker) Timeout(*river.Job[UsageArgs]) time.Duration { return 5 * time.Minute }
 
-// Work publishes each volume's size snapshot.
+// Work publishes each volume's size snapshot; volumes with no disk (creating, error) are skipped.
 func (w *UsageWorker) Work(ctx context.Context, job *river.Job[UsageArgs]) error {
 	if w.o.Bus == nil {
 		return nil
@@ -61,13 +61,14 @@ func (w *UsageWorker) Work(ctx context.Context, job *river.Job[UsageArgs]) error
 	period := at.UTC().Truncate(servers.UsageInterval).Format(time.RFC3339)
 	var after int64
 	for {
-		rows, err := w.o.Ent.Volume.Query().Where(volume.IDGT(after)).Order(volume.ByID()).Limit(usageBatch).All(ctx)
+		rows, err := w.o.Ent.Volume.Query().Where(volume.IDGT(after), volume.StatusNotIn(volume.StatusCreating, volume.StatusError)).Order(volume.ByID()).Limit(usageBatch).All(ctx)
 		if err != nil {
 			return err
 		}
 		for _, r := range rows {
 			w.o.Bus.Publish(ctx, ext.Event{Kind: ext.VolumeUsage, ProjectID: r.ProjectID, ResourceType: ResourceType, ResourceID: r.ID, At: now,
-				Data: map[string]any{"size_gb": r.SizeGB, "location_id": r.LocationID, "attached": r.ServerID != nil, "period": period}})
+				Data: map[string]any{"size_gb": r.SizeGB, "location_id": r.LocationID, "attached": r.ServerID != nil, "period": period,
+					"status": string(r.Status)}})
 		}
 		if len(rows) < usageBatch {
 			return nil
