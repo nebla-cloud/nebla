@@ -74,22 +74,27 @@ func (w *ResizeVolumeWorker) Work(ctx context.Context, job *river.Job[ResizeVolu
 		return nil
 	}
 	// A resize that never reached the disk gives the extra GB, and so the quota, back; one that did is recorded.
+	// Proxmox errors here are logged, never returned, so the action always fails.
 	fail := func(ctx context.Context, f servers.Failure) error {
 		cur, err := w.o.Ent.Volume.Get(ctx, row.ID)
 		if err != nil {
 			return err
 		}
 		if a.PrevSizeGB > 0 && cur.SizeGB == a.SizeGB && cur.AppliedGB < a.SizeGB {
-			grown, err := w.grown(ctx, cur, a.SizeGB)
-			if err != nil {
-				return err
-			}
-			u := cur.Update().SetSizeGB(a.PrevSizeGB)
-			if grown {
+			var u *ent.VolumeUpdateOne
+			switch grown, err := w.grown(ctx, cur, a.SizeGB); {
+			case err != nil:
+				// Unknown size on storage: keep size_gb, as the rescue does for attached volumes.
+				w.o.Logger.Warn("resize failed; disk size unknown, size_gb kept", "volume_id", cur.ID, "err", err)
+			case grown:
 				u = cur.Update().SetAppliedGB(a.SizeGB)
+			default:
+				u = cur.Update().SetSizeGB(a.PrevSizeGB)
 			}
-			if err := u.Exec(ctx); err != nil {
-				return err
+			if u != nil {
+				if err := u.Exec(ctx); err != nil {
+					return err
+				}
 			}
 		}
 		return failAction(ctx, w.o.Ent, a.ActionID, f)

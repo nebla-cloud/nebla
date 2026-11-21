@@ -489,6 +489,17 @@ func TestResizeFailureRevertsSize(t *testing.T) {
 	require.Equal(t, 20, r.SizeGB)
 	require.Equal(t, 20, r.AppliedGB)
 	require.EqualValues(t, int64(20)<<30, e.disks(t, v.ID)[0].Size)
+
+	// Proxmox unreadable after the resize failed: the action still fails and size_gb stays.
+	act, err = e.svc.Resize(ctx, e.Project, v.ID, 30)
+	require.NoError(t, err)
+	bad := &pve.Error{Status: http.StatusBadRequest, Message: "storage unreadable"}
+	hp := &hookPVE{resizeErr: bad, contentErr: bad}
+	got = e.finish(t, hp.opts(e, o), act)
+	require.Equal(t, actions.StatusError, got.Status)
+	r = e.row(t, v.ID)
+	require.Equal(t, 30, r.SizeGB, "kept rather than guessed")
+	require.Equal(t, 20, r.AppliedGB)
 }
 
 func TestReservedVMIDGuard(t *testing.T) {
@@ -530,14 +541,79 @@ func TestDeleteVolume404IsDone(t *testing.T) {
 	e.localStorage(t)
 	rec := &recorder{}
 	o := e.opts(rec)
+	// Absent from storage: done without a delete call, whatever Proxmox would answer.
 	id := e.put(t, e.Project, "gone", "pve1", "local-lvm", 10, nil, "")
-	// Real Proxmox may fail freeing a missing volume with something other than a 404.
 	e.App.PVE.FailNext("/storage/local-lvm/content/local-lvm:"+vref.Name(id), http.StatusInternalServerError)
 	act, err := e.svc.Delete(ctx, e.Project, id)
 	e.ok(t, o, act, err)
 	_, err = e.App.Ent.Volume.Get(ctx, id)
 	require.True(t, ent.IsNotFound(err))
 	require.Equal(t, []ext.EventKind{ext.VolumeDeleted}, rec.kinds())
+
+	// Listed, but the delete itself answers 404: also done.
+	e.pinPVE1(t)
+	v, act, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "raced", SizeGB: 10, Location: "eu-1"})
+	e.ok(t, o, act, err)
+	hp := &hookPVE{deleteErr: &pve.Error{Status: http.StatusNotFound, Message: "no such volume"}}
+	act, err = e.svc.Delete(ctx, e.Project, v.ID)
+	e.ok(t, hp.opts(e, o), act, err)
+	require.Equal(t, 1, hp.deletes)
+	_, err = e.App.Ent.Volume.Get(ctx, v.ID)
+	require.True(t, ent.IsNotFound(err))
+}
+
+func TestDeleteVolumeTaskErrorDiskStillThere(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.pinPVE1(t)
+	o := e.opts(nil)
+	v, act, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "data", SizeGB: 10, Location: "eu-1"})
+	e.ok(t, o, act, err)
+	hp := &hookPVE{deleteErr: &pve.TaskError{UPID: "UPID:x", ExitStatus: "lvremove failed"}}
+	act, err = e.svc.Delete(ctx, e.Project, v.ID)
+	require.NoError(t, err)
+	got := e.finish(t, hp.opts(e, o), act)
+	require.Equal(t, actions.StatusError, got.Status)
+	require.Equal(t, actions.CodeFailed, got.Error.Code)
+	require.Equal(t, volume.StatusAvailable, e.row(t, v.ID).Status)
+	require.Len(t, e.disks(t, v.ID), 1)
+}
+
+// hookPVE fails the calls given an error without running them.
+type hookPVE struct {
+	pve.Client
+	deleteErr, resizeErr, contentErr error
+	deletes                          int
+}
+
+func (h *hookPVE) opts(e *env, o volumes.WorkerOptions) volumes.WorkerOptions {
+	return volumes.SetPVE(o, func(ctx context.Context, loc int64) (pve.Client, error) {
+		pc, err := e.App.Catalog.ProxmoxFor(ctx, loc)
+		h.Client = pc
+		return h, err
+	})
+}
+
+func (h *hookPVE) DeleteVolume(ctx context.Context, node, storage, volid string) error {
+	h.deletes++
+	if h.deleteErr != nil {
+		return h.deleteErr
+	}
+	return h.Client.DeleteVolume(ctx, node, storage, volid)
+}
+
+func (h *hookPVE) ResizeDisk(ctx context.Context, node string, vmid int, disk string, gb int) error {
+	if h.resizeErr != nil {
+		return h.resizeErr
+	}
+	return h.Client.ResizeDisk(ctx, node, vmid, disk, gb)
+}
+
+func (h *hookPVE) StorageContent(ctx context.Context, node, storage string, vmid int) ([]pve.StorageItem, error) {
+	if h.contentErr != nil {
+		return nil, h.contentErr
+	}
+	return h.Client.StorageContent(ctx, node, storage, vmid)
 }
 
 // taskFailPVE runs the delete or resize, then reports its task as failed.
