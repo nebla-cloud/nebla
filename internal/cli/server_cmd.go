@@ -32,6 +32,21 @@ func labelString(l apiclient.Labels) string {
 	return strings.Join(parts, ", ")
 }
 
+func serverFirewalls(fws []apiclient.ServerFirewall) string {
+	if len(fws) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(fws))
+	for _, f := range fws {
+		via := f.Via
+		if via != "direct" {
+			via = "via " + via
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", f.Name, via))
+	}
+	return strings.Join(parts, ", ")
+}
+
 func parseLabels(in []string) (apiclient.Labels, error) {
 	if len(in) == 0 {
 		return nil, nil
@@ -58,7 +73,7 @@ func newServerCmd(a *app) *cobra.Command {
 func serverCreateCmd(a *app) *cobra.Command {
 	var (
 		name, typ, image, location, userDataFile string
-		sshKeys, labels                          []string
+		sshKeys, labels, firewalls               []string
 		withoutIPv4, withIPv6, start             bool
 	)
 	cmd := &cobra.Command{
@@ -87,6 +102,25 @@ func serverCreateCmd(a *app) *cobra.Command {
 		if len(sshKeys) > 0 {
 			body.SshKeys = &sshKeys
 		}
+		api, err := a.api()
+		if err != nil {
+			return err
+		}
+		if len(firewalls) > 0 {
+			var fws []struct {
+				Firewall int64 `json:"firewall"`
+			}
+			for _, ref := range firewalls {
+				f, err := api.Firewall(cmd.Context(), ref)
+				if err != nil {
+					return err
+				}
+				fws = append(fws, struct {
+					Firewall int64 `json:"firewall"`
+				}{f.Id})
+			}
+			body.Firewalls = &fws
+		}
 		if userDataFile != "" {
 			b, err := os.ReadFile(userDataFile)
 			if err != nil {
@@ -94,10 +128,6 @@ func serverCreateCmd(a *app) *cobra.Command {
 			}
 			s := string(b)
 			body.UserData = &s
-		}
-		api, err := a.api()
-		if err != nil {
-			return err
 		}
 		res, err := api.C.PostServersWithResponse(cmd.Context(), body)
 		if err != nil {
@@ -153,6 +183,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.StringVar(&image, "image", "", "image id or name")
 	f.StringVar(&location, "location", "", "location id or name")
 	f.StringArrayVar(&sshKeys, "ssh-key", nil, "SSH key id or name (repeatable)")
+	f.StringArrayVar(&firewalls, "firewall", nil, "firewall id or name to apply (repeatable)")
 	f.StringVar(&userDataFile, "user-data-from-file", "", "read cloud-init user data from a file")
 	f.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable)")
 	f.BoolVar(&withoutIPv4, "without-ipv4", false, "do not assign an IPv4 address")
@@ -220,6 +251,7 @@ func serverDescribeCmd(a *app) *cobra.Command {
 				{"Location", s.Location.Name},
 				{"Disk", fmt.Sprintf("%d GB", s.DiskGb)},
 				{"Labels", labelString(s.Labels)},
+				{"Firewalls", serverFirewalls(s.Firewalls)},
 			})
 			return nil
 		},

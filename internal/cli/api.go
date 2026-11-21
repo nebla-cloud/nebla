@@ -374,3 +374,36 @@ func (a *API) Location(ctx context.Context, ref string) (apiclient.Location, err
 		return named(list, func(l apiclient.Location) string { return l.Name }, name), nil
 	})
 }
+
+// Firewalls lists every firewall.
+func (a *API) Firewalls(ctx context.Context) ([]apiclient.Firewall, error) {
+	pp := perPage
+	return pageAll(func(page *int) ([]apiclient.Firewall, apiclient.Meta, error) {
+		res, err := a.C.GetFirewallsWithResponse(ctx, &apiclient.GetFirewallsParams{Page: page, PerPage: &pp})
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		v, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		return v.Firewalls, v.Meta, nil
+	})
+}
+
+// Firewall finds a firewall by id or name.
+func (a *API) Firewall(ctx context.Context, ref string) (apiclient.Firewall, error) {
+	return resolve(ref, "firewall", func(id int64) (*apiclient.Firewall, *http.Response, []byte, error) {
+		res, err := a.C.GetFirewallWithResponse(ctx, id)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return res.JSON200, res.HTTPResponse, res.Body, nil
+	}, func(name string) (*apiclient.Firewall, error) {
+		list, err := a.Firewalls(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return named(list, func(f apiclient.Firewall) string { return f.Name }, name), nil
+	})
+}
