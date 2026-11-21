@@ -202,4 +202,123 @@ describe('ServerListPage', () => {
     expect(link.find('span[aria-hidden="true"]').text()).toBe('D')
     expect(link.find('.nb-mono').text()).toBe('203.0.113.10')
   })
+
+  describe('status chips', () => {
+    const three = [
+      makeServer({ id: 1, name: 'web1', status: 'running' }),
+      makeServer({ id: 2, name: 'db1', status: 'off' }),
+      makeServer({ id: 3, name: 'job1', status: 'starting' }),
+    ]
+
+    it('counts from the list, busy under All only', async () => {
+      server.use(http.get('*/v1/servers', () => json(200, { servers: three, meta })))
+      const { wrapper } = await mountList()
+      const group = wrapper.find('[role="radiogroup"]')
+      expect(group.attributes('aria-label')).toBe('Filter by status')
+      const radios = group.findAll('[role="radio"]')
+      expect(radios.map((r) => r.text().replace(/\s+/g, ' '))).toEqual([
+        'All 3',
+        'Running 1',
+        'Off 1',
+      ])
+      expect(radios[0]!.attributes('aria-checked')).toBe('true')
+    })
+
+    it('selecting Off shows one row and sets ?status=off, keeping labels', async () => {
+      server.use(http.get('*/v1/servers', () => json(200, { servers: three, meta })))
+      const { wrapper, router } = await mountList()
+      await router.replace({ query: { labels: 'env=prod' } })
+      await vi.waitFor(() => expect(wrapper.findAll('[role="radio"]')).toHaveLength(3))
+      await wrapper.findAll('[role="radio"]')[2]!.trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.query).toEqual({ labels: 'env=prod', status: 'off' })
+      expect(wrapper.findAll('a[href="/p/1/servers/2"]')).toHaveLength(1)
+      expect(wrapper.findAll('a[href="/p/1/servers/1"]')).toHaveLength(0)
+      expect(wrapper.text()).toContain('db1')
+      expect(wrapper.text()).not.toMatch(/servers? in /)
+      await wrapper.findAll('[role="radio"]')[0]!.trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.query).toEqual({ labels: 'env=prod' })
+    })
+
+    it('arrow keys move between chips', async () => {
+      server.use(http.get('*/v1/servers', () => json(200, { servers: three, meta })))
+      const { wrapper, router } = await mountList()
+      await wrapper.findAll('[role="radio"]')[0]!.trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+      expect(router.currentRoute.value.query.status).toBe('running')
+      const radios = wrapper.findAll('[role="radio"]')
+      expect(radios.map((r) => r.attributes('tabindex'))).toEqual(['-1', '0', '-1'])
+    })
+
+    it('a server turning busy on the next poll leaves the Off filter', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'setTimeout', 'clearInterval', 'clearTimeout'] })
+      let calls = 0
+      server.use(
+        http.get('*/v1/servers', () => {
+          calls++
+          const second = makeServer({
+            id: 2,
+            name: 'db1',
+            status: calls === 1 ? 'off' : 'starting',
+          })
+          return json(200, {
+            servers: [makeServer({ id: 1, status: 'initializing' }), second],
+            meta,
+          })
+        }),
+      )
+      const router = testRouter([
+        { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+        { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
+        { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
+      ])
+      await router.push('/p/1/servers?status=off')
+      const { wrapper } = mountApp(ServerListPage, { router })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('db1'))
+      expect(wrapper.text()).toContain('Off 1')
+      await vi.advanceTimersByTimeAsync(3100)
+      await vi.waitFor(() => expect(calls).toBe(2))
+      await flushPromises()
+      expect(wrapper.text()).toContain('No servers match this filter')
+      expect(wrapper.text()).toContain('Off 0')
+      expect(wrapper.text()).toContain('All 2')
+    })
+
+    it('Clear filters resets status and labels', async () => {
+      server.use(
+        http.get('*/v1/servers', () =>
+          json(200, { servers: [makeServer({ status: 'running' })], meta }),
+        ),
+      )
+      const router = testRouter([
+        { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+        { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
+        { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
+      ])
+      await router.push('/p/1/servers?status=off&labels=env%3Dprod')
+      const { wrapper } = mountApp(ServerListPage, { router })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('No servers match this filter'))
+      const btn = wrapper.findAll('button').find((b) => b.text() === 'Clear filters')!
+      await btn.trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.query).toEqual({})
+      await vi.waitFor(() => expect(wrapper.text()).toContain('web1'))
+      expect((wrapper.find('input[name="labels"]').element as HTMLInputElement).value).toBe('')
+    })
+
+    it('label-only no match keeps the plain message, and no chips without servers', async () => {
+      server.use(http.get('*/v1/servers', () => json(200, { servers: [], meta })))
+      const router = testRouter([
+        { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+        { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
+      ])
+      await router.push('/p/1/servers?labels=env%3Dprod')
+      const a = mountApp(ServerListPage, { router })
+      await vi.waitFor(() => expect(a.wrapper.text()).toContain('No servers match this filter.'))
+      expect(a.wrapper.text()).not.toContain('Clear filters')
+      const b = await mountList()
+      expect(b.wrapper.find('[role="radiogroup"]').exists()).toBe(false)
+    })
+  })
 })

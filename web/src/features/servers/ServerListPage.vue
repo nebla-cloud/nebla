@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
@@ -16,6 +16,7 @@ import { serverStatus } from '@/lib/status'
 import LabelChips from './LabelChips.vue'
 import OsBadge from './OsBadge.vue'
 import { useServers } from './queries'
+import { filterServers, parseStatusFilter, type StatusFilter } from './statusFilter'
 
 const { projectId, project } = useCurrentProject()
 const newRoute = computed(() => ({ name: 'server-new', params: { projectId: projectId.value } }))
@@ -29,9 +30,48 @@ const filterError = computed(() =>
 )
 const listError = computed(() => (filterError.value ? null : error.value))
 
+const status = computed(() => parseStatusFilter(route.query.status))
+const visible = computed(() => filterServers(servers.value ?? [], status.value))
+const counts = computed(() => {
+  const list = servers.value ?? []
+  return {
+    all: list.length,
+    running: filterServers(list, 'running').length,
+    off: filterServers(list, 'off').length,
+  }
+})
+const options: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'running', label: 'Running' },
+  { value: 'off', label: 'Off' },
+]
+const chipGroup = useTemplateRef<HTMLElement>('chipGroup')
+function setStatus(v: StatusFilter) {
+  void router.replace({ query: { ...route.query, status: v === 'all' ? undefined : v } })
+}
+function onChipKey(e: KeyboardEvent, i: number) {
+  const step =
+    e.key === 'ArrowRight' || e.key === 'ArrowDown'
+      ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+        ? -1
+        : 0
+  if (!step) return
+  e.preventDefault()
+  const n = (i + step + options.length) % options.length
+  setStatus(options[n]!.value)
+  const radios = chipGroup.value?.querySelectorAll<HTMLElement>('[role="radio"]')
+  void nextTick(() => radios?.[n]?.focus())
+}
+function clearFilters() {
+  clearTimeout(timer)
+  filter.value = ''
+  void router.replace({ query: { ...route.query, labels: undefined, status: undefined } })
+}
+
 const description = computed(() => {
   const list = servers.value
-  if (!list?.length || !project.value || selector.value) return undefined
+  if (!list?.length || !project.value || selector.value || status.value !== 'all') return undefined
   const running = list.filter((s) => s.status === 'running').length
   const n = list.length
   return `${n} ${n === 1 ? 'server' : 'servers'} in ${project.value.name}, ${running} running`
@@ -96,6 +136,36 @@ onBeforeUnmount(() => clearTimeout(timer))
       </UFormField>
     </form>
 
+    <div
+      v-if="!isPending && (servers?.length || status !== 'all' || selector)"
+      ref="chipGroup"
+      role="radiogroup"
+      aria-label="Filter by status"
+      class="flex flex-wrap items-center gap-2"
+    >
+      <button
+        v-for="(o, i) in options"
+        :key="o.value"
+        type="button"
+        role="radio"
+        :aria-checked="status === o.value"
+        :tabindex="status === o.value ? 0 : -1"
+        class="inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-full border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-focus)"
+        :class="
+          status === o.value
+            ? 'border-inverted bg-inverted text-inverted'
+            : 'border-default text-default hover:bg-elevated'
+        "
+        @click="setStatus(o.value)"
+        @keydown="onChipKey($event, i)"
+      >
+        {{ o.label }}
+        <span class="text-xs" :class="status === o.value ? 'opacity-70' : 'text-muted'">{{
+          counts[o.value]
+        }}</span>
+      </button>
+    </div>
+
     <UAlert
       v-if="listError"
       color="error"
@@ -104,6 +174,15 @@ onBeforeUnmount(() => clearTimeout(timer))
     />
     <p v-else-if="isPending" class="text-muted">Loading servers…</p>
     <p v-else-if="filterError" class="text-muted">Fix the filter to see servers.</p>
+    <div
+      v-else-if="servers?.length && !visible.length"
+      class="flex flex-wrap items-center gap-3 text-muted"
+    >
+      <p>No servers match this filter.</p>
+      <UButton color="neutral" variant="outline" size="sm" @click="clearFilters"
+        >Clear filters</UButton
+      >
+    </div>
     <p v-else-if="!servers?.length && selector" class="text-muted">No servers match this filter.</p>
     <EmptyState
       v-else-if="!servers?.length"
@@ -114,7 +193,7 @@ onBeforeUnmount(() => clearTimeout(timer))
     </EmptyState>
     <ListGroup v-else>
       <ListRow
-        v-for="s in servers"
+        v-for="s in visible"
         :key="s.id"
         :to="{ name: 'server', params: { projectId, serverId: s.id } }"
       >
