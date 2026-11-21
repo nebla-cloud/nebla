@@ -3,6 +3,8 @@ package volumes
 import (
 	"context"
 	"slices"
+
+	"github.com/nebla-cloud/nebla/internal/ent/node"
 )
 
 // candidate is a node's resolved volume storage as Proxmox reports it now.
@@ -93,14 +95,14 @@ func (s *Service) place(ctx context.Context, locationID int64, pin string, sizeG
 	return c.Node, c.Storage, nil
 }
 
-// Available reports whether an enabled node has a resolved volume storage with images content.
+// Available reports, from the DB only, whether the location's volume storage is checked and an enabled node is online.
 func (s *Service) Available(ctx context.Context, locationID int64) (bool, error) {
-	cands, pveErr, err := s.candidates(ctx, locationID, "")
+	row, err := s.o.Ent.Location.Get(ctx, locationID)
 	if err != nil {
-		return false, err
+		return false, notFound(err)
 	}
-	if len(cands) == 0 && pveErr != nil && s.o.Logger != nil {
-		s.o.Logger.Warn("volumes: cannot list storages", "location", locationID, "err", pveErr)
+	if !row.VolumeStorageOk {
+		return false, nil
 	}
-	return len(cands) > 0, nil
+	return s.o.Ent.Node.Query().Where(node.LocationID(locationID), node.Enabled(true), node.Status("online")).Exist(ctx)
 }

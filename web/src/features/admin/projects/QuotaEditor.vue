@@ -36,7 +36,7 @@ const rows: Row[] = [
   { key: 'max_disk_gb', label: 'Disk', unit: ' GB', used: () => props.usage.disk_gb },
   { key: 'max_ips', label: 'IPs', unit: '', used: () => props.usage.ips },
   { key: 'max_volumes', label: 'Volumes', unit: '', used: () => props.usage.volumes },
-  { key: 'max_volume_gb', label: 'Volume storage', unit: ' GB', used: () => props.usage.volume_gb },
+  { key: 'max_volume_gb', label: 'Volume size (GB)', unit: ' GB', used: () => props.usage.volume_gb },
 ]
 const dataKey: Record<keyof Quota, string> = {
   max_servers: 'servers',

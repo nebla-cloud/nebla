@@ -285,6 +285,17 @@ func TestLocationVolumesAvailable(t *testing.T) {
 	require.False(t, avail(), "volume_storage_ok is false until checked")
 	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.Location).SetVolumeStorageOk(true).Exec(context.Background()))
 	require.True(t, avail())
+
+	// Member reads never call Proxmox.
+	before := len(e.App.PVE.Calls())
+	e.App.PVE.SetDown(true)
+	require.True(t, avail())
+	require.Len(t, e.App.PVE.Calls(), before)
+	e.App.PVE.SetDown(false)
+
+	require.NoError(t, e.App.Ent.Node.Update().SetEnabled(false).Exec(context.Background()))
+	require.False(t, avail(), "no enabled online node")
+	require.NoError(t, e.App.Ent.Node.Update().SetEnabled(true).Exec(context.Background()))
 	res := e.C.Send(http.MethodPost, "/v1/volumes", map[string]any{"name": "x", "size": 10, "location": "eu-1"})
 	require.Equal(t, http.StatusCreated, res.StatusCode, e.App.Body(res))
 	res.Body.Close()
@@ -325,6 +336,12 @@ func TestAdminLocationVolumeStorage(t *testing.T) {
 	require.Equal(t, "local-lvm", decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(nil)), http.StatusOK).VolumeStorage)
 	require.Equal(t, "ceph", decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new("ceph"))), http.StatusOK).VolumeStorage)
 	require.Empty(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new(""))), http.StatusOK).VolumeStorage)
+
+	// A checked storage fails closed when volume_storage changes, and stays checked otherwise.
+	require.NoError(t, app.Ent.Location.UpdateOneID(l.ID).SetVolumeStorageOk(true).Exec(context.Background()))
+	require.True(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(nil)), http.StatusOK).VolumeStorageOK)
+	require.True(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new(""))), http.StatusOK).VolumeStorageOK)
+	require.False(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new("local-lvm"))), http.StatusOK).VolumeStorageOK)
 	got := decodeJSON[map[string]any](t, app, admin.Get(path), http.StatusOK)
 	require.Contains(t, got, "volume_storage")
 	require.Equal(t, false, got["volume_storage_ok"])

@@ -422,13 +422,19 @@ func TestVolumesUnavailable(t *testing.T) {
 	_, _, err = e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "a", SizeGB: 10, Location: "eu-1"})
 	requireAPIErr(t, err, http.StatusUnprocessableEntity, "volumes_unavailable")
 
-	// "local" holds no images.
+	// Available trusts the cached check; create still finds "local" holds no images.
 	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.Location).SetVolumeStorageOk(true).SetVolumeStorage("local").Exec(ctx))
 	ok, err = e.svc.Available(ctx, e.Location)
 	require.NoError(t, err)
-	require.False(t, ok)
+	require.True(t, ok)
 	_, _, err = e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "a", SizeGB: 10, Location: "eu-1"})
 	requireAPIErr(t, err, http.StatusUnprocessableEntity, "volumes_unavailable")
+
+	// No enabled online node: unavailable.
+	require.NoError(t, e.App.Ent.Node.Update().Where(node.LocationID(e.Location)).SetEnabled(false).Exec(ctx))
+	ok, err = e.svc.Available(ctx, e.Location)
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestCrossProjectNotFound(t *testing.T) {

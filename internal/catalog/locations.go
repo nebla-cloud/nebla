@@ -289,6 +289,10 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 		u := tx.Location.UpdateOneID(id).SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetCaFingerprint(conn.CAFingerprint).SetInsecureTLS(conn.InsecureTLS).
 			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).SetVolumeStorage(vol)
+		if vol != cur.VolumeStorage {
+			// Fail closed until the new storage is re-checked.
+			u.SetVolumeStorageOk(false)
+		}
 		if newSecret {
 			u.SetTokenSecret(s.box.Seal([]byte(conn.Secret)))
 		}
