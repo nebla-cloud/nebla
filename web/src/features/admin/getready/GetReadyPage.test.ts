@@ -61,8 +61,9 @@ describe('GetReadyPage', () => {
       'todo',
     ])
     expect(steps[1]!.text()).toContain('Choose images')
-    expect(steps[1]!.find('a').classes().join(' ')).toContain('bg-inverted')
-    expect(steps[2]!.find('a').classes().join(' ')).not.toContain('bg-inverted')
+    expect(steps[1]!.attributes('data-state')).toBe('current')
+    expect(steps[1]!.find('a').text()).toBe('Choose images')
+    expect(steps[2]!.attributes('data-state')).toBe('todo')
   })
 
   it('each step links to its admin page', async () => {

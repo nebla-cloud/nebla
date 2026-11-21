@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import USwitch from '@nuxt/ui/components/Switch.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
 import { errorMessage } from '@/api/errors'
 import { useAdminSettings, useSaveSettings } from './queries'
 
@@ -27,10 +29,7 @@ async function toggle(on: boolean) {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Settings</h1>
-      <p class="text-sm text-muted">Panel-wide options that apply to everyone.</p>
-    </div>
+    <PageHeader title="Settings" description="Panel-wide options that apply to everyone." />
 
     <UAlert
       v-if="loadError"
@@ -39,17 +38,14 @@ async function toggle(on: boolean) {
       :description="errorMessage(loadError)"
     />
     <p v-else-if="isPending" class="text-muted">Loading settings…</p>
-    <section v-else class="flex flex-col gap-3">
-      <h2 class="text-base font-bold text-highlighted">Sign-ups</h2>
-      <div class="flex flex-col gap-1.5 rounded-lg border border-default p-4">
-        <USwitch
-          :model-value="signup"
-          :disabled="save.isPending.value"
-          label="Let anyone create an account"
-          description="When off, people join only through an invite from a project owner or an account you create."
-          @update:model-value="toggle"
-        />
-      </div>
-    </section>
+    <Panel v-else title="Sign-ups">
+      <USwitch
+        :model-value="signup"
+        :disabled="save.isPending.value"
+        label="Let anyone create an account"
+        description="When off, people join only through an invite from a project owner or an account you create."
+        @update:model-value="toggle"
+      />
+    </Panel>
   </div>
 </template>

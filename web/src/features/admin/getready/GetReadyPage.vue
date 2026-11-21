@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import UButton from '@nuxt/ui/components/Button.vue'
-import UIcon from '@nuxt/ui/components/Icon.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import Step from '@/components/Step.vue'
+import StepList from '@/components/StepList.vue'
 import { errorMessage } from '@/api/errors'
 import { checklistSteps, useChecklistData, type StepKey } from './checklist'
 
@@ -14,67 +16,37 @@ const copy: Record<StepKey, { title: string; to: string; action: string }> = {
   pools: { title: 'Add an IP pool', to: 'admin-ip-pools', action: 'Add' },
 }
 
-const steps = computed(() => {
-  const list = data.value ? checklistSteps(data.value) : []
-  const current = list.findIndex((s) => !s.done)
-  return list.map((s, i) => ({
-    ...s,
-    ...copy[s.key],
-    n: i + 1,
-    state: s.done ? 'done' : i === current ? 'current' : 'todo',
-  }))
-})
+const steps = computed(() =>
+  (data.value ? checklistSteps(data.value) : []).map((s) => ({ ...s, ...copy[s.key] })),
+)
+const firstOpen = computed(() => steps.value.findIndex((s) => !s.done))
 </script>
 
 <template>
-  <div class="flex max-w-2xl flex-col gap-1">
-    <h1 class="text-xl font-bold tracking-tight text-highlighted">Get Nebla ready</h1>
-    <p class="text-muted">Four steps, then anyone in a project can create servers.</p>
-    <div v-if="error" class="mt-4 flex items-center gap-3 text-sm" role="alert">
+  <div class="flex max-w-2xl flex-col gap-6">
+    <PageHeader
+      title="Get Nebla ready"
+      description="Four steps, then anyone in a project can create servers."
+    />
+    <div v-if="error" class="flex items-center gap-3 text-sm" role="alert">
       <span class="text-error">{{ errorMessage(error) }}</span>
       <UButton size="sm" color="neutral" variant="outline" @click="retry">Try again</UButton>
     </div>
-    <p v-else-if="!data" class="mt-4 text-sm text-muted">Loading your setup</p>
-    <ol v-else class="mt-4">
-      <li
-        v-for="s in steps"
-        :key="s.key"
-        data-step
-        :data-state="s.state"
-        class="grid grid-cols-[1.625rem_1fr_auto] items-center gap-3 border-t border-default py-3"
-      >
-        <span
-          class="flex size-[1.375rem] items-center justify-center rounded-full border text-xs font-semibold"
-          :class="
-            s.state === 'done'
-              ? 'border-success bg-success text-inverted'
-              : s.state === 'current'
-                ? 'border-2 border-highlighted text-highlighted'
-                : 'border-accented text-muted'
-          "
-        >
-          <UIcon
-            v-if="s.state === 'done'"
-            name="i-lucide-check"
-            class="size-3.5"
-            aria-label="Done"
-          />
-          <template v-else>{{ s.n }}</template>
-        </span>
-        <div>
-          <div class="font-semibold text-highlighted">{{ s.title }}</div>
-          <div class="text-sm text-muted">{{ s.detail }}</div>
+    <p v-else-if="!data" class="text-sm text-muted">Loading your setup</p>
+    <StepList v-else>
+      <Step v-for="(s, i) in steps" :key="s.key" :title="s.title" :done="s.done">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="min-w-0 text-sm text-muted">{{ s.detail }}</p>
+          <UButton
+            :to="{ name: s.to }"
+            size="sm"
+            :color="i === firstOpen ? 'primary' : 'neutral'"
+            :variant="i === firstOpen ? 'solid' : s.done ? 'ghost' : 'outline'"
+          >
+            {{ s.done ? 'Manage' : s.action }}
+          </UButton>
         </div>
-        <UButton
-          :to="{ name: s.to }"
-          size="sm"
-          :color="s.state === 'current' ? 'primary' : 'neutral'"
-          :variant="s.state === 'current' ? 'solid' : s.state === 'done' ? 'ghost' : 'outline'"
-          :class="s.state === 'current' ? 'bg-inverted text-inverted' : ''"
-        >
-          {{ s.state === 'done' ? 'Manage' : s.action }}
-        </UButton>
-      </li>
-    </ol>
+      </Step>
+    </StepList>
   </div>
 </template>
