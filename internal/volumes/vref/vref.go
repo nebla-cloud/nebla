@@ -56,6 +56,12 @@ func ConfigValue(volid string, id int64) string {
 	return fmt.Sprintf("%s,serial=%s,backup=0", volid, Serial(id))
 }
 
+// Matches compares the disk reference in a VM config value to the recorded volume ID.
+func Matches(value, volid string) bool {
+	ref, _, _ := strings.Cut(value, ",")
+	return volid != "" && ref == volid
+}
+
 // LinuxDevice is the stable guest path of volume id.
 func LinuxDevice(id int64) string { return "/dev/disk/by-id/virtio-" + Serial(id) }
 

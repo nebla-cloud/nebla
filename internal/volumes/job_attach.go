@@ -53,7 +53,7 @@ func (o *WorkerOptions) setKey(ctx context.Context, pc pve.Client, vm pve.VM, ro
 		if err != nil {
 			return row, "", servers.StepError("read vm config", err)
 		}
-		if key := ourKey(cfg, row.ID); key != "" {
+		if key := ourKey(cfg, row.Volid); key != "" {
 			row, err = record(ctx, row, serverID, key)
 			return row, key, err
 		}
@@ -99,7 +99,7 @@ func unplug(ctx context.Context, pc pve.Client, vm pve.VM, row *ent.Volume) erro
 		if err != nil {
 			return servers.StepError("read vm config", err)
 		}
-		key := ourKey(cfg, row.ID)
+		key := ourKey(cfg, row.Volid)
 		if key == "" {
 			removed = true
 			break
@@ -126,7 +126,7 @@ func unplug(ctx context.Context, pc pve.Client, vm pve.VM, row *ent.Volume) erro
 	}
 	for _, it := range items {
 		for _, v := range []string{it.Value, it.Pending} {
-			if id, ok := vref.Parse(v); ok && id == row.ID {
+			if vref.Matches(v, row.Volid) {
 				return servers.Transient("vm %d still holds the volume in %s; the unplug is pending", vm.VMID, it.Key)
 			}
 		}
@@ -221,7 +221,13 @@ func (w *DetachVolumeWorker) Work(ctx context.Context, job *river.Job[DetachVolu
 		case err != nil:
 			return err
 		case srv.Vmid != nil && !slices.ContainsFunc(vms, func(v pve.VM) bool { return v.VMID == *srv.Vmid }):
-			// The VM is gone from the cluster, and the key with it; a VM at that ID that is not the server's still fails below.
+			exists, err := pc.GuestExists(ctx, *srv.Vmid)
+			if err != nil {
+				return servers.StepError("check server vmid", err)
+			}
+			if exists {
+				return servers.PermanentCode(actions.CodeServerMissing, "server %d has no vm in proxmox", srv.ID)
+			}
 		case srv.Vmid != nil:
 			vm, err := serverVM(vms, srv)
 			if err != nil {

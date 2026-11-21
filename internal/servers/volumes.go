@@ -36,7 +36,7 @@ func plugVolumes(ctx context.Context, pc pve.Client, node string, vmid int, vols
 		kv := map[string]string{}
 		for _, v := range vols {
 			cur, ok := cfg[v.Device]
-			if id, ours := vref.Parse(cur); ours && id == v.ID {
+			if vref.Matches(cur, v.Volid) {
 				continue
 			}
 			if ok {
@@ -56,7 +56,7 @@ func unplugVolumes(ctx context.Context, pc pve.Client, node string, vmid int, vo
 	return writeVolumeKeys(ctx, pc, node, vmid, func(cfg map[string]string) (map[string]string, error) {
 		var del []string
 		for _, v := range vols {
-			if id, ours := vref.Parse(cfg[v.Device]); ours && id == v.ID {
+			if vref.Matches(cfg[v.Device], v.Volid) {
 				del = append(del, v.Device)
 			}
 		}

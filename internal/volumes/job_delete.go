@@ -39,25 +39,20 @@ func (w *DeleteVolumeWorker) Work(ctx context.Context, job *river.Job[DeleteVolu
 		if row.ServerID != nil {
 			return servers.Permanent("volume is attached to server %d", *row.ServerID)
 		}
-		pc, _, err := w.o.connect(ctx, row.LocationID)
-		if err != nil {
-			return err
-		}
-		node, err := w.o.storageNode(ctx, row, nil)
-		if err != nil {
-			return err
-		}
-		// An absent disk counts as deleted: real Proxmox may fail freeing it with a task error, not a 404.
-		it, present, err := diskPresent(ctx, pc, node, row.Storage, row.Volid)
-		if err != nil {
-			return servers.StepError("list storage", err)
-		}
-		if present {
-			if err := w.remove(ctx, pc, node, row, it.Volid); err != nil {
+		if row.Volid != "" {
+			pc, _, err := w.o.connect(ctx, row.LocationID)
+			if err != nil {
+				return err
+			}
+			node, err := w.o.storageNode(ctx, row, nil)
+			if err != nil {
+				return err
+			}
+			if err := w.remove(ctx, pc, node, row); err != nil {
 				return err
 			}
 		}
-		err = db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		err := db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
 			if err := etx.Volume.DeleteOneID(row.ID).Exec(ctx); err != nil {
 				return err
 			}
@@ -70,8 +65,12 @@ func (w *DeleteVolumeWorker) Work(ctx context.Context, job *river.Job[DeleteVolu
 		return nil
 	}
 	fail := func(ctx context.Context, f servers.Failure) error {
+		st := volume.StatusAvailable
+		if row.Volid == "" {
+			st = volume.StatusError
+		}
 		err := w.o.Ent.Volume.Update().Where(volume.ID(row.ID), volume.StatusEQ(volume.StatusDeleting)).
-			SetStatus(volume.StatusAvailable).Exec(ctx)
+			SetStatus(st).Exec(ctx)
 		if err != nil {
 			return err
 		}
@@ -80,8 +79,15 @@ func (w *DeleteVolumeWorker) Work(ctx context.Context, job *river.Job[DeleteVolu
 	return w.o.contract(job.JobRow, "delete", act, row.ID, run, fail).Work(ctx)
 }
 
-func (w *DeleteVolumeWorker) remove(ctx context.Context, pc pve.Client, node string, row *ent.Volume, volid string) error {
-	err := pc.DeleteVolume(ctx, node, row.Storage, volid)
+func (w *DeleteVolumeWorker) remove(ctx context.Context, pc pve.Client, node string, row *ent.Volume) error {
+	_, present, err := diskPresent(ctx, pc, node, row.Storage, row.Volid)
+	if err != nil {
+		return servers.StepError("list storage", err)
+	}
+	if !present {
+		return nil
+	}
+	err = pc.DeleteVolume(ctx, node, row.Storage, row.Volid)
 	switch {
 	case err == nil, errors.Is(err, pve.ErrNotFound):
 		return nil
@@ -89,7 +95,7 @@ func (w *DeleteVolumeWorker) remove(ctx context.Context, pc pve.Client, node str
 		return servers.Permanent("delete volume on storage %s: the token lacks Datastore.Allocate there; "+
 			"grant NeblaISO on /storage/%s; re-run the setup command (%v)", row.Storage, row.Storage, err)
 	}
-	if _, still, lerr := diskPresent(ctx, pc, node, row.Storage, volid); lerr == nil && !still {
+	if _, still, lerr := diskPresent(ctx, pc, node, row.Storage, row.Volid); lerr == nil && !still {
 		return nil
 	}
 	return servers.StepError("delete volume", err)

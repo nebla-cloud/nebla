@@ -52,7 +52,7 @@ func (w *ResizeVolumeWorker) Work(ctx context.Context, job *river.Job[ResizeVolu
 			if err != nil {
 				return servers.StepError("read vm config", err)
 			}
-			key := ourKey(cfg, row.ID)
+			key := ourKey(cfg, row.Volid)
 			if key == "" {
 				return servers.Permanent("vm %d config does not hold the volume", vm.VMID)
 			}

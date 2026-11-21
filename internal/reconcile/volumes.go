@@ -78,7 +78,7 @@ func (r *Reconciler) syncVolumes(ctx context.Context, log *slog.Logger, location
 			}
 		}
 	}
-	r.checkAttached(ctx, log, locationID, rows, vms)
+	r.checkAttached(ctx, log, locationID, pc, rows, vms)
 	return errors.Join(errs...)
 }
 
@@ -136,7 +136,7 @@ func (r *Reconciler) applyVolume(ctx context.Context, log *slog.Logger, id int64
 
 // checkAttached warns, once per pass, about attached rows whose server VM config no longer holds their disk,
 // and about Nebla volume keys the DB does not record on that server. Only servers of projects with volumes here are read.
-func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, locationID int64, rows []*ent.Volume, vms view) {
+func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, locationID int64, pc pve.Client, rows []*ent.Volume, vms view) {
 	if len(rows) == 0 {
 		return
 	}
@@ -157,10 +157,6 @@ func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, locati
 	if len(srvs) == 0 {
 		return
 	}
-	pc, err := r.o.Catalog.ProxmoxFor(ctx, locationID)
-	if err != nil {
-		return
-	}
 	for _, s := range srvs {
 		vm, ok := vmOf(s, vms.vms)
 		if !ok {
@@ -173,13 +169,13 @@ func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, locati
 			log.Warn("reconcile: read vm config", "server_id", s.ID, "err", err)
 			continue
 		}
-		recorded := map[string]int64{}
+		recorded := map[string]string{}
 		for _, v := range byServer[s.ID] {
-			recorded[v.Device] = v.ID
+			recorded[v.Device] = v.Volid
 			if v.Status != volume.StatusAttached {
 				continue
 			}
-			if id, ok := vref.Parse(cfg[v.Device]); !ok || id != v.ID {
+			if !vref.Matches(cfg[v.Device], v.Volid) {
 				log.Warn("reconcile: attached volume not in server config", "volume_id", v.ID, "server_id", s.ID, "device", v.Device)
 			}
 		}
@@ -188,7 +184,7 @@ func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, locati
 			if !ok {
 				continue
 			}
-			if got, has := recorded[k]; !has || got != id {
+			if !vref.Matches(cfg[k], recorded[k]) {
 				log.Warn("reconcile: volume key not recorded on its server", "volume_id", id, "server_id", s.ID, "device", k)
 			}
 		}

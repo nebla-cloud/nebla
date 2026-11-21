@@ -2,10 +2,13 @@ package volumes_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
+	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/nebla-cloud/nebla/internal/volumes/vref"
 	"github.com/stretchr/testify/require"
@@ -21,7 +24,7 @@ func (e *env) preallocate(t *testing.T, id int64) string {
 	return volid
 }
 
-func TestCreateRefusesExistingDiskOnFirstAttempt(t *testing.T) {
+func TestCreateRefusesDiskThatPredatesAllocation(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	e.pinPVE1(t)
@@ -30,7 +33,13 @@ func TestCreateRefusesExistingDiskOnFirstAttempt(t *testing.T) {
 	require.NoError(t, err)
 	volid := e.preallocate(t, v.ID)
 
-	got := e.finish(t, o, act)
+	// If the first preflight cannot list storage, the next attempt must still refuse the disk.
+	e.App.PVE.FailNext("/storage/local-lvm/content", http.StatusServiceUnavailable)
+	require.Error(t, e.work(ctx, t, o, act.ID, 1))
+	require.Equal(t, 0, e.action(t, act.ID).Progress)
+
+	require.Error(t, e.work(ctx, t, o, act.ID, 2))
+	got := e.action(t, act.ID)
 	require.Equal(t, actions.StatusError, got.Status)
 	ae, err := actions.GetAny(ctx, e.App.Ent, act.ID)
 	require.NoError(t, err)
@@ -43,7 +52,11 @@ func TestCreateRefusesExistingDiskOnFirstAttempt(t *testing.T) {
 
 	// Deleting the failed volume leaves the disk it never owned.
 	act, err = e.svc.Delete(ctx, e.Project, v.ID)
-	e.ok(t, o, act, err)
+	offline := volumes.SetPVE(o, func(context.Context, int64) (pve.Client, error) {
+		t.Error("deleting an unallocated volume should not connect to Proxmox")
+		return nil, errors.New("Proxmox offline")
+	})
+	e.ok(t, offline, act, err)
 	require.Len(t, e.disks(t, v.ID), 1)
 }
 

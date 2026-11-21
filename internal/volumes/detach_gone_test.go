@@ -40,4 +40,14 @@ func TestDetachWhenServerVMGone(t *testing.T) {
 	require.Equal(t, actions.StatusError, got.Status)
 	require.Equal(t, actions.CodeServerMissing, got.Error.Code)
 	require.Equal(t, volume.StatusAttached, e.row(t, w.ID).Status)
+
+	// QEMU's listing omits containers, which also occupy the ID.
+	e.App.PVE.DeleteVM(vmidOf(s2))
+	e.App.PVE.AddContainer("pve1", vmidOf(s2))
+	act, err = e.svc.Detach(ctx, e.Project, w.ID)
+	require.NoError(t, err)
+	got = e.finish(t, o, act)
+	require.Equal(t, actions.StatusError, got.Status)
+	require.Equal(t, actions.CodeServerMissing, got.Error.Code)
+	require.Equal(t, volume.StatusAttached, e.row(t, w.ID).Status)
 }

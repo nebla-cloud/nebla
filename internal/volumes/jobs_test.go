@@ -124,6 +124,29 @@ func (e *env) pinPVE1(t *testing.T) {
 
 func vmidOf(s testutil.CreatedServer) int { return 100 + int(s.ServerID) }
 
+func TestAttachAndDetachPreserveSameNamedDiskOnOtherStorage(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.pinPVE1(t)
+	o := e.opts(nil)
+	s := e.RunningServer("web")
+	vmid := vmidOf(s)
+	v, act, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "data", SizeGB: 10, Location: "eu-1"})
+	e.ok(t, o, act, err)
+
+	other := vref.ConfigValue(vref.Volid("ceph", v.ID, false), v.ID)
+	e.App.PVE.SetVMConfig(vmid, "virtio1", other)
+	act, err = e.svc.Attach(ctx, e.Project, v.ID, "web")
+	e.ok(t, o, act, err)
+	r := e.row(t, v.ID)
+	require.Equal(t, "virtio2", r.Device)
+	require.True(t, vref.Matches(e.keysFor(t, vmid, v.ID)[r.Device], r.Volid))
+
+	act, err = e.svc.Detach(ctx, e.Project, v.ID)
+	e.ok(t, o, act, err)
+	require.Equal(t, map[string]string{"virtio1": other}, e.keysFor(t, vmid, v.ID))
+}
+
 // keysFor lists the VM's config keys referencing volume id.
 func (e *env) keysFor(t *testing.T, vmid int, id int64) map[string]string {
 	t.Helper()

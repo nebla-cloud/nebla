@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { http } from 'msw'
+import { setProjectSource } from '@/api/client'
 import { json, server } from '@/test/server'
 import { makeVolume } from './fixtures'
 import { fetchVolumes } from './queries'
 
 describe('fetchVolumes', () => {
-  it('reads every page', async () => {
+  it('reads every page from the same project if the route changes', async () => {
     const all = Array.from({ length: 120 }, (_, i) => makeVolume({ id: i + 1, name: `v${i + 1}` }))
-    const seen: string[] = []
+    const seen: (string | null)[] = []
+    let currentProject = 1
+    setProjectSource(() => currentProject)
     server.use(
       http.get('*/v1/volumes', ({ request }) => {
         const u = new URL(request.url)
-        seen.push(u.search)
+        seen.push(request.headers.get('Project-ID'))
+        currentProject = 2
         const page = Number(u.searchParams.get('page'))
         const per = Number(u.searchParams.get('per_page'))
         return json(200, {
@@ -20,9 +24,13 @@ describe('fetchVolumes', () => {
         })
       }),
     )
-    const got = await fetchVolumes()
-    expect(got.map((v) => v.id)).toEqual(all.map((v) => v.id))
-    expect(seen).toHaveLength(3)
+    try {
+      const got = await fetchVolumes(1)
+      expect(got.map((v) => v.id)).toEqual(all.map((v) => v.id))
+      expect(seen).toEqual(['1', '1', '1'])
+    } finally {
+      setProjectSource(null)
+    }
   })
 
   it('pages the volumes of one server', async () => {
@@ -36,7 +44,7 @@ describe('fetchVolumes', () => {
         })
       }),
     )
-    expect(await fetchVolumes(5)).toHaveLength(1)
+    expect(await fetchVolumes(1, 5)).toHaveLength(1)
     expect(servers).toEqual(['5'])
   })
 })

@@ -8,7 +8,7 @@ let unauthorized: (() => void) | null = null
 let forbidden: ((projectId: number) => void) | null = null
 let loginRedirect = false
 
-// Read on every request so the header always matches the page you're on.
+// Read on every request for callers that use the current project's scope.
 export function setProjectSource(fn: (() => number | null) | null): void {
   projectSource = fn
 }
@@ -66,7 +66,8 @@ export function reportUnauthorized(): void {
 const middleware: Middleware = {
   onRequest({ request }) {
     const projectId = projectSource?.() ?? null
-    if (projectId !== null) request.headers.set('Project-ID', String(projectId))
+    if (projectId !== null && !request.headers.has('Project-ID'))
+      request.headers.set('Project-ID', String(projectId))
     return request
   },
   onResponse({ request, response, schemaPath }) {

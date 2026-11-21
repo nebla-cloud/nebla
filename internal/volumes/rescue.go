@@ -106,6 +106,9 @@ func repairRows(ctx context.Context, etx *ent.Client) error {
 			st = volume.StatusError
 		case volume.StatusDeleting:
 			st = volume.StatusAvailable
+			if r.Volid == "" {
+				st = volume.StatusError
+			}
 		}
 		if err := etx.Volume.UpdateOneID(r.ID).SetStatus(st).Exec(ctx); err != nil {
 			return err

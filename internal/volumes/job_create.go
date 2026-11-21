@@ -3,7 +3,6 @@ package volumes
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
@@ -110,22 +109,31 @@ func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.
 	if err != nil {
 		return nil, err
 	}
+	volid := vref.Volid(row.Storage, row.ID, a.File)
+	conflict := func() error {
+		return servers.Permanent("a disk named %s already exists on %s; it was not created by this volume", volid, row.Storage)
+	}
+	if !retried {
+		_, exists, err := diskPresent(ctx, pc, node, row.Storage, volid)
+		if err != nil {
+			return nil, servers.StepError("list storage before allocating volume", err)
+		}
+		if exists {
+			return nil, conflict()
+		}
+	}
 	if err := actions.Progress(ctx, w.o.Ent, a.ActionID, allocMark); err != nil {
 		return nil, err
 	}
-	volid := vref.Volid(row.Storage, row.ID, a.File)
 	got, err := pc.AllocVolume(ctx, node, row.Storage, vref.OwnerVMID, vref.Filename(row.ID, a.File), row.SizeGB)
 	switch {
 	case err == nil && got != volid:
-		if id, ok := vref.Parse(got); !ok || id != row.ID || !strings.HasPrefix(got, row.Storage+":") {
-			return nil, servers.Permanent("allocate volume: storage %s returned volid %q, want %q", row.Storage, got, volid)
-		}
-		volid = got
+		return nil, servers.Permanent("allocate volume: storage %s returned volid %q, want %q", row.Storage, got, volid)
 	case err == nil:
 	case !alreadyExists(err):
 		return nil, servers.StepError("allocate volume", err)
 	case !retried:
-		return nil, servers.Permanent("a disk named %s already exists on %s; it was not created by this volume", volid, row.Storage)
+		return nil, conflict()
 	default:
 		_, ok, lerr := diskPresent(ctx, pc, node, row.Storage, volid)
 		if lerr != nil {

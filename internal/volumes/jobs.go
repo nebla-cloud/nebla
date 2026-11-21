@@ -200,10 +200,10 @@ func (o *WorkerOptions) storageNode(ctx context.Context, row *ent.Volume, srv *e
 	return "", servers.Transient("no online node in location %d", row.LocationID)
 }
 
-// ourKey is the virtioN key whose value references volume id, or "".
-func ourKey(cfg map[string]string, id int64) string {
+// ourKey is the virtioN key whose value references volid, or "".
+func ourKey(cfg map[string]string, volid string) string {
 	for _, k := range vref.Keys() {
-		if got, ok := vref.Parse(cfg[k]); ok && got == id {
+		if vref.Matches(cfg[k], volid) {
 			return k
 		}
 	}
