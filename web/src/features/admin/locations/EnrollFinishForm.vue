@@ -7,6 +7,7 @@ import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import type { LocationEnrollment } from '@/api/types'
 import { useAdminLocations } from '@/lib/adminQueries'
+import { selectClass, table, tableWrap, tbody, td, th, thead, tr } from '@/lib/ui'
 import { useFinishEnrollment, type EnrollmentFinish, type EnrollmentFinished } from './queries'
 
 const props = defineProps<{ enrollment: LocationEnrollment }>()
@@ -57,8 +58,7 @@ watch(
 )
 const formError = ref<string | null>(null)
 
-const selectClass =
-  'w-full rounded-md border border-accented bg-default px-2.5 py-1.5 text-sm text-highlighted focus-visible:outline-2 focus-visible:outline-primary'
+const fieldSelect = `${selectClass} sm:w-full`
 
 async function submit() {
   formError.value = null
@@ -97,7 +97,7 @@ async function submit() {
           v-if="others.length"
           name="node_url"
           aria-label="Use another node's address"
-          :class="selectClass"
+          :class="fieldSelect"
           @change="
             (e) => (
               (form.url = (e.target as HTMLSelectElement).value),
@@ -113,17 +113,17 @@ async function submit() {
       </div>
     </UFormField>
     <UFormField label="Disk storage" name="disk_storage" help="Where server disks live.">
-      <select v-model="form.disk" name="disk_storage" :class="selectClass">
+      <select v-model="form.disk" name="disk_storage" :class="fieldSelect">
         <option v-for="s in disks" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>
     </UFormField>
     <UFormField label="ISO storage" name="iso_storage" help="Where Nebla keeps installer images.">
-      <select v-model="form.iso" name="iso_storage" :class="selectClass">
+      <select v-model="form.iso" name="iso_storage" :class="fieldSelect">
         <option v-for="s in isos" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>
     </UFormField>
     <UFormField label="Import storage" name="import_storage" help="Optional. For disk images.">
-      <select v-model="form.imp" name="import_storage" :class="selectClass">
+      <select v-model="form.imp" name="import_storage" :class="fieldSelect">
         <option value="">None</option>
         <option v-for="s in imports" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>
@@ -139,22 +139,24 @@ async function submit() {
       </select>
     </UFormField>
 
-    <table class="w-full text-left text-sm">
-      <thead class="text-muted">
-        <tr>
-          <th class="py-1 pr-3 font-medium">Node</th>
-          <th class="py-1 pr-3 font-medium">IP</th>
-          <th class="py-1 font-medium">Fingerprint</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="n in report.nodes" :key="n.name" class="border-t border-default align-top">
-          <td class="py-1 pr-3 text-highlighted">{{ n.name }}</td>
-          <td class="py-1 pr-3">{{ n.ip || '—' }}</td>
-          <td class="py-1 font-mono text-xs break-all">{{ n.fingerprint }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div :class="tableWrap">
+      <table :class="table">
+        <thead :class="thead">
+          <tr>
+            <th :class="th">Node</th>
+            <th :class="th">IP</th>
+            <th :class="th">Fingerprint</th>
+          </tr>
+        </thead>
+        <tbody :class="tbody">
+          <tr v-for="n in report.nodes" :key="n.name" :class="tr">
+            <td :class="[td, 'text-highlighted']">{{ n.name }}</td>
+            <td :class="td">{{ n.ip || '—' }}</td>
+            <td :class="[td, 'nb-mono text-xs break-all']">{{ n.fingerprint }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <p v-if="!disks.length || !isos.length" class="text-sm text-error">
       The node reported no usable storage for disks or ISOs. Check the node's storage and run setup

@@ -8,6 +8,9 @@ import UCollapsible from '@nuxt/ui/components/Collapsible.vue'
 import UTextarea from '@nuxt/ui/components/Textarea.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { ApiError, errorMessage } from '@/api/errors'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
+import TerminalBlock from '@/components/TerminalBlock.vue'
 import EnrollFinishForm from './EnrollFinishForm.vue'
 import {
   lastCreated,
@@ -95,7 +98,7 @@ const finished = (f: EnrollmentFinished) =>
 </script>
 
 <template>
-  <div class="flex max-w-3xl flex-col gap-6 p-4 sm:p-8">
+  <div class="flex flex-col gap-4">
     <UAlert
       v-if="loadError"
       color="error"
@@ -103,13 +106,13 @@ const finished = (f: EnrollmentFinished) =>
       :description="errorMessage(loadError)"
     />
     <template v-else-if="enrollment">
-      <h1 class="text-2xl font-bold tracking-tight text-highlighted">
-        {{
+      <PageHeader
+        :title="
           enrollment.location_id !== null
-            ? `Re-run setup for "${enrollment.name}"`
-            : `Connect "${enrollment.name}"`
-        }}
-      </h1>
+            ? `Re-run setup for &quot;${enrollment.name}&quot;`
+            : `Connect &quot;${enrollment.name}&quot;`
+        "
+      />
 
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
 
@@ -121,28 +124,27 @@ const finished = (f: EnrollmentFinished) =>
       </template>
 
       <template v-else>
-        <section v-if="expired" class="flex flex-col items-start gap-3">
+        <Panel v-if="expired" class="flex flex-col items-start gap-3">
           <p class="text-highlighted">This command expired.</p>
           <UButton :loading="newToken.isPending.value" @click="issue">New command</UButton>
-        </section>
+        </Panel>
 
-        <section v-else-if="!created" class="flex flex-col items-start gap-3">
+        <Panel v-else-if="!created" class="flex flex-col items-start gap-3">
           <p class="text-highlighted">Get a new command to continue</p>
           <p class="text-sm text-muted">
             The command is only shown once, so it can't be shown again after leaving this page.
           </p>
           <UButton :loading="newToken.isPending.value" @click="issue">New command</UButton>
-        </section>
+        </Panel>
 
         <template v-else>
-          <section class="flex flex-col gap-3">
+          <Panel class="flex flex-col gap-3">
             <p class="text-sm text-muted">
               Run this on a Proxmox node as root. It makes a token for Nebla and reports back.
             </p>
-            <pre
-              data-testid="enroll-command"
-              class="overflow-x-auto rounded-lg border border-default bg-elevated p-3 text-sm whitespace-pre-wrap break-all"
-              >{{ created.command }}</pre>
+            <TerminalBlock as="pre" data-testid="enroll-command">{{
+              created.command
+            }}</TerminalBlock>
             <div class="flex flex-wrap items-center gap-2">
               <UButton color="neutral" variant="outline" @click="copy(created.command)">
                 Copy
@@ -165,7 +167,7 @@ const finished = (f: EnrollmentFinished) =>
                 New command
               </UButton>
             </div>
-          </section>
+          </Panel>
 
           <UCollapsible :unmount-on-hide="false">
             <UButton
@@ -182,10 +184,9 @@ const finished = (f: EnrollmentFinished) =>
                 <p class="text-sm text-muted">
                   Run this on the node. It prints one line. Paste that line below.
                 </p>
-                <pre
-                  data-testid="enroll-offline"
-                  class="overflow-x-auto rounded-lg border border-default bg-elevated p-3 text-sm whitespace-pre-wrap break-all"
-                  >{{ created.offline_script }}</pre>
+                <TerminalBlock as="pre" data-testid="enroll-offline">{{
+                  created.offline_script
+                }}</TerminalBlock>
                 <div>
                   <UButton color="neutral" variant="outline" @click="copy(created.offline_script)">
                     Copy

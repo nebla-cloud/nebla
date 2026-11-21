@@ -8,6 +8,9 @@ import USwitch from '@nuxt/ui/components/Switch.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
+import ListGroup from '@/components/ListGroup.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
 import TerminalBlock from '@/components/TerminalBlock.vue'
 import { useCopy } from '@/lib/useCopy'
 import { useAdminLocations } from '@/lib/adminQueries'
@@ -118,7 +121,7 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 p-4 sm:p-8">
+  <div class="flex flex-col gap-4">
     <RouterLink :to="{ name: 'admin-locations' }" class="text-sm text-muted hover:text-highlighted">
       Back to locations
     </RouterLink>
@@ -138,13 +141,13 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
     />
 
     <template v-else>
-      <header class="flex flex-wrap items-start justify-between gap-3">
-        <div class="flex min-w-0 flex-col gap-1">
-          <h1 class="text-2xl font-bold tracking-tight text-highlighted">{{ location.name }}</h1>
-          <p v-if="location.description" class="text-muted">{{ location.description }}</p>
-          <p class="truncate text-sm text-muted">{{ location.pve.url }}</p>
-        </div>
-        <div class="flex gap-2">
+      <PageHeader :title="location.name" :description="location.description || undefined">
+        <template #meta>
+          <span class="nb-mono truncate text-sm font-normal text-muted">{{
+            location.pve.url
+          }}</span>
+        </template>
+        <template #actions>
           <UButton v-if="!editing" color="neutral" variant="outline" @click="editing = true">
             Edit connection
           </UButton>
@@ -168,8 +171,8 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
           <UButton color="error" variant="outline" @click="confirmOpen = true">
             Delete location
           </UButton>
-        </div>
-      </header>
+        </template>
+      </PageHeader>
 
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
 
@@ -213,29 +216,27 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
       >
         <template #description>
           <p>Run these on the Proxmox node to remove the old setup.</p>
-          <pre
-            data-testid="enroll-cleanup"
-            class="mt-2 overflow-x-auto rounded border border-default bg-default p-2 text-xs whitespace-pre-wrap break-all"
-            >{{ cleanup.join('\n') }}</pre>
+          <TerminalBlock as="pre" data-testid="enroll-cleanup" class="mt-2">{{
+            cleanup.join('\n')
+          }}</TerminalBlock>
           <UButton class="mt-2" color="neutral" variant="outline" size="xs" @click="copyCleanup">
             Copy
           </UButton>
         </template>
       </UAlert>
 
-      <section v-if="editing" class="rounded-lg border border-default p-4 sm:p-6">
-        <h2 class="mb-4 text-lg font-bold tracking-tight text-highlighted">Edit connection</h2>
+      <Panel v-if="editing" title="Edit connection">
         <LocationForm
           :location="location"
           @cancel="editing = false"
           @saved="((editing = false), toast.add({ title: 'Location saved', color: 'success' }))"
         />
-      </section>
+      </Panel>
 
       <section class="flex flex-col gap-3">
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div class="flex max-w-prose flex-col gap-1">
-            <h2 class="text-lg font-bold tracking-tight text-highlighted">Nodes</h2>
+            <h2 class="nb-h2 text-highlighted">Nodes</h2>
             <p class="text-sm text-muted">
               A node is one Proxmox host in the cluster. Servers are only placed on enabled nodes.
               Syncing finds new nodes and disables ones that have vanished.
@@ -255,7 +256,7 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
         <p v-if="!location.nodes.length" class="text-muted">
           No nodes found yet. Sync to ask Proxmox again.
         </p>
-        <ul v-else class="flex flex-col divide-y divide-default rounded-lg border border-default">
+        <ListGroup v-else>
           <li v-for="n in location.nodes" :key="n.id" class="flex flex-col gap-3 p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex flex-col">
@@ -295,7 +296,7 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
               </p>
             </form>
           </li>
-        </ul>
+        </ListGroup>
       </section>
 
       <ConfirmByName
