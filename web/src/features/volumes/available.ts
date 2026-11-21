@@ -17,6 +17,12 @@ export function trackAvailability(qc: QueryClient): void {
   qc.getQueryCache().subscribe((e) => {
     const [head, pid] = e.query.queryKey as unknown[]
     if (head !== 'locations' || typeof pid !== 'number') return
+    if (e.type === 'removed') {
+      const rest = { ...known.value }
+      delete rest[pid]
+      known.value = rest
+      return
+    }
     const v = anyVolumes(e.query.state.data as Location[] | undefined)
     if (v !== undefined && known.value[pid] !== v) known.value = { ...known.value, [pid]: v }
   })

@@ -150,7 +150,7 @@ function created(v: Volume, a: Action) {
       title="No volumes attached"
       body="A volume is extra disk space that keeps its data when you detach it or delete this server."
     >
-      <div class="flex flex-wrap gap-2">
+      <div v-if="here" class="flex flex-wrap gap-2">
         <UButton icon="i-lucide-plus" :disabled="locked" @click="creating = true">
           Create volume
         </UButton>

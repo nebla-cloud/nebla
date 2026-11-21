@@ -55,6 +55,28 @@ describe('volumes nav entry', () => {
     expect(navItems(router, 'project').map((i) => i.label)).toContain('Volumes')
   })
 
+  it('sits in the top group next to Servers', async () => {
+    const { createAppRouter } = await import('@/router')
+    const r = createAppRouter(createMemoryHistory())
+      .getRoutes()
+      .find((x) => x.name === 'volumes')!
+    expect(r.meta.nav!.group).toBeUndefined()
+    expect(r.meta.nav!.order).toBe(12)
+  })
+
+  it('forgets a project once its locations leave the cache', async () => {
+    const qc = testQueryClient()
+    trackAvailability(qc)
+    qc.setQueryData(['locations', 43], [makeLocation()])
+    const route = { params: { projectId: '43' } } as unknown as Parameters<
+      typeof volumesNavHidden
+    >[0]
+    expect(volumesNavHidden(route, qc)).toBe(false)
+    server.use(http.get('*/v1/locations', () => new Promise<Response>(() => {})))
+    qc.clear()
+    expect(volumesNavHidden(route, qc)).toBe(true)
+  })
+
   it('stays hidden when no location offers volumes', async () => {
     const router = await setup(42, false)
     await settle()

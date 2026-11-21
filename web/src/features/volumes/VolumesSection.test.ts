@@ -113,6 +113,25 @@ describe('VolumesSection', () => {
     expect(calls).toEqual([{ path: '2/attach', body: { server: '5' } }])
   })
 
+  it('hides create while the location is loading or offers no volumes', async () => {
+    onServer = []
+    let release: () => void = () => {}
+    const gate = new Promise<void>((r) => (release = r))
+    server.use(
+      http.get('*/v1/locations', async () => {
+        await gate
+        return json(200, { locations: [makeLocation({ volumes_available: false })], meta })
+      }),
+    )
+    await mountTab()
+    expect(document.body.textContent).toContain('No volumes attached')
+    expect(() => button('Create volume')).toThrow()
+    release()
+    await settle()
+    expect(document.body.textContent).toContain("Volumes aren't available here yet")
+    expect(() => button('Create volume')).toThrow()
+  })
+
   it('shows an empty state with create', async () => {
     onServer = []
     await mountTab()

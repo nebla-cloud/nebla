@@ -57,9 +57,12 @@ describe('VolumeDetailPage', () => {
     const device = document.body.querySelector('[data-testid="linux-device"]')!
     expect(device.textContent).toContain('/dev/disk/by-id/virtio-nb-vol-1')
     expect(button('Copy')).toBeTruthy()
-    const hint = document.body.querySelector('[data-testid="mount-hint"]')!.textContent!
-    expect(hint).toContain('sudo mkfs.ext4 /dev/disk/by-id/virtio-nb-vol-1')
-    expect(hint).toContain('sudo mount /dev/disk/by-id/virtio-nb-vol-1 /mnt/data')
+    const hint = document.body.querySelector('[data-testid="mount-hint"] pre')!.textContent!
+    expect(hint.split('\n')).toEqual([
+      'sudo mkfs.ext4 /dev/disk/by-id/virtio-nb-vol-1',
+      'sudo mkdir -p /mnt/data',
+      'sudo mount /dev/disk/by-id/virtio-nb-vol-1 /mnt/data',
+    ])
     expect(document.body.textContent).toContain('by UUID in /etc/fstab')
   })
 

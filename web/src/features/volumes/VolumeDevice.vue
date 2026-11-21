@@ -1,11 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import TerminalBlock from '@/components/TerminalBlock.vue'
 import type { Volume } from '@/api/types'
 import { useCopy } from '@/lib/useCopy'
 
-defineProps<{ volume: Volume; hint?: boolean }>()
+const props = defineProps<{ volume: Volume; hint?: boolean }>()
 const { copied, copy } = useCopy()
+// Built here so the template can't fold the lines together.
+const hintText = computed(() => {
+  const dev = props.volume.linux_device
+  const dir = `/mnt/${props.volume.name}`
+  return [`sudo mkfs.ext4 ${dev}`, `sudo mkdir -p ${dir}`, `sudo mount ${dev} ${dir}`].join('\n')
+})
 </script>
 
 <template>
@@ -34,8 +41,7 @@ const { copied, copy } = useCopy()
         as="pre"
         caption="First use only: mkfs erases the volume"
         data-testid="mount-hint"
-        >sudo mkfs.ext4 {{ volume.linux_device }} sudo mkdir -p /mnt/{{ volume.name }} sudo mount
-        {{ volume.linux_device }} /mnt/{{ volume.name }}</TerminalBlock
+        >{{ hintText }}</TerminalBlock
       >
       <p class="text-xs text-muted">
         To mount it at every boot, mount by UUID in /etc/fstab (find it with

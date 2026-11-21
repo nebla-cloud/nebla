@@ -14,7 +14,6 @@ export default [
         label: 'Volumes',
         order: 12,
         icon: 'i-lucide-database',
-        group: 'Project',
         hidden: (route) => volumesNavHidden(route),
       },
     },
