@@ -10,7 +10,7 @@ import GraphsTab from './GraphsTab.vue'
 
 vi.mock('../metrics/MetricChart.vue', () => ({
   default: defineComponent({
-    props: ['title', 'data', 'series'],
+    props: ['title', 'rows', 'series'],
     setup: (p) => () =>
       h(
         'div',
@@ -18,7 +18,7 @@ vi.mock('../metrics/MetricChart.vue', () => ({
           class: 'chart',
           'data-tones': p.series.map((s: { tone: string }) => s.tone).join(','),
         },
-        `${p.title}: ${p.data[0].length} points`,
+        `${p.title}: ${p.rows.length} points`,
       ),
   }),
 }))

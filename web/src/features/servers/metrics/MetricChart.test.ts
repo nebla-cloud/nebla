@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import MetricChart from './MetricChart.vue'
-import { formatTime, type MetricRow } from './metrics'
+import { formatTime, timeTicks, type MetricRow } from './metrics'
 
 // Stubs record the attrs each Unovis wrapper gets, so tests can read config and call callbacks.
 type Attrs = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -72,19 +72,55 @@ describe('MetricChart', () => {
     const w = mount(MetricChart, { props: network })
     await flushPromises()
     const line = last('VisLine')
-    const colors = [0, 1].map((i) =>
-      typeof line.color === 'function' ? line.color(network.rows[0], i) : line.color[i],
-    )
-    expect(colors).toEqual(['var(--nb-run)', 'var(--nb-err)'])
+    expect([0, 1].map((i) => line.color(network.rows[0], i))).toEqual([
+      'var(--nb-run)',
+      'var(--nb-err)',
+    ])
     const defs = last('VisXYContainer').svgDefs as string
-    const areas = lastOf('VisArea', 2)
-    ;['--nb-run', '--nb-err'].forEach((token, i) => {
-      const id = (areas[i]!.color as string).match(/^url\(#(.+)\)$/)![1]
-      const grad = defs.slice(defs.indexOf(`id="${id}"`))
-      expect(grad.slice(0, grad.indexOf('</linearGradient>'))).toContain(`var(${token})`)
-    })
+    for (const a of lastOf('VisArea', 2)) {
+      const id = (a.color as string).match(/^url\(#(.+)\)$/)![1]
+      expect(defs).toContain(`id="${id}"`)
+    }
+    expect(defs).toContain('var(--nb-run)')
+    expect(defs).toContain('var(--nb-err)')
     expect(w.html()).not.toMatch(/#[0-9a-f]{6}/i)
     expect(defs).not.toMatch(/#[0-9a-f]{6}/i)
+  })
+
+  it('crosshair dots match their line', async () => {
+    mount(MetricChart, { props: network })
+    await flushPromises()
+    // Accessors count areas first, then the line's series.
+    const color = last('VisCrosshair').color
+    expect([0, 1, 2, 3].map((i) => color(network.rows[0], i))).toEqual([
+      'var(--nb-run)',
+      'var(--nb-err)',
+      'var(--nb-run)',
+      'var(--nb-err)',
+    ])
+  })
+
+  it('area fill leaves gaps empty', async () => {
+    const rows = [0, 1, 2, 3, 4].map((t) => ({ t: t * 60, v: [t === 2 ? null : 5] }))
+    mount(MetricChart, { props: { ...cpu, rows } })
+    await flushPromises()
+    const id = (last('VisArea').color as string).match(/^url\(#(.+)\)$/)![1]
+    const defs = last('VisXYContainer').svgDefs as string
+    const pattern = defs.slice(defs.indexOf(`<pattern id="${id}"`))
+    const rects = pattern.slice(0, pattern.indexOf('</pattern>')).match(/<rect /g)
+    expect(rects).toHaveLength(2)
+  })
+
+  it('axes tick on round values, y labels sit inside the plot', async () => {
+    const t0 = Date.UTC(2026, 10, 20, 15, 3) / 1000
+    const rows = [0, 1].map((i) => ({ t: t0 + i * 3540, v: [i * 50] }))
+    const w = mount(MetricChart, { props: { ...cpu, rows } })
+    await flushPromises()
+    const [xAxis, yAxis] = lastOf('VisAxis', 2)
+    expect(xAxis!.tickValues).toEqual(timeTicks(t0, t0 + 3540))
+    expect(yAxis!.tickValues).toEqual([25, 50, 75, 100])
+    expect(yAxis!.tickFormat(50)).toBe('')
+    expect(w.findAll('[data-y-label]').map((l) => l.text())).toEqual(['25%', '50%', '75%', '100%'])
   })
 
   it('cpu domain is 0–100, rate floors at 1 KB/s', async () => {

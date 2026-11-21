@@ -12,11 +12,16 @@ import { useHoverSync } from './hoverSync'
 import {
   TONE_VAR,
   chartHeader,
+  formatAxisRate,
   formatPercent,
   formatRate,
+  formatTick,
   formatTime,
   nearestIndex,
+  segments,
+  timeTicks,
   yDomain,
+  yTicks,
   type MetricRow,
   type Tone,
 } from './metrics'
@@ -33,6 +38,9 @@ const props = withDefaults(
 )
 
 const HEIGHT = 180
+// Fixed margins so the y labels can be laid over the plot at known heights.
+const MARGIN = { top: 16, bottom: 22, left: 0, right: 0 }
+const PLOT_H = HEIGHT - MARGIN.top - MARGIN.bottom
 const uid = useId()
 const me = Symbol(props.title)
 const hover = useHoverSync(props.syncKey)
@@ -40,23 +48,45 @@ const hover = useHoverSync(props.syncKey)
 const fmt = (v: number) => (props.unit === 'percent' ? formatPercent(v) : formatRate(v))
 const color = (i: number) => `var(${TONE_VAR[props.series[i]!.tone]})`
 const gradId = (i: number) => `${uid}-g${i}`
+const fillId = (i: number) => `${uid}-f${i}`
 
+// Unovis draws a missing sample as 0, so the fill is a pattern that only paints the
+// stretches with data: gaps stay empty instead of sloping down to the baseline.
 const svgDefs = computed(() =>
   props.series
-    .map(
-      (_, i) =>
+    .map((_, i) => {
+      const rects = segments(props.rows, i)
+        .map(([a, b]) => `<rect x="${a}" y="0" width="${b - a}" height="1" fill="url(#${gradId(i)})"></rect>`)
+        .join('')
+      return (
         `<linearGradient id="${gradId(i)}" x1="0" x2="0" y1="0" y2="1">` +
         `<stop offset="0" style="stop-color: ${color(i)}; stop-opacity: 0.22"></stop>` +
         `<stop offset="1" style="stop-color: ${color(i)}; stop-opacity: 0"></stop>` +
-        `</linearGradient>`,
-    )
+        `</linearGradient>` +
+        `<pattern id="${fillId(i)}" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="1" height="1">${rects}</pattern>`
+      )
+    })
     .join(''),
 )
+const domain = computed(() => yDomain(props.rows, props.unit))
+const yValues = computed(() => yTicks(domain.value[1], props.unit))
+const yLabels = computed(() =>
+  yValues.value.map((v) => ({
+    text: props.unit === 'percent' ? formatPercent(v) : formatAxisRate(v, domain.value[1]),
+    top: MARGIN.top + (1 - v / domain.value[1]) * PLOT_H,
+  })),
+)
+const xValues = computed(() =>
+  props.rows.length ? timeTicks(props.rows[0]!.t, props.rows.at(-1)!.t) : [],
+)
+const span = computed(() => (props.rows.length ? props.rows.at(-1)!.t - props.rows[0]!.t : 0))
 
 const x = (r: MetricRow) => r.t
 const areaY = (i: number) => (r: MetricRow) => r.v[i] ?? undefined
 const lineY = computed(() => props.series.map((_, i) => areaY(i)))
 const lineColor = (_: unknown, i: number) => color(i)
+// The crosshair counts every accessor: the areas first, then the line's series.
+const dotColor = (_: unknown, i: number) => color(i % props.series.length)
 
 const following = computed(() => hover.value.source !== null && hover.value.source !== me)
 const hoverIdx = computed(() =>
@@ -92,8 +122,8 @@ function template(d: MetricRow) {
   return `<div style="color:var(--ui-text-muted);font-size:11px">${formatTime(d.t)}</div>${values}`
 }
 
-const xTick = (t: number | Date) => formatTime(+t)
-const yTick = (v: number | Date) => (+v === 0 ? '' : fmt(+v))
+const xTick = (t: number | Date) => formatTick(+t, span.value)
+const noLabel = () => ''
 </script>
 
 <template>
@@ -120,7 +150,7 @@ const yTick = (v: number | Date) => (+v === 0 ? '' : fmt(+v))
       </p>
     </div>
     <div
-      class="nb-chart w-full"
+      class="nb-chart relative w-full"
       role="img"
       :aria-label="`${title} over time`"
       @mouseleave="release"
@@ -128,16 +158,17 @@ const yTick = (v: number | Date) => (+v === 0 ? '' : fmt(+v))
       <VisXYContainer
         :data="rows"
         :height="HEIGHT"
-        :yDomain="yDomain(rows, unit)"
+        :yDomain="domain"
         :svgDefs="svgDefs"
-        :margin="{ top: 8 }"
+        :margin="MARGIN"
+        :autoMargin="false"
       >
         <VisArea
           v-for="(s, i) in series"
           :key="s.label"
           :x="x"
           :y="areaY(i)"
-          :color="`url(#${gradId(i)})`"
+          :color="`url(#${fillId(i)})`"
           :curveType="CurveType.MonotoneX"
         />
         <VisLine
@@ -150,24 +181,35 @@ const yTick = (v: number | Date) => (+v === 0 ? '' : fmt(+v))
         <VisAxis
           type="x"
           :tickFormat="xTick"
-          :numTicks="5"
+          :tickValues="xValues"
+          :tickPadding="6"
           :gridLine="false"
           :tickLine="false"
         />
         <VisAxis
           type="y"
-          :tickFormat="yTick"
-          :numTicks="4"
+          :tickFormat="noLabel"
+          :tickValues="yValues"
+          :tickPadding="0"
           :domainLine="false"
           :tickLine="false"
         />
         <VisCrosshair
+          :color="dotColor"
           :template="template"
           :onCrosshairMove="onCrosshairMove"
           :forceShowAt="following ? (hover.t ?? undefined) : undefined"
         />
         <VisTooltip />
       </VisXYContainer>
+      <span
+        v-for="l in yLabels"
+        :key="l.text"
+        data-y-label
+        class="pointer-events-none absolute left-0 -translate-y-full pb-0.5 text-[10px] leading-none text-muted tabular-nums"
+        :style="{ top: `${l.top}px` }"
+        >{{ l.text }}</span
+      >
     </div>
   </Panel>
 </template>

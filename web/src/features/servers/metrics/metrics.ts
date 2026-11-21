@@ -1,4 +1,3 @@
-import type uPlot from 'uplot'
 import { api } from '@/api/client'
 import { unwrap } from '@/api/errors'
 
@@ -36,21 +35,6 @@ export async function fetchMetrics(
   ).metrics
 }
 
-// Union of all timestamps, one value array per key, null where a series has no sample.
-export function toSeries(
-  ts: Record<string, [number, number | null][]>,
-  keys: string[],
-): uPlot.AlignedData {
-  const stamps = new Set<number>()
-  for (const k of keys) for (const [t] of ts[k] ?? []) stamps.add(t)
-  const xs = [...stamps].sort((a, b) => a - b)
-  const cols = keys.map((k) => {
-    const byTime = new Map<number, number | null>(ts[k] ?? [])
-    return xs.map((t) => byTime.get(t) ?? null)
-  })
-  return [xs, ...cols] as uPlot.AlignedData
-}
-
 export type MetricRow = { t: number; v: (number | null)[] }
 
 // Union of all timestamps (unix seconds), one value per key, null where a series has no sample.
@@ -76,12 +60,93 @@ export function nearestIndex(rows: MetricRow[], t: number): number {
   return best
 }
 
-// Rates floor at 1 KB/s so an idle chart isn't all noise.
+// The smallest 1-2-2.5-5 step (in B/s, KB/s, ... units) giving at most five ticks up to peak.
+function rateStep(peak: number): number {
+  let unit = 1
+  while (peak >= unit * 1024 && unit < 1024 ** 4) unit *= 1024
+  const raw = peak / unit / 5
+  // Below one whole unit, use quarters and halves so steps stay round (256 B/s, not 204.8).
+  const mag = 10 ** Math.floor(Math.log10(raw))
+  const steps = raw < 1 ? [0.25, 0.5, 1] : [1, 2, 2.5, 5, 10].map((m) => m * mag)
+  return steps.find((m) => m >= raw - 1e-9)! * unit
+}
+
+// Rates floor at 1 KB/s so an idle chart isn't all noise, and round up to a whole tick.
 export function yDomain(rows: MetricRow[], unit: 'percent' | 'rate'): [number, number] {
   if (unit === 'percent') return [0, 100]
   let peak = 0
   for (const r of rows) for (const v of r.v) if (v != null && v > peak) peak = v
-  return [0, Math.max(peak, 1024)]
+  peak = Math.max(peak, 1024)
+  const step = rateStep(peak)
+  return [0, Math.ceil(peak / step - 1e-9) * step]
+}
+
+// Grid lines above zero, up to the domain's top.
+export function yTicks(max: number, unit: 'percent' | 'rate'): number[] {
+  const step = unit === 'percent' ? 25 : rateStep(max)
+  const out: number[] = []
+  for (let v = step; v <= max + 1e-6; v += step) out.push(v)
+  return out
+}
+
+const TIME_STEPS = [60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400, 172800, 604800]
+
+// Seconds to add to a UTC time to get the wall-clock time in timeZone.
+function tzOffset(t: number, timeZone?: string): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  }).formatToParts(t * 1000)
+  const n = (type: string) => Number(parts.find((p) => p.type === type)!.value)
+  return (Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second')) - t * 1000) / 1000
+}
+
+// At most five round wall-clock times (quarter hours, midnights, ...) between t0 and t1.
+export function timeTicks(t0: number, t1: number, timeZone?: string): number[] {
+  const span = t1 - t0
+  if (span <= 0) return []
+  const step = TIME_STEPS.find((s) => span / s <= 5) ?? TIME_STEPS.at(-1)!
+  const off = tzOffset(t0, timeZone)
+  const out: number[] = []
+  // A tick within a quarter step of either end would have its label cut off at the edge.
+  const pad = step / 4
+  for (let t = Math.ceil((t0 + off) / step) * step - off; t <= t1; t += step)
+    if (t - t0 >= pad && t1 - t >= pad) out.push(t)
+  return out
+}
+
+// Time of day for spans up to two days, otherwise the date.
+export function formatTick(t: number, span: number, timeZone?: string): string {
+  const opts: Intl.DateTimeFormatOptions =
+    span <= 2 * 86400
+      ? { hour: '2-digit', minute: '2-digit', hour12: false }
+      : { day: 'numeric', month: 'short' }
+  return new Intl.DateTimeFormat('en-GB', { ...opts, timeZone }).format(t * 1000)
+}
+
+// Runs of present samples for series i, as [start, end] fractions of the time range.
+export function segments(rows: MetricRow[], i: number): [number, number][] {
+  if (rows.length < 2) return []
+  const t0 = rows[0]!.t
+  const span = rows.at(-1)!.t - t0 || 1
+  const out: [number, number][] = []
+  let start: number | null = null
+  rows.forEach((r, j) => {
+    const present = r.v[i] != null
+    if (present && start == null) start = r.t
+    const runEnds = present && (j === rows.length - 1 || rows[j + 1]!.v[i] == null)
+    if (runEnds && start != null) {
+      if (r.t > start) out.push([(start - t0) / span, (r.t - t0) / span])
+      start = null
+    }
+  })
+  return out
 }
 
 export type ChartHeader = { value: string; unit?: string; stats: string[] }
@@ -146,6 +211,14 @@ export function formatRate(bytesPerSec: number): string {
   return `${text} ${units[i]}`
 }
 
+// Axis labels share the top tick's unit, so a scale reads 0.25, 0.5 ... 1.25 MB/s.
+export function formatAxisRate(v: number, max: number): string {
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s']
+  let i = 0
+  while (max >= 1024 ** (i + 1) && i < units.length - 1) i++
+  return `${+(v / 1024 ** i).toFixed(2)} ${units[i]}`
+}
+
 export function formatPercent(n: number): string {
   return `${Math.round(n)}%`
 }
@@ -161,49 +234,9 @@ export function formatTime(sec: number, timeZone?: string): string {
   }).format(sec * 1000)
 }
 
-export type Readout = { time: string; values: { label: string; value: string }[] }
-
-// What the hover line shows for the sample under the cursor.
-export function readout(
-  data: uPlot.AlignedData,
-  idx: number | null | undefined,
-  labels: string[],
-  fmt: (v: number) => string,
-  timeZone?: string,
-): Readout | null {
-  const x = idx == null ? undefined : data[0][idx]
-  if (x == null) return null
-  return {
-    time: formatTime(x, timeZone),
-    values: labels.map((label, i) => {
-      const v = data[i + 1]?.[idx!]
-      return { label, value: v == null ? 'No data' : fmt(v) }
-    }),
-  }
-}
-
 export type Tone = 'busy' | 'run' | 'err'
 export const TONE_VAR: Record<Tone, string> = {
   busy: '--nb-busy',
   run: '--nb-run',
   err: '--nb-err',
-}
-
-// Light-mode token values, for when the stylesheet isn't there to read (jsdom).
-const FALLBACK: Record<string, string> = {
-  '--ui-text-muted': '#5B6470',
-  '--ui-border': '#DCE1E6',
-  '--nb-busy': '#3A86D6',
-  '--nb-run': '#1E9E74',
-  '--nb-err': '#D9547D',
-}
-
-export function chartColors(): { axis: string; grid: string; tone: Record<Tone, string> } {
-  const cs = getComputedStyle(document.documentElement)
-  const read = (v: string) => cs.getPropertyValue(v).trim() || FALLBACK[v]!
-  return {
-    axis: read('--ui-text-muted'),
-    grid: read('--ui-border'),
-    tone: { busy: read(TONE_VAR.busy), run: read(TONE_VAR.run), err: read(TONE_VAR.err) },
-  }
 }

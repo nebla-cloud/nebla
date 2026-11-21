@@ -1,60 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type uPlot from 'uplot'
 import {
   chartHeader,
   formatPercent,
+  formatAxisRate,
   formatRate,
+  formatTick,
   nearestIndex,
-  readout,
+  segments,
+  timeTicks,
   toRows,
-  toSeries,
   yDomain,
+  yTicks,
 } from './metrics'
-
-describe('toSeries', () => {
-  it('nulls stay null', () => {
-    expect(
-      toSeries(
-        {
-          cpu: [
-            [1, 5],
-            [2, null],
-            [3, 7],
-          ],
-        },
-        ['cpu'],
-      ),
-    ).toEqual([
-      [1, 2, 3],
-      [5, null, 7],
-    ])
-  })
-
-  it('aligns series with different timestamps', () => {
-    const out = toSeries(
-      {
-        'disk.read': [
-          [1, 1],
-          [3, 3],
-        ],
-        'disk.write': [
-          [2, 20],
-          [3, 30],
-        ],
-      },
-      ['disk.read', 'disk.write'],
-    )
-    expect(out).toEqual([
-      [1, 2, 3],
-      [1, null, 3],
-      [null, 20, 30],
-    ])
-  })
-
-  it('missing key gives an all-null column', () => {
-    expect(toSeries({ a: [[1, 1]] }, ['a', 'b'])).toEqual([[1], [1], [null]])
-  })
-})
 
 describe('formatRate', () => {
   it('units', () => {
@@ -70,43 +27,6 @@ describe('formatPercent', () => {
   it('rounds', () => {
     expect(formatPercent(42.4)).toBe('42%')
     expect(formatPercent(42.6)).toBe('43%')
-  })
-})
-
-describe('readout', () => {
-  const data = [
-    [1763632800, 1763632860],
-    [1536, null],
-    [0, 2048],
-  ] as unknown as uPlot.AlignedData
-
-  it('formats the time and each value at the cursor', () => {
-    expect(readout(data, 0, ['Read', 'Write'], formatRate, 'UTC')).toEqual({
-      time: '20 Nov, 10:00',
-      values: [
-        { label: 'Read', value: '1.5 KB/s' },
-        { label: 'Write', value: '0 B/s' },
-      ],
-    })
-  })
-
-  it('says no data for a gap', () => {
-    expect(readout(data, 1, ['Read', 'Write'], formatRate, 'UTC')?.values).toEqual([
-      { label: 'Read', value: 'No data' },
-      { label: 'Write', value: '2.0 KB/s' },
-    ])
-  })
-
-  it('is empty off the plot', () => {
-    expect(readout(data, null, ['Read', 'Write'], formatRate)).toBeNull()
-    expect(readout(data, 5, ['Read', 'Write'], formatRate)).toBeNull()
-  })
-
-  it('formats percent', () => {
-    const cpu = [[1763632800], [42.4]] as unknown as uPlot.AlignedData
-    expect(readout(cpu, 0, ['CPU'], formatPercent, 'UTC')?.values).toEqual([
-      { label: 'CPU', value: '42%' },
-    ])
   })
 })
 
@@ -201,5 +121,77 @@ describe('chartHeader', () => {
 
   it('hovering a gap shows a dash', () => {
     expect(chartHeader(cpu, ['CPU'], 'percent', 3).value).toBe('—')
+  })
+})
+
+describe('yDomain rounds up to a tick', () => {
+  it('rate peaks land on a round step', () => {
+    expect(yDomain([{ t: 0, v: [400 * 1024] }], 'rate')).toEqual([0, 400 * 1024])
+    expect(yDomain([{ t: 0, v: [447 * 1024] }], 'rate')).toEqual([0, 500 * 1024])
+  })
+})
+
+describe('yTicks', () => {
+  it('percent ticks every 25', () => expect(yTicks(100, 'percent')).toEqual([25, 50, 75, 100]))
+  it('idle rate ticks every 256 B/s', () =>
+    expect(yTicks(1024, 'rate')).toEqual([256, 512, 768, 1024]))
+  it('rate ticks are round in their unit', () =>
+    expect(yTicks(500 * 1024, 'rate').map(formatRate)).toEqual([
+      '100 KB/s',
+      '200 KB/s',
+      '300 KB/s',
+      '400 KB/s',
+      '500 KB/s',
+    ]))
+})
+
+describe('timeTicks', () => {
+  it('an hour ticks every 15 minutes on the quarter', () => {
+    const t0 = Date.UTC(2026, 10, 20, 15, 3) / 1000
+    const ticks = timeTicks(t0, t0 + 3540, 'UTC')
+    // 16:00 is two minutes from the end, too close to the edge for its label.
+    expect(ticks.map((t) => formatTick(t, 3540, 'UTC'))).toEqual(['15:15', '15:30', '15:45'])
+  })
+  it('a week ticks on day boundaries', () => {
+    const t0 = Date.UTC(2026, 10, 14, 10) / 1000
+    const ticks = timeTicks(t0, t0 + 7 * 86400, 'UTC')
+    expect(ticks.length).toBeGreaterThanOrEqual(3)
+    expect(ticks.length).toBeLessThanOrEqual(7)
+    for (const t of ticks) expect(t % 86400).toBe(0)
+    expect(formatTick(ticks[0]!, 7 * 86400, 'UTC')).toMatch(/^\d{1,2} Nov$/)
+  })
+  it('drops a tick on the very first sample', () => {
+    const t0 = Date.UTC(2026, 10, 20, 15, 0) / 1000
+    expect(timeTicks(t0, t0 + 3600, 'UTC')[0]).toBe(t0 + 900)
+  })
+  it('no span gives no ticks', () => expect(timeTicks(5, 5)).toEqual([]))
+})
+
+describe('segments', () => {
+  const rows = [0, 1, 2, 3, 4].map((t) => ({ t: t * 10, v: [t === 2 ? null : 1] }))
+  it('spans of present samples as fractions of the time range', () => {
+    expect(segments(rows, 0)).toEqual([
+      [0, 0.25],
+      [0.75, 1],
+    ])
+  })
+  it('no gaps is one full span', () => {
+    expect(segments([{ t: 0, v: [1] }, { t: 10, v: [2] }], 0)).toEqual([[0, 1]])
+  })
+})
+
+describe('formatAxisRate', () => {
+  it('labels every tick in the top tick\'s unit', () => {
+    const max = 1.25 * 1024 * 1024
+    expect(yTicks(max, 'rate').map((v) => formatAxisRate(v, max))).toEqual([
+      '0.25 MB/s',
+      '0.5 MB/s',
+      '0.75 MB/s',
+      '1 MB/s',
+      '1.25 MB/s',
+    ])
+  })
+  it('whole units stay whole', () => {
+    expect(formatAxisRate(300 * 1024, 500 * 1024)).toBe('300 KB/s')
   })
 })

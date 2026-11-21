@@ -13,7 +13,7 @@ import {
   RANGES,
   fetchMetrics,
   parseRange,
-  toSeries,
+  toRows,
   type Range,
   type TimeSeries,
   type Tone,
@@ -51,7 +51,7 @@ const charts = computed(() => {
     title,
     unit,
     series: parts.map(({ label, tone }) => ({ label, tone })),
-    data: toSeries(
+    rows: toRows(
       ts,
       parts.map((p) => p.key),
     ),
@@ -70,7 +70,7 @@ const charts = computed(() => {
 })
 
 const hasData = computed(() =>
-  charts.value.some((c) => c.data.slice(1).some((col) => col.some((v) => v != null))),
+  charts.value.some((c) => c.rows.some((r) => r.v.some((v) => v != null))),
 )
 const noDataYet = computed(() => {
   const e = query.error.value
