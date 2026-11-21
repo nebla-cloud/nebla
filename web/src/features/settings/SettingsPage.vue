@@ -132,7 +132,7 @@ async function confirmDelete() {
       <p v-else class="text-highlighted">{{ project?.name }}</p>
     </Panel>
 
-    <Panel title="Danger zone">
+    <Panel title="Danger area" class="border-error!">
       <div class="flex flex-col gap-4">
         <UAlert
           v-if="notEmpty"
