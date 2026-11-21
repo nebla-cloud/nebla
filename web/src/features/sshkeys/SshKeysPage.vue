@@ -9,6 +9,9 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import ListGroup from '@/components/ListGroup.vue'
+import ListRow from '@/components/ListRow.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { formatDate } from '@/lib/format'
 import AddSshKeyModal from './AddSshKeyModal.vue'
 import { useDeleteSshKey, useRenameSshKey, useSshKeys, type SshKey } from './queries'
@@ -68,11 +71,12 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex items-center justify-between gap-3">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">SSH keys</h1>
-      <UButton v-if="keys?.length" icon="i-lucide-plus" @click="adding = true">Add key</UButton>
-    </div>
+  <div class="flex flex-col gap-4">
+    <PageHeader title="SSH keys">
+      <template v-if="keys?.length" #actions>
+        <UButton icon="i-lucide-plus" @click="adding = true">Add key</UButton>
+      </template>
+    </PageHeader>
 
     <UAlert
       v-if="loadError"
@@ -88,41 +92,39 @@ async function confirmDelete() {
     >
       <UButton icon="i-lucide-plus" @click="adding = true">Add key</UButton>
     </EmptyState>
-    <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
-      <li
-        v-for="k in keys"
-        :key="k.id"
-        class="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div class="flex min-w-0 flex-col gap-0.5">
-          <span class="truncate font-semibold text-highlighted">{{ k.name }}</span>
-          <span class="break-all font-mono text-xs text-muted">{{ k.fingerprint }}</span>
-          <span class="text-xs text-muted">Added {{ formatDate(k.created) }}</span>
-        </div>
-        <div class="flex shrink-0 gap-1">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            icon="i-lucide-pencil"
-            :aria-label="`Rename ${k.name}`"
-            @click="startRename(k)"
-          >
-            Rename
-          </UButton>
-          <UButton
-            color="error"
-            variant="ghost"
-            size="sm"
-            icon="i-lucide-trash-2"
-            :aria-label="`Delete ${k.name}`"
-            @click="startDelete(k)"
-          >
-            Delete
-          </UButton>
-        </div>
-      </li>
-    </ul>
+    <ListGroup v-else>
+      <ListRow v-for="k in keys" :key="k.id">
+        <span class="flex min-w-0 flex-col gap-0.5 whitespace-normal">
+          <span class="truncate">{{ k.name }}</span>
+          <span class="nb-mono break-all text-xs font-normal text-muted">{{ k.fingerprint }}</span>
+          <span class="text-xs font-normal text-muted">Added {{ formatDate(k.created) }}</span>
+        </span>
+        <template #trailing>
+          <span class="flex gap-1">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              icon="i-lucide-pencil"
+              :aria-label="`Rename ${k.name}`"
+              @click="startRename(k)"
+            >
+              Rename
+            </UButton>
+            <UButton
+              color="error"
+              variant="ghost"
+              size="sm"
+              icon="i-lucide-trash-2"
+              :aria-label="`Delete ${k.name}`"
+              @click="startDelete(k)"
+            >
+              Delete
+            </UButton>
+          </span>
+        </template>
+      </ListRow>
+    </ListGroup>
 
     <AddSshKeyModal v-model:open="adding" />
 

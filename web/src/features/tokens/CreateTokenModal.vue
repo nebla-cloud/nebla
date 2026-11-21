@@ -91,7 +91,7 @@ function closeAnyway() {
           <p class="text-sm text-muted">
             To use it with the CLI, run this and paste the token when asked.
           </p>
-          <code class="break-all rounded-md bg-elevated px-2.5 py-1.5 font-mono text-xs">
+          <code class="break-all rounded-md bg-(--nb-soft) px-2.5 py-1.5 nb-mono text-xs">
             nebla context create {{ tokenSlug(projectName) }} --endpoint {{ origin }}
           </code>
         </div>

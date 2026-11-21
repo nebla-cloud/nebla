@@ -7,7 +7,9 @@ import { errorMessage } from '@/api/errors'
 import type { ApiToken } from '@/api/types'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { formatDate } from '@/lib/format'
+import { table, tableWrap, tbody, td, th, thead, tr } from '@/lib/ui'
 import { useCurrentProject } from '@/lib/project'
 import { permissionLabel } from '@/lib/roles'
 import CreateTokenModal from './CreateTokenModal.vue'
@@ -41,13 +43,12 @@ async function confirmRevoke() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex items-center justify-between gap-3">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">API tokens</h1>
-      <UButton v-if="tokens?.length" icon="i-lucide-plus" @click="creating = true">
-        Create token
-      </UButton>
-    </div>
+  <div class="flex flex-col gap-4">
+    <PageHeader title="API tokens">
+      <template v-if="tokens?.length" #actions>
+        <UButton icon="i-lucide-plus" @click="creating = true">Create token</UButton>
+      </template>
+    </PageHeader>
 
     <UAlert
       v-if="loadError"
@@ -63,39 +64,35 @@ async function confirmRevoke() {
     >
       <UButton icon="i-lucide-plus" @click="creating = true">Create token</UButton>
     </EmptyState>
-    <div v-else class="overflow-hidden rounded-lg border border-default">
-      <table class="w-full text-left text-sm">
-        <thead class="hidden bg-elevated text-xs text-muted sm:table-header-group">
+    <div v-else :class="tableWrap">
+      <table :class="table">
+        <thead :class="thead">
           <tr>
-            <th scope="col" class="px-4 py-2 font-semibold">Name</th>
-            <th scope="col" class="px-4 py-2 font-semibold">Permission</th>
-            <th scope="col" class="px-4 py-2 font-semibold">Created</th>
-            <th scope="col" class="px-4 py-2 font-semibold">Last used</th>
-            <th scope="col" class="px-4 py-2"><span class="sr-only">Actions</span></th>
+            <th scope="col" :class="th">Name</th>
+            <th scope="col" :class="th">Permission</th>
+            <th scope="col" :class="th">Created</th>
+            <th scope="col" :class="th">Last used</th>
+            <th scope="col" :class="th"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-default">
-          <tr
-            v-for="t in tokens"
-            :key="t.id"
-            class="flex flex-col gap-1 px-4 py-3 sm:table-row sm:px-0 sm:py-0"
-          >
-            <td class="font-semibold text-highlighted sm:px-4 sm:py-3">
+        <tbody :class="tbody">
+          <tr v-for="t in tokens" :key="t.id" :class="tr">
+            <td :class="[td, 'font-semibold text-highlighted']">
               <span class="break-all">{{ t.name }}</span>
             </td>
-            <td class="sm:px-4 sm:py-3">
+            <td :class="td">
               <span class="mr-1 text-xs text-muted sm:hidden">Permission</span>
               {{ permissionLabel(t.permission) }}
             </td>
-            <td class="text-muted sm:px-4 sm:py-3">
+            <td :class="[td, 'text-muted']">
               <span class="mr-1 text-xs sm:hidden">Created</span>
               {{ formatDate(t.created) }}
             </td>
-            <td class="text-muted sm:px-4 sm:py-3">
+            <td :class="[td, 'text-muted']">
               <span class="mr-1 text-xs sm:hidden">Last used</span>
               {{ t.last_used ? formatDate(t.last_used) : 'Never' }}
             </td>
-            <td class="sm:px-4 sm:py-3 sm:text-right">
+            <td :class="[td, 'ml-auto sm:text-right']">
               <UButton
                 color="error"
                 variant="ghost"

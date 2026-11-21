@@ -68,7 +68,7 @@ async function submit() {
             :rows="4"
             spellcheck="false"
             placeholder="ssh-ed25519 AAAA… you@laptop"
-            class="w-full font-mono"
+            class="w-full nb-mono"
           />
         </UFormField>
         <UFormField
