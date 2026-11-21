@@ -24,7 +24,8 @@ anything. Then it:
 - creates or resets the roles `Nebla` and `NeblaISO`. `Nebla` gets the privileges from step 1 for your PVE version, plus
   `Sys.AccessNetwork` and `VM.Config.HWType` when this install knows them.
 - creates the user `nebla@pve` if it is missing.
-- grants `Nebla` on `/`, and `NeblaISO` on every storage whose content includes `iso` or `import`.
+- grants `Nebla` on `/`, and `NeblaISO` on every storage whose content includes `iso`, `import` or `images` (`images`
+  for volumes, see [Volumes](#9-volumes)).
 - creates a new API token named `nebla@pve!nebla-<location>-<6 chars>`, with privilege separation off. It never removes
   a token, and it refuses to run if that token already exists.
 - reports the token, the certificate fingerprint of every node (`pveproxy-ssl.pem`, else `pve-ssl.pem`), and the
@@ -39,8 +40,10 @@ storage (one with `images` content), the ISO storage, and optionally an import s
 `NeblaISO` are offered for ISO and import. The panel connects to the URL and checks that the certificate it sees is one
 the node reported. It pins that certificate.
 
-`NeblaISO` lets the token delete any volume on its storage (see step 1), so it is granted on every ISO and import
-storage. After you finish, the page lists optional cleanup commands for the ones you didn't choose:
+`NeblaISO` lets the token delete any volume on its storage (see step 1). The script doesn't know yet which storages
+you'll pick, so it grants it on every candidate. After you finish, the page lists optional cleanup commands for the
+storages the location doesn't use. It keeps the ISO and import storages, and the volume storage (every node's disk
+storage when the location has no volume storage of its own):
 
 ```sh
 pveum acl delete /storage/<id> --users nebla@pve --roles NeblaISO
@@ -82,8 +85,8 @@ Steps 1 to 3 do by hand what the script does. Use them if you can't run the scri
 
 ## 1. Roles
 
-Nebla uses two roles: `Nebla` on `/` for VMs, and `NeblaISO` on the ISO storage only, so it can delete the cloud-init
-seed ISOs it uploads.
+Nebla uses two roles: `Nebla` on `/` for VMs, and `NeblaISO` on single storages: the ISO storage, so it can delete the
+cloud-init seed ISOs it uploads, plus the import and volume storages (step 8 and [Volumes](#9-volumes)).
 
 On **PVE 8**:
 
@@ -108,7 +111,7 @@ pveum role add NeblaISO --privs "Datastore.Allocate Datastore.AllocateSpace Data
 
 Proxmox only lets a user delete an ISO volume with `Datastore.Allocate` on its storage. Without it, deleting or
 rebuilding a server fails and seed ISOs pile up. `Datastore.Allocate` also lets the token delete any other volume on that
-storage, so grant it on the ISO storage only (step 2), never on `/`. A storage dedicated to Nebla's ISOs keeps this tight.
+storage, so grant it only on the storages that need it (step 2), never on `/`. A storage dedicated to Nebla's ISOs keeps this tight.
 
 A role on a more specific path such as `/storage/<iso_storage>` replaces the inherited `/` grant on that path, it doesn't
 add to it. So `NeblaISO` repeats every `Datastore.*` privilege of the main role: `Datastore.AllocateTemplate` for ISO
@@ -120,10 +123,12 @@ uploads, plus the rest, which also covers an ISO storage that doubles as the dis
 pveum user add nebla@pve --comment "Nebla panel"
 pveum aclmod / --users nebla@pve --roles Nebla
 pveum aclmod /storage/<iso_storage> --users nebla@pve --roles NeblaISO
+pveum aclmod /storage/<volume_storage> --users nebla@pve --roles NeblaISO
 pveum user token add nebla@pve panel --privsep 0
 ```
 
-Replace `<iso_storage>` with the location's `iso_storage`, for example `local`. `--privsep 0` turns privilege
+Replace `<iso_storage>` with the location's `iso_storage`, for example `local`, and `<volume_storage>` with the storage
+volumes go to (see [Volumes](#9-volumes)). Skip the volume line if you don't want volumes in this location. `--privsep 0` turns privilege
 separation off, so the token gets the user's permissions. The last command prints the token once:
 
 - the token ID is `nebla@pve!panel`
@@ -146,7 +151,7 @@ is renewed, update the location with the new fingerprint, or use Re-run setup on
 
 ## 4. Storages
 
-Each location names two storages:
+Each location names two required storages:
 
 - `disk_storage` holds server disks. It must support the `images` content type, for example `local-lvm`, a ZFS pool, or
   Ceph RBD.
@@ -168,6 +173,8 @@ pvesm set local --content iso,vztmpl,backup
 
 Keep the content types the storage already had in that list. A single node can use a different disk storage through the
 node's `disk_storage_override` in the admin API.
+
+Two more are optional: `import_storage` for built-in OS images (step 8) and `volume_storage` for volumes (section 9).
 
 ## 5. Cloud-init template (Debian 13)
 
@@ -282,3 +289,38 @@ Requirements:
 Catalog templates are tagged `nebla-tpl`, never `nebla`, and Nebla only touches templates it built. Servers created from
 them run with the QEMU guest agent disabled, because the images don't ship it. Power actions use ACPI, and metrics work
 without it.
+
+## 9. Volumes
+
+Volumes are disks that project members create, attach to servers, grow and delete on their own. Each one lives on the
+location's volume storage. The [volumes guide](volumes.md) covers the user side.
+
+**Where volumes go.** The location's `volume_storage` (Volume storage on the location form) names a storage with
+`images` content. Left empty, it means each node's disk storage, `disk_storage_override` included. On a storage that
+only one node has, such as `local-lvm`, a volume stays on the node it was created on and only attaches to servers there.
+A shared storage such as Ceph RBD has no such limit. A node where the storage doesn't exist simply can't hold volumes.
+
+**Permission.** Proxmox only deletes a volume for a token with `Datastore.Allocate` on its storage, so grant `NeblaISO`
+on the volume storage, or on every node's disk storage when `volume_storage` is empty:
+
+```sh
+pveum acl modify /storage/<id> --users nebla@pve --roles NeblaISO
+```
+
+The setup script does this for you. The token already holds `VM.Allocate` on `/`, so this adds little: Nebla only
+deletes disks whose name it gave them. The grant is per storage, never on `/`.
+
+Nebla checks the grant with Proxmox when nodes sync and when the location is saved. Until every storage volumes would use
+has it, the location page says "Volumes need one more permission" with the command to run, and members don't see
+volumes in that location. Locations connected before volumes existed show this too. Re-run setup or run the command,
+then choose Sync nodes.
+
+**How volumes look in Proxmox.** A volume is a disk named `vm-999999999-nb-vol-<id>` on the volume storage, owned by
+VMID 999999999. That VMID is a placeholder; no VM with it exists. Never create a VM with ID 999999999: Proxmox would
+count every volume as that VM's disk, and deleting the VM would delete them all.
+
+An attached volume shows up in the server VM's config as `virtio1` to `virtio15`, with `serial=nb-vol-<id>` and
+`backup=0`. `backup=0` keeps volumes out of vzdump backups of the server. Destroying the server VM in Proxmox leaves the volume in place, because the VM doesn't own it.
+
+Don't rename, move or delete these disks by hand. Nebla only touches disks with this exact name, and it marks a volume
+whose disk disappeared as missing.

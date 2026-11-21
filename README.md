@@ -79,6 +79,14 @@ The panel reads its settings from environment variables. With compose they go in
 - **`PANEL_MAX_PROJECTS_PER_USER`**: How many projects a non-admin user may own. `0` means unlimited. Panel admins are
   never capped.
 
+### Volume storage
+
+Volumes need no environment variable. Each location has a `volume_storage` setting (Volume storage on the admin location
+page, or `volume_storage` in the admin API) that names the Proxmox storage volumes go to. It must have `images` content.
+Left empty, volumes go to each node's disk storage. The token needs `NeblaISO` on that storage; the setup command grants
+it. See [Proxmox setup: Volumes](docs/proxmox-setup.md#9-volumes) for admins and the [volumes guide](docs/volumes.md)
+for users.
+
 ### Healthcheck
 
 `nebla-server healthcheck` exits 0 when `/v1/healthz` on the local listen port answers 200. The image and compose use it
