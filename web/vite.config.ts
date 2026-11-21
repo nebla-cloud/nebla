@@ -23,8 +23,8 @@ export default defineConfig({
         },
         textarea: { compoundVariants: [{ variant: 'outline', class: 'ring-(color:--ui-border)' }] },
         modal: { slots: { content: 'rounded-(--nb-radius-panel) p-5' } },
-        dropdownMenu: { slots: { content: 'rounded-xl shadow-[0_8px_24px_-8px_rgb(21_24_29/0.18)]' } },
-        popover: { slots: { content: 'rounded-xl shadow-[0_8px_24px_-8px_rgb(21_24_29/0.18)]' } },
+        dropdownMenu: { slots: { content: 'rounded-[12px] shadow-[0_8px_24px_-8px_rgb(21_24_29/0.18)]' } },
+        popover: { slots: { content: 'rounded-[12px] shadow-[0_8px_24px_-8px_rgb(21_24_29/0.18)]' } },
         badge: {
           compoundVariants: ['xs', 'sm', 'md', 'lg', 'xl'].map((size) => ({ size, class: 'rounded-full' })),
         },

@@ -40,7 +40,8 @@
   --ui-primary: var(--color-ink-950);
   /* red-500 is 3.7:1 on the light background; 700 reaches 6.2:1. */
   --ui-error: var(--ui-color-error-700);
-  --ui-radius: .5rem;
+  /* Nuxt UI scales its radii from this (md = 1.5x), so controls land on 9px. */
+  --ui-radius: .375rem;
 
   --nb-sidebar: #F1F4F7;
   --nb-soft: #F6F8FA;
@@ -87,6 +88,13 @@
   --nb-ring: #3A414B;
   --nb-focus: #EDF0F3;
   --nb-term-bg: #0F1216;
+}
+
+@layer base {
+  body {
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
 }
 
 /* Unlayered so it beats Nuxt UI's translucent focus utilities. */

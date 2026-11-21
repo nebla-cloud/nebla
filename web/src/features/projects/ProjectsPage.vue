@@ -55,7 +55,7 @@ function plural(n: number, word: string) {
             <template #leading>
               <span
                 aria-hidden="true"
-                class="grid size-7 place-items-center rounded-lg bg-(--ui-bg-muted) text-xs font-bold text-highlighted ring-1 ring-default"
+                class="grid size-7 place-items-center rounded-[8px] bg-(--ui-bg-muted) text-xs font-bold text-highlighted ring-1 ring-default"
                 >{{ p.name.charAt(0).toUpperCase() }}</span
               >
             </template>

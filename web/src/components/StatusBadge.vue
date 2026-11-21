@@ -7,16 +7,16 @@ import StatusArch from './StatusArch.vue'
 const props = defineProps<{ status: Server['status'] }>()
 const s = computed(() => serverStatus(props.status))
 const tone: Record<StatusTone, string> = {
-  success: 'bg-[var(--nb-run-bg)] text-[var(--nb-run-fg)]',
-  busy: 'bg-[var(--nb-soft)] text-[var(--nb-busy-fg)]',
-  neutral: 'bg-[var(--nb-soft)] text-muted',
-  error: 'bg-[var(--nb-soft)] text-muted',
+  success: 'border-transparent bg-[var(--nb-run-bg)] text-[var(--nb-run-fg)]',
+  busy: 'border-transparent bg-[var(--nb-soft)] text-[var(--nb-busy-fg)]',
+  neutral: 'border-(--ui-border) bg-(--nb-soft) text-toned',
+  error: 'border-transparent bg-error/10 text-error',
 }
 </script>
 
 <template>
   <span
-    class="inline-flex items-center gap-1.5 rounded-t-full rounded-b-md px-2.5 py-1 text-xs font-semibold"
+    class="inline-flex h-7 items-center gap-[7px] rounded-t-[14px] rounded-b-[6px] border pr-3 pl-2 text-[13px] font-semibold"
     :class="tone[s.tone]"
   >
     <StatusArch :status="status" :size="16" decorative />

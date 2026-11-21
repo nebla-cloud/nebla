@@ -21,7 +21,7 @@ const groups = computed(() => {
 })
 
 const base =
-  'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2'
+  'flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-sm transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2'
 const tone = (on: boolean) =>
   props.ink
     ? on

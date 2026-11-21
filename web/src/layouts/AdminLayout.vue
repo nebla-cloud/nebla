@@ -30,7 +30,7 @@ const last = computed(() => projects.value?.find((p) => p.id === lastId))
         <SideNav :items="nav" ink />
         <RouterLink
           :to="last ? `/p/${last.id}/servers` : { name: 'projects' }"
-          class="mt-auto flex min-w-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm hover:bg-ink-900 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+          class="mt-auto flex min-w-0 items-center gap-2.5 rounded-[8px] px-2.5 py-1.5 text-sm hover:bg-ink-900 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
         >
           <UIcon name="i-lucide-arrow-left" class="size-4 shrink-0" aria-hidden="true" />
           <span class="truncate">{{ last ? `Back to ${last.name}` : 'Go to projects' }}</span>

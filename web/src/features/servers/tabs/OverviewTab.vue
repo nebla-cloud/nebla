@@ -15,6 +15,7 @@ import { formatDate, typeSpec } from '@/lib/format'
 import { useCurrentProject } from '@/lib/project'
 import LabelChips from '../LabelChips.vue'
 import LabelEditor from '../LabelEditor.vue'
+import { osLabel } from '../osLabel'
 import { serverBusyKey } from '../shell'
 
 const NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
@@ -32,11 +33,16 @@ const busy = inject(
 
 const rows = computed(() => {
   const s = props.server
-  const list: { label: string; value: string; ip?: boolean }[] = []
+  const list: { label: string; value: string; ip?: boolean; sub?: string }[] = []
   if (s.public_net.ipv4) list.push({ label: 'IPv4', value: s.public_net.ipv4.ip, ip: true })
   if (s.public_net.ipv6) list.push({ label: 'IPv6', value: s.public_net.ipv6.ip, ip: true })
   list.push(
-    { label: 'Image', value: s.image.name },
+    // The slug stays as a second, muted value: e2e reads it from a definition.
+    {
+      label: 'Image',
+      value: osLabel(s.image),
+      sub: osLabel(s.image) === s.image.name ? undefined : s.image.name,
+    },
     { label: 'Type', value: `${s.server_type.name}: ${typeSpec(s.server_type)}` },
     { label: 'Location', value: s.location.name },
     { label: 'Created', value: formatDate(s.created) },
@@ -164,6 +170,9 @@ async function confirmDelete() {
               >
                 Copy
               </UButton>
+            </dd>
+            <dd v-if="r.sub" class="col-start-2 -mt-2.5 text-xs break-all text-muted">
+              {{ r.sub }}
             </dd>
           </template>
           <dt class="text-muted">Labels</dt>

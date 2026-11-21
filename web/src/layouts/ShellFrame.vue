@@ -41,7 +41,7 @@ const sidebar = computed(() =>
         <template #leading>
           <button
             type="button"
-            class="grid size-10 shrink-0 place-items-center rounded-md text-highlighted hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary lg:hidden"
+            class="grid size-10 shrink-0 place-items-center rounded-[8px] text-highlighted hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary lg:hidden"
             aria-label="Open menu"
             :aria-expanded="open"
             @click="open = true"

@@ -15,10 +15,14 @@ import { useCurrentProject } from '@/lib/project'
 import { serverStatus } from '@/lib/status'
 import LabelChips from './LabelChips.vue'
 import OsBadge from './OsBadge.vue'
+import { osLabel } from './osLabel'
 import { useServers } from './queries'
 import { filterServers, parseStatusFilter, type StatusFilter } from './statusFilter'
 
 const { projectId, project } = useCurrentProject()
+// Shared by the head row and each server row so the columns line up.
+const cols =
+  'sm:grid sm:w-[30rem] sm:shrink-0 sm:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr] sm:gap-x-3 lg:w-[38rem] xl:w-[44rem] [&>*]:min-w-0 [&>*]:truncate'
 const newRoute = computed(() => ({ name: 'server-new', params: { projectId: projectId.value } }))
 const route = useRoute()
 const router = useRouter()
@@ -192,6 +196,20 @@ onBeforeUnmount(() => clearTimeout(timer))
       <UButton :to="newRoute">Create server</UButton>
     </EmptyState>
     <ListGroup v-else>
+      <template #head>
+        <div
+          aria-hidden="true"
+          class="hidden items-center gap-3 border-b border-default bg-(--nb-soft) px-4 py-2.5 text-[12.5px] font-medium text-muted sm:flex"
+        >
+          <span class="min-w-0 flex-1">Name</span>
+          <span :class="cols">
+            <span>Image</span>
+            <span>Type</span>
+            <span>Public IPv4</span>
+            <span>Location</span>
+          </span>
+        </div>
+      </template>
       <ListRow
         v-for="s in visible"
         :key="s.id"
@@ -205,18 +223,19 @@ onBeforeUnmount(() => clearTimeout(timer))
             <span class="truncate">{{ s.name }}</span>
             <LabelChips :labels="s.labels" :max="3" />
           </span>
-          <span
-            class="flex flex-wrap gap-x-4 text-sm font-normal text-muted sm:grid sm:w-[28rem] sm:shrink-0 sm:grid-cols-[1.4fr_1fr_1.1fr_0.8fr] sm:gap-x-3 lg:w-[38rem] [&>*]:min-w-0 [&>*]:truncate"
-          >
-            <span class="flex items-center gap-2">
+          <span :class="[cols, 'flex flex-wrap gap-x-4 text-sm font-normal text-default']">
+            <span class="flex items-center gap-2" :title="s.image.name">
               <OsBadge :name="s.image.os_flavor" />
-              <span class="truncate">{{ s.image.name }}</span>
+              <span class="truncate">{{ osLabel(s.image) }}</span>
             </span>
-            <span>{{ s.server_type.name }}</span>
+            <span
+              >{{ s.server_type.name }}
+              <span class="text-muted">· {{ s.server_type.cores }} vCPU</span></span
+            >
             <span v-if="s.status === 'running'" class="nb-mono">{{
               s.public_net.ipv4?.ip ?? '—'
             }}</span>
-            <span v-else>{{ serverStatus(s.status).label }}</span>
+            <span v-else class="text-muted">{{ serverStatus(s.status).label }}</span>
             <span>{{ s.location.name }}</span>
           </span>
         </span>

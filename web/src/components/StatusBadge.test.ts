@@ -11,4 +11,11 @@ describe('StatusBadge', () => {
     expect(svg.attributes('role')).toBeUndefined()
     expect(svg.find('title').exists()).toBe(false)
   })
+
+  it('gives off a visible border and error a tinted background', () => {
+    const off = mount(StatusBadge, { props: { status: 'off' } }).classes()
+    expect(off).toEqual(expect.arrayContaining(['border-(--ui-border)', 'text-toned']))
+    const err = mount(StatusBadge, { props: { status: 'error' } }).classes()
+    expect(err).toEqual(expect.arrayContaining(['bg-error/10', 'text-error']))
+  })
 })

@@ -87,7 +87,7 @@ async function disable() {
       <button
         type="button"
         data-cell-trigger
-        class="inline-flex items-center gap-1.5 rounded-sm text-start font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        class="inline-flex items-center gap-1.5 rounded-[4px] text-start font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         :class="view.tone === 'muted' ? 'text-muted' : 'text-highlighted'"
         :aria-label="`${entry.description} in ${locationName}: ${view.label}. Show details`"
       >

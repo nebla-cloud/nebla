@@ -15,9 +15,11 @@ const model = defineModel<unknown>()
 <template>
   <label
     :data-variant="variant"
-    class="nb-choice relative flex flex-col gap-1 border bg-default p-3.5 text-default has-checked:border-(--nb-focus) has-checked:ring-3 has-checked:ring-(--nb-ring) has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--nb-focus)"
+    class="nb-choice relative flex flex-col border bg-default px-3.5 text-default has-checked:border-(--nb-focus) has-checked:ring-3 has-checked:ring-(--nb-ring) has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--nb-focus)"
     :class="[
-      variant === 'arch' ? 'rounded-t-[28px] rounded-b-xl' : 'rounded-xl',
+      variant === 'arch'
+        ? 'gap-1.5 rounded-t-[28px] rounded-b-[12px] pt-4 pb-3'
+        : 'gap-0.5 rounded-[12px] py-3',
       disabled ? 'cursor-not-allowed border-dashed border-default opacity-60' : 'cursor-pointer border-default',
     ]"
   >
@@ -29,8 +31,8 @@ const model = defineModel<unknown>()
       :value="value"
       :disabled="disabled"
     />
-    <span class="font-semibold text-highlighted"><slot /></span>
-    <span v-if="$slots.meta" class="text-sm text-muted"><slot name="meta" /></span>
+    <span class="text-sm font-bold text-highlighted"><slot /></span>
+    <span v-if="$slots.meta" class="text-[12.5px] text-muted"><slot name="meta" /></span>
   </label>
 </template>
 

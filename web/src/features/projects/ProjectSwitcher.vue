@@ -30,7 +30,7 @@ const items = computed<DropdownMenuItem[][]>(() => [
       aria-label="Switch project"
     >
       <span
-        class="grid size-7 shrink-0 place-items-center rounded-lg bg-(--ui-bg-muted) text-xs font-bold text-highlighted ring-1 ring-default"
+        class="grid size-7 shrink-0 place-items-center rounded-[8px] bg-(--ui-bg-muted) text-xs font-bold text-highlighted ring-1 ring-default"
         aria-hidden="true"
         >{{ initial }}</span
       >

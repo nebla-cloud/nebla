@@ -28,7 +28,7 @@ async function onCopy() {
         readonly
         :aria-label="label ?? 'Value to copy'"
         :class="[
-          'nb-mono min-w-0 flex-1 rounded-lg bg-elevated px-3 py-2 text-[13px] ring ring-inset ring-accented focus-visible:outline-2 focus-visible:outline-primary',
+          'nb-mono min-w-0 flex-1 rounded-[9px] bg-elevated px-3 py-2 text-[13px] ring ring-inset ring-accented focus-visible:outline-2 focus-visible:outline-primary',
           mono && 'font-mono',
         ]"
         @focus="input?.select()"

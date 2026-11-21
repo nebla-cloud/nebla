@@ -9,7 +9,7 @@ const svg = computed(() => renderSVG(props.value))
 <template>
   <!-- eslint-disable-next-line vue/no-v-html -->
   <div
-    class="size-48 rounded-md bg-white p-2 [&>svg]:size-full"
+    class="size-48 rounded-[6px] bg-white p-2 [&>svg]:size-full"
     role="img"
     aria-label="QR code for your authenticator app"
     v-html="svg"

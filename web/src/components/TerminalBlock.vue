@@ -3,7 +3,7 @@ withDefaults(defineProps<{ caption?: string; as?: 'div' | 'pre' }>(), { as: 'div
 </script>
 
 <template>
-  <div class="overflow-hidden rounded-xl border border-(--ui-border) bg-(--nb-term-bg) text-(--nb-term-fg)">
+  <div class="overflow-hidden rounded-[12px] border border-(--ui-border) bg-(--nb-term-bg) text-(--nb-term-fg)">
     <div v-if="caption" class="border-b border-white/10 px-4 py-2 text-xs text-(--nb-term-muted)">
       {{ caption }}
     </div>

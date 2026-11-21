@@ -29,10 +29,10 @@ async function logOut() {
   <UPopover :content="{ side: 'top', align: 'start' }">
     <button
       type="button"
-      class="flex w-full min-w-0 items-center gap-2.5 rounded-lg p-2 text-left text-sm hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
+      class="flex w-full min-w-0 items-center gap-2.5 rounded-[10px] p-2 text-left text-sm hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
     >
       <span
-        class="grid size-7 shrink-0 place-items-center rounded-t-full rounded-b-md bg-(image:--nb-gradient) text-xs font-bold text-(--nb-on-gradient)"
+        class="grid size-7 shrink-0 place-items-center rounded-t-full rounded-b-[6px] bg-(image:--nb-gradient) text-xs font-bold text-(--nb-on-gradient)"
         aria-hidden="true"
       >
         {{ (me?.name || me?.email || '?').charAt(0).toUpperCase() }}
@@ -47,7 +47,7 @@ async function logOut() {
         </div>
         <RouterLink
           to="/account"
-          class="rounded-md px-2 py-1.5 text-sm text-toned hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
+          class="rounded-[8px] px-2 py-1.5 text-sm text-toned hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
         >
           Account settings
         </RouterLink>

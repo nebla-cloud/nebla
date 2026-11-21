@@ -298,6 +298,13 @@ describe('ServerDetailShell', () => {
     expect(wrapper.find('ul[aria-label="Labels"]').text()).toContain('env=prod')
   })
 
+  it('a subtitle names the OS, type, location and created date', async () => {
+    serve(makeServer({ image: { ...makeServer().image, name: 'debian-13' } }))
+    const { wrapper } = await mountDetail()
+    const header = wrapper.findAll('header').find((h) => h.find('h1').exists())!
+    expect(header.find('p').text()).toBe('Debian 13 on small-2 in home, created 18 Nov 2026')
+  })
+
   it('a 63-character name truncates in a one-column header at 390px', async () => {
     window.innerWidth = 390
     const name = 'a'.repeat(63)

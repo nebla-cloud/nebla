@@ -169,7 +169,7 @@ async function submit() {
       <div
         v-for="(r, i) in rows"
         :key="r.id"
-        class="flex flex-col gap-3 rounded-lg border border-default p-3"
+        class="flex flex-col gap-3 rounded-[12px] border border-default p-3"
       >
         <div class="flex items-center justify-between gap-2">
           <span class="text-sm font-medium text-highlighted">Template {{ i + 1 }}</span>

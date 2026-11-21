@@ -25,7 +25,7 @@ const crumbs = useCurrentCrumbs()
           <RouterLink
             v-else-if="c.to"
             :to="c.to"
-            class="truncate rounded-sm text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+            class="truncate rounded-[4px] text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
             >{{ c.label }}</RouterLink
           >
           <span v-else class="truncate text-muted">{{ c.label }}</span>

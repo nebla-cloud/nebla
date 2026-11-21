@@ -45,6 +45,28 @@ describe('ServerListPage', () => {
     expect(text).not.toMatch(/vmid|pve/i)
   })
 
+  it('has a hidden column head outside the list and the type with its vCPU count', async () => {
+    server.use(
+      http.get('*/v1/servers', () =>
+        json(200, {
+          servers: [makeServer({ image: { ...makeServer().image, name: 'debian-13' } })],
+          meta,
+        }),
+      ),
+    )
+    const { wrapper } = await mountList()
+    const head = wrapper.find('[aria-hidden="true"].sm\\:flex')
+    expect(head.findAll('span').map((s) => s.text())).toEqual(
+      expect.arrayContaining(['Name', 'Image', 'Type', 'Public IPv4', 'Location']),
+    )
+    expect(head.element.closest('ul')).toBeNull()
+    expect(wrapper.findAll('li')).toHaveLength(1)
+    const li = wrapper.find('li')
+    expect(li.text()).toContain('Debian 13')
+    expect(li.find('[title="debian-13"]').exists()).toBe(true)
+    expect(li.text()).toMatch(/small-2\s+· 2 vCPU/)
+  })
+
   it('stopped server shows Off instead of IP', async () => {
     server.use(
       http.get('*/v1/servers', () => json(200, { servers: [makeServer({ status: 'off' })], meta })),

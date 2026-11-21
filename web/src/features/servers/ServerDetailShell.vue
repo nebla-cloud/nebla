@@ -14,9 +14,11 @@ import PageHeader from '@/components/PageHeader.vue'
 import Panel from '@/components/Panel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useCrumbs } from '@/lib/crumbs'
+import { formatDate } from '@/lib/format'
 import { useCurrentProject, parseProjectId } from '@/lib/project'
 import { useActionPoll } from '@/lib/useActionPoll'
 import LabelChips from './LabelChips.vue'
+import { osLabel } from './osLabel'
 import PowerActions from './PowerActions.vue'
 import { useServer } from './queries'
 import { serverBusyKey } from './shell'
@@ -104,6 +106,12 @@ watch(
   },
 )
 
+const subtitle = computed(() => {
+  const s = server.value
+  if (!s) return undefined
+  return `${osLabel(s.image)} on ${s.server_type.name} in ${s.location.name}, created ${formatDate(s.created)}`
+})
+
 const notFound = computed(
   () => !server.value && loadError.value instanceof ApiError && loadError.value.status === 404,
 )
@@ -129,6 +137,7 @@ const notFound = computed(
       <div class="flex flex-col gap-3">
         <PageHeader
           :title="server.name"
+          :description="subtitle"
           class="max-sm:flex-col max-sm:items-stretch sm:items-center"
         >
           <template #meta>

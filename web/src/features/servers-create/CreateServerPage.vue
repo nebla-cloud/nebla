@@ -19,6 +19,7 @@ import { useCrumbs } from '@/lib/crumbs'
 import { formatMemory } from '@/lib/format'
 import { useCurrentProject } from '@/lib/project'
 import OsBadge from '@/features/servers/OsBadge.vue'
+import { osParts } from '@/features/servers/osLabel'
 import { useServers } from '@/features/servers/queries'
 import AddSshKeyModal from '@/features/sshkeys/AddSshKeyModal.vue'
 import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
@@ -284,14 +285,20 @@ const cards = 'flex flex-wrap gap-2.5'
                   name="image"
                   :value="String(o.image.id)"
                   :disabled="!!o.disabledReason"
-                  :title="o.disabledReason ?? undefined"
+                  :title="o.disabledReason ?? o.image.name"
                   class="min-w-40"
                 >
-                  <span class="flex items-center gap-2">
-                    <OsBadge :name="o.image.os_flavor" />
-                    {{ o.image.name }}
+                  <span class="flex items-center gap-2.5">
+                    <OsBadge :name="o.image.os_flavor" size="lg" />
+                    <span class="flex min-w-0 flex-col">
+                      <span>{{ osParts(o.image)?.name ?? o.image.name }}</span>{{ ' ' }}
+                      <span
+                        v-if="o.disabledReason || osParts(o.image)?.version"
+                        class="text-[12.5px] font-normal text-muted"
+                        >{{ o.disabledReason ?? osParts(o.image)?.version }}</span
+                      >
+                    </span>
                   </span>
-                  <template v-if="o.disabledReason" #meta>{{ o.disabledReason }}</template>
                 </ChoiceCard>
               </div>
               <p v-if="imageOptions.some((o) => o.disabledReason)" class="mt-2 text-xs text-muted">
@@ -382,7 +389,7 @@ const cards = 'flex flex-wrap gap-2.5'
                 </ChoiceCard>
                 <button
                   type="button"
-                  class="flex min-w-36 cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-accented bg-default p-3.5 font-semibold text-default hover:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-focus)"
+                  class="flex min-w-36 cursor-pointer items-center gap-1.5 rounded-[12px] border border-dashed border-accented bg-default px-3.5 py-3 font-semibold text-default hover:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-focus)"
                   @click="keyModal = true"
                 >
                   <UIcon name="i-lucide-plus" class="size-4" />
@@ -398,7 +405,9 @@ const cards = 'flex flex-wrap gap-2.5'
 
           <!-- New sections: add a <Step> here; numbers follow position. -->
 
-          <FirewallPicker v-model="firewallIds" />
+          <Step title="Firewalls" :done="firewallIds.length > 0">
+            <FirewallPicker v-model="firewallIds" />
+          </Step>
 
           <Step title="Cloud-init" :done="form.userData.trim() !== ''">
             <UCollapsible :unmount-on-hide="false">

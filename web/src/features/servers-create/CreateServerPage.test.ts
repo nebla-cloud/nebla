@@ -201,6 +201,8 @@ describe('CreateServerPage', () => {
     const imageCard = $('input[name="image"][value="3"]').closest('label')!
     expect(imageCard.classList).toContain('nb-choice')
     expect(imageCard.textContent).toContain('D')
+    expect(imageCard.textContent).toMatch(/Debian\s+13/)
+    expect(imageCard.title).toBe('Debian 13')
     const typeCard = $('input[name="server_type"][value="2"]').closest('label')!
     expect(typeCard.dataset.variant).toBe('arch')
     expect(typeCard.textContent).toContain('2 vCPU')
