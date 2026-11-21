@@ -37,9 +37,11 @@ type Location struct {
 	DiskStorage   string
 	ISOStorage    string
 	ImportStorage string
-	Nodes         []Node
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// FirewallEnabled is the datacenter firewall switch as last read; nil until known.
+	FirewallEnabled *bool
+	Nodes           []Node
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // Node is a Proxmox node as last synced; MaxMem and Mem are bytes, CPU is a 0-1 load fraction.
@@ -100,7 +102,7 @@ func toNode(n *ent.Node) Node {
 func toLocation(l *ent.Location) Location {
 	out := Location{ID: l.ID, Name: l.Name, Description: l.Description, PVEURL: l.PveURL, TokenID: l.TokenID,
 		HasSecret: len(l.TokenSecret) > 0, CAFingerprint: l.CaFingerprint, InsecureTLS: l.InsecureTLS,
-		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, ImportStorage: l.ImportStorage, Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
+		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, ImportStorage: l.ImportStorage, FirewallEnabled: l.FirewallEnabled, Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
 	for _, n := range l.Edges.Nodes {
 		out.Nodes = append(out.Nodes, toNode(n))
 	}

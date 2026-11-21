@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -177,6 +178,15 @@ func (s *Server) SetVMConfig(vmid int, key, value string) {
 	defer s.mu.Unlock()
 	s.sweep()
 	s.vms[vmid].config[key] = value
+}
+
+// SetVMFirewall replaces a VM's firewall options and drops its rules.
+func (s *Server) SetVMFirewall(vmid int, opts map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep()
+	s.vms[vmid].firewall = maps.Clone(opts)
+	s.vms[vmid].rules = nil
 }
 
 // AddVM adds a stopped, non-template VM with a scsi0 disk.

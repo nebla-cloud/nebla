@@ -11,15 +11,20 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	entsql "entgo.io/ent/dialect/sql"
 
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 )
@@ -33,11 +38,14 @@ type Options struct {
 	SQL     *sql.DB
 	Ent     *ent.Client
 	Catalog *catalog.Service
-	Logger  *slog.Logger
+	// Jobs starts drift repair applies; without it drift is not repaired.
+	Jobs   *jobs.Jobs
+	Logger *slog.Logger
 }
 
 type Reconciler struct {
 	o       Options
+	jobs    atomic.Pointer[jobs.Jobs]
 	mu      sync.Mutex
 	orphans map[[2]int64]bool
 	// afterList runs once the VM list is read; tests use it to race a job.
@@ -50,8 +58,13 @@ func New(o Options) *Reconciler {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	return &Reconciler{o: o, orphans: map[[2]int64]bool{}}
+	r := &Reconciler{o: o, orphans: map[[2]int64]bool{}}
+	r.jobs.Store(o.Jobs)
+	return r
 }
+
+// SetJobs wires the job runtime, which is built after the workers are registered.
+func (r *Reconciler) SetJobs(j *jobs.Jobs) { r.jobs.Store(j) }
 
 // Run reconciles one location: stuck actions from the DB alone, then node load, server status and node.
 func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
@@ -154,7 +167,100 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 			errs = append(errs, fmt.Errorf("server %d: %w", row.ID, err))
 		}
 	}
+	fwOn, err := r.recordFirewall(ctx, pc, locationID)
+	if err != nil {
+		log.Warn("reconcile: datacenter firewall", "err", err)
+		errs = append(errs, fmt.Errorf("datacenter firewall: %w", err))
+	}
+	for _, row := range rows {
+		if err := r.repairFirewall(ctx, log, pc, row, vms, fwOn); err != nil {
+			log.Warn("reconcile: firewall drift", "server_id", row.ID, "err", err)
+			errs = append(errs, fmt.Errorf("server %d firewall: %w", row.ID, err))
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// recordFirewall stores the datacenter firewall switch on the location; nil when it could not be read.
+func (r *Reconciler) recordFirewall(ctx context.Context, pc pve.Client, locationID int64) (*bool, error) {
+	tctx, cancel := context.WithTimeout(ctx, pveTimeout)
+	on, err := pc.ClusterFirewallEnabled(tctx)
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	err = r.o.Ent.Location.Update().Where(location.ID(locationID),
+		location.Or(location.FirewallEnabledIsNil(), location.FirewallEnabledNEQ(on))).SetFirewallEnabled(on).Exec(ctx)
+	return &on, err
+}
+
+// fwRepairable reports a server whose VM firewall the reconciler may compare and repair.
+func fwRepairable(row *ent.Server) bool {
+	return row.Vmid != nil && (row.Status == server.StatusRunning || row.Status == server.StatusOff) && !servers.Building(row)
+}
+
+func applyPending(ctx context.Context, c *ent.Client, row *ent.Server) (bool, error) {
+	return c.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID), action.CommandEQ(firewalls.KindApply),
+		action.StatusEQ(action.StatusRunning)).Exist(ctx)
+}
+
+// repairFirewall queues an apply when the VM's firewall differs from the rendered desired state.
+func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pve.Client, row *ent.Server, w view, fwOn *bool) error {
+	j := r.jobs.Load()
+	if j == nil || !fwRepairable(row) {
+		return nil
+	}
+	v, ok := vmOf(row, w.vms)
+	if !ok || !w.online[v.Node] {
+		return nil
+	}
+	if pending, err := applyPending(ctx, r.o.Ent, row); err != nil || pending {
+		return err
+	}
+	rules, anyFW, err := firewalls.RulesFor(ctx, r.o.Ent, row.ID)
+	if err != nil {
+		return err
+	}
+	// An apply could only fail with the datacenter firewall off.
+	if anyFW && fwOn != nil && !*fwOn {
+		return nil
+	}
+	tctx, cancel := context.WithTimeout(ctx, pveTimeout)
+	defer cancel()
+	cur, err := pc.FirewallRules(tctx, v.Node, v.VMID)
+	if err != nil {
+		return fmt.Errorf("read firewall rules: %w", err)
+	}
+	opts, err := pc.FirewallOptions(tctx, v.Node, v.VMID)
+	if err != nil {
+		return fmt.Errorf("read firewall options: %w", err)
+	}
+	if firewalls.InSync(cur, opts, firewalls.Render(rules, anyFW)) {
+		return nil
+	}
+	return db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		if err := projects.LockProject(ctx, etx, row.ProjectID); err != nil {
+			return err
+		}
+		q := etx.Server.Query().Where(server.ID(row.ID))
+		q.Modify(func(s *entsql.Selector) { s.For(entsql.LockNoKeyUpdate) })
+		now, err := q.Only(ctx)
+		if ent.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !fwRepairable(now) || *now.Vmid != v.VMID {
+			return nil
+		}
+		if pending, err := applyPending(ctx, etx, now); err != nil || pending {
+			return err
+		}
+		log.Info("reconcile: firewall drift, queueing apply", "server_id", row.ID, "vmid", v.VMID)
+		_, err = firewalls.Bump(ctx, tx, etx, j, now.ProjectID, []int64{now.ID}, nil)
+		return err
+	})
 }
 
 const nodeOnline = "online"

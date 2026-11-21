@@ -500,3 +500,17 @@ func TestDeleteLocationRefusedWhileTemplatesPending(t *testing.T) {
 	pending = false
 	require.NoError(t, svc.DeleteLocation(ctx, loc.ID))
 }
+
+func TestLocationFirewallEnabled(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, client := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	require.Nil(t, loc.FirewallEnabled, "unknown until the reconciler reads it")
+
+	require.NoError(t, client.Location.UpdateOneID(loc.ID).SetFirewallEnabled(false).Exec(ctx))
+	got, err := svc.GetLocation(ctx, loc.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.FirewallEnabled)
+	require.False(t, *got.FirewallEnabled)
+}

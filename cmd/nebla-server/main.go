@@ -83,6 +83,7 @@ func run() error {
 		return err
 	}
 	osi.SetJobs(runner)
+	rec.SetJobs(runner)
 	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
 	if err := rec.RescueAll(ctx); err != nil {
 		return err

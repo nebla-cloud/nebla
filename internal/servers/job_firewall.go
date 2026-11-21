@@ -31,8 +31,8 @@ func failedCreate(row *ent.Server) bool {
 	return row.Status == StatusError && row.CreateStep < stepDone
 }
 
-// building reports a create or rebuild that owns the server's VM.
-func building(row *ent.Server) bool {
+// Building reports a create or rebuild that owns the server's VM.
+func Building(row *ent.Server) bool {
 	return row.CreateStep < stepDone || row.RebuildStep > 0 || row.Status == StatusRebuilding
 }
 
@@ -87,7 +87,7 @@ func (w *ApplyFirewallsWorker) Work(ctx context.Context, job *river.Job[firewall
 		switch {
 		case row.Status == StatusDeleting, failedCreate(row):
 			return actions.Succeed(ctx, w.o.Ent, a.ActionID)
-		case building(row):
+		case Building(row):
 			return river.JobSnooze(buildSnooze)
 		}
 		if w.beforeLease != nil {
@@ -132,7 +132,7 @@ func (w *ApplyFirewallsWorker) run(ctx context.Context, l *lease, a firewalls.Ap
 			return actions.Succeed(ctx, w.o.Ent, a.ActionID)
 		}
 		// A build that began meanwhile owns the VM until it finishes.
-		if building(row) {
+		if Building(row) {
 			return river.JobSnooze(buildSnooze)
 		}
 		pc, err := w.o.Catalog.ProxmoxFor(ctx, row.LocationID)

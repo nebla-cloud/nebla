@@ -17,11 +17,13 @@ import (
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -52,7 +54,7 @@ func (l *lockedBuffer) String() string {
 }
 
 func newReconciler(e *testutil.ServerEnv, log *slog.Logger) *reconcile.Reconciler {
-	return reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: log})
+	return reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Jobs: e.App.Jobs, Logger: log})
 }
 
 // workerEnv works server jobs through River.
@@ -807,4 +809,230 @@ func TestRescueKeepsStatusForApply(t *testing.T) {
 	require.NoError(t, r.Run(ctx, e.Location))
 	expectOrphaned(t, e, acts[0].ID)
 	require.Equal(t, server.StatusInitializing, get(t, e, id).Status, "a lost apply leaves the status alone")
+}
+
+// applies lists the server's apply_firewalls actions, oldest first.
+func applies(t *testing.T, e *testutil.ServerEnv, id int64) []*ent.Action {
+	t.Helper()
+	as, err := e.App.Ent.Action.Query().Where(servers.ActionsOf(e.Project, id), action.Command(firewalls.KindApply)).
+		Order(action.ByID()).All(context.Background())
+	require.NoError(t, err)
+	return as
+}
+
+// settle waits for every apply_firewalls action on the server.
+func settle(t *testing.T, e *testutil.ServerEnv, id int64) {
+	t.Helper()
+	for _, a := range applies(t, e, id) {
+		got := testutil.WaitAction(t, e.App.Ent, a.ID)
+		require.Equal(t, actions.StatusSuccess, got.Status, "%+v", got.Error)
+	}
+}
+
+func sshFirewall(t *testing.T, e *testutil.ServerEnv, ids ...int64) {
+	t.Helper()
+	fw := firewalls.New(firewalls.Options{SQL: e.App.SQL, Ent: e.App.Ent, Jobs: e.App.Jobs})
+	port := "22"
+	in := firewalls.CreateInput{Name: "ssh", Rules: []firewalls.RuleInput{{Direction: "in", Protocol: "tcp", Port: &port, IPs: []string{"0.0.0.0/0"}}}}
+	for _, id := range ids {
+		in.ApplyTo = append(in.ApplyTo, firewalls.ResourceInput{Type: "server", ServerID: &id})
+	}
+	_, acts, err := fw.Create(context.Background(), e.Project, in)
+	require.NoError(t, err)
+	for _, a := range acts {
+		got := testutil.WaitAction(t, e.App.Ent, a.ID)
+		require.Equal(t, actions.StatusSuccess, got.Status, "%+v", got.Error)
+	}
+}
+
+func vmFW(t *testing.T, e *testutil.ServerEnv, vmid int) fake.FakeVM {
+	t.Helper()
+	v, ok := e.App.PVE.VM(vmid)
+	require.True(t, ok)
+	return v
+}
+
+func TestReconcileMigratesV1Servers(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	open, openVM := running(t, e, "open")
+	guarded, guardedVM := running(t, e, "guarded")
+	sshFirewall(t, e, guarded.ID)
+
+	v1 := map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "policy_in": "ACCEPT", "policy_out": "ACCEPT"}
+	for _, vmid := range []int{openVM, guardedVM} {
+		e.App.PVE.SetVMFirewall(vmid, v1)
+	}
+	for _, id := range []int64{open.ID, guarded.ID} {
+		require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetFirewallGenDesired(0).SetFirewallGenApplied(0).Exec(ctx))
+	}
+	before := vmFW(t, e, openVM)
+	require.NotEmpty(t, before.IPSets["ipfilter-net0"])
+	require.Contains(t, []string{"", "0"}, before.Firewall["dhcp"])
+	baseline := len(applies(t, e, open.ID))
+
+	var mu sync.Mutex
+	var seen []map[string]string
+	e.App.PVE.OnFirewallWrite(func() {
+		v, _ := e.App.PVE.VM(openVM)
+		mu.Lock()
+		seen = append(seen, v.Firewall)
+		mu.Unlock()
+	})
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, open.ID), baseline+1)
+	settle(t, e, open.ID)
+	settle(t, e, guarded.ID)
+	e.App.PVE.OnFirewallWrite(nil)
+
+	mu.Lock()
+	require.NotEmpty(t, seen)
+	for _, fw := range seen {
+		require.Equal(t, "ACCEPT", fw["policy_in"], "a server with no firewall never gets DROP")
+		require.Equal(t, "ACCEPT", fw["policy_out"])
+		require.Contains(t, []string{"", "0"}, fw["dhcp"])
+	}
+	mu.Unlock()
+
+	after := vmFW(t, e, openVM)
+	want := map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "policy_in": "ACCEPT", "policy_out": "ACCEPT",
+		"ndp": "1", "radv": "0", "dhcp": "0"}
+	require.Equal(t, want, after.Firewall)
+	require.Empty(t, after.Rules)
+	require.Equal(t, before.IPSets, after.IPSets)
+	require.GreaterOrEqual(t, get(t, e, open.ID).FirewallGenApplied, int64(1))
+
+	g := vmFW(t, e, guardedVM)
+	require.Equal(t, "DROP", g.Firewall["policy_in"])
+	require.NotEmpty(t, g.Rules)
+	require.GreaterOrEqual(t, get(t, e, guarded.ID).FirewallGenApplied, int64(1))
+
+	// Migrated: the next pass finds nothing to do.
+	n := len(applies(t, e, open.ID)) + len(applies(t, e, guarded.ID))
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, n, len(applies(t, e, open.ID))+len(applies(t, e, guarded.ID)))
+}
+
+func TestReconcileRepairsForeignRule(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "3389", Enable: true}))
+	baseline := len(applies(t, e, row.ID))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	as := applies(t, e, row.ID)
+	require.Len(t, as, baseline+1)
+	require.Equal(t, []actions.Resource{{ID: row.ID, Type: servers.ResourceType}}, as[len(as)-1].Resources)
+	settle(t, e, row.ID)
+	require.Empty(t, vmFW(t, e, vmid).Rules)
+}
+
+func TestReconcileRepairsPolicy(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	sshFirewall(t, e, row.ID)
+	require.Equal(t, "DROP", vmFW(t, e, vmid).Firewall["policy_in"])
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	require.NoError(t, pc.SetFirewallOptions(ctx, row.Node, vmid, map[string]string{"policy_in": "ACCEPT"}))
+	baseline := len(applies(t, e, row.ID))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1)
+	settle(t, e, row.ID)
+	require.Equal(t, "DROP", vmFW(t, e, vmid).Firewall["policy_in"])
+}
+
+func TestReconcileNoopWhenInSync(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	plain, _ := running(t, e, "plain")
+	guarded, _ := running(t, e, "guarded")
+	sshFirewall(t, e, guarded.ID)
+	a, b := len(applies(t, e, plain.ID)), len(applies(t, e, guarded.ID))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, plain.ID), a)
+	require.Len(t, applies(t, e, guarded.ID), b)
+}
+
+func TestReconcileSkipsPendingApply(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	foreign := pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "3389", Enable: true}
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, vmid, foreign))
+
+	// A running apply whose job is still scheduled.
+	var act actions.Action
+	require.NoError(t, db.WithTx(ctx, e.App.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		var err error
+		act, err = e.App.Jobs.StartAction(ctx, tx, etx, e.Project, firewalls.KindApply,
+			[]actions.Resource{{ID: row.ID, Type: servers.ResourceType}},
+			func(int64) river.JobArgs { return jobs.PingArgs{} }, &river.InsertOpts{ScheduledAt: time.Now().Add(time.Hour)})
+		return err
+	}))
+	baseline := len(applies(t, e, row.ID))
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline)
+	require.Len(t, vmFW(t, e, vmid).Rules, 1)
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, act.ID))
+
+	// A build in progress, a transient status, or an error server is left alone too.
+	cases := []func(*ent.ServerUpdateOne){
+		func(u *ent.ServerUpdateOne) { u.SetRebuildStep(2) },
+		func(u *ent.ServerUpdateOne) { u.SetStatus(server.StatusStopping) },
+		func(u *ent.ServerUpdateOne) { u.SetStatus(server.StatusError) },
+	}
+	for _, c := range cases {
+		u := e.App.Ent.Server.UpdateOneID(row.ID)
+		c(u)
+		require.NoError(t, u.Exec(ctx))
+		require.NoError(t, r.Run(ctx, e.Location))
+		require.Len(t, applies(t, e, row.ID), baseline)
+		require.NoError(t, e.App.Ent.Server.UpdateOneID(row.ID).SetStatus(server.StatusRunning).SetRebuildStep(0).Exec(ctx))
+	}
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1, "repaired once nothing holds it")
+}
+
+func TestReconcileRecordsClusterFirewall(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	loc, err := e.App.Catalog.GetLocation(ctx, e.Location)
+	require.NoError(t, err)
+	require.Nil(t, loc.FirewallEnabled)
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	loc, err = e.App.Catalog.GetLocation(ctx, e.Location)
+	require.NoError(t, err)
+	require.NotNil(t, loc.FirewallEnabled)
+	require.True(t, *loc.FirewallEnabled)
+
+	// With the datacenter firewall off, a guarded server's drift is not queued: the apply could only fail.
+	row, vmid := running(t, e, "web")
+	sshFirewall(t, e, row.ID)
+	e.App.PVE.SetClusterFirewall(false)
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	require.NoError(t, pc.SetFirewallOptions(ctx, row.Node, vmid, map[string]string{"policy_in": "ACCEPT"}))
+	baseline := len(applies(t, e, row.ID))
+	require.NoError(t, r.Run(ctx, e.Location))
+	loc, err = e.App.Catalog.GetLocation(ctx, e.Location)
+	require.NoError(t, err)
+	require.NotNil(t, loc.FirewallEnabled)
+	require.False(t, *loc.FirewallEnabled)
+	require.Len(t, applies(t, e, row.ID), baseline)
 }
