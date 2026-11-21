@@ -295,6 +295,24 @@ func TestApplyStoredRuleDiffersFailsOnce(t *testing.T) {
 	require.Empty(t, dports(t, f.ServerEnv, f.vmid), "mismatched copies are removed")
 }
 
+func TestApplyStoredDiffersCleanupConflictRetries(t *testing.T) {
+	f := newFWEnv(t)
+	f.App.PVE.OnRuleAdd(func(r *pve.FirewallRule) { r.Proto = strings.ToUpper(r.Proto) })
+	f.App.PVE.ConflictNextRuleDelete()
+	_, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))
+
+	err := f.work(t, acts[0], 1)
+	require.Error(t, err)
+	require.False(t, cancelled(err), "a conflict during cleanup is retried")
+	require.Nil(t, f.action(t, acts[0].ID).Finished)
+
+	require.True(t, cancelled(f.work(t, acts[0], 2)), "the retry finishes cleanup and fails for good")
+	a := f.action(t, acts[0].ID)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Contains(t, a.Error.Detail, `proto is "TCP", want "tcp"`)
+	require.Empty(t, dports(t, f.ServerEnv, f.vmid))
+}
+
 func TestApplyRuleGoneRetries(t *testing.T) {
 	f := newFWEnv(t)
 	f.App.PVE.OnRuleAdd(func(r *pve.FirewallRule) { r.Comment = "someone else" })

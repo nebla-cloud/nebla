@@ -106,6 +106,7 @@ type Server struct {
 	onFWWrite    func()
 	onRuleAdd    func(*pve.FirewallRule)
 	needDigest   bool
+	conflictDel  bool
 }
 
 // FakeDownload records one download-url request.
@@ -345,6 +346,13 @@ func (s *Server) FailNextRuleWrite() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failRule = true
+}
+
+// ConflictNextRuleDelete fails the next rule delete as if the config changed since it was read.
+func (s *Server) ConflictNextRuleDelete() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.conflictDel = true
 }
 
 // OnFirewallWrite runs fn after each successful VM firewall rule or options write.
@@ -977,7 +985,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 			s.failRule = false
 			return nil, &apiErr{500, "injected rule write failure"}
 		}
-		if d := r.URL.Query().Get("digest"); d != "" && d != fwDigest(v) || d == "" && s.needDigest {
+		conflict := s.conflictDel
+		s.conflictDel = false
+		if d := r.URL.Query().Get("digest"); conflict || d != "" && d != fwDigest(v) || d == "" && s.needDigest {
 			return nil, &apiErr{500, "detected modified configuration - file changed by other user? Try again."}
 		}
 		pos, err := strconv.Atoi(r.PathValue("pos"))

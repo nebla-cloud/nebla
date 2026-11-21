@@ -61,15 +61,16 @@ func Sync(ctx context.Context, pc pve.Client, node string, vmid int, d Desired) 
 	return verify(ctx, pc, node, vmid, d)
 }
 
-// storedDiffers fails for good when Proxmox kept a rule differently, after deleting all stale rules.
+// storedDiffers deletes all stale rules, then fails for good because Proxmox kept a rule differently.
 func storedDiffers(ctx context.Context, pc pve.Client, node string, vmid int, d Desired, cur []pve.FirewallRule, r pve.FirewallRule) error {
 	if !slices.ContainsFunc(cur, func(x pve.FirewallRule) bool { return x.Comment == r.Comment }) {
 		return fmt.Errorf("%w: %s", ErrRuleGone, r.Comment)
 	}
 	why := ruleDrift(cur, r)
 	// Stale rules are not in the desired allow-list, so deleting them only narrows access; retries cannot pile copies up.
+	// Fail for good only once cleanup is done, so a conflict here is retried.
 	if err := deleteStale(ctx, pc, node, vmid, d, cur); err != nil {
-		return fmt.Errorf("%w: %s (cleanup: %w)", ErrStoredDiffers, why, err)
+		return fmt.Errorf("clean up after %s: %w", why, err)
 	}
 	return fmt.Errorf("%w: %s", ErrStoredDiffers, why)
 }

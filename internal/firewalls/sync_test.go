@@ -419,3 +419,30 @@ func TestSyncRuleGoneAfterAddIsTransient(t *testing.T) {
 		t.Fatalf("policy set although a rule is missing: %v", v.Firewall)
 	}
 }
+
+func TestSyncStoredDiffersCleanupConflictRetries(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	old := Render([]Rule{{ID: 9, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("3306"), IPs: pfx("0.0.0.0/0")}}, true)
+	if err := Sync(ctx, pc, node, vmid, old); err != nil {
+		t.Fatal(err)
+	}
+	s.OnRuleAdd(func(r *pve.FirewallRule) { r.Proto = strings.ToUpper(r.Proto) })
+	s.OnFirewallWrite(func() {
+		if v, _ := s.VM(vmid); v.Firewall["policy_in"] != "DROP" {
+			t.Errorf("VM opened: %v", v.Firewall)
+		}
+	})
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	s.ConflictNextRuleDelete()
+	err := Sync(ctx, pc, node, vmid, d)
+	if errors.Is(err, ErrStoredDiffers) || !pve.IsTransient(err) {
+		t.Fatalf("cleanup conflict: err = %v, want a transient error without ErrStoredDiffers", err)
+	}
+	if err := Sync(ctx, pc, node, vmid, d); !errors.Is(err, ErrStoredDiffers) {
+		t.Fatalf("retry: err = %v, want ErrStoredDiffers", err)
+	}
+	if v, _ := s.VM(vmid); len(v.Rules) != 0 {
+		t.Fatalf("stale rules left after cleanup: %+v", v.Rules)
+	}
+}
