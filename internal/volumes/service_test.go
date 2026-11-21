@@ -221,12 +221,13 @@ func TestAttachDifferentNodeRejected(t *testing.T) {
 	require.NoError(t, actions.Succeed(ctx, e.App.Ent, act.ID))
 
 	shared := e.put(t, e.Project, "data3", "", "ceph", 10, nil, "")
-	_, err = e.svc.Attach(ctx, e.Project, shared, "web")
+	act, err = e.svc.Attach(ctx, e.Project, shared, "web")
 	require.NoError(t, err)
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, act.ID))
 
 	attached := e.put(t, e.Project, "data4", "", "ceph", 10, &s.ServerID, "virtio1")
 	_, err = e.svc.Attach(ctx, e.Project, attached, "web")
-	requireAPIErr(t, err, http.StatusConflict, "locked")
+	requireAPIErr(t, err, http.StatusConflict, "volume_attached")
 }
 
 func TestAttachLimit14(t *testing.T) {
@@ -504,6 +505,8 @@ func TestListAndUpdate(t *testing.T) {
 	require.Equal(t, []int64{a}, ids(volumes.ListFilter{Server: "web"}))
 	require.Equal(t, []int64{b}, ids(volumes.ListFilter{Status: "available"}))
 	require.Equal(t, []int64{a, b}, ids(volumes.ListFilter{Location: "eu-1"}))
+	require.Equal(t, []int64{}, ids(volumes.ListFilter{Location: "nowhere"}))
+	require.Equal(t, []int64{}, ids(volumes.ListFilter{Server: "nobody"}))
 	require.Equal(t, []int64{b}, ids(volumes.ListFilter{Name: "b"}))
 	_, _, err = e.svc.List(ctx, e.Project, volumes.ListFilter{Status: "nope"}, 1, 50)
 	requireAPIErr(t, err, http.StatusUnprocessableEntity, "invalid_input")

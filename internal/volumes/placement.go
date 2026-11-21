@@ -32,7 +32,7 @@ func (s *Service) candidates(ctx context.Context, locationID int64, pin string) 
 	}
 	var out []candidate
 	for _, n := range loc.Nodes {
-		if pin != "" && n.Name != pin || pin == "" && (!n.Enabled || n.Status != "online") {
+		if (pin != "" && n.Name != pin) || (pin == "" && (!n.Enabled || n.Status != "online")) {
 			continue
 		}
 		want := row.VolumeStorage

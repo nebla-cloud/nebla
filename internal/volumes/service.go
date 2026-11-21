@@ -5,7 +5,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +15,7 @@ import (
 
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
@@ -567,8 +570,12 @@ func (s *Service) List(ctx context.Context, projectID int64, f ListFilter, page,
 	}
 	if f.Location != "" {
 		loc, err := s.o.Catalog.LocationByRef(ctx, f.Location)
-		if err != nil {
+		var ae apierr.E
+		if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
 			return []Volume{}, 0, nil
+		}
+		if err != nil {
+			return nil, 0, err
 		}
 		q = q.Where(volume.LocationID(loc.ID))
 	}
