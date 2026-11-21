@@ -268,6 +268,18 @@ func TestApplySnoozesDuringRebuild(t *testing.T) {
 	require.Equal(t, []string{"22"}, dports(t, f.ServerEnv, f.vmid))
 }
 
+func TestApplyAfterOrphanedRebuild(t *testing.T) {
+	ctx := context.Background()
+	f := newFWEnv(t)
+	_, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))
+
+	// The reconciler failed a lost rebuild mid-clone: no job owns the VM any more.
+	require.NoError(t, f.App.Ent.Server.UpdateOneID(f.srv).SetStatus(servers.StatusError).SetRebuildStep(servers.StepClone).Exec(ctx))
+	require.NoError(t, f.work(t, acts[0], 1))
+	require.Equal(t, actions.StatusSuccess, f.action(t, acts[0].ID).Status)
+	require.Equal(t, []string{"22"}, dports(t, f.ServerEnv, f.vmid))
+}
+
 func TestApplyClusterFirewallOff(t *testing.T) {
 	f := newFWEnv(t)
 	_, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))

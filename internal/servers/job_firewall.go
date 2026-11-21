@@ -33,8 +33,11 @@ func failedCreate(row *ent.Server) bool {
 	return row.Status == StatusError && row.CreateStep < stepDone
 }
 
-// Building reports a create or rebuild that owns the server's VM.
+// Building reports a create or rebuild that owns the server's VM; none owns an errored server's VM.
 func Building(row *ent.Server) bool {
+	if row.Status == StatusError {
+		return false
+	}
 	return row.CreateStep < stepDone || row.RebuildStep > 0 || row.Status == StatusRebuilding
 }
 

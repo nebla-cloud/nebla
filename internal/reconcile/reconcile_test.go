@@ -1148,3 +1148,37 @@ func TestReconcileWarnsOnceWithoutJobs(t *testing.T) {
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Equal(t, 1, strings.Count(logs.String(), "firewall drift repair is disabled"))
 }
+
+func TestRescuedRebuildIsRepairable(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	id := build(t, e, "web")
+	row := get(t, e, id)
+	res := e.C.Send(http.MethodPost, "/v1/servers/"+strconv.FormatInt(id, 10)+"/actions/rebuild", map[string]any{"image": "ubuntu"})
+	require.Equal(t, http.StatusCreated, res.StatusCode)
+	var out struct {
+		Action struct {
+			ID int64 `json:"id"`
+		} `json:"action"`
+	}
+	decode(t, res, &out)
+	// Lost mid-clone.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetRebuildStep(2).Exec(ctx))
+	discard(t, e, out.Action.ID)
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, out.Action.ID)
+	got := get(t, e, id)
+	require.Equal(t, server.StatusError, got.Status)
+	require.False(t, servers.Building(got), "no job owns the VM after a rescue")
+
+	// Powered on again, its firewall drift is repaired.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetStatus(server.StatusRunning).Exec(ctx))
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, *row.Vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "3389", Enable: true}))
+	baseline := len(applies(t, e, id))
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, id), baseline+1)
+}
