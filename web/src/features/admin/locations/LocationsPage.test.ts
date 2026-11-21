@@ -136,6 +136,15 @@ describe('admin locations', () => {
       'pveum acl modify /storage/local-lvm --users nebla@pve --roles NeblaISO\n' +
         'pveum acl modify /storage/ceph --users nebla@pve --roles NeblaISO',
     )
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    await hint
+      .findAll('button')
+      .find((b) => b.text() === 'Copy')!
+      .trigger('click')
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledWith(hint.find('pre').text())
+    expect(hint.text()).toContain('Copied')
   })
 
   it('hides the volume grant hint when ok or without nodes', async () => {

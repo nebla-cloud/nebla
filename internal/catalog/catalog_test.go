@@ -596,3 +596,87 @@ func TestVolumeStorageOKRecomputedOnSync(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, loc.VolumeStorageOK)
 }
+
+func TestVolumeStorageOKFailsClosedOnResolvedChange(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	require.True(t, loc.VolumeStorageOK)
+	in := testutil.LocationInput(pv, "eu-1")
+	in.PVE.TokenSecret = nil
+	// Each save below sees a failing check, so only the reset decides the stored value.
+	save := func(mut func(*catalog.LocationInput)) bool {
+		t.Helper()
+		pv.FailNext("GET /access/permissions", 403)
+		next := in
+		mut(&next)
+		l, err := svc.UpdateLocation(ctx, loc.ID, next)
+		require.NoError(t, err)
+		return l.VolumeStorageOK
+	}
+	reset := func() {
+		t.Helper()
+		_, err := svc.SyncNodes(ctx, loc.ID)
+		require.NoError(t, err)
+	}
+
+	require.True(t, save(func(*catalog.LocationInput) {}), "an unchanged config keeps the value on error")
+	require.False(t, save(func(l *catalog.LocationInput) { l.DiskStorage = "local-lvm" }), "disk storage is the volume storage")
+	in.DiskStorage = "local-lvm"
+	reset()
+	require.False(t, save(func(l *catalog.LocationInput) { l.PVE.TokenSecret = new(pv.Conn().Secret) }), "new secret")
+	reset()
+
+	in.VolumeStorage = new("ceph")
+	reset()
+	l, err := svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.True(t, l.VolumeStorageOK)
+	require.True(t, save(func(l *catalog.LocationInput) { l.DiskStorage = "ceph" }), "an explicit volume storage ignores the disk storage")
+
+	// UpdateNode: an override change on a location without volume_storage re-checks.
+	in.VolumeStorage = new("")
+	l, err = svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.True(t, l.VolumeStorageOK)
+	pv.DenyAllocateOn("ceph")
+	_, err = svc.UpdateNode(ctx, loc.ID, l.Nodes[0].ID, catalog.NodeUpdate{DiskStorageOverride: new("ceph")})
+	require.NoError(t, err)
+	got, err := svc.GetLocation(ctx, loc.ID)
+	require.NoError(t, err)
+	require.False(t, got.VolumeStorageOK)
+	pv.SetPermissions("/storage/ceph", nil)
+	_, err = svc.UpdateNode(ctx, loc.ID, l.Nodes[0].ID, catalog.NodeUpdate{DiskStorageOverride: new("")})
+	require.NoError(t, err)
+	got, err = svc.GetLocation(ctx, loc.ID)
+	require.NoError(t, err)
+	require.True(t, got.VolumeStorageOK)
+	pv.FailNext("GET /access/permissions", 403)
+	_, err = svc.UpdateNode(ctx, loc.ID, l.Nodes[0].ID, catalog.NodeUpdate{DiskStorageOverride: new("ceph")})
+	require.NoError(t, err)
+	got, err = svc.GetLocation(ctx, loc.ID)
+	require.NoError(t, err)
+	require.False(t, got.VolumeStorageOK, "fails closed when the re-check errors")
+}
+
+func TestVolumeStorageOKPermissionShapes(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	sync := func() bool {
+		t.Helper()
+		l, err := svc.SyncNodes(ctx, loc.ID)
+		require.NoError(t, err)
+		return l.VolumeStorageOK
+	}
+	// A non-propagated grant on "/" doesn't reach the storage.
+	pv.SetPermissions("/storage/ceph", map[string]int{})
+	pv.SetPermissions("/", map[string]int{"Datastore.Allocate": 0})
+	require.False(t, sync())
+	// Real Proxmox reports the inherited privilege under the storage path itself, flag 0 or 1.
+	pv.SetPermissions("/", nil)
+	pv.SetPermissions("/storage/ceph", map[string]int{"Datastore.Allocate": 0, "Datastore.Audit": 1})
+	require.True(t, sync())
+}

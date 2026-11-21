@@ -32,7 +32,8 @@ type Finished struct {
 // pveTokenNameRe is PVE's token name pattern; other old names get no cleanup command.
 var pveTokenNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]*$`)
 
-func validStorages(rep Report, in FinishInput, vols []string) error {
+// validStorages checks vol, the explicit volume storage, if set; "" leaves the disk storages to volume_storage_ok.
+func validStorages(rep Report, in FinishInput, vol string) error {
 	find := func(id string) (ReportStorage, bool) {
 		i := slices.IndexFunc(rep.Storages, func(s ReportStorage) bool { return s.ID == id })
 		if i < 0 {
@@ -51,9 +52,9 @@ func validStorages(rep Report, in FinishInput, vols []string) error {
 			return invalidInput(fmt.Sprintf("import_storage %q is not a reported Nebla ISO storage with import content", in.ImportStorage))
 		}
 	}
-	for _, id := range vols {
-		if st, ok := find(id); !ok || !st.NeblaISO || !slices.Contains(st.Content, "images") {
-			return invalidInput(fmt.Sprintf("volume storage %q is not a reported Nebla ISO storage with images content; re-run the setup command", id))
+	if vol != "" {
+		if st, ok := find(vol); !ok || !st.NeblaISO || !slices.Contains(st.Content, "images") {
+			return invalidInput(fmt.Sprintf("volume_storage %q is not a reported Nebla ISO storage with images content; re-run the setup command", vol))
 		}
 	}
 	return nil
@@ -125,7 +126,7 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 		}
 	}
 	vols := volumeStorages(vol, in.DiskStorage, cur)
-	if err := validStorages(rep, in, vols); err != nil {
+	if err := validStorages(rep, in, vol); err != nil {
 		return Finished{}, err
 	}
 	seen, err := s.o.LeafFingerprint(ctx, u.String())

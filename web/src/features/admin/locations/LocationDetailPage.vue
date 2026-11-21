@@ -8,6 +8,8 @@ import USwitch from '@nuxt/ui/components/Switch.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
+import TerminalBlock from '@/components/TerminalBlock.vue'
+import { useCopy } from '@/lib/useCopy'
 import { useAdminLocations } from '@/lib/adminQueries'
 import LocationForm from './LocationForm.vue'
 import {
@@ -47,6 +49,7 @@ const volumeGrants = computed(() => {
     (s) => `pveum acl modify /storage/${s} --users nebla@pve --roles NeblaISO`,
   )
 })
+const grantCopy = useCopy()
 const cleanup = ref<string[]>(readCleanup())
 const editing = ref(false)
 const confirmOpen = ref(false)
@@ -186,9 +189,16 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
       >
         <template #description>
           <p>Re-run the setup command, or run:</p>
-          <pre
-            class="mt-2 overflow-x-auto rounded border border-default bg-default p-2 text-xs whitespace-pre-wrap break-all"
-            >{{ volumeGrants.join('\n') }}</pre>
+          <TerminalBlock as="pre" class="mt-2">{{ volumeGrants.join('\n') }}</TerminalBlock>
+          <UButton
+            class="mt-2"
+            color="neutral"
+            variant="outline"
+            size="xs"
+            @click="grantCopy.copy(volumeGrants.join('\n'))"
+          >
+            {{ grantCopy.copied.value ? 'Copied' : 'Copy' }}
+          </UButton>
         </template>
       </UAlert>
 

@@ -12,8 +12,8 @@ You can manage volumes on the Volumes page, on a server's Volumes tab, with the 
 - A volume and its server must be in the same location. In some locations a volume also stays on one host, so it can
   only attach to servers on that host. Servers it can't attach to are greyed out with the reason.
 - A server holds at most 14 volumes.
-- Some servers can't take a volume while running. If attaching or detaching fails with "Power off the server to attach
-  this volume", power the server off and try again.
+- Some servers can't take a volume while running. If attaching fails with "Power off the server to attach the volume."
+  or detaching fails with "Power off the server to detach the volume.", power the server off and try again.
 - If Volumes doesn't show up for a location, your panel admin hasn't set volumes up there yet.
 
 ## Find the disk
@@ -53,6 +53,12 @@ To mount it at every boot, add a line to `/etc/fstab`. Use the filesystem's labe
 
 ```
 LABEL=data  /mnt/data  ext4  defaults,nofail  0  2
+```
+
+For XFS, change the type to `xfs`:
+
+```
+LABEL=data  /mnt/data  xfs  defaults,nofail  0  2
 ```
 
 Find the UUID with `sudo blkid /dev/disk/by-id/virtio-nb-vol-42`, and use `UUID=<uuid>` in place of `LABEL=data` if you

@@ -187,7 +187,7 @@ func TestFinishRequiresNeblaISOOnVolumeStorage(t *testing.T) {
 	in.VolumeStorage = new("local-lvm")
 	_, err := e.svc.Finish(ctx, c.ID, in)
 	requireCode(t, err, 422, "invalid_input")
-	require.Contains(t, err.Error(), "volume storage \"local-lvm\"")
+	require.Contains(t, err.Error(), "volume_storage \"local-lvm\"")
 
 	c = e.reportedWith(t, enroll.CreateInput{Name: "home2"}, withVolume...)
 	f, err := e.svc.Finish(ctx, c.ID, in)
@@ -201,27 +201,21 @@ func TestFinishRequiresNeblaISOOnVolumeStorage(t *testing.T) {
 func TestFinishDefaultVolumeStorageUsesDiskStorages(t *testing.T) {
 	ctx := context.Background()
 	e := setup(t)
+	// Volumes are optional: a disk storage without NeblaISO still finishes.
 	c := e.reportedWith(t, enroll.CreateInput{Name: "home"}, rstorage{"ceph", "images", false}, rstorage{"local", "iso,vztmpl", true})
-	_, err := e.svc.Finish(ctx, c.ID, e.finishInput())
-	requireCode(t, err, 422, "invalid_input")
-	require.Contains(t, err.Error(), "ceph")
-
-	require.NoError(t, e.ent.LocationEnrollment.DeleteOneID(c.ID).Exec(ctx))
-	c = e.reportedWith(t, enroll.CreateInput{Name: "home"}, withVolume...)
 	f, err := e.svc.Finish(ctx, c.ID, e.finishInput())
+	require.NoError(t, err)
+	require.Empty(t, f.Cleanup)
+
+	c = e.reportedWith(t, enroll.CreateInput{Name: "home2"}, withVolume...)
+	f, err = e.svc.Finish(ctx, c.ID, e.finishInput())
 	require.NoError(t, err)
 	require.True(t, f.Location.VolumeStorageOK)
 	require.ElementsMatch(t, []string{aclImp, "pveum acl delete /storage/local-lvm --users nebla@pve --roles NeblaISO"}, f.Cleanup)
 
-	// A re-run checks each node's override too and keeps its grant.
+	// A re-run keeps the grant on each node's override.
 	_, err = e.cat.UpdateNode(ctx, f.Location.ID, f.Location.Nodes[1].ID, catalog.NodeUpdate{DiskStorageOverride: new("local-lvm")})
 	require.NoError(t, err)
-	c = e.reportedWith(t, enroll.CreateInput{LocationID: &f.Location.ID}, rstorage{"ceph", "images", true}, rstorage{"local", "iso,vztmpl", true},
-		rstorage{"local-lvm", "images,rootdir", false})
-	_, err = e.svc.Finish(ctx, c.ID, e.finishInput())
-	requireCode(t, err, 422, "invalid_input")
-	require.Contains(t, err.Error(), "local-lvm")
-	require.NoError(t, e.ent.LocationEnrollment.DeleteOneID(c.ID).Exec(ctx))
 	c = e.reportedWith(t, enroll.CreateInput{LocationID: &f.Location.ID}, withVolume...)
 	f, err = e.svc.Finish(ctx, c.ID, e.finishInput())
 	require.NoError(t, err)

@@ -290,8 +290,9 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 		u := tx.Location.UpdateOneID(id).SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetCaFingerprint(conn.CAFingerprint).SetInsecureTLS(conn.InsecureTLS).
 			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).SetVolumeStorage(vol)
-		if vol != cur.VolumeStorage {
-			// Fail closed until the new storage is re-checked.
+		if vol != cur.VolumeStorage || (vol == "" && in.DiskStorage != cur.DiskStorage) ||
+			newSecret || conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID {
+			// Fail closed until the new storage or token is re-checked.
 			u.SetVolumeStorageOk(false)
 		}
 		if newSecret {
@@ -582,9 +583,24 @@ func (s *Service) UpdateNode(ctx context.Context, locationID, nodeID int64, in N
 		}
 		u.SetDiskStorageOverride(st)
 	}
+	before := n.DiskStorageOverride
 	n, err = u.Save(ctx)
 	if err != nil {
 		return Node{}, notFound(err)
+	}
+	if n.DiskStorageOverride != before {
+		// The override is this node's volume storage when the location has none; fail closed, then re-check.
+		if err := s.db.Location.Update().Where(location.ID(locationID), location.VolumeStorage("")).
+			SetVolumeStorageOk(false).Exec(ctx); err != nil {
+			return Node{}, err
+		}
+		c, err := s.ProxmoxFor(ctx, locationID)
+		if err != nil {
+			return Node{}, err
+		}
+		if _, err := s.refreshVolumeStorage(ctx, c, locationID); err != nil {
+			return Node{}, err
+		}
 	}
 	return toNode(n), nil
 }
