@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/netip"
 	"regexp"
 	"slices"
 	"strconv"
@@ -355,13 +354,7 @@ func (b *builder) uploadISO(ctx context.Context) error {
 }
 
 func (b *builder) firewall(ctx context.Context) error {
-	ips := make([]netip.Addr, len(b.assign))
-	for i, a := range b.assign {
-		ips[i] = a.IP
-	}
-	if err := b.pc.SetFirewall(ctx, b.row.Node, b.vmid(), ips); err != nil {
-		return err
-	}
+	// applyFirewalls writes the ipset and anti-spoofing flags too.
 	if err := b.applyFirewalls(ctx, b.vmid()); err != nil {
 		return err
 	}

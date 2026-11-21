@@ -859,6 +859,7 @@ func TestReconcileMigratesV1Servers(t *testing.T) {
 	open, openVM := running(t, e, "open")
 	guarded, guardedVM := running(t, e, "guarded")
 	sshFirewall(t, e, guarded.ID)
+	finishLast(t, e, guarded.ID, action.StatusSuccess, time.Hour)
 
 	v1 := map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "policy_in": "ACCEPT", "policy_out": "ACCEPT"}
 	for _, vmid := range []int{openVM, guardedVM} {
@@ -942,6 +943,7 @@ func TestReconcileRepairsPolicy(t *testing.T) {
 	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
 	require.NoError(t, err)
 	require.NoError(t, pc.SetFirewallOptions(ctx, row.Node, vmid, map[string]string{"policy_in": "ACCEPT"}))
+	finishLast(t, e, row.ID, action.StatusSuccess, time.Hour)
 	baseline := len(applies(t, e, row.ID))
 
 	require.NoError(t, r.Run(ctx, e.Location))
@@ -988,6 +990,7 @@ func TestReconcileSkipsPendingApply(t *testing.T) {
 	require.Len(t, applies(t, e, row.ID), baseline)
 	require.Len(t, vmFW(t, e, vmid).Rules, 1)
 	require.NoError(t, actions.Succeed(ctx, e.App.Ent, act.ID))
+	finishLast(t, e, row.ID, action.StatusSuccess, time.Hour)
 
 	// A build in progress, a transient status, or an error server is left alone too.
 	cases := []func(*ent.ServerUpdateOne){
@@ -1035,4 +1038,113 @@ func TestReconcileRecordsClusterFirewall(t *testing.T) {
 	require.NotNil(t, loc.FirewallEnabled)
 	require.False(t, *loc.FirewallEnabled)
 	require.Len(t, applies(t, e, row.ID), baseline)
+}
+
+func TestReconcileRepairsIPSet(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	set := vmFW(t, e, vmid).IPSets["ipfilter-net0"]
+	require.NotEmpty(t, set)
+	e.App.PVE.SetVMIPSet(vmid, "ipfilter-net0", set[1:])
+	baseline := len(applies(t, e, row.ID))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1)
+	settle(t, e, row.ID)
+	require.ElementsMatch(t, set, vmFW(t, e, vmid).IPSets["ipfilter-net0"])
+}
+
+func TestReconcileWarnsNICFirewallOff(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	logs := &lockedBuffer{}
+	r := newReconciler(e, slog.New(slog.NewTextHandler(logs, nil)))
+	row, vmid := running(t, e, "web")
+	net0 := vmFW(t, e, vmid).Config["net0"]
+	require.Contains(t, net0, "firewall=1")
+	e.App.PVE.SetVMConfig(vmid, "net0", strings.Replace(net0, ",firewall=1", "", 1))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Contains(t, logs.String(), "public NIC firewall flag is off")
+	require.Contains(t, logs.String(), "server_id="+strconv.FormatInt(row.ID, 10))
+	require.NotContains(t, vmFW(t, e, vmid).Config["net0"], "firewall=1", "the reconciler never writes VM config")
+}
+
+// finishLast backdates the server's newest apply_firewalls action to status st, finished ago.
+func finishLast(t *testing.T, e *testutil.ServerEnv, id int64, st action.Status, ago time.Duration) {
+	t.Helper()
+	as := applies(t, e, id)
+	require.NotEmpty(t, as)
+	require.NoError(t, e.App.Ent.Action.UpdateOne(as[len(as)-1]).SetStatus(st).SetFinished(time.Now().Add(-ago)).Exec(context.Background()))
+}
+
+func TestReconcileRepairCooldownAfterError(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "3389", Enable: true}))
+	// The repair's apply keeps failing.
+	require.NoError(t, db.WithTx(ctx, e.App.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		_, err := e.App.Jobs.StartAction(ctx, tx, etx, e.Project, firewalls.KindApply,
+			[]actions.Resource{{ID: row.ID, Type: servers.ResourceType}},
+			func(int64) river.JobArgs { return jobs.PingArgs{} }, &river.InsertOpts{ScheduledAt: time.Now().Add(time.Hour)})
+		return err
+	}))
+	finishLast(t, e, row.ID, action.StatusError, time.Minute)
+	baseline := len(applies(t, e, row.ID))
+
+	for range 3 {
+		require.NoError(t, r.Run(ctx, e.Location))
+	}
+	require.Len(t, applies(t, e, row.ID), baseline, "no repair within the error cooldown")
+
+	finishLast(t, e, row.ID, action.StatusError, 11*time.Minute)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1)
+}
+
+func TestReconcileWarnsWhenRepairDoesNotStick(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	logs := &lockedBuffer{}
+	r := newReconciler(e, slog.New(slog.NewTextHandler(logs, nil)))
+	row, vmid := running(t, e, "web")
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	foreign := pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "3389", Enable: true, Comment: "sticky"}
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, vmid, foreign))
+	require.NoError(t, r.Run(ctx, e.Location))
+	settle(t, e, row.ID)
+	n := len(applies(t, e, row.ID))
+
+	// Still out of sync after a successful repair, as if Proxmox normalised a field.
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, vmid, foreign))
+	for range 3 {
+		require.NoError(t, r.Run(ctx, e.Location))
+	}
+	require.Len(t, applies(t, e, row.ID), n, "no second repair within the success cooldown")
+	require.Contains(t, logs.String(), "firewall still differs after a repair")
+	require.Contains(t, logs.String(), "server_id="+strconv.FormatInt(row.ID, 10))
+	require.Contains(t, logs.String(), "sticky")
+
+	finishLast(t, e, row.ID, action.StatusSuccess, 6*time.Minute)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), n+1)
+}
+
+func TestReconcileWarnsOnceWithoutJobs(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	logs := &lockedBuffer{}
+	r := reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: slog.New(slog.NewTextHandler(logs, nil))})
+	running(t, e, "web")
+	running(t, e, "db")
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, 1, strings.Count(logs.String(), "firewall drift repair is disabled"))
 }

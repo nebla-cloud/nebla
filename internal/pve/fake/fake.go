@@ -189,6 +189,14 @@ func (s *Server) SetVMFirewall(vmid int, opts map[string]string) {
 	s.vms[vmid].rules = nil
 }
 
+// SetVMIPSet replaces the entries of a VM's ipset, creating it if needed.
+func (s *Server) SetVMIPSet(vmid int, name string, cidrs []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep()
+	s.vms[vmid].ipsets[name] = slices.Clone(cidrs)
+}
+
 // AddVM adds a stopped, non-template VM with a scsi0 disk.
 func (s *Server) AddVM(nodeName string, vmid int, name string) {
 	s.mu.Lock()

@@ -104,6 +104,8 @@ type Client interface {
 	SetConfig(ctx context.Context, node string, vmid int, kv map[string]string) error
 	ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error
 	SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error
+	// FirewallIPSet lists the IPFilterSet entries; ok is false when the set does not exist.
+	FirewallIPSet(ctx context.Context, node string, vmid int) (cidrs []string, ok bool, err error)
 	FirewallOptions(ctx context.Context, node string, vmid int) (map[string]string, error)
 	SetFirewallOptions(ctx context.Context, node string, vmid int, kv map[string]string) error
 	FirewallRules(ctx context.Context, node string, vmid int) ([]FirewallRule, error)

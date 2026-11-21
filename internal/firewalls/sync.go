@@ -3,6 +3,7 @@ package firewalls
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/nebla-cloud/nebla/internal/pve"
@@ -64,6 +65,27 @@ func setOptions(ctx context.Context, pc pve.Client, node string, vmid int, want 
 func InSync(cur []pve.FirewallRule, curOpts map[string]string, d Desired) bool {
 	missing, stale := diff(cur, d)
 	return len(missing) == 0 && len(stale) == 0 && optionsMatch(curOpts, d.Options)
+}
+
+// Drift describes the first difference between live rules and options and d; "" when in sync.
+func Drift(cur []pve.FirewallRule, curOpts map[string]string, d Desired) string {
+	for _, k := range slices.Sorted(maps.Keys(d.Options)) {
+		if curOpts[k] != d.Options[k] {
+			return fmt.Sprintf("option %s is %q, want %q", k, curOpts[k], d.Options[k])
+		}
+	}
+	missing, stale := diff(cur, d)
+	if len(missing) > 0 {
+		return "rule missing: " + missing[0].Comment
+	}
+	if len(stale) > 0 {
+		for _, r := range cur {
+			if r.Pos == stale[0] {
+				return fmt.Sprintf("unexpected rule at pos %d (%q)", r.Pos, r.Comment)
+			}
+		}
+	}
+	return ""
 }
 
 func optionsMatch(have, want map[string]string) bool {

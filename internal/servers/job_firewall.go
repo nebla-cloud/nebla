@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/netip"
 	"strconv"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
 )
@@ -201,6 +203,18 @@ func (o *WorkerOptions) applyFirewallsNow(ctx context.Context, pc pve.Client, id
 	}
 	if err := firewalls.Sync(ctx, pc, node, vmid, firewalls.Render(rules, anyFW)); err != nil {
 		return 0, false, &stepError{"apply firewall", err}
+	}
+	// The v1 anti-spoofing ipset is restored with every apply; Sync already set its flags.
+	assign, err := ipam.Assignments(ctx, o.Ent, id)
+	if err != nil {
+		return 0, false, err
+	}
+	ips := make([]netip.Addr, len(assign))
+	for i, a := range assign {
+		ips[i] = a.IP
+	}
+	if err := pc.SetFirewall(ctx, node, vmid, ips); err != nil {
+		return 0, false, &stepError{"apply anti-spoofing", err}
 	}
 	return gen, anyFW, nil
 }

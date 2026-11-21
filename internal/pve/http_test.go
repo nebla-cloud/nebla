@@ -692,3 +692,20 @@ func TestFirewallFormEncoding(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestFirewallIPSet(t *testing.T) {
+	f, c := setup(t)
+	f.AddVM("pve1", 101, "a")
+	got, ok, err := c.FirewallIPSet(ctx(t), "pve1", 101)
+	if err != nil || ok || len(got) != 0 {
+		t.Fatalf("missing set = %v, %v, %v", got, ok, err)
+	}
+	ips := []netip.Addr{netip.MustParseAddr("203.0.113.5"), netip.MustParseAddr("2001:db8::1")}
+	if err := c.SetFirewall(ctx(t), "pve1", 101, ips); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err = c.FirewallIPSet(ctx(t), "pve1", 101)
+	if err != nil || !ok || !slices.Equal(got, []string{"203.0.113.5", "2001:db8::1"}) {
+		t.Fatalf("set = %v, %v, %v", got, ok, err)
+	}
+}

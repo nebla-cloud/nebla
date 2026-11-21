@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
@@ -46,6 +49,7 @@ type Options struct {
 type Reconciler struct {
 	o       Options
 	jobs    atomic.Pointer[jobs.Jobs]
+	noJobs  sync.Once
 	mu      sync.Mutex
 	orphans map[[2]int64]bool
 	// afterList runs once the VM list is read; tests use it to race a job.
@@ -194,6 +198,12 @@ func (r *Reconciler) recordFirewall(ctx context.Context, pc pve.Client, location
 	return &on, err
 }
 
+// Cooldowns after a server's last apply before the reconciler queues another one.
+const (
+	repairCooldownError   = 10 * time.Minute
+	repairCooldownSuccess = 5 * time.Minute
+)
+
 // fwRepairable reports a server whose VM firewall the reconciler may compare and repair.
 func fwRepairable(row *ent.Server) bool {
 	return row.Vmid != nil && (row.Status == server.StatusRunning || row.Status == server.StatusOff) && !servers.Building(row)
@@ -204,10 +214,67 @@ func applyPending(ctx context.Context, c *ent.Client, row *ent.Server) (bool, er
 		action.StatusEQ(action.StatusRunning)).Exist(ctx)
 }
 
-// repairFirewall queues an apply when the VM's firewall differs from the rendered desired state.
+// cooling reports whether the server's newest apply finished within its cooldown, and whether it succeeded.
+func cooling(ctx context.Context, c *ent.Client, row *ent.Server) (cool, success bool, err error) {
+	last, err := c.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID), action.CommandEQ(firewalls.KindApply)).
+		Order(action.ByID(entsql.OrderDesc())).First(ctx)
+	if ent.IsNotFound(err) || err == nil && last.Finished == nil {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	success = last.Status == action.StatusSuccess
+	wait := repairCooldownError
+	if success {
+		wait = repairCooldownSuccess
+	}
+	return time.Since(*last.Finished) < wait, success, nil
+}
+
+// ipsetDrift describes how the live ipfilter set differs from the server's assigned IPs; "" when it matches.
+func ipsetDrift(cidrs []string, exists bool, assign []ipam.Assignment) string {
+	if !exists {
+		return "ipset " + pve.IPFilterSet + " is missing"
+	}
+	have := map[netip.Addr]bool{}
+	for _, c := range cidrs {
+		if a, err := netip.ParseAddr(c); err == nil {
+			have[a] = true
+		} else if p, err := netip.ParsePrefix(c); err == nil && p.IsSingleIP() {
+			have[p.Addr()] = true
+		} else {
+			return "ipset " + pve.IPFilterSet + " has unexpected entry " + c
+		}
+	}
+	want := map[netip.Addr]bool{}
+	for _, a := range assign {
+		want[a.IP] = true
+		if !have[a.IP] {
+			return "ipset " + pve.IPFilterSet + " lacks " + a.IP.String()
+		}
+	}
+	for a := range have {
+		if !want[a] {
+			return "ipset " + pve.IPFilterSet + " has unexpected entry " + a.String()
+		}
+	}
+	return ""
+}
+
+// nicFirewall reports whether a net0 config value has the firewall flag on.
+func nicFirewall(net0 string) bool {
+	return slices.Contains(strings.Split(net0, ","), "firewall=1")
+}
+
+// repairFirewall queues an apply when the VM's firewall or anti-spoofing differs from the desired state.
 func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pve.Client, row *ent.Server, w view, fwOn *bool) error {
 	j := r.jobs.Load()
-	if j == nil || !fwRepairable(row) {
+	if j == nil {
+		r.noJobs.Do(func() { log.Warn("reconcile: no job runtime, firewall drift repair is disabled") })
+		return nil
+	}
+	if !fwRepairable(row) {
 		return nil
 	}
 	v, ok := vmOf(row, w.vms)
@@ -215,6 +282,10 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 		return nil
 	}
 	if pending, err := applyPending(ctx, r.o.Ent, row); err != nil || pending {
+		return err
+	}
+	cool, lastOK, err := cooling(ctx, r.o.Ent, row)
+	if err != nil || cool && !lastOK {
 		return err
 	}
 	rules, anyFW, err := firewalls.RulesFor(ctx, r.o.Ent, row.ID)
@@ -225,8 +296,19 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 	if anyFW && fwOn != nil && !*fwOn {
 		return nil
 	}
+	assign, err := ipam.Assignments(ctx, r.o.Ent, row.ID)
+	if err != nil {
+		return err
+	}
 	tctx, cancel := context.WithTimeout(ctx, pveTimeout)
 	defer cancel()
+	cfg, err := pc.Config(tctx, v.Node, v.VMID)
+	if err != nil {
+		return fmt.Errorf("read vm config: %w", err)
+	}
+	if !nicFirewall(cfg["net0"]) {
+		log.Warn("reconcile: server public NIC firewall flag is off", "server_id", row.ID, "vmid", v.VMID)
+	}
 	cur, err := pc.FirewallRules(tctx, v.Node, v.VMID)
 	if err != nil {
 		return fmt.Errorf("read firewall rules: %w", err)
@@ -235,7 +317,19 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 	if err != nil {
 		return fmt.Errorf("read firewall options: %w", err)
 	}
-	if firewalls.InSync(cur, opts, firewalls.Render(rules, anyFW)) {
+	cidrs, exists, err := pc.FirewallIPSet(tctx, v.Node, v.VMID)
+	if err != nil {
+		return fmt.Errorf("read firewall ipset: %w", err)
+	}
+	drift := firewalls.Drift(cur, opts, firewalls.Render(rules, anyFW))
+	if drift == "" {
+		drift = ipsetDrift(cidrs, exists, assign)
+	}
+	if drift == "" {
+		return nil
+	}
+	if cool {
+		log.Warn("reconcile: firewall still differs after a repair", "server_id", row.ID, "vmid", v.VMID, "diff", drift)
 		return nil
 	}
 	return db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
@@ -257,7 +351,7 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 		if pending, err := applyPending(ctx, etx, now); err != nil || pending {
 			return err
 		}
-		log.Info("reconcile: firewall drift, queueing apply", "server_id", row.ID, "vmid", v.VMID)
+		log.Info("reconcile: firewall drift, queueing apply", "server_id", row.ID, "vmid", v.VMID, "diff", drift)
 		_, err = firewalls.Bump(ctx, tx, etx, j, now.ProjectID, []int64{now.ID}, nil)
 		return err
 	})

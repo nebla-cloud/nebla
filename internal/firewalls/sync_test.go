@@ -3,6 +3,7 @@ package firewalls
 import (
 	"context"
 	"maps"
+	"net/netip"
 	"slices"
 	"strings"
 	"testing"
@@ -269,5 +270,26 @@ func TestInSync(t *testing.T) {
 		if InSync(rs, o, d) {
 			t.Errorf("%s: drift not detected", name)
 		}
+	}
+}
+
+func TestDrift(t *testing.T) {
+	port := "22"
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: &port, IPs: []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}}}, true)
+	cur := slices.Clone(d.Rules)
+	if got := Drift(cur, maps.Clone(d.Options), d); got != "" {
+		t.Fatalf("in sync: %q", got)
+	}
+	opts := maps.Clone(d.Options)
+	opts["policy_in"] = "ACCEPT"
+	if got := Drift(cur, opts, d); got != `option policy_in is "ACCEPT", want "DROP"` {
+		t.Fatalf("policy: %q", got)
+	}
+	if got := Drift(nil, d.Options, d); !strings.HasPrefix(got, "rule missing: nebla:1:1:") {
+		t.Fatalf("missing: %q", got)
+	}
+	extra := append(slices.Clone(cur), pve.FirewallRule{Pos: 1, Type: "in", Action: "ACCEPT", Comment: "hand made"})
+	if got := Drift(extra, d.Options, d); got != `unexpected rule at pos 1 ("hand made")` {
+		t.Fatalf("extra: %q", got)
 	}
 }

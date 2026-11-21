@@ -448,6 +448,47 @@ func (c *httpClient) ClusterFirewallEnabled(ctx context.Context) (bool, error) {
 	return o["enable"] == "1", nil
 }
 
+// IPFilterSet is the ipset Proxmox's ipfilter checks net0 traffic against.
+const IPFilterSet = "ipfilter-net0"
+
+func (c *httpClient) ipsetExists(ctx context.Context, base string) (bool, error) {
+	var sets []struct {
+		Name string `json:"name"`
+	}
+	if err := c.do(ctx, http.MethodGet, base+"/ipset", nil, &sets); err != nil {
+		return false, err
+	}
+	return slices.ContainsFunc(sets, func(s struct {
+		Name string `json:"name"`
+	}) bool {
+		return s.Name == IPFilterSet
+	}), nil
+}
+
+func (c *httpClient) ipsetEntries(ctx context.Context, base string) ([]string, error) {
+	var have []struct {
+		CIDR string `json:"cidr"`
+	}
+	if err := c.do(ctx, http.MethodGet, base+"/ipset/"+IPFilterSet, nil, &have); err != nil {
+		return nil, err
+	}
+	out := make([]string, len(have))
+	for i, h := range have {
+		out[i] = h.CIDR
+	}
+	return out, nil
+}
+
+func (c *httpClient) FirewallIPSet(ctx context.Context, node string, vmid int) ([]string, bool, error) {
+	base := vmPath(node, vmid) + "/firewall"
+	ok, err := c.ipsetExists(ctx, base)
+	if err != nil || !ok {
+		return nil, false, err
+	}
+	cidrs, err := c.ipsetEntries(ctx, base)
+	return cidrs, err == nil, err
+}
+
 func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error {
 	base := vmPath(node, vmid) + "/firewall"
 	// Policies are the renderer's to write, not this call.
@@ -455,26 +496,17 @@ func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips
 	if err := c.do(ctx, http.MethodPut, base+"/options", opts, nil); err != nil {
 		return err
 	}
-	const set = "ipfilter-net0"
-	var sets []struct {
-		Name string `json:"name"`
-	}
-	if err := c.do(ctx, http.MethodGet, base+"/ipset", nil, &sets); err != nil {
+	ok, err := c.ipsetExists(ctx, base)
+	if err != nil {
 		return err
 	}
-	if !slices.ContainsFunc(sets, func(s struct {
-		Name string `json:"name"`
-	}) bool {
-		return s.Name == set
-	}) {
-		if err := c.do(ctx, http.MethodPost, base+"/ipset", url.Values{"name": {set}}, nil); err != nil {
+	if !ok {
+		if err := c.do(ctx, http.MethodPost, base+"/ipset", url.Values{"name": {IPFilterSet}}, nil); err != nil {
 			return err
 		}
 	}
-	var have []struct {
-		CIDR string `json:"cidr"`
-	}
-	if err := c.do(ctx, http.MethodGet, base+"/ipset/"+set, nil, &have); err != nil {
+	have, err := c.ipsetEntries(ctx, base)
+	if err != nil {
 		return err
 	}
 	want := map[string]bool{}
@@ -483,11 +515,11 @@ func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips
 	}
 	present := map[string]bool{}
 	for _, h := range have {
-		if want[h.CIDR] {
-			present[h.CIDR] = true
+		if want[h] {
+			present[h] = true
 			continue
 		}
-		if err := c.do(ctx, http.MethodDelete, base+"/ipset/"+set+"/"+url.PathEscape(h.CIDR), nil, nil); err != nil {
+		if err := c.do(ctx, http.MethodDelete, base+"/ipset/"+IPFilterSet+"/"+url.PathEscape(h), nil, nil); err != nil {
 			return err
 		}
 	}
@@ -496,7 +528,7 @@ func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips
 			continue
 		}
 		present[ip.String()] = true
-		if err := c.do(ctx, http.MethodPost, base+"/ipset/"+set, url.Values{"cidr": {ip.String()}}, nil); err != nil {
+		if err := c.do(ctx, http.MethodPost, base+"/ipset/"+IPFilterSet, url.Values{"cidr": {ip.String()}}, nil); err != nil {
 			return err
 		}
 	}
