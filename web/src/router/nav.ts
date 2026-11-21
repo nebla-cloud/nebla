@@ -23,6 +23,7 @@ declare module 'vue-router' {
     public?: boolean
     roles?: Role[]
     guestOnly?: boolean
+    serverTab?: { label: string; order: number }
   }
 }
 

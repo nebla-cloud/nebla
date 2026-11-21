@@ -8,6 +8,7 @@ import { createAppRouter } from '@/router'
 import type { Action } from '@/api/types'
 import { makeServer } from '@/features/servers/fixtures'
 import serverRoutes from '@/features/servers/routes'
+import { useCurrentCrumbs } from '@/lib/crumbs'
 import CreateServerPage from './CreateServerPage.vue'
 
 const meta = (n: number) => ({ pagination: { page: 1, per_page: 50, total_entries: n } })
@@ -128,6 +129,11 @@ const createButton = () =>
     (b) => b.textContent?.trim() === 'Create server',
   ) as HTMLButtonElement
 
+const stepFieldset = (title: string) =>
+  Array.from(document.body.querySelectorAll('li[data-step]'))
+    .find((li) => li.querySelector('h3')?.textContent?.trim() === title)
+    ?.querySelector('fieldset')
+
 async function pick(sel: string) {
   $(sel).click()
   await flushPromises()
@@ -154,6 +160,57 @@ describe('CreateServerPage', () => {
     const router = createAppRouter(createMemoryHistory())
     expect(router.resolve('/p/1/servers/new').name).toBe('server-new')
     expect(router.resolve('/p/1/servers/42').name).toBe('server')
+  })
+
+  it('lays the form out as numbered steps with state', async () => {
+    serveCatalog()
+    await mountCreate()
+    const steps = Array.from(document.body.querySelectorAll<HTMLElement>('form ol > li[data-step]'))
+    expect(steps.map((s) => [s.dataset.step, s.querySelector('h3')?.textContent?.trim()])).toEqual([
+      ['1', 'Location'],
+      ['2', 'Image'],
+      ['3', 'Type'],
+      ['4', 'Networking'],
+      ['5', 'SSH keys'],
+      ['6', 'Cloud-init'],
+    ])
+    // Defaults fill location, image, type and IPv4; no key is picked yet.
+    expect(steps.map((s) => s.dataset.state)).toEqual([
+      'done',
+      'done',
+      'done',
+      'done',
+      'current',
+      'todo',
+    ])
+    for (const s of steps.slice(0, 5)) expect(s.querySelector('fieldset')).toBeTruthy()
+    await pick('input[name="ssh_key"][value="5"]')
+    expect(steps[4]!.dataset.state).toBe('done')
+    expect(steps[5]!.dataset.state).toBe('current')
+  })
+
+  it('uses top bar crumbs, choice cards and an add-key card', async () => {
+    serveCatalog()
+    await mountCreate()
+    expect(useCurrentCrumbs().value).toEqual([
+      { label: 'Servers', to: { name: 'servers', params: { projectId: 1 } } },
+      { label: 'Create server' },
+    ])
+    expect(document.body.querySelector('main nav, form nav, nav a[href="/p/1/servers"]')).toBeNull()
+    expect(document.body.querySelector('h1')?.textContent?.trim()).toBe('Create server')
+    const imageCard = $('input[name="image"][value="3"]').closest('label')!
+    expect(imageCard.classList).toContain('nb-choice')
+    expect(imageCard.textContent).toContain('D')
+    const typeCard = $('input[name="server_type"][value="2"]').closest('label')!
+    expect(typeCard.dataset.variant).toBe('arch')
+    expect(typeCard.textContent).toContain('2 vCPU')
+    expect(typeCard.textContent).toContain('4 GB')
+    expect(typeCard.textContent).toContain('40 GB')
+    const addKey = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Add key',
+    )!
+    expect(addKey.className).toContain('border-dashed')
+    expect(document.body.querySelectorAll('aside [role="meter"]').length).toBe(5)
   })
 
   it('submits the full ServerInput', async () => {
@@ -293,7 +350,7 @@ describe('CreateServerPage', () => {
     await pick('input[name="image"][value="3"]')
     await pick('input[name="server_type"][value="2"]')
     const msg = 'No free addresses in home. Ask your Nebla admin to add an IP pool.'
-    expect(document.body.querySelector('fieldset')?.parentElement?.textContent).toContain(msg)
+    expect(stepFieldset('Networking')?.textContent).toContain(msg)
     expect(summary().textContent).toContain(msg)
     expect(document.body.textContent).not.toContain('No free IPv4 addresses in home')
     expect(createButton().disabled).toBe(true)

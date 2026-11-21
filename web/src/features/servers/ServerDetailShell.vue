@@ -21,19 +21,14 @@ import PowerActions from './PowerActions.vue'
 import { useServer } from './queries'
 import { serverBusyKey } from './shell'
 
-const tabs = [
-  { name: 'server', label: 'Overview' },
-  { name: 'server-graphs', label: 'Graphs' },
-  { name: 'server-console', label: 'Console' },
-  { name: 'server-rebuild', label: 'Rebuild' },
-  { name: 'server-resize', label: 'Resize' },
-  { name: 'server-firewalls', label: 'Firewalls' }, // redesign: remove, serverTab meta covers it
-  { name: 'server-volumes', label: 'Volumes' }, // redesign: remove, serverTab meta covers it
-  { name: 'server-activity', label: 'Activity' },
-]
-
 const route = useRoute()
 const router = useRouter()
+// Tabs are the child routes that carry meta.serverTab.
+const tabs = router
+  .getRoutes()
+  .filter((r) => r.name && r.meta.serverTab)
+  .map((r) => ({ name: r.name!, ...r.meta.serverTab! }))
+  .sort((a, b) => a.order - b.order)
 const toast = useToast()
 const qc = useQueryClient()
 const { projectId } = useCurrentProject()
@@ -159,12 +154,13 @@ const notFound = computed(
       </Panel>
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
 
-      <nav aria-label="Server sections" class="overflow-x-auto border-b border-default">
-        <ul class="flex min-w-max gap-1">
-          <li v-for="t in tabs" :key="t.name">
+      <nav aria-label="Server sections" class="overflow-x-auto overflow-y-hidden">
+        <!-- The base line is an inset shadow so the active tab's underline paints over it. -->
+        <ul class="flex min-w-max gap-1 shadow-[inset_0_-1px_0_var(--ui-border)]">
+          <li v-for="t in tabs" :key="String(t.name)">
             <RouterLink
               :to="{ name: t.name, params: { projectId, serverId } }"
-              class="-mb-px inline-block border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary aria-[current=page]:border-inverted aria-[current=page]:font-semibold aria-[current=page]:text-highlighted"
+              class="inline-block px-3 pt-2 pb-2.5 text-sm font-medium text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary aria-[current=page]:font-semibold aria-[current=page]:shadow-[inset_0_-2px_0_var(--ui-border-inverted)] aria-[current=page]:text-highlighted"
             >
               {{ t.label }}
             </RouterLink>

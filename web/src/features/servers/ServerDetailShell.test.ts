@@ -204,6 +204,52 @@ describe('ServerDetailShell', () => {
     ])
   })
 
+  it('builds tabs from child routes with serverTab meta, sorted by order', async () => {
+    serve(makeServer({ id: 5 }))
+    const firewalls = {
+      path: 'firewalls',
+      name: 'server-firewalls',
+      component: RouterView,
+      meta: { side: 'project' as const, serverTab: { label: 'Firewalls', order: 45 } },
+    }
+    const withFirewalls = routes.map((r) =>
+      'children' in r && r.children ? { ...r, children: [...r.children, firewalls] } : r,
+    )
+    const router = testRouter([
+      {
+        path: '/p/:projectId',
+        component: RouterView,
+        children: [
+          { path: 'servers/new', name: 'server-new', component: RouterView },
+          ...withFirewalls,
+        ],
+      },
+    ])
+    await router.push('/p/1/servers/5')
+    const res = mountApp(RouterView, { router })
+    mounted = res.wrapper
+    await vi.waitFor(() => expect(res.wrapper.text()).not.toContain('Loading server'))
+    const labels = res.wrapper.findAll('nav[aria-label="Server sections"] a').map((a) => a.text())
+    expect(labels).toEqual([
+      'Overview',
+      'Graphs',
+      'Console',
+      'Rebuild',
+      'Firewalls',
+      'Resize',
+      'Activity',
+    ])
+  })
+
+  it('the tab strip scrolls sideways only', async () => {
+    serve(makeServer({ id: 5 }))
+    const { wrapper } = await mountDetail('/p/1/servers/5')
+    const nav = wrapper.get('nav[aria-label="Server sections"]')
+    expect(nav.classes()).toContain('overflow-x-auto')
+    expect(nav.classes()).toContain('overflow-y-hidden')
+    for (const a of nav.findAll('a')) expect(a.classes()).not.toContain('-mb-px')
+  })
+
   it('header and chips stay across tabs', async () => {
     serve(makeServer({ id: 5 }))
     const { wrapper, router } = await mountDetail('/p/1/servers/5')

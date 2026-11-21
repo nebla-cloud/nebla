@@ -31,5 +31,37 @@ describe('CreateSummary', () => {
       'vCPU: 6, no limit',
       'Memory: 12 GB of 64 GB, 16 GB after this',
     ])
+    const meters = wrapper.findAll('[role="meter"]')
+    expect(
+      meters.map((m) => [
+        m.attributes('aria-label'),
+        m.attributes('aria-valuenow'),
+        m.attributes('aria-valuemax'),
+      ]),
+    ).toEqual([
+      ['Servers', '4', '10'],
+      ['Memory', '16384', '65536'],
+    ])
+  })
+
+  it('sits in a panel with the name input and Create button', () => {
+    const { wrapper } = mountApp(CreateSummary, {
+      props: {
+        formId: 'f',
+        ipv4: true,
+        ipv6: false,
+        keyCount: 1,
+        quota: [],
+        blocker: null,
+        error: null,
+        submitting: false,
+        name: 'web1',
+      },
+    })
+    const aside = wrapper.get('aside[aria-label="Summary"]')
+    expect(aside.find('h2.nb-h2').text()).toBe('Summary')
+    expect(aside.find('input[name="name"]').exists()).toBe(true)
+    expect(aside.find('button[type="submit"]').text()).toBe('Create server')
+    expect(aside.text()).toContain('1 key')
   })
 })

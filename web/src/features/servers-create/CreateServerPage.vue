@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UCollapsible from '@nuxt/ui/components/Collapsible.vue'
-import UTextarea from '@nuxt/ui/components/Textarea.vue'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import { api } from '@/api/client'
 import { errorMessage, unwrap } from '@/api/errors'
 import type { components } from '@/api/schema'
+import ChoiceCard from '@/components/ChoiceCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import { typeSpec } from '@/lib/format'
+import PageHeader from '@/components/PageHeader.vue'
+import Step from '@/components/Step.vue'
+import StepList from '@/components/StepList.vue'
+import TerminalBlock from '@/components/TerminalBlock.vue'
+import { useCrumbs } from '@/lib/crumbs'
+import { formatMemory } from '@/lib/format'
 import { useCurrentProject } from '@/lib/project'
+import OsBadge from '@/features/servers/OsBadge.vue'
 import { useServers } from '@/features/servers/queries'
 import AddSshKeyModal from '@/features/sshkeys/AddSshKeyModal.vue'
 import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
@@ -46,6 +53,11 @@ const typesQ = useServerTypes()
 const { data: sshKeys } = useSshKeys()
 const { data: servers } = useServers()
 
+useCrumbs(() => [
+  { label: 'Servers', to: { name: 'servers', params: { projectId: projectId.value } } },
+  { label: 'Create server' },
+])
+
 const form = reactive<CreateForm>({
   locationId: null,
   imageId: null,
@@ -61,6 +73,21 @@ const ipTouched = ref(false)
 const firewallIds = ref<number[]>([])
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
+
+// ChoiceCard values are strings; the form keeps numeric ids.
+function idValue(key: 'locationId' | 'imageId' | 'typeId') {
+  return computed({
+    get: () => (form[key] === null ? undefined : String(form[key])),
+    set: (v: unknown) => (form[key] = v == null ? null : Number(v)),
+  })
+}
+const locationValue = idValue('locationId')
+const imageValue = idValue('imageId')
+const typeValue = idValue('typeId')
+const keyValues = computed({
+  get: () => form.sshKeyIds.map(String),
+  set: (v: unknown) => (form.sshKeyIds = (v as string[]).map(Number)),
+})
 
 const ctx = computed<CreateContext>(() => ({
   locations: locationsQ.data.value ?? [],
@@ -197,24 +224,12 @@ async function submit() {
   }
 }
 
-const chip =
-  'inline-flex cursor-pointer items-center rounded-md border border-accented px-3 py-1.5 text-sm text-default transition-colors hover:bg-elevated peer-checked:border-inverted peer-checked:font-semibold peer-checked:text-highlighted peer-checked:ring-1 peer-checked:ring-inverted peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary peer-disabled:cursor-not-allowed peer-disabled:border-dashed peer-disabled:text-dimmed peer-disabled:hover:bg-transparent'
-const legend = 'mb-2 text-sm font-semibold text-highlighted'
+const cards = 'flex flex-wrap gap-2.5'
 </script>
 
 <template>
-  <div class="flex flex-col gap-5 pb-40 lg:pb-0">
-    <nav class="text-sm text-muted">
-      <RouterLink
-        :to="{ name: 'servers', params: { projectId } }"
-        class="hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
-      >
-        Servers
-      </RouterLink>
-      <span aria-hidden="true"> / </span>
-      <span aria-current="page" class="text-default">Create server</span>
-    </nav>
-    <h1 class="text-xl font-bold tracking-tight text-highlighted">Create server</h1>
+  <div class="flex flex-col gap-6 pb-40 lg:pb-0">
+    <PageHeader title="Create server" />
 
     <UAlert
       v-if="loadError"
@@ -233,192 +248,200 @@ const legend = 'mb-2 text-sm font-semibold text-highlighted'
       v-else
       class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]"
     >
-      <form :id="FORM_ID" class="flex min-w-0 flex-col gap-7" novalidate @submit.prevent="submit">
-        <fieldset>
-          <legend :class="legend">Location</legend>
-          <div class="flex flex-wrap gap-2">
-            <label v-for="l in ctx.locations" :key="l.id" class="relative">
-              <input
-                v-model="form.locationId"
-                type="radio"
-                name="location"
-                :value="l.id"
-                class="peer sr-only"
-              />
-              <span :class="chip">{{ l.name }}</span>
-            </label>
-          </div>
-        </fieldset>
+      <form :id="FORM_ID" class="min-w-0" novalidate @submit.prevent="submit">
+        <StepList>
+          <Step title="Location" :done="form.locationId !== null">
+            <fieldset>
+              <legend class="sr-only">Location</legend>
+              <div :class="cards">
+                <ChoiceCard
+                  v-for="l in ctx.locations"
+                  :key="l.id"
+                  v-model="locationValue"
+                  type="radio"
+                  name="location"
+                  :value="String(l.id)"
+                  class="min-w-36"
+                >
+                  {{ l.name }}
+                </ChoiceCard>
+              </div>
+            </fieldset>
+          </Step>
 
-        <fieldset>
-          <legend :class="legend">Image</legend>
-          <p v-if="!imageOptions.length" class="text-sm text-muted">
-            No images yet. Ask your Nebla admin to enable one.
-          </p>
-          <div v-else class="flex flex-wrap gap-2">
-            <label
-              v-for="o in imageOptions"
-              :key="o.image.id"
-              class="relative"
-              :title="o.disabledReason ?? undefined"
-            >
-              <input
-                v-model="form.imageId"
-                type="radio"
-                name="image"
-                :value="o.image.id"
-                :disabled="!!o.disabledReason"
-                class="peer sr-only"
-              />
-              <span :class="chip">
-                {{ o.image.name }}
-                <span v-if="o.disabledReason" class="sr-only">, {{ o.disabledReason }}</span>
-              </span>
-            </label>
-          </div>
-          <p v-if="imageOptions.some((o) => o.disabledReason)" class="mt-2 text-xs text-muted">
-            Dashed images aren't available in {{ location?.name }}.
-          </p>
-        </fieldset>
-
-        <fieldset>
-          <legend :class="legend">Type</legend>
-          <p v-if="!typeOptions.length" class="text-sm text-muted">
-            No server types yet. Ask your Nebla admin to add one.
-          </p>
-          <div
-            v-else
-            class="flex flex-col divide-y divide-default overflow-hidden rounded-lg border border-default"
-          >
-            <label
-              v-for="o in typeOptions"
-              :key="o.type.id"
-              class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 has-checked:bg-elevated"
-              :class="
-                o.disabledReason
-                  ? 'cursor-not-allowed text-dimmed'
-                  : 'cursor-pointer hover:bg-elevated/60'
-              "
-            >
-              <input
-                v-model="form.typeId"
-                type="radio"
-                name="server_type"
-                :value="o.type.id"
-                :disabled="!!o.disabledReason"
-                class="size-4 accent-(--ui-text-highlighted) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-              />
-              <span
-                class="min-w-24 font-semibold"
-                :class="o.disabledReason ? '' : 'text-highlighted'"
-              >
-                {{ o.type.name }}
-              </span>
-              <span class="text-sm" :class="o.disabledReason ? '' : 'text-default'">
-                {{ typeSpec(o.type) }}
-              </span>
-              <span v-if="o.disabledReason" class="text-xs sm:ml-auto">{{ o.disabledReason }}</span>
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend :class="legend">Networking</legend>
-          <div class="flex flex-wrap gap-2">
-            <label
-              v-for="fam in ['ipv4', 'ipv6'] as const"
-              :key="fam"
-              class="relative"
-              :title="nets[fam] ?? undefined"
-            >
-              <input
-                v-model="form[fam]"
-                type="checkbox"
-                :name="fam"
-                :disabled="!!nets[fam]"
-                class="peer sr-only"
-                @change="ipTouched = true"
-              />
-              <span :class="chip">{{ fam === 'ipv4' ? 'IPv4' : 'IPv6' }}</span>
-            </label>
-          </div>
-          <p v-if="nets.ipv4 && nets.ipv6" class="mt-2 text-xs text-muted">
-            {{ noAddresses(location?.name ?? '') }}
-          </p>
-          <template v-else>
-            <ul v-if="nets.ipv4 || nets.ipv6" class="mt-2 text-xs text-muted">
-              <li v-if="nets.ipv4">{{ nets.ipv4 }}</li>
-              <li v-if="nets.ipv6">{{ nets.ipv6 }}</li>
-            </ul>
-            <p v-if="!form.ipv4 && !form.ipv6" class="mt-2 text-xs text-muted">{{ PICK_FAMILY }}</p>
-          </template>
-        </fieldset>
-
-        <fieldset>
-          <legend :class="legend">SSH keys</legend>
-          <div class="flex flex-wrap items-center gap-2">
-            <label v-for="k in sshKeys ?? []" :key="k.id" class="relative">
-              <input
-                v-model="form.sshKeyIds"
-                type="checkbox"
-                name="ssh_key"
-                :value="k.id"
-                class="peer sr-only"
-              />
-              <span :class="chip">{{ k.name }}</span>
-            </label>
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-plus"
-              @click="keyModal = true"
-            >
-              Add key
-            </UButton>
-          </div>
-          <p v-if="!sshKeys?.length" class="mt-2 text-xs text-muted">
-            No SSH keys in this project yet.
-          </p>
-          <AddSshKeyModal v-model:open="keyModal" @created="keyCreated" />
-        </fieldset>
-
-        <FirewallPicker v-model="firewallIds" />
-
-        <UCollapsible :unmount-on-hide="false">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            trailing-icon="i-lucide-chevron-down"
-            class="-ml-2.5 font-semibold text-highlighted"
-            :ui="{ trailingIcon: 'group-data-[state=open]:rotate-180 transition-transform' }"
-          >
-            Cloud-init
-          </UButton>
-          <template #content>
-            <div class="flex flex-col gap-1.5 pt-2">
-              <label for="user_data" class="text-sm text-muted">
-                User data, sent to the server on first boot.
-              </label>
-              <UTextarea
-                id="user_data"
-                v-model="form.userData"
-                name="user_data"
-                :rows="8"
-                spellcheck="false"
-                placeholder="#cloud-config"
-                class="w-full font-mono"
-                autoresize
-              />
-              <p
-                class="text-xs"
-                :class="userDataSize > MAX_USER_DATA ? 'text-error' : 'text-muted'"
-                aria-live="polite"
-              >
-                {{ userDataLabel }}
+          <Step title="Image" :done="form.imageId !== null">
+            <fieldset>
+              <legend class="sr-only">Image</legend>
+              <p v-if="!imageOptions.length" class="text-sm text-muted">
+                No images yet. Ask your Nebla admin to enable one.
               </p>
-            </div>
-          </template>
-        </UCollapsible>
+              <div v-else :class="cards">
+                <ChoiceCard
+                  v-for="o in imageOptions"
+                  :key="o.image.id"
+                  v-model="imageValue"
+                  type="radio"
+                  name="image"
+                  :value="String(o.image.id)"
+                  :disabled="!!o.disabledReason"
+                  :title="o.disabledReason ?? undefined"
+                  class="min-w-40"
+                >
+                  <span class="flex items-center gap-2">
+                    <OsBadge :name="o.image.os_flavor" />
+                    {{ o.image.name }}
+                  </span>
+                  <template v-if="o.disabledReason" #meta>{{ o.disabledReason }}</template>
+                </ChoiceCard>
+              </div>
+              <p v-if="imageOptions.some((o) => o.disabledReason)" class="mt-2 text-xs text-muted">
+                Dashed images aren't available in {{ location?.name }}.
+              </p>
+            </fieldset>
+          </Step>
+
+          <Step title="Type" :done="form.typeId !== null">
+            <fieldset>
+              <legend class="sr-only">Type</legend>
+              <p v-if="!typeOptions.length" class="text-sm text-muted">
+                No server types yet. Ask your Nebla admin to add one.
+              </p>
+              <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-2.5">
+                <ChoiceCard
+                  v-for="o in typeOptions"
+                  :key="o.type.id"
+                  v-model="typeValue"
+                  type="radio"
+                  name="server_type"
+                  variant="arch"
+                  :value="String(o.type.id)"
+                  :disabled="!!o.disabledReason"
+                >
+                  <span class="text-[1.0625rem]">{{ o.type.name }}</span>
+                  <template #meta>
+                    <span v-if="o.disabledReason">{{ o.disabledReason }}</span>
+                    <span v-else class="flex flex-wrap gap-x-2.5">
+                      <span>{{ o.type.cores }} vCPU</span>
+                      <span>{{ formatMemory(o.type.memory_mb) }}</span>
+                      <span>{{ o.type.disk_gb }} GB</span>
+                    </span>
+                  </template>
+                </ChoiceCard>
+              </div>
+            </fieldset>
+          </Step>
+
+          <Step title="Networking" :done="form.ipv4 || form.ipv6">
+            <fieldset>
+              <legend class="sr-only">Networking</legend>
+              <div :class="cards">
+                <ChoiceCard
+                  v-for="fam in ['ipv4', 'ipv6'] as const"
+                  :key="fam"
+                  v-model="form[fam]"
+                  type="checkbox"
+                  :name="fam"
+                  :value="fam"
+                  :disabled="!!nets[fam]"
+                  :title="nets[fam] ?? undefined"
+                  class="min-w-36"
+                  @update:model-value="ipTouched = true"
+                >
+                  {{ fam === 'ipv4' ? 'IPv4' : 'IPv6' }}
+                </ChoiceCard>
+              </div>
+              <p v-if="nets.ipv4 && nets.ipv6" class="mt-2 text-xs text-muted">
+                {{ noAddresses(location?.name ?? '') }}
+              </p>
+              <template v-else>
+                <ul v-if="nets.ipv4 || nets.ipv6" class="mt-2 text-xs text-muted">
+                  <li v-if="nets.ipv4">{{ nets.ipv4 }}</li>
+                  <li v-if="nets.ipv6">{{ nets.ipv6 }}</li>
+                </ul>
+                <p v-if="!form.ipv4 && !form.ipv6" class="mt-2 text-xs text-muted">
+                  {{ PICK_FAMILY }}
+                </p>
+              </template>
+            </fieldset>
+          </Step>
+
+          <Step title="SSH keys" :done="form.sshKeyIds.length > 0">
+            <fieldset>
+              <legend class="sr-only">SSH keys</legend>
+              <div :class="cards">
+                <ChoiceCard
+                  v-for="k in sshKeys ?? []"
+                  :key="k.id"
+                  v-model="keyValues"
+                  type="checkbox"
+                  name="ssh_key"
+                  :value="String(k.id)"
+                  class="min-w-36"
+                >
+                  {{ k.name }}
+                </ChoiceCard>
+                <button
+                  type="button"
+                  class="flex min-w-36 cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-accented bg-default p-3.5 font-semibold text-default hover:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-focus)"
+                  @click="keyModal = true"
+                >
+                  <UIcon name="i-lucide-plus" class="size-4" />
+                  Add key
+                </button>
+              </div>
+              <p v-if="!sshKeys?.length" class="mt-2 text-xs text-muted">
+                No SSH keys in this project yet.
+              </p>
+              <AddSshKeyModal v-model:open="keyModal" @created="keyCreated" />
+            </fieldset>
+          </Step>
+
+          <!-- New sections: add a <Step> here; numbers follow position. -->
+
+          <FirewallPicker v-model="firewallIds" />
+
+          <Step title="Cloud-init" :done="form.userData.trim() !== ''">
+            <UCollapsible :unmount-on-hide="false">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                trailing-icon="i-lucide-chevron-down"
+                class="-ml-2.5 text-muted"
+                :ui="{ trailingIcon: 'group-data-[state=open]:rotate-180 transition-transform' }"
+              >
+                Add user data (optional)
+              </UButton>
+              <template #content>
+                <div class="flex max-w-xl flex-col gap-1.5 pt-2">
+                  <label for="user_data" class="text-sm text-muted">
+                    User data, sent to the server on first boot.
+                  </label>
+                  <TerminalBlock
+                    caption="user-data"
+                    class="has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-(--nb-focus)"
+                  >
+                    <textarea
+                      id="user_data"
+                      v-model="form.userData"
+                      name="user_data"
+                      rows="8"
+                      spellcheck="false"
+                      placeholder="#cloud-config"
+                      class="block w-full resize-y bg-transparent outline-none placeholder:text-(--nb-term-muted)"
+                    />
+                  </TerminalBlock>
+                  <p
+                    class="text-xs"
+                    :class="userDataSize > MAX_USER_DATA ? 'text-error' : 'text-muted'"
+                    aria-live="polite"
+                  >
+                    {{ userDataLabel }}
+                  </p>
+                </div>
+              </template>
+            </UCollapsible>
+          </Step>
+        </StepList>
       </form>
 
       <CreateSummary
