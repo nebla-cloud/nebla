@@ -60,6 +60,8 @@ describe('ServerListPage', () => {
       expect.arrayContaining(['Name', 'Image', 'Type', 'Public IPv4', 'Location']),
     )
     expect(head.element.closest('ul')).toBeNull()
+    // Name lines up with the names, past the 22px arch and the 12px gap.
+    expect(head.find('span').classes()).toContain('pl-[34px]')
     expect(wrapper.findAll('li')).toHaveLength(1)
     const li = wrapper.find('li')
     expect(li.text()).toContain('Debian 13')

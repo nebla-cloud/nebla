@@ -201,7 +201,8 @@ onBeforeUnmount(() => clearTimeout(timer))
           aria-hidden="true"
           class="hidden items-center gap-3 border-b border-default bg-(--nb-soft) px-4 py-2.5 text-[12.5px] font-medium text-muted sm:flex"
         >
-          <span class="min-w-0 flex-1">Name</span>
+          <!-- Indented by the status arch (22px) plus the row gap (12px). -->
+          <span class="min-w-0 flex-1 pl-[34px]">Name</span>
           <span :class="cols">
             <span>Image</span>
             <span>Type</span>

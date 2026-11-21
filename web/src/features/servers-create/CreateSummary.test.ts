@@ -64,4 +64,31 @@ describe('CreateSummary', () => {
     expect(aside.find('button[type="submit"]').text()).toBe('Create server')
     expect(aside.text()).toContain('1 key')
   })
+
+  it('names the image by its OS, not its slug', () => {
+    const { wrapper } = mountApp(CreateSummary, {
+      props: {
+        formId: 'f',
+        image: {
+          id: 3,
+          name: 'debian-13',
+          description: '',
+          os_flavor: 'debian',
+          os_version: '13',
+          locations: [1],
+        },
+        ipv4: true,
+        ipv6: false,
+        keyCount: 0,
+        quota: [],
+        blocker: null,
+        error: null,
+        submitting: false,
+        name: 'web1',
+      },
+    })
+    const dds = wrapper.findAll('dd').map((d) => d.text())
+    expect(dds).toContain('Debian 13')
+    expect(dds).not.toContain('debian-13')
+  })
 })
