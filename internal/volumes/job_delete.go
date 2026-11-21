@@ -48,7 +48,7 @@ func (w *DeleteVolumeWorker) Work(ctx context.Context, job *river.Job[DeleteVolu
 			return err
 		}
 		// An absent disk counts as deleted: real Proxmox may fail freeing it with a task error, not a 404.
-		it, present, err := diskPresent(ctx, pc, node, row.Storage, row.Volid, row.ID)
+		it, present, err := diskPresent(ctx, pc, node, row.Storage, row.Volid)
 		if err != nil {
 			return servers.StepError("list storage", err)
 		}
@@ -89,7 +89,7 @@ func (w *DeleteVolumeWorker) remove(ctx context.Context, pc pve.Client, node str
 		return servers.Permanent("delete volume on storage %s: the token lacks Datastore.Allocate there; "+
 			"grant NeblaISO on /storage/%s; re-run the setup command (%v)", row.Storage, row.Storage, err)
 	}
-	if _, still, lerr := diskPresent(ctx, pc, node, row.Storage, volid, row.ID); lerr == nil && !still {
+	if _, still, lerr := diskPresent(ctx, pc, node, row.Storage, volid); lerr == nil && !still {
 		return nil
 	}
 	return servers.StepError("delete volume", err)

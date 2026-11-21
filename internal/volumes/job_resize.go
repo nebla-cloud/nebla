@@ -119,7 +119,7 @@ func (w *ResizeVolumeWorker) grown(ctx context.Context, row *ent.Volume, sizeGB 
 	if err != nil {
 		return false, err
 	}
-	it, ok, err := diskPresent(ctx, pc, node, row.Storage, row.Volid, row.ID)
+	it, ok, err := diskPresent(ctx, pc, node, row.Storage, row.Volid)
 	if err != nil {
 		return false, err
 	}

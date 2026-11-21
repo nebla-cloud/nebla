@@ -17,6 +17,9 @@ import (
 	"github.com/riverqueue/river"
 )
 
+// allocMark is the create progress set just before the allocation is sent.
+const allocMark = 10
+
 // CreateVolumeWorker allocates the disk and, with a server, attaches it in the same action.
 type CreateVolumeWorker struct {
 	river.WorkerDefaults[CreateVolumeArgs]
@@ -43,7 +46,8 @@ func (w *CreateVolumeWorker) Work(ctx context.Context, job *river.Job[CreateVolu
 		}
 		row := row
 		if row.Status == volume.StatusCreating {
-			if row, err = w.alloc(ctx, pc, row, a.ServerID, a.File); err != nil {
+			// Progress at allocMark means an earlier attempt sent the allocation.
+			if row, err = w.alloc(ctx, pc, row, a, act.Progress >= allocMark); err != nil {
 				return err
 			}
 			if err := actions.Progress(ctx, w.o.Ent, a.ActionID, 30); err != nil {
@@ -93,12 +97,12 @@ func (w *CreateVolumeWorker) Work(ctx context.Context, job *river.Job[CreateVolu
 }
 
 // alloc creates the disk, on shared storage through the server's node if any, and records its volid.
-// "already exists" with our exact name counts as done.
-func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.Volume, serverID *int64, file bool) (*ent.Volume, error) {
+// "already exists" with our exact name counts as done only when retried, an earlier attempt having sent the allocation.
+func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.Volume, a CreateVolumeArgs, retried bool) (*ent.Volume, error) {
 	var srv *ent.Server
-	if serverID != nil {
+	if a.ServerID != nil {
 		var err error
-		if srv, err = w.o.Ent.Server.Get(ctx, *serverID); err != nil && !ent.IsNotFound(err) {
+		if srv, err = w.o.Ent.Server.Get(ctx, *a.ServerID); err != nil && !ent.IsNotFound(err) {
 			return nil, err
 		}
 	}
@@ -106,18 +110,24 @@ func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.
 	if err != nil {
 		return nil, err
 	}
-	volid := vref.Volid(row.Storage, row.ID, file)
-	got, err := pc.AllocVolume(ctx, node, row.Storage, vref.OwnerVMID, vref.Filename(row.ID, file), row.SizeGB)
+	if err := actions.Progress(ctx, w.o.Ent, a.ActionID, allocMark); err != nil {
+		return nil, err
+	}
+	volid := vref.Volid(row.Storage, row.ID, a.File)
+	got, err := pc.AllocVolume(ctx, node, row.Storage, vref.OwnerVMID, vref.Filename(row.ID, a.File), row.SizeGB)
 	switch {
 	case err == nil && got != volid:
 		if id, ok := vref.Parse(got); !ok || id != row.ID || !strings.HasPrefix(got, row.Storage+":") {
 			return nil, servers.Permanent("allocate volume: storage %s returned volid %q, want %q", row.Storage, got, volid)
 		}
 		volid = got
-	case err != nil && !alreadyExists(err):
+	case err == nil:
+	case !alreadyExists(err):
 		return nil, servers.StepError("allocate volume", err)
-	case err != nil:
-		_, ok, lerr := diskPresent(ctx, pc, node, row.Storage, volid, row.ID)
+	case !retried:
+		return nil, servers.Permanent("a disk named %s already exists on %s; it was not created by this volume", volid, row.Storage)
+	default:
+		_, ok, lerr := diskPresent(ctx, pc, node, row.Storage, volid)
 		if lerr != nil {
 			return nil, servers.StepError("list storage", lerr)
 		}

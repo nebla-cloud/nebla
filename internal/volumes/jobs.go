@@ -131,19 +131,16 @@ func guard(ctx context.Context, pc pve.Client) ([]pve.VM, error) {
 	return pc.VMs(ctx)
 }
 
-// diskPresent reports whether storage lists the disk volid; volid "" (never recorded) finds volume id's disk by its exact Nebla name.
-func diskPresent(ctx context.Context, pc pve.Client, node, storage, volid string, id int64) (pve.StorageItem, bool, error) {
+// diskPresent reports whether storage lists the disk volid; "" is a disk never recorded as ours, so never present.
+func diskPresent(ctx context.Context, pc pve.Client, node, storage, volid string) (pve.StorageItem, bool, error) {
+	if volid == "" {
+		return pve.StorageItem{}, false, nil
+	}
 	items, err := pc.StorageContent(ctx, node, storage, vref.OwnerVMID)
 	if err != nil {
 		return pve.StorageItem{}, false, err
 	}
-	i := slices.IndexFunc(items, func(it pve.StorageItem) bool {
-		if volid != "" {
-			return it.Volid == volid
-		}
-		got, ok := vref.Parse(it.Volid)
-		return ok && got == id && strings.HasPrefix(it.Volid, storage+":")
-	})
+	i := slices.IndexFunc(items, func(it pve.StorageItem) bool { return it.Volid == volid })
 	if i < 0 {
 		return pve.StorageItem{}, false, nil
 	}
