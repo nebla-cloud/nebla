@@ -3,14 +3,37 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import ui from '@nuxt/ui/vite'
+import type { Plugin } from 'vite'
+
+// A self-hosted panel never calls api.iconify.design: every icon is bundled, and
+// @iconify/vue gets no fetch(), so a missing icon renders blank instead of phoning out.
+function noIconifyApi(): Plugin {
+  const needle = 'let fetchModule = detectFetch();'
+  let patched = false
+  return {
+    name: 'nebla:no-iconify-api',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!/[\\/]@iconify[\\/]vue[\\/]dist[\\/]iconify\.mjs$/.test(id.split('?')[0]!)) return
+      if (!code.includes(needle)) throw new Error('@iconify/vue changed; update noIconifyApi')
+      patched = true
+      return code.replace(needle, 'let fetchModule = undefined;')
+    },
+    generateBundle() {
+      if (!patched) this.error('@iconify/vue was not patched; update noIconifyApi')
+    },
+  }
+}
 
 export default defineConfig({
   plugins: [
     vue(),
+    noIconifyApi(),
     ui({
       autoImport: false,
       components: false,
-      icon: { clientBundle: { scan: true } },
+      // Scan .ts too: nav and route meta name their icons there.
+      icon: { clientBundle: { scan: { globInclude: ['src/**/*.{vue,ts}'] } } },
       ui: {
         colors: { primary: 'ink', neutral: 'ink' },
         button: {
@@ -41,6 +64,8 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  // Dev pre-bundling would skip the transform above.
+  optimizeDeps: { exclude: ['@iconify/vue'] },
   server: {
     proxy: {
       '/v1': { target: 'http://localhost:8080', changeOrigin: true, ws: true },
