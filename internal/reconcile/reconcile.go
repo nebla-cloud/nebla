@@ -450,7 +450,8 @@ func (r *Reconciler) restoreDisk(ctx context.Context, rv revert, gb int) error {
 		if row.DiskGB != fallback.DiskGB || row.ServerTypeID != fallback.TypeID {
 			return nil
 		}
-		busy, err := etx.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID), action.StatusEQ(action.StatusRunning)).Exist(ctx)
+		busy, err := etx.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID), action.StatusEQ(action.StatusRunning),
+			action.CommandNEQ(firewalls.KindApply)).Exist(ctx)
 		if err != nil || busy {
 			return err
 		}

@@ -24,6 +24,14 @@ const (
 	maxRenders  = 3
 )
 
+// A failed create never resumes, so the firewall step numbers must agree.
+const _ = uint(stepDone-firewalls.CreateDone) + uint(firewalls.CreateDone-stepDone)
+
+// failedCreate reports a server whose create failed; no build will run again, only delete.
+func failedCreate(row *ent.Server) bool {
+	return row.Status == StatusError && row.CreateStep < stepDone
+}
+
 // unenforcedDetail is the admin detail when the datacenter firewall is off.
 const unenforcedDetail = "datacenter firewall is disabled at this location"
 
@@ -73,7 +81,7 @@ func (w *ApplyFirewallsWorker) Work(ctx context.Context, job *river.Job[firewall
 			return err
 		}
 		switch {
-		case row.Status == StatusDeleting:
+		case row.Status == StatusDeleting, failedCreate(row):
 			return actions.Succeed(ctx, w.o.Ent, a.ActionID)
 		case row.CreateStep < stepDone || row.RebuildStep > 0 || row.Status == StatusRebuilding:
 			return river.JobSnooze(buildSnooze)

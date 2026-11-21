@@ -2,6 +2,7 @@ package servers_test
 
 import (
 	"context"
+	entsql "entgo.io/ent/dialect/sql"
 	"errors"
 	"net/http"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/riverqueue/river"
@@ -489,4 +491,144 @@ func TestApplyToRacesLabelUpdate(t *testing.T) {
 	}
 	desired, _ := gens(t, e, s.ServerID)
 	require.Equal(t, int64(12*3), desired, "every attach, label change and detach bumped the server")
+}
+
+func TestCreateWithLabelsOverLimit(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	fw := fwService(e)
+	for i := range firewalls.MaxEffective + 1 {
+		_, _, err := fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "s" + strconv.Itoa(i),
+			ApplyTo: []firewalls.ResourceInput{bySelector("role=web")}})
+		require.NoError(t, err)
+	}
+	_, _, err := serverService(e).Create(ctx, e.Project, servers.CreateInput{Name: "web", ServerType: "small", Image: "ubuntu",
+		Location: "eu-1", Labels: map[string]string{"role": "web"}})
+	var ae apierr.E
+	require.ErrorAs(t, err, &ae)
+	require.Equal(t, http.StatusUnprocessableEntity, ae.Status)
+	require.Equal(t, "limit_exceeded", ae.Code)
+	n, err := e.App.Ent.Server.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+}
+
+func TestFailedCreateGetsNoApply(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s := e.CreateServer("web", nil)
+	f, acts, err := fwService(e).Create(ctx, e.Project, firewalls.CreateInput{Name: "fw", Rules: []firewalls.RuleInput{tcpIn("22")},
+		ApplyTo: []firewalls.ResourceInput{onServer(s.ServerID)}})
+	require.NoError(t, err)
+	require.Len(t, acts, 1, "a server still building is bumped")
+
+	// The create fails: no build will ever resume.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetStatus(servers.StatusError).SetCreateStep(servers.StepClone).Exec(ctx))
+	got, err := fwService(e).SetRules(ctx, e.Project, f.ID, []firewalls.RuleInput{tcpIn("80")})
+	require.NoError(t, err)
+	require.Empty(t, got)
+	require.Len(t, applyActions(t, e, s.ServerID), 1)
+
+	w := servers.NewApplyFirewallsWorker(opts(e))
+	job := jobOf(queuedArgs[firewalls.ApplyArgs](t, e, acts[0].ID), 1)
+	writes := fwWrites(e)
+	require.NoError(t, w.Work(ctx, job))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, acts[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusSuccess, a.Status)
+	require.Equal(t, writes, fwWrites(e))
+}
+
+// TestSelectorApplyRacesLabelUpdate races a selector attach or firewall create against the label change that makes the server match it.
+func TestSelectorApplyRacesLabelUpdate(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s := e.CreateServer("web", nil)
+	settle(t, e, s, servers.StatusRunning)
+	fw := fwService(e)
+	svc := serverService(e)
+	for i := range 12 {
+		v := strconv.Itoa(i)
+		sel := []firewalls.ResourceInput{bySelector("x=" + v)}
+		// Odd rounds attach through firewalls.Create, even ones through ApplyTo.
+		var f firewalls.Firewall
+		var err error
+		if i%2 == 0 {
+			f, _, err = fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "s" + v})
+			require.NoError(t, err)
+		}
+		lbls := map[string]string{"x": v}
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			if i%2 == 0 {
+				_, errs[0] = fw.ApplyTo(ctx, e.Project, f.ID, sel)
+			} else {
+				f, _, errs[0] = fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "s" + v, ApplyTo: sel})
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			_, errs[1] = svc.Update(ctx, e.Project, s.ServerID, servers.UpdateInput{Labels: &lbls})
+		}()
+		close(start)
+		wg.Wait()
+		require.NoError(t, errors.Join(errs...), "round %d", i)
+		n, err := e.App.Ent.Action.Query().Where(servers.ActionsOf(e.Project, s.ServerID), action.Command(firewalls.KindApply),
+			func(sel *entsql.Selector) {
+				sel.Where(entsql.P(func(b *entsql.Builder) {
+					b.Ident(sel.C(action.FieldResources)).WriteString(" @> ").
+						Arg(`[{"id":` + strconv.FormatInt(f.ID, 10) + `,"type":"firewall"}]`).WriteString("::jsonb")
+				}))
+			}).Count(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 1, n, "round %d: the server was bumped for the new firewall exactly once", i)
+	}
+}
+
+// TestFirewallCreateRacesPower races a firewall create applied to S against a power action on S.
+func TestFirewallCreateRacesPower(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s := e.CreateServer("web", nil)
+	settle(t, e, s, servers.StatusRunning)
+	fw := fwService(e)
+	svc := serverService(e)
+	for i := range 12 {
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		var power actions.Action
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, _, errs[0] = fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "p" + strconv.Itoa(i),
+				ApplyTo: []firewalls.ResourceInput{onServer(s.ServerID)}})
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			power, errs[1] = svc.Power(ctx, e.Project, s.ServerID, pve.PowerReboot)
+		}()
+		close(start)
+		wg.Wait()
+		require.NoError(t, errors.Join(errs...), "round %d", i)
+		require.NoError(t, actions.Succeed(ctx, e.App.Ent, power.ID))
+		_, err := fw.Delete(ctx, e.Project, mustFirewall(t, fw, e.Project, "p"+strconv.Itoa(i)))
+		require.NoError(t, err)
+	}
+}
+
+func mustFirewall(t *testing.T, fw *firewalls.Service, projectID int64, name string) int64 {
+	t.Helper()
+	list, _, err := fw.List(context.Background(), projectID, firewalls.ListFilter{Name: name}, 1, 1)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	return list[0].ID
 }

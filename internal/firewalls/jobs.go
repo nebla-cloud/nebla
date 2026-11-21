@@ -20,6 +20,8 @@ const (
 	ResourceType = "firewall"
 	// MaxAttempts mirrors servers.MaxAttempts plus spare; servers imports this package, so it can't be shared.
 	MaxAttempts = 5
+	// CreateDone is servers' finished create step; servers asserts it matches.
+	CreateDone = 8
 )
 
 // ApplyArgs is the apply_firewalls job; it brings the server's VM up to generation Gen.
@@ -33,7 +35,7 @@ func (ApplyArgs) Kind() string { return KindApply }
 
 func (ApplyArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: MaxAttempts} }
 
-// Bump locks the project's servers ascending, raises each desired generation and starts one apply_firewalls Action per server.
+// Bump locks the project's servers ascending (skipping deleting and failed-create ones), raises each desired generation and starts one apply_firewalls Action per server.
 func Bump(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, projectID int64, serverIDs []int64, causes []int64) ([]actions.Action, error) {
 	ids := slices.Compact(slices.Sorted(slices.Values(serverIDs)))
 	if len(ids) == 0 {
@@ -42,7 +44,8 @@ func Bump(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, projec
 	if j == nil {
 		return nil, errNoJobs
 	}
-	q := etx.Server.Query().Where(server.IDIn(ids...), server.ProjectID(projectID), server.StatusNEQ(server.StatusDeleting)).
+	q := etx.Server.Query().Where(server.IDIn(ids...), server.ProjectID(projectID), server.StatusNEQ(server.StatusDeleting),
+		server.Not(server.And(server.StatusEQ(server.StatusError), server.CreateStepLT(CreateDone)))).
 		Order(server.ByID()).Unique(false)
 	// NO KEY UPDATE leaves the FK key-share locks of concurrent resource inserts compatible.
 	q.Modify(func(s *entsql.Selector) { s.For(entsql.LockNoKeyUpdate) })

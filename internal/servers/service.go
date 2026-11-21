@@ -27,6 +27,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
+	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
@@ -317,13 +318,13 @@ func lockFirewalls(ctx context.Context, etx *ent.Client, projectID int64, ids []
 	return nil
 }
 
-// attachFirewalls applies firewalls ids directly to a new server; its build renders them, so no apply is queued.
+// attachFirewalls checks the new server's firewall limit and applies ids directly; its build renders them, so no apply is queued.
 func attachFirewalls(ctx context.Context, etx *ent.Client, projectID, serverID int64, labels map[string]string, ids []int64) error {
-	if len(ids) == 0 {
-		return nil
-	}
 	if err := firewalls.CheckLimit(ctx, etx, projectID, serverID, labels, ids); err != nil {
 		return err
+	}
+	if len(ids) == 0 {
+		return nil
 	}
 	b := make([]*ent.FirewallResourceCreate, len(ids))
 	for i, id := range ids {
@@ -549,6 +550,11 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		}
 	}
 	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		if labels != nil {
+			if err := lockProjectFirewalls(ctx, etx, projectID); err != nil {
+				return err
+			}
+		}
 		row, err := LockServer(ctx, etx, projectID, id)
 		if err != nil {
 			return err
@@ -571,6 +577,17 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		return Server{}, err
 	}
 	return s.Get(ctx, projectID, id)
+}
+
+// lockProjectFirewalls serializes a label change with firewall changes, taking their locks before the server's.
+func lockProjectFirewalls(ctx context.Context, etx *ent.Client, projectID int64) error {
+	// SHARE, not KEY SHARE: it must wait for firewalls.Create's NO KEY UPDATE.
+	pq := etx.Project.Query().Where(project.ID(projectID)).ForShare()
+	if _, err := pq.Only(ctx); err != nil {
+		return notFound(err)
+	}
+	_, err := etx.Firewall.Query().Where(firewall.ProjectID(projectID)).Order(firewall.ByID()).ForShare().IDs(ctx)
+	return err
 }
 
 // relabel checks the firewall limit and queues an apply when new labels change the server's effective firewalls.
