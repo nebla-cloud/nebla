@@ -231,6 +231,11 @@ Enable the firewall at the datacenter level (Datacenter > Firewall > Options), o
 don't apply. Datacenter rules govern traffic to the Proxmox hosts, not to the VMs. Before enabling it, make sure those
 rules still allow your own access to the hosts (SSH and the web UI on port 8006).
 
+User firewalls (the rules people manage on a project's Firewalls page) need the datacenter firewall on as well. Nebla
+writes them to each server's VM firewall as a security group, and the location page in the admin area warns when the
+datacenter firewall is off. Proxmox loads rule changes on a cycle of about 10 seconds, so Nebla waits about 12 seconds
+before the first start of a server that has firewalls, so the rules are in place when it boots.
+
 ## 8. Built-in OS images
 
 Nebla can build its own cloud-init templates from official cloud images, so you don't have to run step 5 by hand. An

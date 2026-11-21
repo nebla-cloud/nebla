@@ -89,6 +89,14 @@ nebla server change-type web2 --type medium --upgrade-disk
 nebla server ssh web2 -u admin -p 2222 -- -A
 nebla server delete web2
 
+# Firewalls
+nebla firewall create --name web --label tier=web
+nebla firewall list
+nebla firewall add-rule web --direction in --protocol tcp --port 22 --source-ips 0.0.0.0/0
+nebla firewall apply-to-resource web --type server --server web2
+nebla firewall apply-to-resource web --type label_selector --label-selector role=web
+nebla firewall delete web
+
 nebla version
 nebla completion zsh              # also: bash, fish, powershell
 ```

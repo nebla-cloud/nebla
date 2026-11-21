@@ -123,6 +123,7 @@ The API, jobs, reconciler, console proxy and metrics are done, and the web panel
 - first-admin setup, login with passwords, TOTP and passkeys, and account settings
 - projects, members and invites, API tokens and SSH keys
 - servers: create, power actions, rebuild, change type, the web console, metrics graphs and activity
+- firewalls: inbound and outbound rules, applied to servers directly or by label
 - the admin area: one-line Proxmox setup, locations, OS images, server types, IP pools, users, projects, settings and
   activity
 
