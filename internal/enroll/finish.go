@@ -19,6 +19,8 @@ import (
 
 type FinishInput struct {
 	URL, DiskStorage, ISOStorage, ImportStorage string
+	// VolumeStorage nil keeps a re-enrolled location's value.
+	VolumeStorage *string
 }
 
 // Finished is the connected location plus optional pveum commands for the admin to run.
@@ -67,6 +69,11 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 	}
 	in.DiskStorage, in.ISOStorage = strings.TrimSpace(in.DiskStorage), strings.TrimSpace(in.ISOStorage)
 	in.ImportStorage = strings.TrimSpace(in.ImportStorage)
+	vol := ""
+	if in.VolumeStorage != nil {
+		vol = strings.TrimSpace(*in.VolumeStorage)
+		in.VolumeStorage = &vol
+	}
 	r, err := s.db.LocationEnrollment.Get(ctx, id)
 	if err != nil {
 		return Finished{}, notFound(err)
@@ -104,11 +111,11 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 	}
 	sec := string(secret)
 	li := catalog.LocationInput{Name: r.Name, Description: r.Description, DiskStorage: in.DiskStorage,
-		ISOStorage: in.ISOStorage, ImportStorage: in.ImportStorage,
+		ISOStorage: in.ISOStorage, ImportStorage: in.ImportStorage, VolumeStorage: in.VolumeStorage,
 		PVE: catalog.PVEInput{URL: u.String(), TokenID: r.TokenID, TokenSecret: &sec, CAFingerprint: seen}}
 	var cleanup []string
 	for _, st := range rep.Storages {
-		if st.NeblaISO && st.ID != in.ISOStorage && st.ID != in.ImportStorage {
+		if st.NeblaISO && st.ID != in.ISOStorage && st.ID != in.ImportStorage && st.ID != vol {
 			cleanup = append(cleanup, "pveum acl delete /storage/"+st.ID+" --users nebla@pve --roles NeblaISO")
 		}
 	}

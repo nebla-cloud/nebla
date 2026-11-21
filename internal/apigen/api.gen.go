@@ -274,6 +274,36 @@ func (e TokenPermission) Valid() bool {
 	}
 }
 
+// Defines values for VolumeStatus.
+const (
+	VolumeStatusAttached  VolumeStatus = "attached"
+	VolumeStatusAvailable VolumeStatus = "available"
+	VolumeStatusCreating  VolumeStatus = "creating"
+	VolumeStatusDeleting  VolumeStatus = "deleting"
+	VolumeStatusError     VolumeStatus = "error"
+	VolumeStatusMissing   VolumeStatus = "missing"
+)
+
+// Valid indicates whether the value is a known member of the VolumeStatus enum.
+func (e VolumeStatus) Valid() bool {
+	switch e {
+	case VolumeStatusAttached:
+		return true
+	case VolumeStatusAvailable:
+		return true
+	case VolumeStatusCreating:
+		return true
+	case VolumeStatusDeleting:
+		return true
+	case VolumeStatusError:
+		return true
+	case VolumeStatusMissing:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetHealthz200JSONResponseBodyStatus.
 const (
 	Ok GetHealthz200JSONResponseBodyStatus = "ok"
@@ -308,7 +338,7 @@ func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned or firewall_unenforced
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced or power_off_required
 		Code string `json:"code"`
 
 		// Message Plain text safe to show members
@@ -382,6 +412,12 @@ type AdminLocation struct {
 	Nodes           []Node        `json:"nodes"`
 	Pve             PveConnection `json:"pve"`
 	Updated         time.Time     `json:"updated"`
+
+	// VolumeStorage Empty uses each node's disk storage
+	VolumeStorage string `json:"volume_storage"`
+
+	// VolumeStorageOk Read-only: whether the token may allocate on every resolved volume storage
+	VolumeStorageOk bool `json:"volume_storage_ok"`
 }
 
 // AdminProject defines model for AdminProject.
@@ -722,6 +758,9 @@ type Location struct {
 		Ipv4 bool `json:"ipv4"`
 		Ipv6 bool `json:"ipv6"`
 	} `json:"networks"`
+
+	// VolumesAvailable Whether volumes can be created here
+	VolumesAvailable bool `json:"volumes_available"`
 }
 
 // LocationEnrollment defines model for LocationEnrollment.
@@ -757,6 +796,9 @@ type LocationEnrollmentFinish struct {
 	ImportStorage *string `json:"import_storage,omitempty"`
 	IsoStorage    string  `json:"iso_storage"`
 	Url           string  `json:"url"`
+
+	// VolumeStorage Volume storage; empty uses each node's disk storage
+	VolumeStorage *string `json:"volume_storage,omitempty"`
 }
 
 // LocationEnrollmentFinished defines model for LocationEnrollmentFinished.
@@ -783,6 +825,9 @@ type LocationInput struct {
 	IsoStorage    string             `json:"iso_storage"`
 	Name          string             `json:"name"`
 	Pve           PveConnectionInput `json:"pve"`
+
+	// VolumeStorage Storage with the images content type for volumes; empty uses each node's disk storage. Omitted on update keeps the current value
+	VolumeStorage *string `json:"volume_storage,omitempty"`
 }
 
 // LocationRef defines model for LocationRef.
@@ -918,6 +963,8 @@ type ProjectUsage struct {
 	MemoryMb int `json:"memory_mb"`
 	Servers  int `json:"servers"`
 	Vcpu     int `json:"vcpu"`
+	VolumeGb int `json:"volume_gb"`
+	Volumes  int `json:"volumes"`
 }
 
 // PveConnection defines model for PveConnection.
@@ -950,6 +997,19 @@ type Quota struct {
 	MaxMemoryMb int `json:"max_memory_mb"`
 	MaxServers  int `json:"max_servers"`
 	MaxVcpu     int `json:"max_vcpu"`
+	MaxVolumeGb int `json:"max_volume_gb"`
+	MaxVolumes  int `json:"max_volumes"`
+}
+
+// QuotaInput An omitted max_volumes or max_volume_gb keeps the current value
+type QuotaInput struct {
+	MaxDiskGb   int  `json:"max_disk_gb"`
+	MaxIps      int  `json:"max_ips"`
+	MaxMemoryMb int  `json:"max_memory_mb"`
+	MaxServers  int  `json:"max_servers"`
+	MaxVcpu     int  `json:"max_vcpu"`
+	MaxVolumeGb *int `json:"max_volume_gb,omitempty"`
+	MaxVolumes  *int `json:"max_volumes,omitempty"`
 }
 
 // RebuildInput defines model for RebuildInput.
@@ -981,6 +1041,9 @@ type Server struct {
 	} `json:"public_net"`
 	ServerType ServerType   `json:"server_type"`
 	Status     ServerStatus `json:"status"`
+
+	// Volumes Ids of the attached volumes
+	Volumes []int64 `json:"volumes"`
 }
 
 // ServerStatus defines model for Server.Status.
@@ -1124,6 +1187,65 @@ type User struct {
 	IsAdmin     bool   `json:"is_admin"`
 	Name        string `json:"name"`
 	TotpEnabled bool   `json:"totp_enabled"`
+}
+
+// Volume defines model for Volume.
+type Volume struct {
+	Created time.Time `json:"created"`
+	Id      int64     `json:"id"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels Labels `json:"labels"`
+
+	// LinuxDevice Stable path inside the server, e.g. /dev/disk/by-id/virtio-nb-vol-1
+	LinuxDevice string      `json:"linux_device"`
+	Location    LocationRef `json:"location"`
+	Name        string      `json:"name"`
+
+	// Server The attached server's id
+	Server *int64 `json:"server"`
+
+	// Size Requested size in GB
+	Size   int          `json:"size"`
+	Status VolumeStatus `json:"status"`
+}
+
+// VolumeStatus defines model for Volume.Status.
+type VolumeStatus string
+
+// VolumeAttachInput defines model for VolumeAttachInput.
+type VolumeAttachInput struct {
+	// Server Server id or name
+	Server string `json:"server"`
+}
+
+// VolumeInput defines model for VolumeInput.
+type VolumeInput struct {
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name; may be omitted when server is set
+	Location *string `json:"location,omitempty"`
+	Name     string  `json:"name"`
+
+	// Server Server id or name to attach to after creating
+	Server *string `json:"server,omitempty"`
+
+	// Size Size in GB
+	Size int `json:"size"`
+}
+
+// VolumeResizeInput defines model for VolumeResizeInput.
+type VolumeResizeInput struct {
+	// Size New size in GB; volumes only grow
+	Size int `json:"size"`
+}
+
+// VolumeUpdate defines model for VolumeUpdate.
+type VolumeUpdate struct {
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
 }
 
 // CatalogKey defines model for CatalogKey.
@@ -1395,6 +1517,39 @@ type PutSshKeyJSONBody struct {
 	Name string `json:"name"`
 }
 
+// GetVolumesParams defines parameters for GetVolumes.
+type GetVolumesParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact volume name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Status Only volumes in this status
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Server Only volumes attached to this server id or name
+	Server *string `form:"server,omitempty" json:"server,omitempty"`
+
+	// Location Only volumes in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
+// GetVolumeActionsParams defines parameters for GetVolumeActions.
+type GetVolumeActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // PostAdminImagesJSONRequestBody defines body for PostAdminImages for application/json ContentType.
 type PostAdminImagesJSONRequestBody = ImageInput
 
@@ -1426,7 +1581,7 @@ type PutAdminLocationJSONRequestBody = LocationInput
 type PutAdminLocationNodeJSONRequestBody = NodeInput
 
 // PutAdminProjectQuotaJSONRequestBody defines body for PutAdminProjectQuota for application/json ContentType.
-type PutAdminProjectQuotaJSONRequestBody = Quota
+type PutAdminProjectQuotaJSONRequestBody = QuotaInput
 
 // PostAdminServerTypesJSONRequestBody defines body for PostAdminServerTypes for application/json ContentType.
 type PostAdminServerTypesJSONRequestBody = ServerTypeInput
@@ -1535,6 +1690,18 @@ type PostSshKeysJSONRequestBody PostSshKeysJSONBody
 
 // PutSshKeyJSONRequestBody defines body for PutSshKey for application/json ContentType.
 type PutSshKeyJSONRequestBody PutSshKeyJSONBody
+
+// PostVolumesJSONRequestBody defines body for PostVolumes for application/json ContentType.
+type PostVolumesJSONRequestBody = VolumeInput
+
+// PutVolumeJSONRequestBody defines body for PutVolume for application/json ContentType.
+type PutVolumeJSONRequestBody = VolumeUpdate
+
+// AttachVolumeJSONRequestBody defines body for AttachVolume for application/json ContentType.
+type AttachVolumeJSONRequestBody = VolumeAttachInput
+
+// ResizeVolumeJSONRequestBody defines body for ResizeVolume for application/json ContentType.
+type ResizeVolumeJSONRequestBody = VolumeResizeInput
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1910,6 +2077,33 @@ type ServerInterface interface {
 	// GetUiManifest UI branding and admin sections
 	// (GET /ui/manifest)
 	GetUiManifest(w http.ResponseWriter, r *http.Request)
+	// GetVolumes List the project's volumes
+	// (GET /volumes)
+	GetVolumes(w http.ResponseWriter, r *http.Request, params GetVolumesParams)
+	// PostVolumes Create a volume, optionally attached to a server
+	// (POST /volumes)
+	PostVolumes(w http.ResponseWriter, r *http.Request)
+	// DeleteVolume Delete a detached volume
+	// (DELETE /volumes/{id})
+	DeleteVolume(w http.ResponseWriter, r *http.Request, id ID)
+	// GetVolume Get a volume
+	// (GET /volumes/{id})
+	GetVolume(w http.ResponseWriter, r *http.Request, id ID)
+	// PutVolume Rename a volume or replace its labels
+	// (PUT /volumes/{id})
+	PutVolume(w http.ResponseWriter, r *http.Request, id ID)
+	// GetVolumeActions List a volume's actions
+	// (GET /volumes/{id}/actions)
+	GetVolumeActions(w http.ResponseWriter, r *http.Request, id ID, params GetVolumeActionsParams)
+	// AttachVolume Attach a volume to a server in its location
+	// (POST /volumes/{id}/actions/attach)
+	AttachVolume(w http.ResponseWriter, r *http.Request, id ID)
+	// DetachVolume Detach a volume from its server
+	// (POST /volumes/{id}/actions/detach)
+	DetachVolume(w http.ResponseWriter, r *http.Request, id ID)
+	// ResizeVolume Grow a volume; a detached volume grows on its next attach
+	// (POST /volumes/{id}/actions/resize)
+	ResizeVolume(w http.ResponseWriter, r *http.Request, id ID)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -2657,6 +2851,60 @@ func (_ Unimplemented) PutSshKey(w http.ResponseWriter, r *http.Request, id ID) 
 // GetUiManifest UI branding and admin sections
 // (GET /ui/manifest)
 func (_ Unimplemented) GetUiManifest(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetVolumes List the project's volumes
+// (GET /volumes)
+func (_ Unimplemented) GetVolumes(w http.ResponseWriter, r *http.Request, params GetVolumesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostVolumes Create a volume, optionally attached to a server
+// (POST /volumes)
+func (_ Unimplemented) PostVolumes(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteVolume Delete a detached volume
+// (DELETE /volumes/{id})
+func (_ Unimplemented) DeleteVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetVolume Get a volume
+// (GET /volumes/{id})
+func (_ Unimplemented) GetVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutVolume Rename a volume or replace its labels
+// (PUT /volumes/{id})
+func (_ Unimplemented) PutVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetVolumeActions List a volume's actions
+// (GET /volumes/{id}/actions)
+func (_ Unimplemented) GetVolumeActions(w http.ResponseWriter, r *http.Request, id ID, params GetVolumeActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AttachVolume Attach a volume to a server in its location
+// (POST /volumes/{id}/actions/attach)
+func (_ Unimplemented) AttachVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DetachVolume Detach a volume from its server
+// (POST /volumes/{id}/actions/detach)
+func (_ Unimplemented) DetachVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ResizeVolume Grow a volume; a detached volume grows on its next attach
+// (POST /volumes/{id}/actions/resize)
+func (_ Unimplemented) ResizeVolume(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6145,6 +6393,368 @@ func (siw *ServerInterfaceWrapper) GetUiManifest(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetVolumes operation middleware
+func (siw *ServerInterfaceWrapper) GetVolumes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetVolumesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "label_selector" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label_selector", r.URL.Query(), &params.LabelSelector, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label_selector"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label_selector", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "server" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "server", r.URL.Query(), &params.Server, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "server"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "server", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location", r.URL.Query(), &params.Location, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "location"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVolumes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostVolumes operation middleware
+func (siw *ServerInterfaceWrapper) PostVolumes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostVolumes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteVolume operation middleware
+func (siw *ServerInterfaceWrapper) DeleteVolume(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteVolume(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetVolume operation middleware
+func (siw *ServerInterfaceWrapper) GetVolume(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVolume(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutVolume operation middleware
+func (siw *ServerInterfaceWrapper) PutVolume(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutVolume(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetVolumeActions operation middleware
+func (siw *ServerInterfaceWrapper) GetVolumeActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetVolumeActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVolumeActions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AttachVolume operation middleware
+func (siw *ServerInterfaceWrapper) AttachVolume(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AttachVolume(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DetachVolume operation middleware
+func (siw *ServerInterfaceWrapper) DetachVolume(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DetachVolume(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResizeVolume operation middleware
+func (siw *ServerInterfaceWrapper) ResizeVolume(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResizeVolume(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -6629,6 +7239,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/servers/{id}/metrics", wrapper.GetServerMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/volumes", wrapper.GetVolumes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/volumes", wrapper.PostVolumes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/volumes/{id}", wrapper.DeleteVolume)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/volumes/{id}", wrapper.GetVolume)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/volumes/{id}", wrapper.PutVolume)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/volumes/{id}/actions", wrapper.GetVolumeActions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/volumes/{id}/actions/attach", wrapper.AttachVolume)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/volumes/{id}/actions/detach", wrapper.DetachVolume)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/volumes/{id}/actions/resize", wrapper.ResizeVolume)
 	})
 
 	return r
@@ -17495,6 +18132,946 @@ func (response GetUiManifestdefaultJSONResponse) VisitGetUiManifestResponse(w ht
 	return err
 }
 
+type GetVolumesRequestObject struct {
+	Params GetVolumesParams
+}
+
+type GetVolumesResponseObject interface {
+	VisitGetVolumesResponse(w http.ResponseWriter) error
+}
+
+type GetVolumes200JSONResponse struct {
+	Meta    Meta     `json:"meta"`
+	Volumes []Volume `json:"volumes"`
+}
+
+func (response GetVolumes200JSONResponse) VisitGetVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumes401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetVolumes401JSONResponse) VisitGetVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumes404JSONResponse Error
+
+func (response GetVolumes404JSONResponse) VisitGetVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumes422JSONResponse Error
+
+func (response GetVolumes422JSONResponse) VisitGetVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetVolumesdefaultJSONResponse) VisitGetVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumesRequestObject struct {
+	Body *PostVolumesJSONRequestBody
+}
+
+type PostVolumesResponseObject interface {
+	VisitPostVolumesResponse(w http.ResponseWriter) error
+}
+
+type PostVolumes201JSONResponse struct {
+	Action Action `json:"action"`
+	Volume Volume `json:"volume"`
+}
+
+func (response PostVolumes201JSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumes401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostVolumes401JSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumes403JSONResponse Error
+
+func (response PostVolumes403JSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumes404JSONResponse Error
+
+func (response PostVolumes404JSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumes409JSONResponse Error
+
+func (response PostVolumes409JSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumes422JSONResponse Error
+
+func (response PostVolumes422JSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumes503JSONResponse Error
+
+func (response PostVolumes503JSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostVolumesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostVolumesdefaultJSONResponse) VisitPostVolumesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVolumeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteVolumeResponseObject interface {
+	VisitDeleteVolumeResponse(w http.ResponseWriter) error
+}
+
+type DeleteVolume200JSONResponse struct {
+	Action Action `json:"action"`
+}
+
+func (response DeleteVolume200JSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVolume401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteVolume401JSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVolume403JSONResponse Error
+
+func (response DeleteVolume403JSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVolume404JSONResponse Error
+
+func (response DeleteVolume404JSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVolume409JSONResponse Error
+
+func (response DeleteVolume409JSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVolume503JSONResponse Error
+
+func (response DeleteVolume503JSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVolumedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteVolumedefaultJSONResponse) VisitDeleteVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetVolumeResponseObject interface {
+	VisitGetVolumeResponse(w http.ResponseWriter) error
+}
+
+type GetVolume200JSONResponse Volume
+
+func (response GetVolume200JSONResponse) VisitGetVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolume401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetVolume401JSONResponse) VisitGetVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolume404JSONResponse Error
+
+func (response GetVolume404JSONResponse) VisitGetVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetVolumedefaultJSONResponse) VisitGetVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutVolumeRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutVolumeJSONRequestBody
+}
+
+type PutVolumeResponseObject interface {
+	VisitPutVolumeResponse(w http.ResponseWriter) error
+}
+
+type PutVolume200JSONResponse Volume
+
+func (response PutVolume200JSONResponse) VisitPutVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutVolume401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutVolume401JSONResponse) VisitPutVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutVolume403JSONResponse Error
+
+func (response PutVolume403JSONResponse) VisitPutVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutVolume404JSONResponse Error
+
+func (response PutVolume404JSONResponse) VisitPutVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutVolume409JSONResponse Error
+
+func (response PutVolume409JSONResponse) VisitPutVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutVolume422JSONResponse Error
+
+func (response PutVolume422JSONResponse) VisitPutVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutVolumedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutVolumedefaultJSONResponse) VisitPutVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumeActionsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetVolumeActionsParams
+}
+
+type GetVolumeActionsResponseObject interface {
+	VisitGetVolumeActionsResponse(w http.ResponseWriter) error
+}
+
+type GetVolumeActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetVolumeActions200JSONResponse) VisitGetVolumeActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumeActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetVolumeActions401JSONResponse) VisitGetVolumeActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumeActions404JSONResponse Error
+
+func (response GetVolumeActions404JSONResponse) VisitGetVolumeActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumeActions422JSONResponse Error
+
+func (response GetVolumeActions422JSONResponse) VisitGetVolumeActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetVolumeActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetVolumeActionsdefaultJSONResponse) VisitGetVolumeActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolumeRequestObject struct {
+	Id   ID `json:"id"`
+	Body *AttachVolumeJSONRequestBody
+}
+
+type AttachVolumeResponseObject interface {
+	VisitAttachVolumeResponse(w http.ResponseWriter) error
+}
+
+type AttachVolume201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response AttachVolume201JSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolume401JSONResponse struct{ ErrorJSONResponse }
+
+func (response AttachVolume401JSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolume403JSONResponse Error
+
+func (response AttachVolume403JSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolume404JSONResponse Error
+
+func (response AttachVolume404JSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolume409JSONResponse Error
+
+func (response AttachVolume409JSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolume422JSONResponse Error
+
+func (response AttachVolume422JSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolume503JSONResponse Error
+
+func (response AttachVolume503JSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachVolumedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response AttachVolumedefaultJSONResponse) VisitAttachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachVolumeRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DetachVolumeResponseObject interface {
+	VisitDetachVolumeResponse(w http.ResponseWriter) error
+}
+
+type DetachVolume201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response DetachVolume201JSONResponse) VisitDetachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachVolume401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DetachVolume401JSONResponse) VisitDetachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachVolume403JSONResponse Error
+
+func (response DetachVolume403JSONResponse) VisitDetachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachVolume404JSONResponse Error
+
+func (response DetachVolume404JSONResponse) VisitDetachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachVolume409JSONResponse Error
+
+func (response DetachVolume409JSONResponse) VisitDetachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachVolume503JSONResponse Error
+
+func (response DetachVolume503JSONResponse) VisitDetachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachVolumedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DetachVolumedefaultJSONResponse) VisitDetachVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolumeRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ResizeVolumeJSONRequestBody
+}
+
+type ResizeVolumeResponseObject interface {
+	VisitResizeVolumeResponse(w http.ResponseWriter) error
+}
+
+type ResizeVolume201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response ResizeVolume201JSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolume401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ResizeVolume401JSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolume403JSONResponse Error
+
+func (response ResizeVolume403JSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolume404JSONResponse Error
+
+func (response ResizeVolume404JSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolume409JSONResponse Error
+
+func (response ResizeVolume409JSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolume422JSONResponse Error
+
+func (response ResizeVolume422JSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolume503JSONResponse Error
+
+func (response ResizeVolume503JSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResizeVolumedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ResizeVolumedefaultJSONResponse) VisitResizeVolumeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetActions List the project's actions
@@ -17869,6 +19446,33 @@ type StrictServerInterface interface {
 	// GetUiManifest UI branding and admin sections
 	// (GET /ui/manifest)
 	GetUiManifest(ctx context.Context, request GetUiManifestRequestObject) (GetUiManifestResponseObject, error)
+	// GetVolumes List the project's volumes
+	// (GET /volumes)
+	GetVolumes(ctx context.Context, request GetVolumesRequestObject) (GetVolumesResponseObject, error)
+	// PostVolumes Create a volume, optionally attached to a server
+	// (POST /volumes)
+	PostVolumes(ctx context.Context, request PostVolumesRequestObject) (PostVolumesResponseObject, error)
+	// DeleteVolume Delete a detached volume
+	// (DELETE /volumes/{id})
+	DeleteVolume(ctx context.Context, request DeleteVolumeRequestObject) (DeleteVolumeResponseObject, error)
+	// GetVolume Get a volume
+	// (GET /volumes/{id})
+	GetVolume(ctx context.Context, request GetVolumeRequestObject) (GetVolumeResponseObject, error)
+	// PutVolume Rename a volume or replace its labels
+	// (PUT /volumes/{id})
+	PutVolume(ctx context.Context, request PutVolumeRequestObject) (PutVolumeResponseObject, error)
+	// GetVolumeActions List a volume's actions
+	// (GET /volumes/{id}/actions)
+	GetVolumeActions(ctx context.Context, request GetVolumeActionsRequestObject) (GetVolumeActionsResponseObject, error)
+	// AttachVolume Attach a volume to a server in its location
+	// (POST /volumes/{id}/actions/attach)
+	AttachVolume(ctx context.Context, request AttachVolumeRequestObject) (AttachVolumeResponseObject, error)
+	// DetachVolume Detach a volume from its server
+	// (POST /volumes/{id}/actions/detach)
+	DetachVolume(ctx context.Context, request DetachVolumeRequestObject) (DetachVolumeResponseObject, error)
+	// ResizeVolume Grow a volume; a detached volume grows on its next attach
+	// (POST /volumes/{id}/actions/resize)
+	ResizeVolume(ctx context.Context, request ResizeVolumeRequestObject) (ResizeVolumeResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -21402,6 +23006,267 @@ func (sh *strictHandler) GetUiManifest(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetUiManifestResponseObject); ok {
 		if err := validResponse.VisitGetUiManifestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVolumes operation middleware
+func (sh *strictHandler) GetVolumes(w http.ResponseWriter, r *http.Request, params GetVolumesParams) {
+	var request GetVolumesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVolumes(ctx, request.(GetVolumesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVolumes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVolumesResponseObject); ok {
+		if err := validResponse.VisitGetVolumesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostVolumes operation middleware
+func (sh *strictHandler) PostVolumes(w http.ResponseWriter, r *http.Request) {
+	var request PostVolumesRequestObject
+
+	var body PostVolumesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostVolumes(ctx, request.(PostVolumesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostVolumes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostVolumesResponseObject); ok {
+		if err := validResponse.VisitPostVolumesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteVolume operation middleware
+func (sh *strictHandler) DeleteVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteVolumeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteVolume(ctx, request.(DeleteVolumeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteVolume")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteVolumeResponseObject); ok {
+		if err := validResponse.VisitDeleteVolumeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVolume operation middleware
+func (sh *strictHandler) GetVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetVolumeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVolume(ctx, request.(GetVolumeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVolume")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVolumeResponseObject); ok {
+		if err := validResponse.VisitGetVolumeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutVolume operation middleware
+func (sh *strictHandler) PutVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutVolumeRequestObject
+
+	request.Id = id
+
+	var body PutVolumeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutVolume(ctx, request.(PutVolumeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutVolume")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutVolumeResponseObject); ok {
+		if err := validResponse.VisitPutVolumeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVolumeActions operation middleware
+func (sh *strictHandler) GetVolumeActions(w http.ResponseWriter, r *http.Request, id ID, params GetVolumeActionsParams) {
+	var request GetVolumeActionsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVolumeActions(ctx, request.(GetVolumeActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVolumeActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVolumeActionsResponseObject); ok {
+		if err := validResponse.VisitGetVolumeActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AttachVolume operation middleware
+func (sh *strictHandler) AttachVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	var request AttachVolumeRequestObject
+
+	request.Id = id
+
+	var body AttachVolumeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AttachVolume(ctx, request.(AttachVolumeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AttachVolume")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AttachVolumeResponseObject); ok {
+		if err := validResponse.VisitAttachVolumeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DetachVolume operation middleware
+func (sh *strictHandler) DetachVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DetachVolumeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DetachVolume(ctx, request.(DetachVolumeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DetachVolume")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DetachVolumeResponseObject); ok {
+		if err := validResponse.VisitDetachVolumeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResizeVolume operation middleware
+func (sh *strictHandler) ResizeVolume(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ResizeVolumeRequestObject
+
+	request.Id = id
+
+	var body ResizeVolumeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResizeVolume(ctx, request.(ResizeVolumeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResizeVolume")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResizeVolumeResponseObject); ok {
+		if err := validResponse.VisitResizeVolumeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

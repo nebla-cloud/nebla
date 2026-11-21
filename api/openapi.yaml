@@ -571,7 +571,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/Quota" }
+            schema: { $ref: "#/components/schemas/QuotaInput" }
       responses:
         "200":
           description: OK
@@ -2488,6 +2488,231 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
         "502": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /volumes:
+    get:
+      operationId: getVolumes
+      x-nebla-scope: project
+      summary: List the project's volumes
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: label_selector
+          in: query
+          description: "Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)"
+          schema: { type: string }
+        - name: name
+          in: query
+          description: Exact volume name
+          schema: { type: string }
+        - name: status
+          in: query
+          description: Only volumes in this status
+          schema: { type: string }
+        - name: server
+          in: query
+          description: Only volumes attached to this server id or name
+          schema: { type: string }
+        - name: location
+          in: query
+          description: Only volumes in this location id or name
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [volumes, meta]
+                properties:
+                  volumes:
+                    type: array
+                    items: { $ref: "#/components/schemas/Volume" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postVolumes
+      x-nebla-scope: project
+      summary: Create a volume, optionally attached to a server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VolumeInput" }
+      responses:
+        "201":
+          description: Created; the create_volume action runs in the background
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [volume, action]
+                properties:
+                  volume: { $ref: "#/components/schemas/Volume" }
+                  action: { $ref: "#/components/schemas/Action" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /volumes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getVolume
+      x-nebla-scope: project
+      summary: Get a volume
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Volume" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putVolume
+      x-nebla-scope: project
+      summary: Rename a volume or replace its labels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VolumeUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Volume" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteVolume
+      x-nebla-scope: project
+      summary: Delete a detached volume
+      responses:
+        "200":
+          description: The delete_volume action
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action]
+                properties:
+                  action: { $ref: "#/components/schemas/Action" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /volumes/{id}/actions:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getVolumeActions
+      x-nebla-scope: project
+      summary: List a volume's actions
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          description: Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: sort
+          in: query
+          description: "id, id:asc or id:desc (default)"
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, meta]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /volumes/{id}/actions/attach:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: attachVolume
+      x-nebla-scope: project
+      summary: Attach a volume to a server in its location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VolumeAttachInput" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /volumes/{id}/actions/detach:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: detachVolume
+      x-nebla-scope: project
+      summary: Detach a volume from its server
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /volumes/{id}/actions/resize:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: resizeVolume
+      x-nebla-scope: project
+      summary: Grow a volume; a detached volume grows on its next attach
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VolumeResizeInput" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
 components:
   responses:
     ActionCreated:
@@ -2561,6 +2786,18 @@ components:
       enum: [read, read_write]
     Quota:
       type: object
+      required: [max_servers, max_vcpu, max_memory_mb, max_disk_gb, max_ips, max_volumes, max_volume_gb]
+      properties:
+        max_servers: { type: integer, minimum: 0 }
+        max_vcpu: { type: integer, minimum: 0 }
+        max_memory_mb: { type: integer, minimum: 0 }
+        max_disk_gb: { type: integer, minimum: 0 }
+        max_ips: { type: integer, minimum: 0 }
+        max_volumes: { type: integer, minimum: 0 }
+        max_volume_gb: { type: integer, minimum: 0 }
+    QuotaInput:
+      type: object
+      description: An omitted max_volumes or max_volume_gb keeps the current value
       required: [max_servers, max_vcpu, max_memory_mb, max_disk_gb, max_ips]
       properties:
         max_servers: { type: integer, minimum: 0 }
@@ -2568,6 +2805,8 @@ components:
         max_memory_mb: { type: integer, minimum: 0 }
         max_disk_gb: { type: integer, minimum: 0 }
         max_ips: { type: integer, minimum: 0 }
+        max_volumes: { type: integer, minimum: 0 }
+        max_volume_gb: { type: integer, minimum: 0 }
     ProjectInput:
       type: object
       required: [name]
@@ -2585,13 +2824,15 @@ components:
         created: { type: string, format: date-time }
     ProjectUsage:
       type: object
-      required: [servers, vcpu, memory_mb, disk_gb, ips]
+      required: [servers, vcpu, memory_mb, disk_gb, ips, volumes, volume_gb]
       properties:
         servers: { type: integer }
         vcpu: { type: integer }
         memory_mb: { type: integer }
         disk_gb: { type: integer }
         ips: { type: integer }
+        volumes: { type: integer }
+        volume_gb: { type: integer }
     AdminProject:
       type: object
       required: [id, name, quota, owner_email, usage, member_count, created]
@@ -2821,7 +3062,7 @@ components:
           properties:
             code:
               type: string
-              description: "Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned or firewall_unenforced"
+              description: "Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced or power_off_required"
             message: { type: string, description: Plain text safe to show members }
         started: { type: string, format: date-time }
         finished: { type: string, format: date-time, nullable: true }
@@ -2892,6 +3133,9 @@ components:
         disk_storage: { type: string }
         iso_storage: { type: string }
         import_storage: { type: string, description: "Storage with the import content type, for building catalog templates; empty disables it" }
+        volume_storage:
+          type: string
+          description: "Storage with the images content type for volumes; empty uses each node's disk storage. Omitted on update keeps the current value"
     Node:
       type: object
       required: [id, name, status, enabled, disk_storage_override, max_cpu, max_mem, cpu, mem, updated]
@@ -2913,7 +3157,7 @@ components:
         disk_storage_override: { type: string, description: "Empty clears the override" }
     AdminLocation:
       type: object
-      required: [id, name, description, pve, disk_storage, iso_storage, import_storage, firewall_enabled, nodes, created, updated]
+      required: [id, name, description, pve, disk_storage, iso_storage, import_storage, volume_storage, volume_storage_ok, firewall_enabled, nodes, created, updated]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -2926,6 +3170,8 @@ components:
           type: boolean
           nullable: true
           description: Whether the datacenter firewall was on at the last check; null until checked
+        volume_storage: { type: string, description: "Empty uses each node's disk storage" }
+        volume_storage_ok: { type: boolean, description: "Read-only: whether the token may allocate on every resolved volume storage" }
         nodes:
           type: array
           items: { $ref: "#/components/schemas/Node" }
@@ -3012,6 +3258,7 @@ components:
         disk_storage: { type: string }
         iso_storage: { type: string }
         import_storage: { type: string }
+        volume_storage: { type: string, description: "Volume storage; empty uses each node's disk storage" }
     LocationEnrollmentFinished:
       type: object
       required: [location, cleanup]
@@ -3030,7 +3277,7 @@ components:
         description: { type: string }
     Location:
       type: object
-      required: [id, name, description, networks]
+      required: [id, name, description, networks, volumes_available]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -3042,6 +3289,7 @@ components:
           properties:
             ipv4: { type: boolean }
             ipv6: { type: boolean }
+        volumes_available: { type: boolean, description: Whether volumes can be created here }
     ServerTypeInput:
       type: object
       required: [name, cores, memory_mb, disk_gb]
@@ -3370,7 +3618,7 @@ components:
         ip: { type: string }
     Server:
       type: object
-      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, firewalls, created]
+      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, firewalls, volumes, created]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -3392,4 +3640,47 @@ components:
           type: array
           description: Firewalls in effect on the server and why each applies
           items: { $ref: "#/components/schemas/ServerFirewall" }
+        volumes:
+          type: array
+          description: Ids of the attached volumes
+          items: { type: integer, format: int64 }
+        created: { type: string, format: date-time }
+    VolumeInput:
+      type: object
+      required: [name, size]
+      properties:
+        name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" }
+        size: { type: integer, minimum: 10, maximum: 10240, description: Size in GB }
+        location: { type: string, description: "Location id or name; may be omitted when server is set" }
+        server: { type: string, description: Server id or name to attach to after creating }
+        labels: { $ref: "#/components/schemas/Labels" }
+    VolumeUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+    VolumeAttachInput:
+      type: object
+      required: [server]
+      properties:
+        server: { type: string, description: Server id or name }
+    VolumeResizeInput:
+      type: object
+      required: [size]
+      properties:
+        size: { type: integer, description: New size in GB; volumes only grow }
+    Volume:
+      type: object
+      required: [id, name, labels, size, location, server, status, linux_device, created]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+        size: { type: integer, description: Requested size in GB }
+        location: { $ref: "#/components/schemas/LocationRef" }
+        server: { type: integer, format: int64, nullable: true, description: The attached server's id }
+        status:
+          type: string
+          enum: [creating, available, attached, deleting, missing, error]
+        linux_device: { type: string, description: "Stable path inside the server, e.g. /dev/disk/by-id/virtio-nb-vol-1" }
         created: { type: string, format: date-time }

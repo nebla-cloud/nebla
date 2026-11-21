@@ -6,13 +6,21 @@ import { mountApp, testQueryClient, testRouter } from '@/test/mount'
 import { resetSession } from '@/lib/session'
 import ProjectDetailPage from './ProjectDetailPage.vue'
 
-const quota = { max_servers: 5, max_vcpu: 0, max_memory_mb: 16384, max_disk_gb: 200, max_ips: 0 }
+const quota = {
+  max_servers: 5,
+  max_vcpu: 0,
+  max_memory_mb: 16384,
+  max_disk_gb: 200,
+  max_ips: 0,
+  max_volumes: 5,
+  max_volume_gb: 100,
+}
 const detail = {
   id: 7,
   name: 'Alpha',
   quota,
   owner_email: 'ada@example.com',
-  usage: { servers: 3, vcpu: 6, memory_mb: 8192, disk_gb: 100, ips: 3 },
+  usage: { servers: 3, vcpu: 6, memory_mb: 8192, disk_gb: 100, ips: 3, volumes: 1, volume_gb: 20 },
   member_count: 4,
   created: '2026-03-04T10:00:00Z',
   members: [
@@ -110,6 +118,8 @@ describe('ProjectDetailPage', () => {
       max_memory_mb: 32768,
       max_disk_gb: 200,
       max_ips: 0,
+      max_volumes: 5,
+      max_volume_gb: 100,
     })
   })
 

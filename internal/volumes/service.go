@@ -119,10 +119,12 @@ type Volume struct {
 	SizeGB       int
 	LocationID   int64
 	LocationName string
-	ServerID     *int64
-	Status       string
-	LinuxDevice  string
-	Created      time.Time
+	// LocationDescription completes the API's location reference.
+	LocationDescription string
+	ServerID            *int64
+	Status              string
+	LinuxDevice         string
+	Created             time.Time
 }
 
 type CreateInput struct {
@@ -595,23 +597,23 @@ func (s *Service) List(ctx context.Context, projectID int64, f ListFilter, page,
 }
 
 func (s *Service) hydrate(ctx context.Context, rows []*ent.Volume) ([]Volume, error) {
-	names := map[int64]string{}
+	locs := map[int64]catalog.Location{}
 	out := make([]Volume, len(rows))
 	for i, r := range rows {
-		name, ok := names[r.LocationID]
+		loc, ok := locs[r.LocationID]
 		if !ok {
-			loc, err := s.o.Catalog.GetLocation(ctx, r.LocationID)
-			if err != nil {
+			var err error
+			if loc, err = s.o.Catalog.GetLocation(ctx, r.LocationID); err != nil {
 				return nil, err
 			}
-			name, names[r.LocationID] = loc.Name, loc.Name
+			locs[r.LocationID] = loc
 		}
 		labels := r.Labels
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		out[i] = Volume{ID: r.ID, Name: r.Name, Labels: labels, SizeGB: r.SizeGB, LocationID: r.LocationID, LocationName: name,
-			ServerID: r.ServerID, Status: string(r.Status), LinuxDevice: vref.LinuxDevice(r.ID), Created: r.CreatedAt}
+		out[i] = Volume{ID: r.ID, Name: r.Name, Labels: labels, SizeGB: r.SizeGB, LocationID: r.LocationID, LocationName: loc.Name,
+			LocationDescription: loc.Description, ServerID: r.ServerID, Status: string(r.Status), LinuxDevice: vref.LinuxDevice(r.ID), Created: r.CreatedAt}
 	}
 	return out, nil
 }

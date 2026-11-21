@@ -28,6 +28,7 @@ export function makeServer(over: Partial<Server> = {}): Server {
     labels: {},
     disk_gb: 40,
     firewalls: [],
+    volumes: [],
     created: '2026-11-18T10:00:00Z',
     ...over,
   }

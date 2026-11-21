@@ -1651,6 +1651,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/volumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the project's volumes */
+        get: operations["getVolumes"];
+        put?: never;
+        /** Create a volume, optionally attached to a server */
+        post: operations["postVolumes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/volumes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get a volume */
+        get: operations["getVolume"];
+        /** Rename a volume or replace its labels */
+        put: operations["putVolume"];
+        post?: never;
+        /** Delete a detached volume */
+        delete: operations["deleteVolume"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/volumes/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** List a volume's actions */
+        get: operations["getVolumeActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/volumes/{id}/actions/attach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach a volume to a server in its location */
+        post: operations["attachVolume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/volumes/{id}/actions/detach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Detach a volume from its server */
+        post: operations["detachVolume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/volumes/{id}/actions/resize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grow a volume; a detached volume grows on its next attach */
+        post: operations["resizeVolume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1665,6 +1780,18 @@ export interface components {
             max_memory_mb: number;
             max_disk_gb: number;
             max_ips: number;
+            max_volumes: number;
+            max_volume_gb: number;
+        };
+        /** @description An omitted max_volumes or max_volume_gb keeps the current value */
+        QuotaInput: {
+            max_servers: number;
+            max_vcpu: number;
+            max_memory_mb: number;
+            max_disk_gb: number;
+            max_ips: number;
+            max_volumes?: number;
+            max_volume_gb?: number;
         };
         ProjectInput: {
             name: string;
@@ -1685,6 +1812,8 @@ export interface components {
             memory_mb: number;
             disk_gb: number;
             ips: number;
+            volumes: number;
+            volume_gb: number;
         };
         AdminProject: {
             /** Format: int64 */
@@ -1863,7 +1992,7 @@ export interface components {
                 type: string;
             }[];
             error: {
-                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned or firewall_unenforced */
+                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced or power_off_required */
                 code: string;
                 /** @description Plain text safe to show members */
                 message: string;
@@ -1931,6 +2060,8 @@ export interface components {
             iso_storage: string;
             /** @description Storage with the import content type, for building catalog templates; empty disables it */
             import_storage?: string;
+            /** @description Storage with the images content type for volumes; empty uses each node's disk storage. Omitted on update keeps the current value */
+            volume_storage?: string;
         };
         Node: {
             /** Format: int64 */
@@ -1975,6 +2106,10 @@ export interface components {
             import_storage: string;
             /** @description Whether the datacenter firewall was on at the last check; null until checked */
             firewall_enabled: boolean | null;
+            /** @description Empty uses each node's disk storage */
+            volume_storage: string;
+            /** @description Read-only: whether the token may allocate on every resolved volume storage */
+            volume_storage_ok: boolean;
             nodes: components["schemas"]["Node"][];
             /** Format: date-time */
             created: string;
@@ -2047,6 +2182,8 @@ export interface components {
             disk_storage: string;
             iso_storage: string;
             import_storage?: string;
+            /** @description Volume storage; empty uses each node's disk storage */
+            volume_storage?: string;
         };
         LocationEnrollmentFinished: {
             location: components["schemas"]["AdminLocation"];
@@ -2069,6 +2206,8 @@ export interface components {
                 ipv4: boolean;
                 ipv6: boolean;
             };
+            /** @description Whether volumes can be created here */
+            volumes_available: boolean;
         };
         ServerTypeInput: {
             name: string;
@@ -2347,6 +2486,50 @@ export interface components {
             disk_gb: number;
             /** @description Firewalls in effect on the server and why each applies */
             firewalls: components["schemas"]["ServerFirewall"][];
+            /** @description Ids of the attached volumes */
+            volumes: number[];
+            /** Format: date-time */
+            created: string;
+        };
+        VolumeInput: {
+            name: string;
+            /** @description Size in GB */
+            size: number;
+            /** @description Location id or name; may be omitted when server is set */
+            location?: string;
+            /** @description Server id or name to attach to after creating */
+            server?: string;
+            labels?: components["schemas"]["Labels"];
+        };
+        VolumeUpdate: {
+            name?: string;
+            labels?: components["schemas"]["Labels"];
+        };
+        VolumeAttachInput: {
+            /** @description Server id or name */
+            server: string;
+        };
+        VolumeResizeInput: {
+            /** @description New size in GB; volumes only grow */
+            size: number;
+        };
+        Volume: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            labels: components["schemas"]["Labels"];
+            /** @description Requested size in GB */
+            size: number;
+            location: components["schemas"]["LocationRef"];
+            /**
+             * Format: int64
+             * @description The attached server's id
+             */
+            server: number | null;
+            /** @enum {string} */
+            status: "creating" | "available" | "attached" | "deleting" | "missing" | "error";
+            /** @description Stable path inside the server, e.g. /dev/disk/by-id/virtio-nb-vol-1 */
+            linux_device: string;
             /** Format: date-time */
             created: string;
         };
@@ -3252,7 +3435,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Quota"];
+                "application/json": components["schemas"]["QuotaInput"];
             };
         };
         responses: {
@@ -5859,6 +6042,273 @@ export interface operations {
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
             502: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getVolumes: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key) */
+                label_selector?: string;
+                /** @description Exact volume name */
+                name?: string;
+                /** @description Only volumes in this status */
+                status?: string;
+                /** @description Only volumes attached to this server id or name */
+                server?: string;
+                /** @description Only volumes in this location id or name */
+                location?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        volumes: components["schemas"]["Volume"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postVolumes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeInput"];
+            };
+        };
+        responses: {
+            /** @description Created; the create_volume action runs in the background */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        volume: components["schemas"]["Volume"];
+                        action: components["schemas"]["Action"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getVolume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Volume"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    putVolume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Volume"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteVolume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The delete_volume action */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        action: components["schemas"]["Action"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getVolumeActions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Only actions in these statuses (running, success, error); repeat the parameter or separate with commas */
+                status?: string[];
+                /** @description id, id:asc or id:desc (default) */
+                sort?: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        actions: components["schemas"]["Action"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    attachVolume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeAttachInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["ActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    detachVolume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["ActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    resizeVolume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeResizeInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["ActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

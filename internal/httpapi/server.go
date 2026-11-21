@@ -83,6 +83,7 @@ type server struct {
 	sshkeys     *sshkeys.Service
 	servers     *servers.Service
 	firewalls   *firewalls.Service
+	volumes     *volumes.Service
 	console     *console.Service
 	enroll      *enroll.Service
 	loginLimit  *ratelimit.Limiter
@@ -155,6 +156,7 @@ func New(deps Deps) http.Handler {
 		sshkeys:     sshkeys.New(deps.Ent),
 		servers:     servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
 		firewalls:   firewalls.New(firewalls.Options{Ent: deps.Ent, SQL: deps.SQL, Jobs: deps.Jobs}),
+		volumes:     volumes.New(volumes.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
 		enroll:      deps.Enroll,
 		loginLimit:  ratelimit.New(rate.Every(90*time.Second), 10),
 		apiLimit:    newAPILimiter(deps.APILimiter),

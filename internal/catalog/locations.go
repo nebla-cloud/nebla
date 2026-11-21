@@ -39,6 +39,9 @@ type Location struct {
 	ImportStorage string
 	// FirewallEnabled is the datacenter firewall switch as last read; nil until known.
 	FirewallEnabled *bool
+	// VolumeStorage "" means each node's disk storage.
+	VolumeStorage   string
+	VolumeStorageOK bool
 	Nodes           []Node
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -84,6 +87,8 @@ type LocationInput struct {
 	ISOStorage  string
 	// ImportStorage is optional; when set it must allow the import content type.
 	ImportStorage string
+	// VolumeStorage nil keeps the current value on update; when set it must allow images.
+	VolumeStorage *string
 }
 
 type NodeUpdate struct {
@@ -102,7 +107,8 @@ func toNode(n *ent.Node) Node {
 func toLocation(l *ent.Location) Location {
 	out := Location{ID: l.ID, Name: l.Name, Description: l.Description, PVEURL: l.PveURL, TokenID: l.TokenID,
 		HasSecret: len(l.TokenSecret) > 0, CAFingerprint: l.CaFingerprint, InsecureTLS: l.InsecureTLS,
-		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, ImportStorage: l.ImportStorage, FirewallEnabled: l.FirewallEnabled, Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
+		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, ImportStorage: l.ImportStorage,
+		FirewallEnabled: l.FirewallEnabled, VolumeStorage: l.VolumeStorage, VolumeStorageOK: l.VolumeStorageOk, Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
 	for _, n := range l.Edges.Nodes {
 		out.Nodes = append(out.Nodes, toNode(n))
 	}
@@ -118,6 +124,9 @@ func (s *Service) validLocation(in *LocationInput) (pve.Conn, error) {
 	in.DiskStorage = strings.TrimSpace(in.DiskStorage)
 	in.ISOStorage = strings.TrimSpace(in.ISOStorage)
 	in.ImportStorage = strings.TrimSpace(in.ImportStorage)
+	if in.VolumeStorage != nil {
+		in.VolumeStorage = new(strings.TrimSpace(*in.VolumeStorage))
+	}
 	in.PVE.TokenID = strings.TrimSpace(in.PVE.TokenID)
 	in.PVE.CAFingerprint = strings.TrimSpace(in.PVE.CAFingerprint)
 	if !nameRE.MatchString(in.Name) {
@@ -141,8 +150,8 @@ func (s *Service) validLocation(in *LocationInput) (pve.Conn, error) {
 		InsecureTLS: in.PVE.InsecureTLS, PollInterval: s.opts.PollInterval}, nil
 }
 
-// probe connects with conn, checks the storages (imp may be empty) and returns the discovered nodes.
-func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp string) ([]pve.Node, error) {
+// probe connects with conn, checks the storages (imp and vol may be empty) and returns the discovered nodes.
+func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp, vol string) ([]pve.Node, error) {
 	ctx, cancel := context.WithTimeout(ctx, pveTimeout)
 	defer cancel()
 	c := s.opts.NewClient(conn)
@@ -156,7 +165,7 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp strin
 	if len(nodes) == 0 {
 		return nil, invalid("Proxmox reports no nodes")
 	}
-	var diskSeen, diskOK, isoSeen, isoOK, impSeen, impOK bool
+	var diskSeen, diskOK, isoSeen, isoOK, impSeen, impOK, volSeen, volOK bool
 	for _, n := range nodes {
 		if n.Status != "online" {
 			continue
@@ -175,6 +184,9 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp strin
 			if imp != "" && st.ID == imp {
 				impSeen, impOK = true, impOK || slices.Contains(st.Content, "import")
 			}
+			if vol != "" && st.ID == vol {
+				volSeen, volOK = true, volOK || slices.Contains(st.Content, "images")
+			}
 		}
 	}
 	switch {
@@ -190,6 +202,10 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp strin
 		return nil, invalid("import_storage %q does not exist on any online node", imp)
 	case imp != "" && !impOK:
 		return nil, invalid("import_storage %q does not allow the import content type", imp)
+	case vol != "" && !volSeen:
+		return nil, invalid("volume_storage %q does not exist on any online node", vol)
+	case vol != "" && !volOK:
+		return nil, invalid("volume_storage %q does not allow the images content type", vol)
 	}
 	return nodes, nil
 }
@@ -207,7 +223,11 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 		return Location{}, invalid("pve.token_secret is required")
 	}
 	conn.Secret = *in.PVE.TokenSecret
-	nodes, err := s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage)
+	var vol string
+	if in.VolumeStorage != nil {
+		vol = *in.VolumeStorage
+	}
+	nodes, err := s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage, vol)
 	if err != nil {
 		return Location{}, err
 	}
@@ -215,7 +235,8 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 	err = s.withTx(ctx, func(tx *ent.Client) error {
 		l, err := tx.Location.Create().SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetTokenSecret(s.box.Seal([]byte(conn.Secret))).SetCaFingerprint(conn.CAFingerprint).
-			SetInsecureTLS(conn.InsecureTLS).SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).Save(ctx)
+			SetInsecureTLS(conn.InsecureTLS).SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).
+			SetVolumeStorage(vol).Save(ctx)
 		if err != nil {
 			return mapWriteErr(err, "location")
 		}
@@ -251,19 +272,23 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 	} else if conn.Secret, err = s.openSecret(cur); err != nil {
 		return Location{}, err
 	}
+	vol := cur.VolumeStorage
+	if in.VolumeStorage != nil {
+		vol = *in.VolumeStorage
+	}
 	changed := newSecret || conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID || conn.CAFingerprint != cur.CaFingerprint ||
 		conn.InsecureTLS != cur.InsecureTLS || in.DiskStorage != cur.DiskStorage || in.ISOStorage != cur.IsoStorage ||
-		in.ImportStorage != cur.ImportStorage
+		in.ImportStorage != cur.ImportStorage || vol != cur.VolumeStorage
 	var nodes []pve.Node
 	if changed {
-		if nodes, err = s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage); err != nil {
+		if nodes, err = s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage, vol); err != nil {
 			return Location{}, err
 		}
 	}
 	err = s.withTx(ctx, func(tx *ent.Client) error {
 		u := tx.Location.UpdateOneID(id).SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetCaFingerprint(conn.CAFingerprint).SetInsecureTLS(conn.InsecureTLS).
-			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage)
+			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).SetVolumeStorage(vol)
 		if newSecret {
 			u.SetTokenSecret(s.box.Seal([]byte(conn.Secret)))
 		}

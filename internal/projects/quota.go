@@ -29,15 +29,20 @@ func quotaOf(p *ent.Project) Quota {
 }
 
 func (s *Service) SetQuota(ctx context.Context, projectID int64, q Quota) (Quota, error) {
-	for _, v := range []int{q.MaxServers, q.MaxVCPU, q.MaxMemoryMB, q.MaxDiskGB, q.MaxIPs, q.MaxVolumes, q.MaxVolumeGB} {
-		if v < 0 {
+	return s.UpdateQuota(ctx, projectID, q, &q.MaxVolumes, &q.MaxVolumeGB)
+}
+
+// UpdateQuota sets the server quota fields from q and each volume field that is not nil; q's own volume fields are ignored.
+func (s *Service) UpdateQuota(ctx context.Context, projectID int64, q Quota, maxVolumes, maxVolumeGB *int) (Quota, error) {
+	for _, v := range []*int{&q.MaxServers, &q.MaxVCPU, &q.MaxMemoryMB, &q.MaxDiskGB, &q.MaxIPs, maxVolumes, maxVolumeGB} {
+		if v != nil && *v < 0 {
 			return Quota{}, apierr.New(http.StatusUnprocessableEntity, "invalid_input", "quota values must be 0 or more")
 		}
 	}
 	p, err := s.db.Project.UpdateOneID(projectID).
 		SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).SetMaxMemoryMB(q.MaxMemoryMB).
 		SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
-		SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).Save(ctx)
+		SetNillableMaxVolumes(maxVolumes).SetNillableMaxVolumeGB(maxVolumeGB).Save(ctx)
 	if err != nil {
 		return Quota{}, notFound(err)
 	}

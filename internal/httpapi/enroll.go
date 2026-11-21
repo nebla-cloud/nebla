@@ -185,7 +185,7 @@ func (s *server) PostAdminLocationEnrollmentReport(ctx context.Context, req apig
 func (s *server) PostAdminLocationEnrollmentFinish(ctx context.Context, req apigen.PostAdminLocationEnrollmentFinishRequestObject) (apigen.PostAdminLocationEnrollmentFinishResponseObject, error) {
 	b := req.Body
 	f, err := s.enroll.Finish(ctx, req.Id, enroll.FinishInput{URL: b.Url, DiskStorage: b.DiskStorage, ISOStorage: b.IsoStorage,
-		ImportStorage: deref(b.ImportStorage)})
+		ImportStorage: deref(b.ImportStorage), VolumeStorage: b.VolumeStorage})
 	if err != nil {
 		return nil, err
 	}

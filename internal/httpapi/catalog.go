@@ -42,31 +42,39 @@ func apiNode(n catalog.Node) apigen.Node {
 func apiAdminLocation(l catalog.Location) apigen.AdminLocation {
 	out := apigen.AdminLocation{Id: l.ID, Name: l.Name, Description: l.Description, DiskStorage: l.DiskStorage, IsoStorage: l.ISOStorage, ImportStorage: l.ImportStorage,
 		FirewallEnabled: l.FirewallEnabled,
-		Pve:             apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
-		Nodes:           make([]apigen.Node, len(l.Nodes)), Created: l.CreatedAt, Updated: l.UpdatedAt}
+		VolumeStorage:   l.VolumeStorage, VolumeStorageOk: l.VolumeStorageOK,
+		Pve:   apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
+		Nodes: make([]apigen.Node, len(l.Nodes)), Created: l.CreatedAt, Updated: l.UpdatedAt}
 	for i, n := range l.Nodes {
 		out.Nodes[i] = apiNode(n)
 	}
 	return out
 }
 
-func apiLocation(l catalog.Location, ipv4, ipv6 bool) apigen.Location {
-	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description}
+func apiLocation(l catalog.Location, ipv4, ipv6, volumes bool) apigen.Location {
+	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description, VolumesAvailable: volumes}
 	out.Networks.Ipv4, out.Networks.Ipv6 = ipv4, ipv6
 	return out
 }
 
-// locationWithNetworks maps a location with its live address availability.
+// locationWithNetworks maps a location with its live address and volume availability.
 func (s *server) locationWithNetworks(ctx context.Context, l catalog.Location) (apigen.Location, error) {
 	v4, v6, err := ipam.Available(ctx, s.deps.Ent, l.ID)
 	if err != nil {
 		return apigen.Location{}, err
 	}
-	return apiLocation(l, v4, v6), nil
+	vols, err := s.volumes.Available(ctx, l.ID)
+	if err != nil {
+		// An unreachable or misconfigured location only hides volumes.
+		s.log.WarnContext(ctx, "volumes availability", "location", l.ID, "err", err)
+		vols = false
+	}
+	return apiLocation(l, v4, v6, vols), nil
 }
 
 func locationInput(b *apigen.LocationInput) catalog.LocationInput {
 	return catalog.LocationInput{Name: b.Name, Description: deref(b.Description), DiskStorage: b.DiskStorage, ISOStorage: b.IsoStorage, ImportStorage: deref(b.ImportStorage),
+		VolumeStorage: b.VolumeStorage,
 		PVE: catalog.PVEInput{URL: b.Pve.Url, TokenID: b.Pve.TokenId, TokenSecret: b.Pve.TokenSecret,
 			CAFingerprint: deref(b.Pve.CaFingerprint), InsecureTLS: deref(b.Pve.InsecureTls)}}
 }

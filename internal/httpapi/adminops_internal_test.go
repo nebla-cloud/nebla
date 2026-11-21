@@ -82,4 +82,10 @@ func TestScopedHandlersFailClosed(t *testing.T) {
 	require.ErrorIs(t, err, errScopeNotFound)
 	_, err = s.SetFirewallRules(ctx, apigen.SetFirewallRulesRequestObject{Id: 1, Body: &apigen.SetFirewallRulesJSONRequestBody{}})
 	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.GetVolumes(ctx, apigen.GetVolumesRequestObject{})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.AttachVolume(ctx, apigen.AttachVolumeRequestObject{Id: 1, Body: &apigen.VolumeAttachInput{Server: "x"}})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.DeleteVolume(ctx, apigen.DeleteVolumeRequestObject{Id: 1})
+	require.ErrorIs(t, err, errScopeNotFound)
 }

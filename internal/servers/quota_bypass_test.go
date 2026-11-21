@@ -78,7 +78,8 @@ func TestAdminProjectsUnlimitedViaAPI(t *testing.T) {
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&out))
 	res.Body.Close()
 	for _, p := range out.Projects {
-		require.Equal(t, map[string]int{"max_servers": 0, "max_vcpu": 0, "max_memory_mb": 0, "max_disk_gb": 0, "max_ips": 0}, p.Quota, p.Name)
+		require.Equal(t, map[string]int{"max_servers": 0, "max_vcpu": 0, "max_memory_mb": 0, "max_disk_gb": 0, "max_ips": 0,
+			"max_volumes": 0, "max_volume_gb": 0}, p.Quota, p.Name)
 	}
 	require.GreaterOrEqual(t, len(out.Projects), 4)
 }

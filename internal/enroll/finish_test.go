@@ -164,3 +164,25 @@ func TestFinishRerunSwitchesToken(t *testing.T) {
 	require.Equal(t, "nebla@pve!"+c2.TokenName, got.TokenID)
 	require.False(t, got.InsecureTLS)
 }
+
+func TestFinishStoresVolumeStorage(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	c := e.reported(t, enroll.CreateInput{Name: "home"})
+	in := e.finishInput()
+	in.VolumeStorage = new(" local-lvm ")
+	f, err := e.svc.Finish(ctx, c.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, "local-lvm", f.Location.VolumeStorage)
+
+	// A re-run without volume_storage keeps it.
+	c2 := e.reported(t, enroll.CreateInput{LocationID: &f.Location.ID})
+	f2, err := e.svc.Finish(ctx, c2.ID, e.finishInput())
+	require.NoError(t, err)
+	require.Equal(t, "local-lvm", f2.Location.VolumeStorage)
+
+	c3 := e.reported(t, enroll.CreateInput{LocationID: &f.Location.ID})
+	in.VolumeStorage = new("local")
+	_, err = e.svc.Finish(ctx, c3.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+}

@@ -9,7 +9,8 @@ import (
 )
 
 func apiQuota(q projects.Quota) apigen.Quota {
-	return apigen.Quota{MaxServers: q.MaxServers, MaxVcpu: q.MaxVCPU, MaxMemoryMb: q.MaxMemoryMB, MaxDiskGb: q.MaxDiskGB, MaxIps: q.MaxIPs}
+	return apigen.Quota{MaxServers: q.MaxServers, MaxVcpu: q.MaxVCPU, MaxMemoryMb: q.MaxMemoryMB, MaxDiskGb: q.MaxDiskGB, MaxIps: q.MaxIPs,
+		MaxVolumes: q.MaxVolumes, MaxVolumeGb: q.MaxVolumeGB}
 }
 
 func apiProject(p projects.Project) apigen.Project {
@@ -291,7 +292,8 @@ func (s *server) GetAdminProjects(ctx context.Context, req apigen.GetAdminProjec
 }
 
 func apiUsage(u projects.Usage) apigen.ProjectUsage {
-	return apigen.ProjectUsage{Servers: u.Servers, Vcpu: u.VCPU, MemoryMb: u.MemoryMB, DiskGb: u.DiskGB, Ips: u.IPs}
+	return apigen.ProjectUsage{Servers: u.Servers, Vcpu: u.VCPU, MemoryMb: u.MemoryMB, DiskGb: u.DiskGB, Ips: u.IPs,
+		Volumes: u.Volumes, VolumeGb: u.VolumeGB}
 }
 
 func apiAdminProject(p projects.AdminProject) apigen.AdminProject {
@@ -322,9 +324,8 @@ func (s *server) DeleteAdminProject(ctx context.Context, req apigen.DeleteAdminP
 
 func (s *server) PutAdminProjectQuota(ctx context.Context, req apigen.PutAdminProjectQuotaRequestObject) (apigen.PutAdminProjectQuotaResponseObject, error) {
 	b := req.Body
-	q, err := s.projects.SetQuota(ctx, req.Id, projects.Quota{
-		MaxServers: b.MaxServers, MaxVCPU: b.MaxVcpu, MaxMemoryMB: b.MaxMemoryMb, MaxDiskGB: b.MaxDiskGb, MaxIPs: b.MaxIps,
-	})
+	q := projects.Quota{MaxServers: b.MaxServers, MaxVCPU: b.MaxVcpu, MaxMemoryMB: b.MaxMemoryMb, MaxDiskGB: b.MaxDiskGb, MaxIPs: b.MaxIps}
+	q, err := s.projects.UpdateQuota(ctx, req.Id, q, b.MaxVolumes, b.MaxVolumeGb)
 	if err != nil {
 		return nil, err
 	}

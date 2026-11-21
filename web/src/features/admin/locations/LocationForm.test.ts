@@ -26,6 +26,8 @@ const existing: AdminLocation = {
   iso_storage: 'local',
   import_storage: 'local',
   firewall_enabled: null,
+  volume_storage: '',
+  volume_storage_ok: false,
   nodes: [],
   created: '2026-01-01T00:00:00Z',
   updated: '2026-01-01T00:00:00Z',
