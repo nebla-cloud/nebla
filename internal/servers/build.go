@@ -3,6 +3,7 @@ package servers
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -52,6 +53,11 @@ type builder struct {
 	poll           time.Duration
 	tnode          string
 	tcfg           map[string]string
+	o              *WorkerOptions
+	// fwGen is the desired firewall generation this run rendered; fwDone says it rendered at all.
+	fwGen  int64
+	fwDone bool
+	anyFW  bool
 }
 
 type step struct {
@@ -356,7 +362,47 @@ func (b *builder) firewall(ctx context.Context) error {
 	if err := b.pc.SetFirewall(ctx, b.row.Node, b.vmid(), ips); err != nil {
 		return err
 	}
+	if err := b.applyFirewalls(ctx, b.vmid()); err != nil {
+		return err
+	}
 	return b.done(ctx, stepFirewall)
+}
+
+// applyFirewalls renders the server's user firewalls onto vmid.
+func (b *builder) applyFirewalls(ctx context.Context, vmid int) error {
+	gen, anyFW, err := b.o.applyFirewallsNow(ctx, b.pc, b.row.ID, b.row.Node, vmid)
+	if err != nil {
+		return err
+	}
+	b.fwGen, b.fwDone, b.anyFW = gen, true, anyFW
+	return nil
+}
+
+// firewallCurrent re-renders onto vmid unless this run already rendered the desired generation.
+func (b *builder) firewallCurrent(ctx context.Context, vmid int) error {
+	cur, err := b.o.Ent.Server.Get(ctx, b.row.ID)
+	if err != nil {
+		return err
+	}
+	// Compare with what this run rendered: an apply may have raised firewall_gen_applied on another VM.
+	if b.fwDone && cur.FirewallGenDesired <= b.fwGen {
+		return nil
+	}
+	return b.applyFirewalls(ctx, vmid)
+}
+
+// settle waits for Proxmox to load the rules before a protected VM's first start.
+func (b *builder) settle(ctx context.Context) error {
+	if !b.anyFW {
+		return nil
+	}
+	return settleWait(ctx, FirewallSettle)
+}
+
+// raiseApplied records fwGen as applied without lowering it.
+func (b *builder) raiseApplied(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `update servers set firewall_gen_applied = greatest(firewall_gen_applied, $2) where id = $1`, b.row.ID, b.fwGen)
+	return err
 }
 
 // startVM starts vmid unless it is running, then waits for it to run.
@@ -432,4 +478,19 @@ func cloudinitDrives(cfg map[string]string) []string {
 	}
 	slices.Sort(keys)
 	return keys
+}
+
+// FirewallSettle is about one Proxmox firewall reload cycle, waited before a protected VM's first start.
+var FirewallSettle = 12 * time.Second
+
+// settleWait waits d or until ctx ends.
+var settleWait = func(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }

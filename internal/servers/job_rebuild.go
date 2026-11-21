@@ -119,7 +119,7 @@ func (r *rebuildRun) load(ctx context.Context) error {
 	}
 	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: r.args.TemplateVMID, isoGen: r.row.IsoGeneration + 1,
 		st:   buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
-		save: r.save, poll: r.w.o.PollInterval}
+		save: r.save, poll: r.w.o.PollInterval, o: &r.w.o}
 	return nil
 }
 
@@ -175,18 +175,28 @@ func (r *rebuildRun) run(ctx context.Context) error {
 
 // swap makes the new VM the server's in one UPDATE and keeps the old one in rebuild_* to retire.
 func (r *rebuildRun) swap(ctx context.Context) error {
+	if err := r.b.firewallCurrent(ctx, r.b.vmid()); err != nil {
+		return err
+	}
 	old := buildState{Vmid: r.row.Vmid, Upid: r.row.CloneUpid, Nonce: r.row.CloneNonce, Step: stepSwap}
 	nu := r.b.st
-	u := r.w.o.Ent.Server.UpdateOneID(r.row.ID).
-		SetImageID(r.args.ImageID).SetTemplateVmid(r.args.TemplateVMID).
-		SetIsoGeneration(r.b.isoGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap)
-	setSlot(u.SetVmid, u.ClearVmid, nu.Vmid)
-	setSlot(u.SetCloneUpid, u.ClearCloneUpid, nu.Upid)
-	setSlot(u.SetCloneNonce, u.ClearCloneNonce, nu.Nonce)
-	setSlot(u.SetRebuildVmid, u.ClearRebuildVmid, old.Vmid)
-	setSlot(u.SetRebuildCloneUpid, u.ClearRebuildCloneUpid, old.Upid)
-	setSlot(u.SetRebuildCloneNonce, u.ClearRebuildCloneNonce, old.Nonce)
-	row, err := u.Save(ctx)
+	var row *ent.Server
+	err := db.WithTx(ctx, r.w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		u := etx.Server.UpdateOneID(r.row.ID).
+			SetImageID(r.args.ImageID).SetTemplateVmid(r.args.TemplateVMID).
+			SetIsoGeneration(r.b.isoGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap)
+		setSlot(u.SetVmid, u.ClearVmid, nu.Vmid)
+		setSlot(u.SetCloneUpid, u.ClearCloneUpid, nu.Upid)
+		setSlot(u.SetCloneNonce, u.ClearCloneNonce, nu.Nonce)
+		setSlot(u.SetRebuildVmid, u.ClearRebuildVmid, old.Vmid)
+		setSlot(u.SetRebuildCloneUpid, u.ClearRebuildCloneUpid, old.Upid)
+		setSlot(u.SetRebuildCloneNonce, u.ClearRebuildCloneNonce, old.Nonce)
+		var err error
+		if row, err = u.Save(ctx); err != nil {
+			return err
+		}
+		return r.b.raiseApplied(ctx, tx)
+	})
 	if err != nil {
 		return err
 	}
@@ -209,7 +219,13 @@ func (r *rebuildRun) retire(ctx context.Context) error {
 }
 
 func (r *rebuildRun) restart(ctx context.Context) error {
+	if err := r.b.firewallCurrent(ctx, *r.row.Vmid); err != nil {
+		return err
+	}
 	if r.args.StartAfter {
+		if err := r.b.settle(ctx); err != nil {
+			return err
+		}
 		if err := startVM(ctx, r.b.pc, *r.row.Vmid, r.w.o.PollInterval); err != nil {
 			return err
 		}
@@ -222,8 +238,11 @@ func (r *rebuildRun) finish(ctx context.Context) error {
 	if r.args.StartAfter {
 		status = StatusRunning
 	}
-	return db.WithTx(ctx, r.w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+	return db.WithTx(ctx, r.w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		if err := etx.Server.UpdateOneID(r.row.ID).SetStatus(server.Status(status)).SetRebuildStep(0).Exec(ctx); err != nil {
+			return err
+		}
+		if err := r.b.raiseApplied(ctx, tx); err != nil {
 			return err
 		}
 		return actions.Succeed(ctx, etx, r.args.ActionID)

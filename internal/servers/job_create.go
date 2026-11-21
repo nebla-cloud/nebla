@@ -118,7 +118,7 @@ func (c *createRun) load(ctx context.Context) error {
 	}
 	c.b = &builder{pc: pc, loc: loc, assign: assign, row: c.row, tmpl: c.row.TemplateVmid, isoGen: c.row.IsoGeneration,
 		st:   buildState{Vmid: c.row.Vmid, Upid: c.row.CloneUpid, Nonce: c.row.CloneNonce, Step: c.row.CreateStep},
-		save: c.save, afterClonePost: c.w.afterClonePost, poll: c.w.o.PollInterval}
+		save: c.save, afterClonePost: c.w.afterClonePost, poll: c.w.o.PollInterval, o: &c.w.o}
 	return nil
 }
 
@@ -154,7 +154,13 @@ func (c *createRun) run(ctx context.Context) error {
 }
 
 func (c *createRun) start(ctx context.Context) error {
+	if err := c.b.firewallCurrent(ctx, c.b.vmid()); err != nil {
+		return err
+	}
 	if c.args.StartAfter {
+		if err := c.b.settle(ctx); err != nil {
+			return err
+		}
 		if err := c.w.o.Ent.Server.UpdateOneID(c.row.ID).SetStatus(StatusStarting).Exec(ctx); err != nil {
 			return err
 		}
@@ -170,8 +176,11 @@ func (c *createRun) finish(ctx context.Context) error {
 	if c.args.StartAfter {
 		status = StatusRunning
 	}
-	err := db.WithTx(ctx, c.w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+	err := db.WithTx(ctx, c.w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		if err := etx.Server.UpdateOneID(c.row.ID).SetStatus(server.Status(status)).SetCreateStep(stepDone).Exec(ctx); err != nil {
+			return err
+		}
+		if err := c.b.raiseApplied(ctx, tx); err != nil {
 			return err
 		}
 		return actions.Succeed(ctx, etx, c.args.ActionID)

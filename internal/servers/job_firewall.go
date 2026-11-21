@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
-	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/pve"
@@ -127,10 +126,6 @@ func (w *ApplyFirewallsWorker) run(ctx context.Context, l *lease, a firewalls.Ap
 		if done || row.Status == StatusDeleting || row.Vmid == nil {
 			return actions.Succeed(ctx, w.o.Ent, a.ActionID)
 		}
-		loc, err := w.o.Catalog.GetLocation(ctx, row.LocationID)
-		if err != nil {
-			return &stepError{"load location", err}
-		}
 		pc, err := w.o.Catalog.ProxmoxFor(ctx, row.LocationID)
 		if err != nil {
 			return &stepError{"connect to proxmox", err}
@@ -142,11 +137,10 @@ func (w *ApplyFirewallsWorker) run(ctx context.Context, l *lease, a firewalls.Ap
 		if err != nil {
 			return &stepError{"find vm", err}
 		}
-		row.Node = v.Node
 		if w.beforeApply != nil {
 			w.beforeApply()
 		}
-		gen, err := w.o.applyFirewallsNow(ctx, pc, loc, row)
+		gen, _, err := w.o.applyFirewallsNow(ctx, pc, row.ID, v.Node, *row.Vmid)
 		if errors.Is(err, pve.ErrNotFound) {
 			return w.vmGone(ctx, a, *row.Vmid)
 		}
@@ -176,30 +170,30 @@ func (w *ApplyFirewallsWorker) vmGone(ctx context.Context, a firewalls.ApplyArgs
 	return &vmGoneError{"vm " + strconv.Itoa(vmid) + " is missing"}
 }
 
-// applyFirewallsNow renders the server's effective firewalls onto its VM and returns the desired generation it rendered.
-func (o *WorkerOptions) applyFirewallsNow(ctx context.Context, pc pve.Client, _ catalog.Location, row *ent.Server) (int64, error) {
-	cur, err := o.Ent.Server.Get(ctx, row.ID)
+// applyFirewallsNow renders server id's effective firewalls onto vmid and returns the desired generation it rendered.
+func (o *WorkerOptions) applyFirewallsNow(ctx context.Context, pc pve.Client, id int64, node string, vmid int) (gen int64, anyFW bool, err error) {
+	cur, err := o.Ent.Server.Get(ctx, id)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	gen := cur.FirewallGenDesired
-	rules, anyFW, err := firewalls.RulesFor(ctx, o.Ent, row.ID)
+	gen = cur.FirewallGenDesired
+	rules, anyFW, err := firewalls.RulesFor(ctx, o.Ent, id)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if anyFW {
 		on, err := pc.ClusterFirewallEnabled(ctx)
 		if err != nil {
-			return 0, &stepError{"check datacenter firewall", err}
+			return 0, false, &stepError{"check datacenter firewall", err}
 		}
 		if !on {
-			return 0, &permanentError{actions.CodeFirewallUnenforced, unenforcedDetail}
+			return 0, false, &permanentError{actions.CodeFirewallUnenforced, unenforcedDetail}
 		}
 	}
-	if err := firewalls.Sync(ctx, pc, row.Node, *row.Vmid, firewalls.Render(rules, anyFW)); err != nil {
-		return 0, &stepError{"apply firewall", err}
+	if err := firewalls.Sync(ctx, pc, node, vmid, firewalls.Render(rules, anyFW)); err != nil {
+		return 0, false, &stepError{"apply firewall", err}
 	}
-	return gen, nil
+	return gen, anyFW, nil
 }
 
 // lease is a claimed firewall_lease_until on a server.
