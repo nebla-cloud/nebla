@@ -103,7 +103,9 @@ nebla completion zsh              # also: bash, fish, powershell
 
 Servers, keys and other objects can be named by id or by name. A number is tried as an id first, then as a name.
 
-Firewalls are allow-lists that filter the public network only.
+Firewalls are allow-lists that filter the public network only. A server can have up to five firewalls and
+250 rules across them. IPv4 and IPv6 portions of a rule count separately, and long address lists can
+split into multiple rules.
 
 `server create` also takes `--user-data-from-file`, `--label key=value`, `--without-ipv4`, `--with-ipv6` and
 `--start-after-create=false`. `server list` takes `--selector key=value`.

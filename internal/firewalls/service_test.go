@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/apierr"
@@ -20,6 +21,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -55,13 +57,17 @@ func (e *env) project(name string) int64 {
 }
 
 func (e *env) server(projectID int64, name string, lbls map[string]string) int64 {
+	return e.serverCreate(e.ent, projectID, name, lbls).SaveX(context.Background()).ID
+}
+
+func (e *env) serverCreate(c *ent.Client, projectID int64, name string, lbls map[string]string) *ent.ServerCreate {
 	n := e.macCount.Add(1)
 	if lbls == nil {
 		lbls = map[string]string{}
 	}
-	return e.ent.Server.Create().SetProjectID(projectID).SetName(name).SetLocationID(e.loc).SetTemplateVmid(9000).
+	return c.Server.Create().SetProjectID(projectID).SetName(name).SetLocationID(e.loc).SetTemplateVmid(9000).
 		SetServerTypeID(e.st).SetImageID(e.img).SetMAC(fmt.Sprintf("bc:24:11:00:%02x:%02x", n>>8, n&0xff)).SetLabels(lbls).
-		SetCores(1).SetMemoryMB(512).SetDiskGB(10).SetSSHKeys([]string{}).SaveX(context.Background()).ID
+		SetCores(1).SetMemoryMB(512).SetDiskGB(10).SetSSHKeys([]string{})
 }
 
 func (e *env) gen(id int64) int64 {
@@ -518,6 +524,31 @@ func TestRenderedRuleLimit(t *testing.T) {
 	err = firewalls.CheckLimit(ctx, e.ent, p, srv, map[string]string{}, []int64{small.ID})
 	requireAPI(t, err, 422, "limit_exceeded")
 	require.NoError(t, firewalls.CheckLimit(ctx, e.ent, p, srv, map[string]string{}, nil))
+
+	// A selector cannot slip past a matching server whose creation has yet to commit.
+	selector := []firewalls.ResourceInput{bySelector("role=db")}
+	var concurrentErr error
+	err = db.WithTx(ctx, e.sql, func(_ *sql.Tx, etx *ent.Client) error {
+		if err := projects.LockProject(ctx, etx, p); err != nil {
+			return err
+		}
+		pending, err := e.serverCreate(etx, p, "db", map[string]string{"role": "db"}).Save(ctx)
+		if err != nil {
+			return err
+		}
+		if err := etx.FirewallResource.Create().SetFirewallID(fw.ID).SetType(firewallresource.TypeServer).
+			SetServerID(pending.ID).Exec(ctx); err != nil {
+			return err
+		}
+		wait, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		_, concurrentErr = e.svc.ApplyTo(wait, p, small.ID, selector)
+		return nil
+	})
+	require.NoError(t, err)
+	require.ErrorIs(t, concurrentErr, context.DeadlineExceeded)
+	_, err = e.svc.ApplyTo(ctx, p, small.ID, selector)
+	requireAPI(t, err, 422, "limit_exceeded")
 
 	// Shrinking is never refused.
 	_, err = e.svc.SetRules(ctx, p, fw.ID, big[:10])

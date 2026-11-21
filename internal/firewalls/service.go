@@ -368,11 +368,14 @@ func ownServers(ctx context.Context, etx *ent.Client, projectID int64, res []Res
 	return nil
 }
 
-// locked runs mutate under the firewall's row lock and fans out to the servers it affects.
+// locked serializes rule and attachment changes with server creation and label changes.
 func (s *Service) locked(ctx context.Context, projectID, id int64, onlyChanged, attach bool, res []ResourceInput,
 	mutate func(etx *ent.Client) error) ([]actions.Action, error) {
 	var acts []actions.Action
 	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		if err := projects.LockProject(ctx, etx, projectID); err != nil {
+			return notFound(err)
+		}
 		if err := lockFirewall(ctx, etx, projectID, id); err != nil {
 			return err
 		}
