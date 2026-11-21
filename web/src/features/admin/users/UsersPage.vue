@@ -10,7 +10,9 @@ import { errorMessage } from '@/api/errors'
 import AdminPager from '@/components/AdminPager.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useSession } from '@/lib/session'
+import { table, tableWrap, tbody, td, th, thead, tr } from '@/lib/ui'
 import { usePageClamp } from '@/lib/usePageClamp'
 import DeleteUserModal from './DeleteUserModal.vue'
 import ResetPasswordModal from './ResetPasswordModal.vue'
@@ -120,16 +122,15 @@ async function run(
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex flex-col gap-1">
-        <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Users</h1>
-        <p class="text-sm text-muted">
-          There's no email from here. Send them their password yourself.
-        </p>
-      </div>
-      <UButton icon="i-lucide-user-plus" @click="openForm()">New user</UButton>
-    </div>
+  <div class="flex flex-col gap-4">
+    <PageHeader
+      title="Users"
+      description="There's no email from here. Send them their password yourself."
+    >
+      <template #actions>
+        <UButton icon="i-lucide-user-plus" @click="openForm()">New user</UButton>
+      </template>
+    </PageHeader>
 
     <UAlert
       v-if="loadError"
@@ -139,45 +140,39 @@ async function run(
     />
     <p v-else-if="isPending" class="text-muted">Loading users…</p>
     <EmptyState v-else-if="!users.length" title="No users" body="Nobody has an account yet." />
-    <div v-else class="overflow-hidden rounded-lg border border-default">
-      <table class="block w-full text-left text-sm sm:table">
-        <thead class="hidden bg-elevated text-muted sm:table-header-group">
+    <div v-else :class="tableWrap">
+      <table :class="table">
+        <thead :class="thead">
           <tr>
-            <th class="px-4 py-2.5 font-medium">Name</th>
-            <th class="px-4 py-2.5 font-medium">Email</th>
-            <th class="px-4 py-2.5 font-medium">Admin</th>
-            <th class="px-4 py-2.5 font-medium">Two-factor</th>
-            <th class="px-4 py-2.5 font-medium">Passkeys</th>
-            <th class="px-4 py-2.5"><span class="sr-only">Actions</span></th>
+            <th scope="col" :class="th">Name</th>
+            <th scope="col" :class="th">Email</th>
+            <th scope="col" :class="th">Admin</th>
+            <th scope="col" :class="th">Two-factor</th>
+            <th scope="col" :class="th">Passkeys</th>
+            <th scope="col" :class="th"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
-        <tbody class="block divide-y divide-default sm:table-row-group">
-          <tr
-            v-for="u in users"
-            :key="u.id"
-            class="relative flex flex-wrap items-center gap-x-4 gap-y-1 py-3.5 ps-4 pe-12 sm:table-row sm:py-0 sm:ps-0 sm:pe-0"
-          >
-            <td class="min-w-0 font-semibold text-highlighted sm:table-cell sm:px-4 sm:py-3">
+        <tbody :class="tbody">
+          <tr v-for="u in users" :key="u.id" :class="tr">
+            <td :class="[td, 'min-w-0 font-semibold text-highlighted']">
               {{ label(u) }}
               <span v-if="isSelf(u)" class="font-normal text-muted">(you)</span>
             </td>
-            <td class="order-last basis-full truncate text-muted sm:table-cell sm:px-4 sm:py-3">
+            <td :class="[td, 'order-last basis-full truncate text-muted']">
               {{ u.email }}
             </td>
-            <td class="sm:table-cell sm:px-4 sm:py-3">
+            <td :class="td">
               <UBadge v-if="u.is_admin" color="primary" variant="subtle">Admin</UBadge>
             </td>
-            <td class="text-muted sm:table-cell sm:px-4 sm:py-3">
+            <td :class="[td, 'text-muted']">
               <span class="sm:hidden">Two-factor </span>{{ u.totp_enabled ? 'On' : 'Off' }}
             </td>
-            <td data-col="passkeys" class="text-muted sm:table-cell sm:px-4 sm:py-3">
+            <td data-col="passkeys" :class="[td, 'text-muted']">
               <template v-if="u.passkey_count > 0">
                 <span class="sm:hidden">Passkeys </span>{{ u.passkey_count }}
               </template>
             </td>
-            <td
-              class="absolute right-3 top-2.5 sm:static sm:table-cell sm:px-4 sm:py-3 sm:text-right"
-            >
+            <td data-col="actions" :class="[td, 'ms-auto sm:text-right']">
               <UDropdownMenu :items="menu(u)" :content="{ align: 'end' }">
                 <UButton
                   color="neutral"

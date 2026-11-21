@@ -6,6 +6,7 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import UModal from '@nuxt/ui/components/Modal.vue'
 import { errorMessage } from '@/api/errors'
+import { checkboxClass } from '@/lib/ui'
 import { useSession } from '@/lib/session'
 import { useCreateUser, useUpdateUser, type AdminUser } from './queries'
 
@@ -109,7 +110,7 @@ async function submit() {
             v-model="isAdmin"
             type="checkbox"
             name="is_admin"
-            class="size-4 accent-[var(--ui-primary)]"
+            :class="checkboxClass"
           />
           Panel admin
         </label>

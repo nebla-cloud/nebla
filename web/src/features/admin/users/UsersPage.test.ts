@@ -95,8 +95,10 @@ describe('UsersPage', () => {
     const cells = rows[1]!.findAll('td')
     expect(cells.some((c) => c.attributes('data-col') === 'passkeys' && c.text() === '')).toBe(true)
     expect(rows[2]!.find('td[data-col="passkeys"]').text()).toContain('3')
-    // The row leaves room for the menu button pinned to its corner on phones.
-    expect(rows[0]!.classes()).toContain('pe-12')
+    // The row-actions button sits in the last cell.
+    const last = rows[0]!.findAll('td').at(-1)!
+    expect(last.attributes('data-col')).toBe('actions')
+    expect(last.find('button').exists()).toBe(true)
     expect(wrapper.text()).toContain(
       "There's no email from here. Send them their password yourself.",
     )

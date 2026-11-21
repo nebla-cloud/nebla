@@ -5,7 +5,9 @@ import UAlert from '@nuxt/ui/components/Alert.vue'
 import { errorMessage } from '@/api/errors'
 import AdminPager from '@/components/AdminPager.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { formatDate } from '@/lib/format'
+import { table, tableWrap, tbody, td, th, thead, tr } from '@/lib/ui'
 import { usePageClamp } from '@/lib/usePageClamp'
 import { PER_PAGE, useAdminProjects, type AdminProject } from './queries'
 
@@ -32,11 +34,8 @@ function setPage(p: number) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Projects</h1>
-      <p class="text-sm text-muted">Every project on this panel, with its limits.</p>
-    </div>
+  <div class="flex flex-col gap-4">
+    <PageHeader title="Projects" description="Every project on this panel, with its limits." />
 
     <UAlert
       v-if="loadError"
@@ -50,24 +49,20 @@ function setPage(p: number) {
       title="No projects"
       body="Nobody has made a project yet."
     />
-    <div v-else class="overflow-hidden rounded-lg border border-default">
-      <table class="block w-full text-left text-sm sm:table">
-        <thead class="hidden bg-elevated text-muted sm:table-header-group">
+    <div v-else :class="tableWrap">
+      <table :class="table">
+        <thead :class="thead">
           <tr>
-            <th class="px-4 py-2.5 font-medium">Name</th>
-            <th class="px-4 py-2.5 font-medium">Owner email</th>
-            <th class="px-4 py-2.5 font-medium">Servers</th>
-            <th class="px-4 py-2.5 font-medium">Members</th>
-            <th class="px-4 py-2.5 font-medium">Created</th>
+            <th scope="col" :class="th">Name</th>
+            <th scope="col" :class="th">Owner email</th>
+            <th scope="col" :class="th">Servers</th>
+            <th scope="col" :class="th">Members</th>
+            <th scope="col" :class="th">Created</th>
           </tr>
         </thead>
-        <tbody class="block divide-y divide-default sm:table-row-group">
-          <tr
-            v-for="p in projects"
-            :key="p.id"
-            class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:table-row sm:px-0 sm:py-0"
-          >
-            <td class="min-w-0 font-semibold text-highlighted sm:table-cell sm:px-4 sm:py-3">
+        <tbody :class="tbody">
+          <tr v-for="p in projects" :key="p.id" :class="tr">
+            <td :class="[td, 'min-w-0 font-semibold text-highlighted']">
               <RouterLink
                 :to="`/admin/projects/${p.id}`"
                 class="underline decoration-accented underline-offset-4 hover:decoration-current"
@@ -75,17 +70,17 @@ function setPage(p: number) {
                 {{ p.name }}
               </RouterLink>
             </td>
-            <td class="order-last basis-full truncate text-muted sm:table-cell sm:px-4 sm:py-3">
+            <td :class="[td, 'order-last basis-full truncate text-muted']">
               {{ p.owner_email }}
             </td>
-            <td class="text-muted sm:table-cell sm:px-4 sm:py-3">
+            <td :class="[td, 'text-muted']">
               <span class="sm:hidden">Servers </span>{{ servers(p) }}
               <span v-if="p.quota.max_servers === 0" class="text-muted">No limit</span>
             </td>
-            <td class="text-muted sm:table-cell sm:px-4 sm:py-3">
+            <td :class="[td, 'text-muted']">
               <span class="sm:hidden">Members </span>{{ p.member_count }}
             </td>
-            <td class="text-muted sm:table-cell sm:px-4 sm:py-3">{{ formatDate(p.created) }}</td>
+            <td :class="[td, 'text-muted']">{{ formatDate(p.created) }}</td>
           </tr>
         </tbody>
       </table>

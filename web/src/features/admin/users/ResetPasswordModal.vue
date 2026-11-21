@@ -7,6 +7,7 @@ import UInput from '@nuxt/ui/components/Input.vue'
 import UModal from '@nuxt/ui/components/Modal.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
+import { checkboxClass } from '@/lib/ui'
 import { useResetPassword, type AdminUser } from './queries'
 
 const props = defineProps<{ user: AdminUser | null }>()
@@ -92,7 +93,7 @@ async function submit() {
             v-model="removePasskeys"
             type="checkbox"
             name="remove_passkeys"
-            class="size-4 accent-[var(--ui-primary)]"
+            :class="checkboxClass"
           />
           Also remove their passkeys
         </label>

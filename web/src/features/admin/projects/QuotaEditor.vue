@@ -6,6 +6,7 @@ import UInput from '@nuxt/ui/components/Input.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import type { components } from '@/api/schema'
+import ListGroup from '@/components/ListGroup.vue'
 import { useSetQuota, type Quota } from './queries'
 
 type Usage = components['schemas']['ProjectUsage']
@@ -93,7 +94,7 @@ async function submit() {
 <template>
   <form class="flex flex-col gap-4" @submit.prevent="submit">
     <p class="text-sm text-muted">Leave a limit empty, or set it to 0, for no limit.</p>
-    <ul class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+    <ListGroup>
       <li
         v-for="r in rows"
         :key="r.key"
@@ -122,7 +123,7 @@ async function submit() {
           </p>
         </div>
       </li>
-    </ul>
+    </ListGroup>
     <p v-if="err" class="text-sm text-error" role="alert">{{ err }}</p>
     <div>
       <UButton type="submit" :loading="save.isPending.value">Save limits</UButton>

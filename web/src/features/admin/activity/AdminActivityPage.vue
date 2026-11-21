@@ -6,8 +6,10 @@ import UButton from '@nuxt/ui/components/Button.vue'
 import { errorMessage } from '@/api/errors'
 import AdminPager from '@/components/AdminPager.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import ActionList from '@/features/activity/ActionList.vue'
 import { useAdminProjects } from '@/features/admin/projects/queries'
+import { selectClass } from '@/lib/ui'
 import { usePageClamp } from '@/lib/usePageClamp'
 import { PER_PAGE, useAdminActions, type AdminStatus } from './queries'
 
@@ -66,17 +68,14 @@ const setPage = (p: number) => setQuery({ page: String(p) })
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Activity</h1>
-      <p class="text-sm text-muted">Every action across all projects, newest first.</p>
-    </div>
+  <div class="flex flex-col gap-4">
+    <PageHeader title="Activity" description="Every action across all projects, newest first." />
 
     <div class="flex flex-wrap items-center gap-3">
       <select
         :value="projectId ? String(projectId) : ''"
         aria-label="Filter by project"
-        class="w-full rounded-md bg-default px-2.5 py-1.5 text-sm text-highlighted ring ring-inset ring-accented focus-visible:outline-2 focus-visible:outline-primary sm:w-auto"
+        :class="selectClass"
         @change="setProject"
       >
         <option value="">All projects</option>
