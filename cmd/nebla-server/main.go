@@ -69,7 +69,11 @@ func run() error {
 	osimages.Register(workers, osi)
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	volumes.RegisterWorkers(workers, volumes.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
-	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log})
+	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
+		VolumeRescue: func(ctx context.Context) error {
+			_, err := volumes.RescueOrphaned(ctx, client, sqlDB)
+			return err
+		}})
 	reconcile.Register(workers, rec)
 	enr := enroll.New(sqlDB, client, enroll.Options{SecretKey: cfg.SecretKey, BaseURL: cfg.BaseURL, Catalog: cat, Logger: log})
 	enroll.Register(workers, enr)

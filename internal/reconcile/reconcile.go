@@ -46,6 +46,8 @@ type Options struct {
 	// Jobs starts drift repair applies; without it drift is not repaired.
 	Jobs   *jobs.Jobs
 	Logger *slog.Logger
+	// VolumeRescue repairs orphaned volume actions; it runs at the end of every pass.
+	VolumeRescue func(ctx context.Context) error
 }
 
 type Reconciler struct {
@@ -86,6 +88,11 @@ func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 	}
 	if err := r.sync(ctx, log, locationID, reverts); err != nil {
 		errs = append(errs, err)
+	}
+	if r.o.VolumeRescue != nil {
+		if err := r.o.VolumeRescue(ctx); err != nil {
+			log.Error("reconcile: volume rescue", "err", err)
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -177,6 +184,9 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 		if err := r.apply(ctx, log, row.ID, vms, listedAt); err != nil {
 			errs = append(errs, fmt.Errorf("server %d: %w", row.ID, err))
 		}
+	}
+	if err := r.syncVolumes(ctx, log, locationID, pc, vms); err != nil {
+		errs = append(errs, err)
 	}
 	fwOn, err := r.recordFirewall(ctx, pc, locationID)
 	if err != nil {
