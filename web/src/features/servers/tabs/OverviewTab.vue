@@ -44,9 +44,11 @@ const live = useLiveMetrics(serverId, running)
 
 const DASH = '—'
 const rate = (v: number | null) => (v == null ? DASH : formatRate(v))
-// Reads "{a} / {b}": the second figure sits in the card's smaller unit slot, as in the mockup.
-const pair = (a: number | null, b: number | null) =>
-  a == null && b == null ? { value: DASH } : { value: rate(a), unit: `/ ${rate(b)}` }
+// The first figure is the value; "{a-word} / {b} {b-word}" goes in the card's smaller unit slot.
+const pair = (a: number | null, b: number | null, words: [string, string]) =>
+  a == null && b == null
+    ? { value: DASH }
+    : { value: rate(a), unit: `${words[0]} / ${rate(b)} ${words[1]}` }
 const cards = computed(() => {
   const ts = live.series.value
   return [
@@ -54,24 +56,24 @@ const cards = computed(() => {
       key: 'cpu',
       label: 'CPU',
       value: live.cpu.value == null ? DASH : formatPercent(live.cpu.value),
-      lines: [{ points: ts.cpu ?? [], tone: 'busy' as const }],
+      lines: [{ key: 'cpu', points: ts.cpu ?? [], tone: 'busy' as const }],
     },
     {
       key: 'network',
       label: 'Network',
-      ...pair(live.netIn.value, live.netOut.value),
+      ...pair(live.netIn.value, live.netOut.value, ['in', 'out']),
       lines: [
-        { points: ts['network.in'] ?? [], tone: 'run' as const },
-        { points: ts['network.out'] ?? [], tone: 'err' as const },
+        { key: 'in', points: ts['network.in'] ?? [], tone: 'run' as const },
+        { key: 'out', points: ts['network.out'] ?? [], tone: 'busy' as const, dashed: true },
       ],
     },
     {
       key: 'disk',
       label: 'Disk activity',
-      ...pair(live.diskRead.value, live.diskWrite.value),
+      ...pair(live.diskRead.value, live.diskWrite.value, ['read', 'write']),
       lines: [
-        { points: ts['disk.read'] ?? [], tone: 'busy' as const },
-        { points: ts['disk.write'] ?? [], tone: 'err' as const },
+        { key: 'read', points: ts['disk.read'] ?? [], tone: 'busy' as const },
+        { key: 'write', points: ts['disk.write'] ?? [], tone: 'busy' as const, dashed: true },
       ],
     },
   ]
@@ -183,11 +185,12 @@ async function confirmDelete() {
           <div class="grid *:col-start-1 *:row-start-1">
             <Sparkline
               v-for="l in c.lines"
-              :key="l.tone"
+              :key="l.key"
               :points="l.points"
               :width="200"
               :height="40"
               :tone="l.tone"
+              :dashed="l.dashed"
             />
           </div>
         </template>

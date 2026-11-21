@@ -10,8 +10,9 @@ const props = withDefaults(
     width: number
     height: number
     tone?: Tone
+    dashed?: boolean
   }>(),
-  { tone: 'busy' },
+  { tone: 'busy', dashed: false },
 )
 
 const line = computed(() => {
@@ -46,6 +47,7 @@ const line = computed(() => {
       fill="none"
       :stroke="`var(${TONE_VAR[tone]})`"
       stroke-width="2"
+      :stroke-dasharray="dashed ? '4 3' : undefined"
       stroke-linejoin="round"
       stroke-linecap="round"
       vector-effect="non-scaling-stroke"

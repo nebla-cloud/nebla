@@ -46,7 +46,7 @@ function serve() {
   )
 }
 
-async function setup(enabled: Ref<boolean>) {
+async function setup(enabled: Ref<boolean>, queryClient = testQueryClient()) {
   const router = testRouter([{ path: '/p/:projectId', component: { render: () => null } }])
   await router.push('/p/1')
   let result!: ReturnType<typeof useLiveMetrics>
@@ -57,7 +57,7 @@ async function setup(enabled: Ref<boolean>) {
     },
   })
   const wrapper = mount(C, {
-    global: { plugins: [router, [VueQueryPlugin, { queryClient: testQueryClient() }]] },
+    global: { plugins: [router, [VueQueryPlugin, { queryClient }]] },
   })
   return { result, wrapper }
 }
@@ -94,6 +94,26 @@ describe('useLiveMetrics', () => {
     expect(urls).toHaveLength(0)
     expect(result.cpu.value).toBeNull()
     expect(result.series.value).toEqual({})
+  })
+
+  it('a remount or window refocus within the interval does not refetch', async () => {
+    serve()
+    const qc = testQueryClient()
+    const first = await setup(ref(true), qc)
+    await vi.waitFor(() => expect(urls).toHaveLength(1))
+    await flushPromises()
+    first.wrapper.unmount()
+    await setup(ref(true), qc)
+    await flushPromises()
+    window.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(urls).toHaveLength(1)
+    const live = qc.getQueryCache().find({ queryKey: ['server-metrics', 1, 5, 'hour', 'live'] })
+    const opts = live!.observers[0]!.options
+    expect(opts.refetchOnWindowFocus).toBe(false)
+    expect(opts.staleTime).toBe(55_000)
   })
 
   it('refreshes every 60 s', async () => {

@@ -4,6 +4,7 @@ import { useCurrentProject } from '@/lib/project'
 import { fetchMetrics, type TimeSeries } from './metrics'
 
 const REFRESH_MS = 60_000
+const STALE_MS = 55_000
 
 function latest(points: [number, number | null][] | undefined): number | null {
   if (!points) return null
@@ -34,6 +35,9 @@ export function useLiveMetrics(
     retry: false,
     refetchInterval: REFRESH_MS,
     refetchIntervalInBackground: false,
+    // Only the timer refreshes: no refetch on focus or remount within the interval.
+    staleTime: STALE_MS,
+    refetchOnWindowFocus: false,
   })
 
   const series = computed(() => (query.data.value?.time_series ?? {}) as TimeSeries)

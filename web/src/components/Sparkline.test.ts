@@ -68,4 +68,20 @@ describe('Sparkline', () => {
     const none = mount(Sparkline, { props: { points: [], width: 100, height: 20 } })
     expect(none.find('polyline').exists()).toBe(false)
   })
+
+  it('draws dashed when asked', () => {
+    const props = {
+      points: [
+        [0, 1],
+        [1, 2],
+      ] as [number, number][],
+      width: 100,
+      height: 20,
+    }
+    expect(
+      mount(Sparkline, { props }).find('polyline').attributes('stroke-dasharray'),
+    ).toBeUndefined()
+    const dashed = mount(Sparkline, { props: { ...props, dashed: true } })
+    expect(dashed.find('polyline').attributes('stroke-dasharray')).toBeTruthy()
+  })
 })

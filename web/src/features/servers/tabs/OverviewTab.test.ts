@@ -24,9 +24,18 @@ const metricsFixture = {
         [1, 1024],
         [2, 2.1 * 1024 * 1024],
       ],
-      'network.out': [[2, 0.4 * 1024 * 1024]],
-      'disk.read': [[2, 512]],
-      'disk.write': [[2, 3 * 1024]],
+      'network.out': [
+        [1, 1000],
+        [2, 0.4 * 1024 * 1024],
+      ],
+      'disk.read': [
+        [1, 100],
+        [2, 512],
+      ],
+      'disk.write': [
+        [1, 50],
+        [2, 3 * 1024],
+      ],
     },
   },
 }
@@ -174,8 +183,21 @@ describe('OverviewTab', () => {
       const v = w.find(`[data-metric="${k}"] [data-value]`)
       return `${v.text()} ${v.element.nextElementSibling!.textContent!.trim()}`
     }
-    expect(reading('network')).toBe('2.1 MB/s / 410 KB/s')
-    expect(reading('disk')).toBe('512 B/s / 3.0 KB/s')
+    expect(reading('network')).toBe('2.1 MB/s in / 410 KB/s out')
+    expect(reading('disk')).toBe('512 B/s read / 3.0 KB/s write')
+    const lines = (k: string) =>
+      w
+        .findAll(`[data-metric="${k}"] polyline`)
+        .map((p) => [p.attributes('stroke'), p.attributes('stroke-dasharray') ? 'dashed' : 'solid'])
+    expect(lines('network')).toEqual([
+      ['var(--nb-run)', 'solid'],
+      ['var(--nb-busy)', 'dashed'],
+    ])
+    expect(lines('disk')).toEqual([
+      ['var(--nb-busy)', 'solid'],
+      ['var(--nb-busy)', 'dashed'],
+    ])
+    for (const card of w.findAll('[data-metric]')) expect(card.html()).not.toContain('--nb-err')
     expect(w.find('[data-metric="cpu"] svg').attributes('aria-hidden')).toBe('true')
     expect(w.text()).not.toContain("Graphs appear once it's running")
   })
