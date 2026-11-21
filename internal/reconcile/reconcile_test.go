@@ -53,8 +53,11 @@ func (l *lockedBuffer) String() string {
 	return l.b.String()
 }
 
+// newReconciler checks firewall drift on every run; TestReconcileDriftCheckCadence covers the real interval.
 func newReconciler(e *testutil.ServerEnv, log *slog.Logger) *reconcile.Reconciler {
-	return reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Jobs: e.App.Jobs, Logger: log})
+	r := reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Jobs: e.App.Jobs, Logger: log})
+	reconcile.SetDriftEvery(r, 0)
+	return r
 }
 
 // workerEnv works server jobs through River.
@@ -1069,6 +1072,8 @@ func TestReconcileWarnsNICFirewallOff(t *testing.T) {
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Contains(t, logs.String(), "public NIC firewall flag is off")
 	require.Contains(t, logs.String(), "server_id="+strconv.FormatInt(row.ID, 10))
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, 1, strings.Count(logs.String(), "public NIC firewall flag is off"), "warned once per cooldown")
 	require.NotContains(t, vmFW(t, e, vmid).Config["net0"], "firewall=1", "the reconciler never writes VM config")
 }
 
@@ -1181,4 +1186,34 @@ func TestRescuedRebuildIsRepairable(t *testing.T) {
 	baseline := len(applies(t, e, id))
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Len(t, applies(t, e, id), baseline+1)
+}
+
+func TestReconcileDriftCheckCadence(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Jobs: e.App.Jobs, Logger: quiet()})
+	row, vmid := running(t, e, "web")
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	foreign := pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "3389", Enable: true}
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, vmid, foreign))
+	baseline := len(applies(t, e, row.ID))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1, "the first pass checks")
+	settle(t, e, row.ID)
+	finishLast(t, e, row.ID, action.StatusSuccess, time.Hour)
+
+	// Within the interval no Proxmox firewall is read, so new drift waits.
+	require.NoError(t, pc.AddFirewallRule(ctx, row.Node, vmid, foreign))
+	calls := len(e.App.PVE.Calls())
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1)
+	for _, c := range e.App.PVE.Calls()[calls:] {
+		require.NotContains(t, c, "/qemu/", "no per-VM read within the interval")
+	}
+
+	reconcile.ForceDriftCheck(r)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+2)
 }

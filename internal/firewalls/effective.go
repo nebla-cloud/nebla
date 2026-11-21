@@ -98,22 +98,15 @@ func Effective(ctx context.Context, c *ent.Client, serverID int64) ([]Applied, e
 
 // RulesFor returns a server's effective rules ordered by firewall id then position, and whether any firewall applies.
 func RulesFor(ctx context.Context, c *ent.Client, serverID int64) ([]Rule, bool, error) {
-	eff, err := Effective(ctx, c, serverID)
-	if err != nil || len(eff) == 0 {
-		return nil, false, err
+	row, err := c.Server.Get(ctx, serverID)
+	if err != nil {
+		return nil, false, notFound(err)
 	}
-	rows, err := c.FirewallRule.Query().Where(firewallrule.FirewallIDIn(firewallIDs(eff)...)).
-		Order(firewallrule.ByFirewallID(), firewallrule.ByPosition()).All(ctx)
+	a, err := LoadAttachments(ctx, c, row.ProjectID)
 	if err != nil {
 		return nil, false, err
 	}
-	out := make([]Rule, len(rows))
-	for i, r := range rows {
-		if out[i], err = toRule(r); err != nil {
-			return nil, false, err
-		}
-	}
-	return out, true, nil
+	return a.Rules(ctx, c, row.ID, row.Labels)
 }
 
 func toRule(r *ent.FirewallRule) (Rule, error) {
@@ -209,4 +202,24 @@ func LoadAttachments(ctx context.Context, c *ent.Client, projectID int64) (Attac
 // Effective lists the firewalls in effect on a server with these labels, ordered by firewall id.
 func (a Attachments) Effective(serverID int64, lbls map[string]string) []Applied {
 	return a.x.effective(serverID, lbls, nil)
+}
+
+// Rules returns the effective rules of a server with these labels, ordered by firewall id then position, and whether any firewall applies.
+func (a Attachments) Rules(ctx context.Context, c *ent.Client, serverID int64, lbls map[string]string) ([]Rule, bool, error) {
+	eff := a.Effective(serverID, lbls)
+	if len(eff) == 0 {
+		return nil, false, nil
+	}
+	rows, err := c.FirewallRule.Query().Where(firewallrule.FirewallIDIn(firewallIDs(eff)...)).
+		Order(firewallrule.ByFirewallID(), firewallrule.ByPosition()).All(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	out := make([]Rule, len(rows))
+	for i, r := range rows {
+		if out[i], err = toRule(r); err != nil {
+			return nil, false, err
+		}
+	}
+	return out, true, nil
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/netip"
 	"slices"
 	"strconv"
@@ -52,6 +53,10 @@ type Reconciler struct {
 	noJobs  sync.Once
 	mu      sync.Mutex
 	orphans map[[2]int64]bool
+	// driftAt is each location's last firewall drift check.
+	driftAt    map[int64]time.Time
+	driftEvery time.Duration
+	nicWarned  map[int64]time.Time
 	// afterList runs once the VM list is read; tests use it to race a job.
 	afterList func()
 	// rescueHook runs inside each rescue transaction; an error fails it.
@@ -62,7 +67,8 @@ func New(o Options) *Reconciler {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	r := &Reconciler{o: o, orphans: map[[2]int64]bool{}}
+	r := &Reconciler{o: o, orphans: map[[2]int64]bool{}, driftAt: map[int64]time.Time{}, driftEvery: DriftInterval,
+		nicWarned: map[int64]time.Time{}}
 	r.jobs.Store(o.Jobs)
 	return r
 }
@@ -176,8 +182,12 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 		log.Warn("reconcile: datacenter firewall", "err", err)
 		errs = append(errs, fmt.Errorf("datacenter firewall: %w", err))
 	}
+	if !r.driftDue(locationID) {
+		return errors.Join(errs...)
+	}
+	atts := map[int64]firewalls.Attachments{}
 	for _, row := range rows {
-		if err := r.repairFirewall(ctx, log, pc, row, vms, fwOn); err != nil {
+		if err := r.repairFirewall(ctx, log, pc, row, vms, fwOn, atts); err != nil {
 			log.Warn("reconcile: firewall drift", "server_id", row.ID, "err", err)
 			errs = append(errs, fmt.Errorf("server %d firewall: %w", row.ID, err))
 		}
@@ -203,6 +213,35 @@ const (
 	repairCooldownError   = 10 * time.Minute
 	repairCooldownSuccess = 5 * time.Minute
 )
+
+// DriftInterval is how often a location's VM firewalls are compared with the desired state.
+const DriftInterval = 5 * time.Minute
+
+// nicWarnCooldown spaces out repeated warnings about one server's NIC firewall flag.
+const nicWarnCooldown = time.Hour
+
+// driftDue reports whether the location's drift check is due, and if so marks it run.
+func (r *Reconciler) driftDue(locationID int64) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if last, ok := r.driftAt[locationID]; ok && time.Since(last) < r.driftEvery {
+		return false
+	}
+	r.driftAt[locationID] = time.Now()
+	return true
+}
+
+// nicWarnDue reports whether server id's NIC flag warning is due, and if so marks it logged.
+func (r *Reconciler) nicWarnDue(id int64) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	maps.DeleteFunc(r.nicWarned, func(_ int64, at time.Time) bool { return time.Since(at) >= nicWarnCooldown })
+	if _, ok := r.nicWarned[id]; ok {
+		return false
+	}
+	r.nicWarned[id] = time.Now()
+	return true
+}
 
 // fwRepairable reports a server whose VM firewall the reconciler may compare and repair.
 func fwRepairable(row *ent.Server) bool {
@@ -268,7 +307,8 @@ func nicFirewall(net0 string) bool {
 }
 
 // repairFirewall queues an apply when the VM's firewall or anti-spoofing differs from the desired state.
-func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pve.Client, row *ent.Server, w view, fwOn *bool) error {
+func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pve.Client, row *ent.Server, w view, fwOn *bool,
+	atts map[int64]firewalls.Attachments) error {
 	j := r.jobs.Load()
 	if j == nil {
 		r.noJobs.Do(func() { log.Warn("reconcile: no job runtime, firewall drift repair is disabled") })
@@ -288,7 +328,14 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 	if err != nil || cool && !lastOK {
 		return err
 	}
-	rules, anyFW, err := firewalls.RulesFor(ctx, r.o.Ent, row.ID)
+	att, ok := atts[row.ProjectID]
+	if !ok {
+		if att, err = firewalls.LoadAttachments(ctx, r.o.Ent, row.ProjectID); err != nil {
+			return err
+		}
+		atts[row.ProjectID] = att
+	}
+	rules, anyFW, err := att.Rules(ctx, r.o.Ent, row.ID, row.Labels)
 	if err != nil {
 		return err
 	}
@@ -306,7 +353,7 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 	if err != nil {
 		return fmt.Errorf("read vm config: %w", err)
 	}
-	if !nicFirewall(cfg["net0"]) {
+	if !nicFirewall(cfg["net0"]) && r.nicWarnDue(row.ID) {
 		log.Warn("reconcile: server public NIC firewall flag is off", "server_id", row.ID, "vmid", v.VMID)
 	}
 	cur, err := pc.FirewallRules(tctx, v.Node, v.VMID)
