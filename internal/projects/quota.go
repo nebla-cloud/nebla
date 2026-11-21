@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
@@ -39,11 +40,24 @@ func (s *Service) SetQuota(ctx context.Context, projectID int64, q Quota) (Quota
 	return quotaOf(p), nil
 }
 
+// LockProject locks the project row in tx; take it before any server or volume row.
+func LockProject(ctx context.Context, tx *ent.Client, projectID int64) error {
+	_, err := lockProject(ctx, tx, projectID)
+	return err
+}
+
+// lockProject takes FOR NO KEY UPDATE so inserts referencing the project (actions, volumes) are not blocked.
+func lockProject(ctx context.Context, tx *ent.Client, projectID int64) (*ent.Project, error) {
+	p, err := tx.Project.Query().Where(project.ID(projectID)).
+		Modify(func(s *entsql.Selector) { s.For(entsql.LockNoKeyUpdate) }).Only(ctx)
+	return p, notFound(err)
+}
+
 // ReserveQuota locks the project row in tx and fails with quota_exceeded if usage plus delta passes a limit.
 func (s *Service) ReserveQuota(ctx context.Context, tx *ent.Client, projectID int64, delta Usage) error {
-	p, err := tx.Project.Query().Where(project.ID(projectID)).ForUpdate().Only(ctx)
+	p, err := lockProject(ctx, tx, projectID)
 	if err != nil {
-		return notFound(err)
+		return err
 	}
 	cur, err := s.opts.Usage(ctx, tx, projectID)
 	if err != nil {

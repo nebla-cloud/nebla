@@ -538,11 +538,22 @@ func LockServer(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.
 // queue runs prepare under the server lock and starts the job it returns args for.
 func (s *Service) queue(ctx context.Context, projectID, id int64, command string,
 	prepare func(etx *ent.Client, row *ent.Server) (func(actionID int64) river.JobArgs, error)) (actions.Action, error) {
+	return s.queueAfter(ctx, projectID, id, command, nil, prepare)
+}
+
+// queueAfter is queue with before run ahead of the server lock, for parent rows.
+func (s *Service) queueAfter(ctx context.Context, projectID, id int64, command string, before func(etx *ent.Client) error,
+	prepare func(etx *ent.Client, row *ent.Server) (func(actionID int64) river.JobArgs, error)) (actions.Action, error) {
 	if s.o.Jobs == nil {
 		return actions.Action{}, errNoJobs
 	}
 	var act actions.Action
 	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		if before != nil {
+			if err := before(etx); err != nil {
+				return err
+			}
+		}
 		row, err := LockServer(ctx, etx, projectID, id)
 		if err != nil {
 			return err

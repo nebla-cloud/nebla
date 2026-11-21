@@ -85,7 +85,9 @@ func (s *Service) ChangeType(ctx context.Context, projectID, id int64, typeRef s
 	if err != nil {
 		return actions.Action{}, err
 	}
-	return s.queue(ctx, projectID, id, KindChangeType, func(etx *ent.Client, row *ent.Server) (func(int64) river.JobArgs, error) {
+	// The project row is locked before the server, as quota paths do.
+	lock := func(etx *ent.Client) error { return projects.LockProject(ctx, etx, projectID) }
+	return s.queueAfter(ctx, projectID, id, KindChangeType, lock, func(etx *ent.Client, row *ent.Server) (func(int64) river.JobArgs, error) {
 		to, err := targetSpec(row, typ, upgradeDisk)
 		if err != nil {
 			return nil, err
