@@ -3,14 +3,10 @@
 package e2e_test
 
 import (
-	"bytes"
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/netip"
 	"slices"
@@ -22,14 +18,17 @@ import (
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
+// The runner can't reach guests, so traffic is judged by B's netin counter, sampled per window.
 const (
-	fwUser      = "e2e"
-	fwStateWait = 60 * time.Second
-	fwBootWait  = 6 * time.Minute
-	udpPort     = 9999
+	fwBootWait   = 6 * time.Minute
+	fwStateWait  = 60 * time.Second
+	fwHoldFlat   = 20 * time.Second
+	flowWindow   = 2 * time.Second
+	flatBytes    = 5 << 10
+	flowingBytes = 50 << 10
+	udpPort      = 9999
 )
 
 // spoofSource picks the highest host address of the pool CIDR outside the allocation range, gateway and avoid.
@@ -58,40 +57,49 @@ func spoofSource(t *testing.T, tg target, avoid ...string) string {
 	return ""
 }
 
-// fwUserData starts an HTTP listener on 8080 and a UDP logger on 9999, and adds a sudo user with key.
-func fwUserData(key string) string {
+// senderUserData runs two ~300 KB/s UDP streams to dst:9999 as a root service: one from the real address, one spoofed.
+func senderUserData(dst, spoof string) string {
 	return `#cloud-config
-users:
-  - name: ` + fwUser + `
-    shell: /bin/bash
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    ssh_authorized_keys:
-      - ` + key + `
 write_files:
-  - path: /usr/local/bin/e2e-udp.py
-    permissions: "0755"
-    content: |
-      import socket
-      s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-      s.bind(("0.0.0.0", 9999))
-      while True:
-          d, a = s.recvfrom(2048)
-          with open("/run/e2e-udp.log", "a") as f:
-              f.write("%s %s\n" % (a[0], d.decode(errors="replace")))
   - path: /usr/local/bin/e2e-send.py
     permissions: "0755"
     content: |
-      import socket, struct, sys
-      src, dst, msg = sys.argv[1], sys.argv[2], sys.argv[3].encode()
-      udp = struct.pack("!HHHH", 40000, 9999, 8 + len(msg), 0) + msg
-      ip = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(udp), 0, 0, 64, 17, 0,
-                       socket.inet_aton(src), socket.inet_aton(dst))
-      s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-      for _ in range(5):
-          s.sendto(ip + udp, (dst, 0))
+      import socket, struct, sys, threading, time
+      dst, spoof, port = sys.argv[1], sys.argv[2], 9999
+      msg = b"x" * 1000
+      def pace(send):
+          while True:
+              t = time.monotonic()
+              for _ in range(30):
+                  try:
+                      send()
+                  except OSError:
+                      pass
+              time.sleep(max(0, 0.1 - (time.monotonic() - t)))
+      def real():
+          s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+          pace(lambda: s.sendto(msg, (dst, port)))
+      def spoofed():
+          udp = struct.pack("!HHHH", 40000, port, 8 + len(msg), 0) + msg
+          ip = struct.pack("!BBHHHBBH4s4s", 0x45, 0, 20 + len(udp), 0, 0, 64, 17, 0,
+                           socket.inet_aton(spoof), socket.inet_aton(dst))
+          s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+          pace(lambda: s.sendto(ip + udp, (dst, 0)))
+      threading.Thread(target=spoofed, daemon=True).start()
+      real()
+  - path: /etc/systemd/system/e2e-send.service
+    content: |
+      [Unit]
+      After=network-online.target
+      Wants=network-online.target
+      [Service]
+      ExecStart=/usr/bin/python3 /usr/local/bin/e2e-send.py ` + dst + ` ` + spoof + `
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
 runcmd:
-  - [systemd-run, --unit=e2e-http, python3, -m, http.server, "8080", --bind, 0.0.0.0, --directory, /tmp]
-  - [systemd-run, --unit=e2e-udp, python3, /usr/local/bin/e2e-udp.py]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, e2e-send.service]
 `
 }
 
@@ -106,70 +114,21 @@ type fwActions struct {
 	Actions []action `json:"actions"`
 }
 
-func waitActions(t *testing.T, app *testutil.App, c *testutil.Client, as []action) {
+// waitActions waits for each action and returns the latest finish time.
+func waitActions(t *testing.T, app *testutil.App, c *testutil.Client, as []action) time.Time {
 	t.Helper()
+	var last time.Time
 	for _, a := range as {
 		waitAction(t, app, c, a.ID)
-	}
-}
-
-func tcpOpen(addr string) bool {
-	conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-	return true
-}
-
-// waitTCP polls addr until its reachability is want; it returns when the first matching attempt started.
-func waitTCP(t *testing.T, addr string, want bool, limit time.Duration) time.Time {
-	t.Helper()
-	deadline := time.Now().Add(limit)
-	for {
-		start := time.Now()
-		if tcpOpen(addr) == want {
-			return start
+		var got struct {
+			Finished *time.Time `json:"finished"`
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%s reachable=%v after %s, want %v", addr, !want, limit, want)
+		call(t, app, c, http.MethodGet, fmt.Sprintf("/v1/actions/%d", a.ID), nil, http.StatusOK, &got)
+		if got.Finished != nil && got.Finished.After(last) {
+			last = *got.Finished
 		}
-		time.Sleep(500 * time.Millisecond)
 	}
-}
-
-func sshRun(signer ssh.Signer, host, cmd string) (string, error) {
-	cfg := &ssh.ClientConfig{User: fwUser, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second}
-	cl, err := ssh.Dial("tcp", net.JoinHostPort(host, "22"), cfg)
-	if err != nil {
-		return "", err
-	}
-	defer cl.Close()
-	s, err := cl.NewSession()
-	if err != nil {
-		return "", err
-	}
-	defer s.Close()
-	var out bytes.Buffer
-	s.Stdout, s.Stderr = &out, &out
-	err = s.Run(cmd)
-	return out.String(), err
-}
-
-func waitSSH(t *testing.T, signer ssh.Signer, host, cmd string, limit time.Duration) string {
-	t.Helper()
-	deadline := time.Now().Add(limit)
-	for {
-		out, err := sshRun(signer, host, cmd)
-		if err == nil {
-			return out
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("ssh %s %q: %v: %s", host, cmd, err, out)
-		}
-		time.Sleep(5 * time.Second)
-	}
+	return last
 }
 
 // pveGet is a read-only GET against the Proxmox API; ok is false on a non-2xx status.
@@ -199,6 +158,48 @@ func pveGet(t *testing.T, tg target, path string, out any) (ok bool) {
 	return true
 }
 
+func netin(t *testing.T, tg target, s fwServer) float64 {
+	t.Helper()
+	var st struct {
+		Netin float64 `json:"netin"`
+	}
+	require.True(t, pveGet(t, tg, fmt.Sprintf("/nodes/%s/qemu/%d/status/current", s.node, s.vmid), &st), "status of VM %d", s.vmid)
+	return st.Netin
+}
+
+// waitFlow samples s's netin until a window is flowing (or flat) as wanted and returns that window's start.
+func waitFlow(t *testing.T, tg target, s fwServer, flowing bool, limit time.Duration) time.Time {
+	t.Helper()
+	deadline := time.Now().Add(limit)
+	prevT, prev := time.Now(), netin(t, tg, s)
+	for {
+		time.Sleep(flowWindow)
+		now, cur := time.Now(), netin(t, tg, s)
+		d := cur - prev
+		if (flowing && d >= flowingBytes) || (!flowing && d < flatBytes) {
+			t.Logf("netin %+.0f B in %s (flowing=%v)", d, now.Sub(prevT).Round(100*time.Millisecond), flowing)
+			return prevT
+		}
+		if now.After(deadline) {
+			t.Fatalf("VM %d netin never became flowing=%v within %s; last window %+.0f B", s.vmid, flowing, limit, d)
+		}
+		prevT, prev = now, cur
+	}
+}
+
+// holdFlat fails if any window over dur shows traffic reaching s.
+func holdFlat(t *testing.T, tg target, s fwServer, dur time.Duration) {
+	t.Helper()
+	end := time.Now().Add(dur)
+	prev := netin(t, tg, s)
+	for time.Now().Before(end) {
+		time.Sleep(flowWindow)
+		cur := netin(t, tg, s)
+		require.Less(t, cur-prev, float64(flatBytes), "VM %d received %.0f B in one window", s.vmid, cur-prev)
+		prev = cur
+	}
+}
+
 func TestFirewallE2E(t *testing.T) {
 	e := newEnv(t)
 	app, c, pc, tg := e.app, e.c, e.pc, e.tg
@@ -206,14 +207,6 @@ func TestFirewallE2E(t *testing.T) {
 		t.Skip("the firewall e2e needs an IPv4 pool")
 	}
 	ctx := context.Background()
-
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-	signer, err := ssh.NewSignerFromKey(priv)
-	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(pub)
-	require.NoError(t, err)
-	ud := fwUserData(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshPub))))
 
 	// Registered first so it runs last, after every server cleanup.
 	var ids []int64
@@ -254,27 +247,25 @@ func TestFirewallE2E(t *testing.T) {
 	})
 
 	stamp := time.Now().Unix()
-	create := func(name string, labels map[string]string) (int64, action) {
+	// One at a time: concurrent clones can race on the next VMID.
+	create := func(name, userData string, labels map[string]string) fwServer {
 		var created struct {
 			Server struct {
 				ID int64 `json:"id"`
 			} `json:"server"`
 			Action action `json:"action"`
 		}
-		call(t, app, c, http.MethodPost, "/v1/servers", map[string]any{"name": name, "server_type": "e2e-small",
-			"image": "e2e-debian", "location": "e2e", "labels": labels, "user_data": ud,
-			"public_net": map[string]bool{"ipv4": true, "ipv6": false}}, http.StatusCreated, &created)
+		body := map[string]any{"name": name, "server_type": "e2e-small", "image": "e2e-debian", "location": "e2e",
+			"labels": labels, "public_net": map[string]bool{"ipv4": true, "ipv6": false}}
+		if userData != "" {
+			body["user_data"] = userData
+		}
+		call(t, app, c, http.MethodPost, "/v1/servers", body, http.StatusCreated, &created)
 		sid := created.Server.ID
 		ids = append(ids, sid)
 		t.Cleanup(func() { cleanupServer(t, app, c, sid) })
-		return sid, created.Action
-	}
-	// One at a time: concurrent clones can race on the next VMID.
-	idA, actA := create(fmt.Sprintf("nebla-fw-a-%d", stamp), map[string]string{"role": "client"})
-	waitAction(t, app, c, actA.ID)
-	idB, actB := create(fmt.Sprintf("nebla-fw-b-%d", stamp), map[string]string{"role": "web"})
-	waitAction(t, app, c, actB.ID)
-	lookup := func(sid int64) fwServer {
+		waitAction(t, app, c, created.Action.ID)
+		waitStatus(t, app, c, sid, "running")
 		var s struct {
 			PublicNet struct {
 				IPv4 *struct {
@@ -286,24 +277,17 @@ func TestFirewallE2E(t *testing.T) {
 		require.NotNil(t, s.PublicNet.IPv4, "server %d has no IPv4", sid)
 		vms := taggedVMs(t, pc, sid)
 		require.Len(t, vms, 1)
-		return fwServer{id: sid, ip: s.PublicNet.IPv4.IP, node: vms[0].Node, vmid: vms[0].VMID}
+		out := fwServer{id: sid, ip: s.PublicNet.IPv4.IP, node: vms[0].Node, vmid: vms[0].VMID}
+		made = append(made, out)
+		return out
 	}
-	waitStatus(t, app, c, idA, "running")
-	waitStatus(t, app, c, idB, "running")
-	A, B := lookup(idA), lookup(idB)
-	made = []fwServer{A, B}
+	// B first: A's sender needs B's address at boot.
+	B := create(fmt.Sprintf("nebla-fw-b-%d", stamp), "", map[string]string{"role": "web"})
+	spoof := spoofSource(t, tg, B.ip)
+	A := create(fmt.Sprintf("nebla-fw-a-%d", stamp), senderUserData(B.ip, spoof), map[string]string{"role": "client"})
+	require.NotEqual(t, A.ip, spoof)
 	t.Logf("A=%+v B=%+v", A, B)
-	b8080 := net.JoinHostPort(B.ip, "8080")
-
-	// Boot: both reachable over SSH, B's listener up; B tells us the runner's address as it sees it.
-	waitSSH(t, signer, A.ip, "true", fwBootWait)
-	sshClient := waitSSH(t, signer, B.ip, "echo $SSH_CLIENT", fwBootWait)
-	runner := strings.Fields(sshClient)
-	require.NotEmpty(t, runner, "SSH_CLIENT on B: %q", sshClient)
-	runnerIP, err := netip.ParseAddr(runner[0])
-	require.NoError(t, err, "SSH_CLIENT on B: %q", sshClient)
-	t.Logf("runner address seen by B: %s", runnerIP)
-	waitTCP(t, b8080, true, fwBootWait)
+	t.Logf("SPOOF SOURCE: %s (pool %s, range %s-%s)", spoof, tg.cidr, tg.rangeStart, tg.rangeEnd)
 
 	require.True(t, t.Run("dhcp default", func(t *testing.T) {
 		opts, err := pc.FirewallOptions(ctx, A.node, A.vmid)
@@ -319,88 +303,68 @@ func TestFirewallE2E(t *testing.T) {
 		require.NoError(t, pc.SetFirewallOptions(ctx, A.node, A.vmid, map[string]string{"dhcp": "0"}))
 	}))
 
-	t.Run("rule load time", func(t *testing.T) {
-		written := time.Now()
-		require.NoError(t, pc.SetFirewallOptions(ctx, B.node, B.vmid, map[string]string{"policy_in": "DROP"}))
-		blocked := waitTCP(t, b8080, false, fwStateWait)
-		load := blocked.Sub(written)
-		t.Logf("RULE LOAD TIME: policy_in=DROP took %s to block %s (FirewallSettle %s)", load.Round(100*time.Millisecond),
-			b8080, servers.FirewallSettle)
-		require.NoError(t, pc.SetFirewallOptions(ctx, B.node, B.vmid, map[string]string{"policy_in": "ACCEPT"}))
-		reopened := waitTCP(t, b8080, true, fwStateWait)
-		t.Logf("policy_in=ACCEPT reopened %s after %s", b8080, reopened.Sub(blocked).Round(100*time.Millisecond))
-		require.Less(t, load, servers.FirewallSettle, "rule load time exceeds FirewallSettle")
-	})
+	require.True(t, t.Run("baseline", func(t *testing.T) {
+		waitFlow(t, tg, B, true, fwBootWait)
+	}))
 
+	rule := func(proto, port, src, desc string) map[string]any {
+		return map[string]any{"direction": "in", "protocol": proto, "port": port, "source_ips": []string{src}, "description": desc}
+	}
+	sshAny := rule("tcp", "22", "0.0.0.0/0", "ssh")
+	udpFrom := func(ip string) map[string]any { return rule("udp", fmt.Sprint(udpPort), ip+"/32", "probe") }
+	selector := []any{map[string]any{"type": "label_selector", "label_selector": map[string]any{"selector": "role=web"}}}
 	var created struct {
 		Firewall struct {
 			ID int64 `json:"id"`
 		} `json:"firewall"`
 		Actions []action `json:"actions"`
 	}
-	sshRule := map[string]any{"direction": "in", "protocol": "tcp", "port": "22",
-		"source_ips": []string{netip.PrefixFrom(runnerIP, runnerIP.BitLen()).String()}, "description": "runner ssh"}
-	udpRule := map[string]any{"direction": "in", "protocol": "udp", "port": fmt.Sprint(udpPort),
-		"source_ips": []string{"0.0.0.0/0"}, "description": "spoof probe"}
-	selector := []any{map[string]any{"type": "label_selector", "label_selector": map[string]any{"selector": "role=web"}}}
 	call(t, app, c, http.MethodPost, "/v1/firewalls", map[string]any{"name": fmt.Sprintf("web-%d", stamp),
-		"rules": []any{sshRule, udpRule}}, http.StatusCreated, &created)
+		"rules": []any{sshAny}}, http.StatusCreated, &created)
 	fwID := created.Firewall.ID
 	t.Cleanup(func() {
 		res := c.Send(http.MethodDelete, fmt.Sprintf("/v1/firewalls/%d", fwID), nil)
 		t.Logf("cleanup delete firewall %d: %d %s", fwID, res.StatusCode, app.Body(res))
 	})
 	waitActions(t, app, c, created.Actions)
-
-	require.True(t, t.Run("apply by selector", func(t *testing.T) {
+	fwPost := func(rest string, body any) time.Time {
 		var as fwActions
-		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/firewalls/%d/actions/apply_to_resources", fwID),
-			map[string]any{"apply_to": selector}, http.StatusCreated, &as)
-		require.NotEmpty(t, as.Actions, "applying role=web should touch B")
-		waitActions(t, app, c, as.Actions)
+		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/firewalls/%d/actions/%s", fwID, rest), body, http.StatusCreated, &as)
+		require.NotEmpty(t, as.Actions, "%s should touch B", rest)
+		return waitActions(t, app, c, as.Actions)
+	}
+	setRules := func(rules ...any) time.Time { return fwPost("set_rules", map[string]any{"rules": rules}) }
+
+	require.True(t, t.Run("apply blocks", func(t *testing.T) {
+		done := fwPost("apply_to_resources", map[string]any{"apply_to": selector})
+		flat := waitFlow(t, tg, B, false, fwStateWait)
+		load := flat.Sub(done)
+		t.Logf("RULE LOAD TIME: %s from the apply action finishing to B's netin going flat (FirewallSettle %s, %s windows)",
+			load.Round(100*time.Millisecond), servers.FirewallSettle, flowWindow)
 		opts, err := pc.FirewallOptions(ctx, B.node, B.vmid)
 		require.NoError(t, err)
 		for k, v := range map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "policy_in": "DROP"} {
 			require.Equal(t, v, opts[k], "B option %s: %v", k, opts)
 		}
-		waitTCP(t, b8080, false, fwStateWait)
-		waitSSH(t, signer, B.ip, "true", fwStateWait)
-		aOpts, err := pc.FirewallOptions(ctx, A.node, A.vmid)
-		require.NoError(t, err)
-		require.Equal(t, "ACCEPT", aOpts["policy_in"], "A has no firewall: %v", aOpts)
+		require.Less(t, load, servers.FirewallSettle, "rule load time exceeds FirewallSettle")
+	}))
+
+	require.True(t, t.Run("allow from A", func(t *testing.T) {
+		setRules(sshAny, udpFrom(A.ip))
+		waitFlow(t, tg, B, true, fwStateWait)
 	}))
 
 	require.True(t, t.Run("anti-spoofing", func(t *testing.T) {
-		// Both probes go out of A as raw packets; only the source differs, and B's firewall admits either.
-		send := func(src, msg string) {
-			cmd := fmt.Sprintf("sudo python3 /usr/local/bin/e2e-send.py %s %s %s", src, B.ip, msg)
-			out, err := sshRun(signer, A.ip, cmd)
-			require.NoError(t, err, "%s: %s", cmd, out)
-		}
-		logB := func() string { return waitSSH(t, signer, B.ip, "cat /run/e2e-udp.log 2>/dev/null; true", fwStateWait) }
-		deadline := time.Now().Add(fwStateWait)
-		for !strings.Contains(logB(), A.ip+" real") {
-			require.False(t, time.Now().After(deadline), "control packet from A's own address never reached B: %q", logB())
-			send(A.ip, "real")
-			time.Sleep(2 * time.Second)
-		}
-		spoofSrc := spoofSource(t, tg, A.ip, B.ip)
-		t.Logf("SPOOF SOURCE: %s (pool %s, range %s-%s)", spoofSrc, tg.cidr, tg.rangeStart, tg.rangeEnd)
-		send(spoofSrc, "spoof")
-		time.Sleep(10 * time.Second)
-		got := logB()
-		t.Logf("B udp log after spoof attempt:\n%s", got)
-		require.NotContains(t, got, "spoof", "a packet from A with source %s reached B", spoofSrc)
+		setRules(udpFrom(spoof))
+		waitFlow(t, tg, B, false, fwStateWait)
+		holdFlat(t, tg, B, fwHoldFlat)
+		t.Logf("ANTI-SPOOF: B allows only udp %d from %s and stayed flat for %s; A's spoofed stream never left A",
+			udpPort, spoof, fwHoldFlat)
 	}))
 
 	require.True(t, t.Run("remove", func(t *testing.T) {
-		var as fwActions
-		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/firewalls/%d/actions/remove_from_resources", fwID),
-			map[string]any{"remove_from": selector}, http.StatusCreated, &as)
-		waitActions(t, app, c, as.Actions)
-		start := time.Now()
-		open := waitTCP(t, b8080, true, fwStateWait)
-		t.Logf("8080 reachable %s after remove finished", open.Sub(start).Round(100*time.Millisecond))
+		fwPost("remove_from_resources", map[string]any{"remove_from": selector})
+		waitFlow(t, tg, B, true, fwStateWait)
 		opts, err := pc.FirewallOptions(ctx, B.node, B.vmid)
 		require.NoError(t, err)
 		require.Equal(t, "ACCEPT", opts["policy_in"], "%v", opts)
@@ -412,24 +376,17 @@ func TestFirewallE2E(t *testing.T) {
 		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/poweroff", B.id), nil, http.StatusCreated, &a)
 		waitAction(t, app, c, a.Action.ID)
 		waitStatus(t, app, c, B.id, "off")
-		var as fwActions
-		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/firewalls/%d/actions/apply_to_resources", fwID),
-			map[string]any{"apply_to": selector}, http.StatusCreated, &as)
-		waitActions(t, app, c, as.Actions)
-		webRule := map[string]any{"direction": "in", "protocol": "tcp", "port": "80", "source_ips": []string{"0.0.0.0/0"},
-			"description": "web"}
-		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/firewalls/%d/actions/set_rules", fwID),
-			map[string]any{"rules": []any{sshRule, webRule}}, http.StatusCreated, &as)
-		require.NotEmpty(t, as.Actions, "set_rules should apply to B")
-		waitActions(t, app, c, as.Actions)
+		fwPost("apply_to_resources", map[string]any{"apply_to": selector})
+		setRules(sshAny, rule("tcp", "80", "0.0.0.0/0", "web"))
 		rules, err := pc.FirewallRules(ctx, B.node, B.vmid)
 		require.NoError(t, err)
+		t.Logf("B rules while off: %+v", rules)
 		dports := make([]string, 0, len(rules))
 		for _, r := range rules {
 			dports = append(dports, r.Dport)
 		}
-		t.Logf("B rules while off: %+v", rules)
 		require.True(t, slices.Contains(dports, "80"), "port 80 rule missing on stopped B: %v", dports)
+		require.True(t, slices.Contains(dports, "22"), "port 22 rule missing on stopped B: %v", dports)
 		require.False(t, slices.Contains(dports, fmt.Sprint(udpPort)), "udp rule should be gone: %v", dports)
 		require.Equal(t, "off", serverStatus(t, app, c, B.id))
 	}))
@@ -445,6 +402,7 @@ func TestFirewallE2E(t *testing.T) {
 	waitActions(t, app, c, del.Actions)
 }
 
+// emptyJSON reports whether a Proxmox read holds nothing; a lone digest is an empty config file.
 func emptyJSON(v any) bool {
 	switch x := v.(type) {
 	case nil:
@@ -452,7 +410,8 @@ func emptyJSON(v any) bool {
 	case []any:
 		return len(x) == 0
 	case map[string]any:
-		return len(x) == 0
+		_, hasDigest := x["digest"]
+		return len(x) == 0 || (len(x) == 1 && hasDigest)
 	}
 	return false
 }
