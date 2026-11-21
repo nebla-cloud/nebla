@@ -7,6 +7,6 @@ export default [
     path: 'ip-pools',
     name: 'admin-ip-pools',
     component: () => import('./IpPoolsPage.vue'),
-    meta: { side: 'admin', nav: { label: 'IP pools', order: 40 } },
+    meta: { side: 'admin', nav: { label: 'IP pools', order: 40, icon: 'i-lucide-network' } },
   },
 ] satisfies RouteRecordRaw[]

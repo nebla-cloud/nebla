@@ -7,6 +7,6 @@ export default [
     path: 'server-types',
     name: 'admin-server-types',
     component: () => import('./ServerTypesPage.vue'),
-    meta: { side: 'admin', nav: { label: 'Server types', order: 30 } },
+    meta: { side: 'admin', nav: { label: 'Server types', order: 30, icon: 'i-lucide-cpu' } },
   },
 ] satisfies RouteRecordRaw[]

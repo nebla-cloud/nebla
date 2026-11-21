@@ -7,6 +7,6 @@ export default [
     path: 'settings',
     name: 'project-settings',
     component: () => import('./SettingsPage.vue'),
-    meta: { side: 'project', nav: { label: 'Settings', order: 50 } },
+    meta: { side: 'project', nav: { label: 'Settings', order: 50, icon: 'i-lucide-settings', group: 'Project' } },
   },
 ] satisfies RouteRecordRaw[]

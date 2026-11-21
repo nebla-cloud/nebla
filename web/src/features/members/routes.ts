@@ -7,6 +7,6 @@ export default [
     path: 'members',
     name: 'members',
     component: () => import('./MembersPage.vue'),
-    meta: { side: 'project', nav: { label: 'Members', order: 40 } },
+    meta: { side: 'project', nav: { label: 'Members', order: 40, icon: 'i-lucide-users', group: 'Access' } },
   },
 ] satisfies RouteRecordRaw[]

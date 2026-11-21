@@ -7,7 +7,7 @@ export default [
     path: 'locations',
     name: 'admin-locations',
     component: () => import('./LocationsPage.vue'),
-    meta: { side: 'admin', nav: { label: 'Locations', order: 10 } },
+    meta: { side: 'admin', nav: { label: 'Locations', order: 10, icon: 'i-lucide-map-pin' } },
   },
   {
     path: 'locations/enroll/:enrollmentId',

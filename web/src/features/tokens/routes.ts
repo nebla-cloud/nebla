@@ -10,7 +10,7 @@ export default [
     meta: {
       side: 'project',
       roles: ['owner', 'admin'],
-      nav: { label: 'API tokens', order: 25 },
+      nav: { label: 'API tokens', order: 25, icon: 'i-lucide-square-code', group: 'Access' },
     },
   },
 ] satisfies RouteRecordRaw[]

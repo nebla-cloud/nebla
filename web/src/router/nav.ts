@@ -8,7 +8,7 @@ export type Side = 'project' | 'admin' | 'root'
 declare module 'vue-router' {
   interface RouteMeta {
     side?: Side
-    nav?: { label: string; order: number; hidden?: () => boolean }
+    nav?: { label: string; order: number; icon?: string; group?: string; hidden?: () => boolean }
     public?: boolean
     roles?: Role[]
     guestOnly?: boolean
@@ -16,13 +16,27 @@ declare module 'vue-router' {
 }
 
 export interface NavItem {
-  name: RouteRecordName
+  name: RouteRecordName | null
   label: string
   order: number
+  icon: string
+  group: string | null
+  soon?: boolean
 }
 
+const GROUP_ORDER: (string | null)[] = [null, 'Access', 'People', 'Project', 'System']
+const groupRank = (g: string | null) => {
+  const i = GROUP_ORDER.indexOf(g)
+  return i === -1 ? GROUP_ORDER.length : i
+}
+
+const SOON: NavItem[] = [
+  { label: 'Volumes', icon: 'i-lucide-database', order: 12, group: null, soon: true, name: null },
+  { label: 'Firewalls', icon: 'i-lucide-shield', order: 14, group: null, soon: true, name: null },
+]
+
 export function navItems(router: Router, side: Exclude<Side, 'root'>, role?: Role): NavItem[] {
-  return router
+  const real: NavItem[] = router
     .getRoutes()
     .filter(
       (r) =>
@@ -32,8 +46,18 @@ export function navItems(router: Router, side: Exclude<Side, 'root'>, role?: Rol
         !r.meta.nav.hidden?.() &&
         (!r.meta.roles || (role !== undefined && r.meta.roles.includes(role))),
     )
-    .map((r) => ({ name: r.name!, label: r.meta.nav!.label, order: r.meta.nav!.order }))
-    .sort((a, b) => a.order - b.order)
+    .map((r) => ({
+      name: r.name!,
+      label: r.meta.nav!.label,
+      order: r.meta.nav!.order,
+      icon: r.meta.nav!.icon ?? 'i-lucide-circle-dot',
+      group: r.meta.nav!.group ?? null,
+    }))
+  const soon =
+    side === 'project' ? SOON.filter((s) => !real.some((r) => r.label === s.label)) : []
+  return [...real, ...soon].sort(
+    (a, b) => groupRank(a.group) - groupRank(b.group) || a.order - b.order,
+  )
 }
 
 export function useNav(side: Exclude<Side, 'root'>): ComputedRef<NavItem[]> {

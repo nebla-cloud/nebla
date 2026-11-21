@@ -7,7 +7,7 @@ export default [
     path: 'servers',
     name: 'servers',
     component: () => import('./ServerListPage.vue'),
-    meta: { side: 'project', nav: { label: 'Servers', order: 10 } },
+    meta: { side: 'project', nav: { label: 'Servers', order: 10, icon: 'i-lucide-server' } },
   },
   {
     path: 'servers/:serverId',

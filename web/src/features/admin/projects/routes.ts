@@ -7,7 +7,7 @@ export default [
     path: 'projects',
     name: 'admin-projects',
     component: () => import('./ProjectsPage.vue'),
-    meta: { side: 'admin', nav: { label: 'Projects', order: 60 } },
+    meta: { side: 'admin', nav: { label: 'Projects', order: 60, icon: 'i-lucide-folder', group: 'People' } },
   },
   {
     path: 'projects/:projectId',
