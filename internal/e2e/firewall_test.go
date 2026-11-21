@@ -269,9 +269,10 @@ func TestFirewallE2E(t *testing.T) {
 		t.Cleanup(func() { cleanupServer(t, app, c, sid) })
 		return sid, created.Action
 	}
+	// One at a time: concurrent clones can race on the next VMID.
 	idA, actA := create(fmt.Sprintf("nebla-fw-a-%d", stamp), map[string]string{"role": "client"})
-	idB, actB := create(fmt.Sprintf("nebla-fw-b-%d", stamp), map[string]string{"role": "web"})
 	waitAction(t, app, c, actA.ID)
+	idB, actB := create(fmt.Sprintf("nebla-fw-b-%d", stamp), map[string]string{"role": "web"})
 	waitAction(t, app, c, actB.ID)
 	lookup := func(sid int64) fwServer {
 		var s struct {
