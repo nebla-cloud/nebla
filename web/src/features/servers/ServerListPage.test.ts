@@ -159,4 +159,33 @@ describe('ServerListPage', () => {
     expect(text).not.toContain('d=4')
     expect(text).toContain('+2')
   })
+
+  it('describes the list with the project name and running count', async () => {
+    const servers = [makeServer(), makeServer({ id: 2, name: 'db1', status: 'off' })]
+    server.use(http.get('*/v1/servers', () => json(200, { servers, meta })))
+    const { wrapper } = await mountList()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('2 servers in Home lab, 1 running'))
+  })
+
+  it('uses the singular for one server', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [makeServer()], meta })))
+    const { wrapper } = await mountList()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('1 server in Home lab, 1 running'))
+  })
+
+  it('shows no description for an empty list', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [], meta })))
+    const { wrapper } = await mountList()
+    expect(wrapper.text()).not.toMatch(/servers? in /)
+  })
+
+  it('row link name contains the server name and the row has an OS tile', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [makeServer()], meta })))
+    const { wrapper } = await mountList()
+    const link = wrapper.find('a[href="/p/1/servers/1"]')
+    expect(link.text()).toContain('web1')
+    expect(link.find('[aria-label="Running"]').exists()).toBe(true)
+    expect(link.find('span[aria-hidden="true"]').text()).toBe('D')
+    expect(link.find('.nb-mono').text()).toBe('203.0.113.10')
+  })
 })

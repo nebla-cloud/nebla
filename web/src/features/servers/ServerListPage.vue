@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { ApiError, errorMessage } from '@/api/errors'
 import EmptyState from '@/components/EmptyState.vue'
-import StatusDot from '@/components/StatusDot.vue'
+import ListGroup from '@/components/ListGroup.vue'
+import ListRow from '@/components/ListRow.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatusArch from '@/components/StatusArch.vue'
 import { useCurrentProject } from '@/lib/project'
 import { serverStatus } from '@/lib/status'
 import LabelChips from './LabelChips.vue'
+import OsBadge from './OsBadge.vue'
 import { useServers } from './queries'
 
-const { projectId } = useCurrentProject()
+const { projectId, project } = useCurrentProject()
 const newRoute = computed(() => ({ name: 'server-new', params: { projectId: projectId.value } }))
 const route = useRoute()
 const router = useRouter()
@@ -24,6 +28,14 @@ const filterError = computed(() =>
   error.value instanceof ApiError && error.value.status === 422 ? error.value.message : null,
 )
 const listError = computed(() => (filterError.value ? null : error.value))
+
+const description = computed(() => {
+  const list = servers.value
+  if (!list?.length || !project.value) return undefined
+  const running = list.filter((s) => s.status === 'running').length
+  const n = list.length
+  return `${n} ${n === 1 ? 'server' : 'servers'} in ${project.value.name}, ${running} running`
+})
 
 let timer: ReturnType<typeof setTimeout> | undefined
 function commit() {
@@ -48,10 +60,11 @@ onBeforeUnmount(() => clearTimeout(timer))
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex items-center justify-between gap-3">
-      <h1 class="text-xl font-bold tracking-tight text-highlighted">Servers</h1>
-      <UButton v-if="servers?.length" :to="newRoute">Create server</UButton>
-    </div>
+    <PageHeader title="Servers" :description="description">
+      <template v-if="servers?.length" #actions>
+        <UButton :to="newRoute">Create server</UButton>
+      </template>
+    </PageHeader>
 
     <form
       v-if="servers?.length || selector || filter"
@@ -65,6 +78,7 @@ onBeforeUnmount(() => clearTimeout(timer))
           name="labels"
           placeholder="env=prod,team"
           autocomplete="off"
+          size="sm"
           class="w-full sm:max-w-sm"
           :ui="{ trailing: 'pe-1' }"
         >
@@ -98,29 +112,34 @@ onBeforeUnmount(() => clearTimeout(timer))
     >
       <UButton :to="newRoute">Create server</UButton>
     </EmptyState>
-    <ul v-else class="flex flex-col divide-y divide-default rounded-lg border border-default">
-      <li v-for="s in servers" :key="s.id">
-        <RouterLink
-          :to="{ name: 'server', params: { projectId, serverId: s.id } }"
-          class="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-elevated/60 focus-visible:outline-2 focus-visible:outline-primary sm:grid-cols-[auto_minmax(0,1.2fr)_repeat(4,minmax(0,1fr))]"
-        >
-          <StatusDot :status="s.status" />
-          <span class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span class="truncate font-semibold text-highlighted">{{ s.name }}</span>
-            <LabelChips :labels="s.labels" :max="3" />
-          </span>
+    <ListGroup v-else>
+      <ListRow
+        v-for="s in servers"
+        :key="s.id"
+        :to="{ name: 'server', params: { projectId, serverId: s.id } }"
+      >
+        <template #leading><StatusArch :status="s.status" /></template>
+        <span class="flex min-w-0 items-center gap-x-2">
+          <span class="truncate">{{ s.name }}</span>
+          <LabelChips :labels="s.labels" :max="3" />
+        </span>
+        <template #meta>
           <span
-            class="col-start-2 flex flex-wrap gap-x-4 text-sm text-muted sm:contents [&>span]:truncate"
+            class="flex flex-wrap gap-x-4 sm:grid sm:w-[28rem] sm:grid-cols-[1.4fr_1fr_1.1fr_0.8fr] sm:gap-x-3 lg:w-[38rem] [&>*]:min-w-0 [&>*]:truncate"
           >
-            <span>{{ s.image.name }}</span>
+            <span class="flex items-center gap-2">
+              <OsBadge :name="s.image.os_flavor" />
+              <span class="truncate">{{ s.image.name }}</span>
+            </span>
             <span>{{ s.server_type.name }}</span>
-            <span>{{
-              s.status === 'running' ? (s.public_net.ipv4?.ip ?? '—') : serverStatus(s.status).label
+            <span v-if="s.status === 'running'" class="nb-mono">{{
+              s.public_net.ipv4?.ip ?? '—'
             }}</span>
+            <span v-else>{{ serverStatus(s.status).label }}</span>
             <span>{{ s.location.name }}</span>
           </span>
-        </RouterLink>
-      </li>
-    </ul>
+        </template>
+      </ListRow>
+    </ListGroup>
   </div>
 </template>
