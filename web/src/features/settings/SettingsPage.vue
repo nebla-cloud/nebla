@@ -10,6 +10,8 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { ApiError, errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
 import { forgetProject, useCurrentProject } from '@/lib/project'
 import { isManager } from '@/lib/roles'
 import { useSession } from '@/lib/session'
@@ -105,11 +107,10 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="flex max-w-2xl flex-col gap-8">
-    <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Settings</h1>
+  <div class="flex max-w-2xl flex-col gap-4">
+    <PageHeader title="Settings" />
 
-    <section class="flex flex-col gap-3">
-      <h2 class="text-sm font-semibold text-highlighted">Project name</h2>
+    <Panel title="Project name">
       <form
         v-if="canRename"
         id="rename-project"
@@ -129,61 +130,61 @@ async function confirmDelete() {
         <UButton type="submit" :loading="rename.isPending.value">Save</UButton>
       </form>
       <p v-else class="text-highlighted">{{ project?.name }}</p>
-    </section>
+    </Panel>
 
-    <section class="flex flex-col gap-4 rounded-lg border border-error/40 p-4">
-      <h2 class="text-sm font-semibold text-highlighted">Danger area</h2>
-
-      <UAlert
-        v-if="notEmpty"
-        color="error"
-        variant="subtle"
-        title="Delete this project's servers and volumes first."
-      >
-        <template #description>
-          <RouterLink :to="`/p/${projectId}/servers`" class="font-semibold underline">
-            Servers
-          </RouterLink>
-        </template>
-      </UAlert>
-      <UAlert v-if="dangerError" color="error" variant="subtle" :description="dangerError" />
-
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex flex-col gap-0.5">
-          <span class="font-semibold text-highlighted">Leave this project</span>
-          <span v-if="onlyOwner" class="text-sm text-muted">
-            You're the only owner. Make someone else an owner first, or delete the project.
-          </span>
-          <span v-else class="text-sm text-muted"
-            >You'll lose access until someone invites you again.</span
-          >
-        </div>
-        <UButton
+    <Panel title="Danger zone">
+      <div class="flex flex-col gap-4">
+        <UAlert
+          v-if="notEmpty"
           color="error"
-          variant="outline"
-          class="self-start"
-          :disabled="leaveBlocked"
-          @click="leaveOpen = true"
+          variant="subtle"
+          title="Delete this project's servers and volumes first."
         >
-          Leave project
-        </UButton>
-      </div>
+          <template #description>
+            <RouterLink :to="`/p/${projectId}/servers`" class="font-semibold underline">
+              Servers
+            </RouterLink>
+          </template>
+        </UAlert>
+        <UAlert v-if="dangerError" color="error" variant="subtle" :description="dangerError" />
 
-      <div
-        v-if="isOwner"
-        class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div class="flex flex-col gap-0.5">
-          <span class="font-semibold text-highlighted">Delete this project</span>
-          <span class="text-sm text-muted"
-            >Removes the project for everyone. Servers must be deleted first.</span
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-col gap-0.5">
+            <span class="font-semibold text-highlighted">Leave this project</span>
+            <span v-if="onlyOwner" class="text-sm text-muted">
+              You're the only owner. Make someone else an owner first, or delete the project.
+            </span>
+            <span v-else class="text-sm text-muted"
+              >You'll lose access until someone invites you again.</span
+            >
+          </div>
+          <UButton
+            color="error"
+            variant="outline"
+            class="self-start"
+            :disabled="leaveBlocked"
+            @click="leaveOpen = true"
+          >
+            Leave project
+          </UButton>
+        </div>
+
+        <div
+          v-if="isOwner"
+          class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="flex flex-col gap-0.5">
+            <span class="font-semibold text-highlighted">Delete this project</span>
+            <span class="text-sm text-muted"
+              >Removes the project for everyone. Servers and volumes must be deleted first.</span
+            >
+          </div>
+          <UButton color="error" class="self-start" @click="deleteOpen = true"
+            >Delete project</UButton
           >
         </div>
-        <UButton color="error" class="self-start" @click="deleteOpen = true"
-          >Delete project</UButton
-        >
       </div>
-    </section>
+    </Panel>
 
     <ConfirmDialog
       v-model:open="leaveOpen"

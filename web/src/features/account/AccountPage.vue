@@ -12,6 +12,8 @@ import { api } from '@/api/client'
 import { unwrap } from '@/api/errors'
 import AccountMenu from '@/components/AccountMenu.vue'
 import Lockup from '@/components/Lockup.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
 import { projectQuery } from '@/features/projects/queries'
 import TopBar from '@/layouts/TopBar.vue'
 import { readLastProject } from '@/lib/project'
@@ -95,7 +97,7 @@ async function changePassword() {
       </template>
     </TopBar>
 
-    <main class="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-8">
+    <main class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-10 sm:px-8">
       <RouterLink
         v-if="lastProject"
         :to="`/p/${lastProject.id}/servers`"
@@ -113,61 +115,63 @@ async function changePassword() {
         Go to projects
       </RouterLink>
 
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Account settings</h1>
+      <PageHeader title="Account settings" />
 
-      <section class="flex flex-col gap-3">
-        <h2 class="text-base font-bold text-highlighted">Profile</h2>
-        <UAlert v-if="profileError" color="error" variant="subtle" :description="profileError" />
-        <form class="flex flex-col gap-4" novalidate @submit.prevent="saveName">
-          <UFormField label="Name" name="name">
-            <UInput v-model="name" name="name" autocomplete="name" class="w-full" />
-          </UFormField>
-          <div>
-            <p class="text-sm font-medium text-highlighted">Email</p>
-            <p class="text-sm text-toned">{{ me?.email }}</p>
-          </div>
-          <div>
-            <UButton type="submit" :loading="profileBusy">Save</UButton>
-          </div>
-        </form>
-      </section>
+      <Panel title="Profile">
+        <div class="flex flex-col gap-3">
+          <UAlert v-if="profileError" color="error" variant="subtle" :description="profileError" />
+          <form class="flex flex-col gap-4" novalidate @submit.prevent="saveName">
+            <UFormField label="Name" name="name">
+              <UInput v-model="name" name="name" autocomplete="name" class="w-full" />
+            </UFormField>
+            <div>
+              <p class="text-sm font-medium text-highlighted">Email</p>
+              <p class="text-sm text-toned">{{ me?.email }}</p>
+            </div>
+            <div>
+              <UButton type="submit" :loading="profileBusy">Save</UButton>
+            </div>
+          </form>
+        </div>
+      </Panel>
 
-      <section class="flex flex-col gap-3">
-        <h2 class="text-base font-bold text-highlighted">Password</h2>
-        <UAlert v-if="pwError" color="error" variant="subtle" :description="pwError" />
-        <form class="flex flex-col gap-4" novalidate @submit.prevent="changePassword">
-          <UFormField label="Current password" name="current_password">
-            <UInput
-              v-model="pw.current"
-              name="current_password"
-              type="password"
-              autocomplete="current-password"
-              class="w-full"
-            />
-          </UFormField>
-          <UFormField label="New password" name="new_password">
-            <UInput
-              v-model="pw.next"
-              name="new_password"
-              type="password"
-              autocomplete="new-password"
-              class="w-full"
-            />
-          </UFormField>
-          <UFormField label="Confirm new password" name="confirm_password">
-            <UInput
-              v-model="pw.confirm"
-              name="confirm_password"
-              type="password"
-              autocomplete="new-password"
-              class="w-full"
-            />
-          </UFormField>
-          <div>
-            <UButton type="submit" :loading="pwBusy">Change password</UButton>
-          </div>
-        </form>
-      </section>
+      <Panel title="Password">
+        <div class="flex flex-col gap-3">
+          <UAlert v-if="pwError" color="error" variant="subtle" :description="pwError" />
+          <form class="flex flex-col gap-4" novalidate @submit.prevent="changePassword">
+            <UFormField label="Current password" name="current_password">
+              <UInput
+                v-model="pw.current"
+                name="current_password"
+                type="password"
+                autocomplete="current-password"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField label="New password" name="new_password">
+              <UInput
+                v-model="pw.next"
+                name="new_password"
+                type="password"
+                autocomplete="new-password"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField label="Confirm new password" name="confirm_password">
+              <UInput
+                v-model="pw.confirm"
+                name="confirm_password"
+                type="password"
+                autocomplete="new-password"
+                class="w-full"
+              />
+            </UFormField>
+            <div>
+              <UButton type="submit" :loading="pwBusy">Change password</UButton>
+            </div>
+          </form>
+        </div>
+      </Panel>
 
       <TwoFactorSection />
       <PasskeysSection />

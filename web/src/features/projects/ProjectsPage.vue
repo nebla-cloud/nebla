@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import { errorMessage } from '@/api/errors'
 import AccountMenu from '@/components/AccountMenu.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import ListGroup from '@/components/ListGroup.vue'
+import ListRow from '@/components/ListRow.vue'
 import Lockup from '@/components/Lockup.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
 import TopBar from '@/layouts/TopBar.vue'
 import { useSession } from '@/lib/session'
 import NewProjectForm from './NewProjectForm.vue'
@@ -34,8 +38,8 @@ function plural(n: number, word: string) {
       </template>
     </TopBar>
 
-    <main class="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-8">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Projects</h1>
+    <main class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-10 sm:px-8">
+      <PageHeader title="Projects" />
 
       <UAlert
         v-if="loadError"
@@ -46,27 +50,23 @@ function plural(n: number, word: string) {
       <p v-else-if="isPending" class="text-muted">Loading projects…</p>
 
       <template v-else>
-        <ul
-          v-if="projects?.length"
-          class="divide-y divide-default overflow-hidden rounded-lg border border-default"
-        >
-          <li v-for="p in projects" :key="p.id">
-            <RouterLink
-              :to="`/p/${p.id}/servers`"
-              class="flex items-center justify-between gap-4 px-4 py-3.5 hover:bg-elevated/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
-            >
-              <span class="min-w-0 truncate font-semibold text-highlighted">{{ p.name }}</span>
-              <span class="shrink-0 text-sm text-muted">{{
-                plural(p.usage.servers, 'server')
-              }}</span>
-            </RouterLink>
-          </li>
-        </ul>
+        <ListGroup v-if="projects?.length">
+          <ListRow v-for="p in projects" :key="p.id" :to="`/p/${p.id}/servers`">
+            <template #leading>
+              <span
+                aria-hidden="true"
+                class="grid size-7 place-items-center rounded-lg bg-(--ui-bg-muted) text-xs font-bold text-highlighted ring-1 ring-default"
+                >{{ p.name.charAt(0).toUpperCase() }}</span
+              >
+            </template>
+            {{ p.name }}
+            <template #meta>{{ plural(p.usage.servers, 'server') }}</template>
+          </ListRow>
+        </ListGroup>
 
-        <section v-if="projects?.length" class="flex flex-col gap-3">
-          <h2 class="text-base font-bold text-highlighted">New project</h2>
+        <Panel v-if="projects?.length" title="New project">
           <NewProjectForm :autofocus="focusNew" />
-        </section>
+        </Panel>
         <EmptyState
           v-else
           title="Create your first project"
