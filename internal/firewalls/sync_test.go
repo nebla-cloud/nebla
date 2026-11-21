@@ -2,6 +2,7 @@ package firewalls
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"net/netip"
 	"slices"
@@ -19,6 +20,7 @@ func setup(t *testing.T) (*fake.Server, pve.Client) {
 	s := fake.New(t)
 	s.AddNode(node, 4, 8192)
 	s.AddVM(node, vmid, "web1")
+	s.RequireRuleDigest()
 	return s, pve.New(s.Conn())
 }
 
@@ -178,13 +180,14 @@ func TestSyncRepairsEditedRule(t *testing.T) {
 	// Simulate a hand edit that widens rule 0 but keeps its comment.
 	edited := a.Rules[0]
 	edited.Source = "0.0.0.0/0"
-	if err := pc.DeleteFirewallRule(ctx, node, vmid, 0); err != nil {
+	cur, _ := pc.FirewallRules(ctx, node, vmid)
+	if err := pc.DeleteFirewallRule(ctx, node, vmid, 0, cur[0].Digest); err != nil {
 		t.Fatal(err)
 	}
 	if err := pc.AddFirewallRule(ctx, node, vmid, edited); err != nil {
 		t.Fatal(err)
 	}
-	cur, _ := pc.FirewallRules(ctx, node, vmid)
+	cur, _ = pc.FirewallRules(ctx, node, vmid)
 	opts, _ := pc.FirewallOptions(ctx, node, vmid)
 	if InSync(cur, opts, a) {
 		t.Fatal("InSync missed an edited rule")
@@ -309,5 +312,57 @@ func TestSyncReplacesRulesWithPrependingAdds(t *testing.T) {
 	v, _ := s.VM(vmid)
 	if got := comments(v.Rules); len(v.Rules) != 2 || !covers(got, next.Rules) {
 		t.Fatalf("rules = %+v, want %+v", v.Rules, next.Rules)
+	}
+}
+
+func TestSyncStoredRuleDiffers(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	if err := Sync(ctx, pc, node, vmid, a); err != nil {
+		t.Fatal(err)
+	}
+	// Proxmox stores the new rule's proto differently from what we sent.
+	s.OnRuleAdd(func(r *pve.FirewallRule) { r.Proto = strings.ToUpper(r.Proto) })
+	s.OnFirewallWrite(func() {
+		if v, _ := s.VM(vmid); v.Firewall["policy_in"] != "DROP" {
+			t.Errorf("VM opened: %v", v.Firewall)
+		}
+	})
+	b := Render([]Rule{
+		{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")},
+		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "udp", Port: ptr("53"), IPs: pfx("0.0.0.0/0")},
+	}, true)
+	for range 3 {
+		err := Sync(ctx, pc, node, vmid, b)
+		if !errors.Is(err, ErrStoredDiffers) {
+			t.Fatalf("err = %v, want ErrStoredDiffers", err)
+		}
+		if want := `rule ` + b.Rules[1].Comment + `: proto is "UDP", want "udp"`; !strings.Contains(err.Error(), want) {
+			t.Fatalf("err = %v, want it to contain %s", err, want)
+		}
+		v, _ := s.VM(vmid)
+		if len(v.Rules) != 1 || v.Rules[0] != a.Rules[0] {
+			t.Fatalf("copies left behind: %+v", v.Rules)
+		}
+	}
+}
+
+func TestDeleteRuleDigestMismatch(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	if err := Sync(ctx, pc, node, vmid, a); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ := pc.FirewallRules(ctx, node, vmid)
+	if err := pc.AddFirewallRule(ctx, node, vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Comment: "concurrent"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pc.DeleteFirewallRule(ctx, node, vmid, 1, cur[1].Digest); err == nil {
+		t.Fatal("delete with a stale digest succeeded")
+	}
+	if v, _ := s.VM(vmid); len(v.Rules) != 3 {
+		t.Fatalf("rules = %+v", v.Rules)
 	}
 }

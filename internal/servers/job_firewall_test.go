@@ -283,12 +283,25 @@ func TestApplyClusterFirewallOff(t *testing.T) {
 	require.Equal(t, writes, fwWrites(f.ServerEnv))
 }
 
+func TestApplyStoredRuleDiffersFailsOnce(t *testing.T) {
+	f := newFWEnv(t)
+	f.App.PVE.OnRuleAdd(func(r *pve.FirewallRule) { r.Proto = strings.ToUpper(r.Proto) })
+	_, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))
+
+	require.True(t, cancelled(f.work(t, acts[0], 1)), "no retry when Proxmox stores a rule differently")
+	a := f.action(t, acts[0].ID)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Contains(t, a.Error.Detail, `proto is "TCP", want "tcp"`)
+	require.Empty(t, dports(t, f.ServerEnv, f.vmid), "mismatched copies are removed")
+}
+
 func TestApplyCoalesces(t *testing.T) {
 	f := newFWEnv(t)
 	id, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))
 	require.NoError(t, f.work(t, acts[0], 1))
 	syncs := func() int {
-		return countCalls(f.ServerEnv, "GET /nodes/pve1/qemu/"+strconv.Itoa(f.vmid)+"/firewall/rules")
+		// Each sync reads the options exactly twice: before setting them and to verify.
+		return countCalls(f.ServerEnv, "GET /nodes/pve1/qemu/"+strconv.Itoa(f.vmid)+"/firewall/options") / 2
 	}
 	first := syncs()
 
@@ -297,8 +310,7 @@ func TestApplyCoalesces(t *testing.T) {
 		require.NoError(t, f.work(t, a, 1))
 		require.Equal(t, actions.StatusSuccess, f.action(t, a.ID).Status)
 	}
-	// One sync reads rules 2-3 times (before, after adds, verify); two would read at least 4.
-	require.LessOrEqual(t, syncs()-first, 3, "quick changes collapse into one sync")
+	require.LessOrEqual(t, syncs()-first, 1, "quick changes collapse into one sync")
 	require.Equal(t, []string{"8080"}, dports(t, f.ServerEnv, f.vmid))
 	desired, applied := gens(t, f.ServerEnv, f.srv)
 	require.Equal(t, desired, applied)

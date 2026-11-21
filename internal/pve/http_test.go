@@ -620,7 +620,7 @@ func TestFirewallRulesRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := c.DeleteFirewallRule(ctx(t), "pve1", 101, 1); err != nil {
+	if err := c.DeleteFirewallRule(ctx(t), "pve1", 101, 1, ""); err != nil {
 		t.Fatal(err)
 	}
 	got, err := c.FirewallRules(ctx(t), "pve1", 101)
@@ -664,7 +664,7 @@ func TestFirewallFormEncoding(t *testing.T) {
 	var got []string
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		got = append(got, r.Method+" "+r.URL.Path+" "+string(b))
+		got = append(got, r.Method+" "+r.URL.RequestURI()+" "+string(b))
 		w.Write([]byte(`{"data":null}`))
 	}))
 	defer srv.Close()
@@ -673,7 +673,7 @@ func TestFirewallFormEncoding(t *testing.T) {
 	if err := c.AddFirewallRule(ctx(t), "n1", 101, r); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.DeleteFirewallRule(ctx(t), "n1", 101, 2); err != nil {
+	if err := c.DeleteFirewallRule(ctx(t), "n1", 101, 2, "abc"); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.SetFirewallOptions(ctx(t), "n1", 101, map[string]string{"policy_in": "DROP"}); err != nil {
@@ -681,7 +681,7 @@ func TestFirewallFormEncoding(t *testing.T) {
 	}
 	want := []string{
 		"POST /api2/json/nodes/n1/qemu/101/firewall/rules action=ACCEPT&comment=web&dest=5.6.7.8&dport=8000%3A8100&enable=1&iface=net0&proto=tcp&source=1.2.3.4&type=in",
-		"DELETE /api2/json/nodes/n1/qemu/101/firewall/rules/2 ",
+		"DELETE /api2/json/nodes/n1/qemu/101/firewall/rules/2?digest=abc ",
 		"PUT /api2/json/nodes/n1/qemu/101/firewall/options policy_in=DROP",
 	}
 	if !slices.Equal(got, want) {

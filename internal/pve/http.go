@@ -411,6 +411,7 @@ func (c *httpClient) FirewallRules(ctx context.Context, node string, vmid int) (
 		Dest    string `json:"dest"`
 		Comment string `json:"comment"`
 		Enable  int    `json:"enable"`
+		Digest  string `json:"digest"`
 	}
 	if err := c.do(ctx, http.MethodGet, vmPath(node, vmid)+"/firewall/rules", nil, &raw); err != nil {
 		return nil, err
@@ -418,7 +419,7 @@ func (c *httpClient) FirewallRules(ctx context.Context, node string, vmid int) (
 	out := make([]FirewallRule, len(raw))
 	for i, r := range raw {
 		out[i] = FirewallRule{Pos: r.Pos, Type: r.Type, Action: r.Action, Iface: r.Iface, Proto: r.Proto, Dport: r.Dport,
-			Source: r.Source, Dest: r.Dest, Comment: r.Comment, Enable: r.Enable == 1}
+			Source: r.Source, Dest: r.Dest, Comment: r.Comment, Enable: r.Enable == 1, Digest: r.Digest}
 	}
 	return out, nil
 }
@@ -436,8 +437,12 @@ func (c *httpClient) AddFirewallRule(ctx context.Context, node string, vmid int,
 	return c.do(ctx, http.MethodPost, vmPath(node, vmid)+"/firewall/rules", f, nil)
 }
 
-func (c *httpClient) DeleteFirewallRule(ctx context.Context, node string, vmid, pos int) error {
-	return c.do(ctx, http.MethodDelete, vmPath(node, vmid)+"/firewall/rules/"+strconv.Itoa(pos), nil, nil)
+func (c *httpClient) DeleteFirewallRule(ctx context.Context, node string, vmid, pos int, digest string) error {
+	var f url.Values
+	if digest != "" {
+		f = url.Values{"digest": {digest}}
+	}
+	return c.do(ctx, http.MethodDelete, vmPath(node, vmid)+"/firewall/rules/"+strconv.Itoa(pos), f, nil)
 }
 
 func (c *httpClient) ClusterFirewallEnabled(ctx context.Context) (bool, error) {

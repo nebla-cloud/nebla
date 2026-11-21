@@ -104,6 +104,8 @@ type Server struct {
 	clusterFWOff bool
 	failRule     bool
 	onFWWrite    func()
+	onRuleAdd    func(*pve.FirewallRule)
+	needDigest   bool
 }
 
 // FakeDownload records one download-url request.
@@ -350,6 +352,26 @@ func (s *Server) OnFirewallWrite(fn func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onFWWrite = fn
+}
+
+// OnRuleAdd lets fn change each added rule before it is stored, like a Proxmox normalisation.
+func (s *Server) OnRuleAdd(fn func(*pve.FirewallRule)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onRuleAdd = fn
+}
+
+// RequireRuleDigest makes rule deletes without a digest fail.
+func (s *Server) RequireRuleDigest() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.needDigest = true
+}
+
+// rulesDigest stands in for the digest of a VM's firewall config.
+func rulesDigest(rules []pve.FirewallRule) string {
+	sum := sha256.Sum256(fmt.Appendf(nil, "%+v", rules))
+	return fmt.Sprintf("%x", sum[:20])
 }
 
 // Calls lists the requests received as "METHOD path".
@@ -907,7 +929,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		out := []map[string]any{}
 		for i, x := range v.rules {
-			m := map[string]any{"pos": i, "type": x.Type, "action": x.Action, "enable": 0}
+			m := map[string]any{"pos": i, "type": x.Type, "action": x.Action, "enable": 0, "digest": rulesDigest(v.rules)}
 			if x.Enable {
 				m["enable"] = 1
 			}
@@ -937,6 +959,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		rule := pve.FirewallRule{Type: f["type"], Action: f["action"], Iface: f["iface"], Proto: f["proto"], Dport: f["dport"],
 			Source: f["source"], Dest: f["dest"], Comment: f["comment"], Enable: f["enable"] == "1"}
+		if s.onRuleAdd != nil {
+			s.onRuleAdd(&rule)
+		}
 		// Real PVE inserts new rules at the top and ignores pos.
 		v.rules = slices.Insert(v.rules, 0, rule)
 		return nil, nil
@@ -951,6 +976,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if s.failRule {
 			s.failRule = false
 			return nil, &apiErr{500, "injected rule write failure"}
+		}
+		if d := r.URL.Query().Get("digest"); d != "" && d != rulesDigest(v.rules) || d == "" && s.needDigest {
+			return nil, &apiErr{500, "detected modified configuration - file changed by other user? Try again."}
 		}
 		pos, err := strconv.Atoi(r.PathValue("pos"))
 		if err != nil || pos < 0 || pos >= len(v.rules) {

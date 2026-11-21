@@ -21,6 +21,7 @@ type FirewallRule struct {
 	Pos                                                      int
 	Type, Action, Iface, Proto, Dport, Source, Dest, Comment string
 	Enable                                                   bool
+	Digest                                                   string // of the rule list it was read from
 }
 
 // Conn holds the connection settings for one Proxmox endpoint.
@@ -111,7 +112,8 @@ type Client interface {
 	FirewallRules(ctx context.Context, node string, vmid int) ([]FirewallRule, error)
 	// AddFirewallRule adds r; Proxmox puts it at the top, shifting the rest down.
 	AddFirewallRule(ctx context.Context, node string, vmid int, r FirewallRule) error
-	DeleteFirewallRule(ctx context.Context, node string, vmid, pos int) error
+	// DeleteFirewallRule fails if digest is set and the rule list changed since it was read.
+	DeleteFirewallRule(ctx context.Context, node string, vmid, pos int, digest string) error
 	ClusterFirewallEnabled(ctx context.Context) (bool, error)
 	Power(ctx context.Context, node string, vmid int, op PowerOp) (UPID, error)
 	Destroy(ctx context.Context, node string, vmid int) (UPID, error)
