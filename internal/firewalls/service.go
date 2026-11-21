@@ -386,7 +386,7 @@ func (s *Service) locked(ctx context.Context, projectID, id int64, onlyChanged, 
 	return acts, err
 }
 
-// change runs mutate on firewall id (0 when it creates one), bumps the servers it covers before or after (onlyChanged: where that differs) and enforces the per-server limits.
+// change runs mutate on firewall id (0 if new), bumps the servers it affects and enforces per-server limits.
 func (s *Service) change(ctx context.Context, tx *sql.Tx, etx *ent.Client, projectID, id int64, onlyChanged bool,
 	mutate func() (int64, error)) ([]actions.Action, error) {
 	srvs, err := liveServers(ctx, etx, projectID)

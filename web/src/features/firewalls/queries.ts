@@ -112,6 +112,15 @@ export function useRemoveFrom() {
   })
 }
 
+export function appliedServerCount(f: Firewall): number {
+  const ids = new Set<number>()
+  for (const r of f.applied_to) {
+    if (r.server) ids.add(r.server.id)
+    for (const m of r.applied_to_resources ?? []) ids.add(m.server.id)
+  }
+  return ids.size
+}
+
 export function ruleCounts(f: Firewall): { inbound: number; outbound: number } {
   const inbound = f.rules.filter((r) => r.direction === 'in').length
   return { inbound, outbound: f.rules.length - inbound }

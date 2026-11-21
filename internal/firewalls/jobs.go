@@ -38,7 +38,7 @@ func (ApplyArgs) Kind() string { return KindApply }
 
 func (ApplyArgs) InsertOpts() river.InsertOpts { return river.InsertOpts{MaxAttempts: MaxAttempts} }
 
-// Bump locks the project's servers ascending (skipping deleting and failed-create ones), raises each desired generation and starts one apply_firewalls Action per server.
+// Bump locks the live servers ascending, raises their desired generation and queues one apply each.
 func Bump(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, projectID int64, serverIDs []int64, causes []int64) ([]actions.Action, error) {
 	ids := slices.Compact(slices.Sorted(slices.Values(serverIDs)))
 	if len(ids) == 0 {

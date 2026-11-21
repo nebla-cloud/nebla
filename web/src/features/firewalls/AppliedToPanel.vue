@@ -175,7 +175,7 @@ function remove(r: FirewallResource) {
             <UFormField
               label="Label selector"
               name="selector"
-              help="Like role=web, or env in (prod,staging)."
+              help="Like role=web, or env!=prod."
               :error="formError ?? undefined"
             >
               <UInput v-model="selector" name="selector" autocomplete="off" class="w-full font-mono" />

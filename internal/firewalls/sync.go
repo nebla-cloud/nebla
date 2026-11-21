@@ -67,8 +67,7 @@ func storedDiffers(ctx context.Context, pc pve.Client, node string, vmid int, d 
 		return fmt.Errorf("%w: %s", ErrRuleGone, r.Comment)
 	}
 	why := ruleDrift(cur, r)
-	// Stale rules are not in the desired allow-list, so deleting them only narrows access; retries cannot pile copies up.
-	// Fail for good only once cleanup is done, so a conflict here is retried.
+	// Deleting stale rules only narrows access; a conflict here is retried.
 	if err := deleteStale(ctx, pc, node, vmid, d, cur); err != nil {
 		return fmt.Errorf("clean up after %s: %w", why, err)
 	}

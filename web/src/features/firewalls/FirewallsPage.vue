@@ -12,7 +12,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import { useCurrentProject } from '@/lib/project'
 import { canWrite } from '@/lib/roles'
 import CreateFirewallModal from './CreateFirewallModal.vue'
-import { ruleCounts, useFirewalls } from './queries'
+import { appliedServerCount, ruleCounts, useFirewalls } from './queries'
 
 const { projectId, project } = useCurrentProject()
 const writable = computed(() => canWrite(project.value?.role))
@@ -51,7 +51,7 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
         {{ f.name }}
         <template #meta>
           {{ ruleCounts(f).inbound }} inbound · {{ ruleCounts(f).outbound }} outbound ·
-          Applied to {{ plural(f.applied_to.length, 'target') }}
+          Applied to {{ plural(appliedServerCount(f), 'server') }}
         </template>
         <template v-if="Object.keys(f.labels).length" #trailing>
           <span class="hidden gap-1 sm:flex">

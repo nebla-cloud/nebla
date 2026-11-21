@@ -89,6 +89,26 @@ describe('FirewallsPage', () => {
     expect(document.body.querySelector('a[href="/p/7/firewalls/3"]')).not.toBeNull()
   })
 
+  it('counts the distinct servers a firewall is applied to', async () => {
+    firewalls[0].applied_to = [
+      {
+        type: 'label_selector',
+        label_selector: { selector: 'role=web' },
+        applied_to_resources: [
+          { type: 'server', server: { id: 1 } },
+          { type: 'server', server: { id: 2 } },
+        ],
+      },
+      { type: 'server', server: { id: 2 } },
+      { type: 'server', server: { id: 5 } },
+    ]
+    serve()
+    const { wrapper } = await mountPage()
+    unmount = () => wrapper.unmount()
+    expect(text()).toContain('Applied to 3 servers')
+    expect(text()).not.toContain('target')
+  })
+
   it('shows an empty state', async () => {
     firewalls = []
     serve()

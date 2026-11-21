@@ -166,7 +166,7 @@ func rendered(eff []Applied, counts map[int64]int) int {
 	return n
 }
 
-// CheckLimit refuses a server over MaxEffective firewalls or MaxRenderedRules rules with these labels and extraDirect.
+// CheckLimit refuses a server that would exceed a per-server firewall limit.
 func CheckLimit(ctx context.Context, c *ent.Client, projectID, serverID int64, lbls map[string]string, extraDirect []int64) error {
 	row, err := c.Server.Query().Where(server.ID(serverID), server.ProjectID(projectID)).Only(ctx)
 	if err != nil {
@@ -204,7 +204,7 @@ func (a Attachments) Effective(serverID int64, lbls map[string]string) []Applied
 	return a.x.effective(serverID, lbls, nil)
 }
 
-// Rules returns the effective rules of a server with these labels, ordered by firewall id then position, and whether any firewall applies.
+// Rules returns a server's effective rules and whether any firewall applies.
 func (a Attachments) Rules(ctx context.Context, c *ent.Client, serverID int64, lbls map[string]string) ([]Rule, bool, error) {
 	eff := a.Effective(serverID, lbls)
 	if len(eff) == 0 {
