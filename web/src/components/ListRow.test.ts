@@ -23,6 +23,14 @@ describe('ListRow', () => {
     expect(a.text()).toContain('T')
   })
 
+  it('truncates the title inside a shrinkable flex child', () => {
+    const w = mount(ListRow, { slots: { default: 'Title' } })
+    const title = w.find('[data-title]')
+    expect(title.classes()).toContain('truncate')
+    expect(title.classes()).toContain('min-w-0')
+    expect(title.element.parentElement?.className).toContain('flex')
+  })
+
   it('renders a plain row without a link', () => {
     const w = mount(ListRow, { slots: { default: 'Title', meta: 'M' } })
     expect(w.element.tagName).toBe('LI')

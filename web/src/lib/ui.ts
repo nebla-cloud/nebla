@@ -1,7 +1,7 @@
 // Shared class strings. Tables stack into rows on mobile and become real tables from sm up.
 export const tableWrap = 'overflow-hidden rounded-(--nb-radius-panel) border border-default bg-elevated'
 export const table = 'block w-full text-left text-sm sm:table'
-export const thead = 'hidden bg-(--nb-soft)text-muted sm:table-header-group'
+export const thead = 'hidden bg-(--nb-soft) text-muted sm:table-header-group'
 export const th = 'px-4 py-2.5 font-medium'
 export const tbody = 'block divide-y divide-default sm:table-row-group'
 export const tr = 'flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:table-row sm:px-0 sm:py-0'
