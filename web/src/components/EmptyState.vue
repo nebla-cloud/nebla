@@ -4,14 +4,22 @@ defineProps<{ title: string; body: string }>()
 
 <template>
   <section
-    class="flex flex-col items-start gap-4 rounded-lg border border-dashed border-accented px-6 py-10 sm:px-10"
+    class="grid items-center gap-8 py-8 lg:gap-10 lg:py-12"
+    :class="$slots.aside ? 'lg:grid-cols-2' : ''"
   >
-    <div class="flex max-w-prose flex-col gap-1.5">
-      <h2 class="text-lg font-bold tracking-tight text-highlighted">{{ title }}</h2>
-      <p class="text-muted">{{ body }}</p>
+    <div class="flex flex-col items-start gap-4">
+      <div class="flex max-w-prose flex-col gap-2">
+        <h2 class="text-[1.375rem] font-extrabold tracking-[-0.035em] text-highlighted lg:text-[1.75rem]">
+          {{ title }}
+        </h2>
+        <p class="text-muted">{{ body }}</p>
+      </div>
+      <div v-if="$slots.default" class="w-full">
+        <slot />
+      </div>
     </div>
-    <div v-if="$slots.default" class="w-full">
-      <slot />
+    <div v-if="$slots.aside" class="min-w-0">
+      <slot name="aside" />
     </div>
   </section>
 </template>

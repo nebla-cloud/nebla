@@ -1,0 +1,12 @@
+// Shared class strings. Tables stack into rows on mobile and become real tables from sm up.
+export const tableWrap = 'overflow-hidden rounded-(--nb-radius-panel) border border-default bg-elevated'
+export const table = 'block w-full text-left text-sm sm:table'
+export const thead = 'hidden bg-(--nb-soft)text-muted sm:table-header-group'
+export const th = 'px-4 py-2.5 font-medium'
+export const tbody = 'block divide-y divide-default sm:table-row-group'
+export const tr = 'flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:table-row sm:px-0 sm:py-0'
+export const td = 'sm:table-cell sm:px-4 sm:py-3'
+
+// The one native-select style; matches UInput's 36px height and --ui-border.
+export const selectClass =
+  'h-9 w-full rounded-md border border-default bg-default px-2.5 text-sm text-highlighted focus-visible:outline-2 focus-visible:outline-primary sm:w-auto'
