@@ -173,6 +173,20 @@ describe('ServerListPage', () => {
     await vi.waitFor(() => expect(wrapper.text()).toContain('1 server in Home lab, 1 running'))
   })
 
+  it('hides the description while a label filter is active', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [makeServer()], meta })))
+    const router = testRouter([
+      { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+      { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
+      { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
+    ])
+    await router.push('/p/1/servers?labels=env%3Dprod')
+    const { wrapper } = mountApp(ServerListPage, { router })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('web1'))
+    await flushPromises()
+    expect(wrapper.text()).not.toMatch(/servers? in /)
+  })
+
   it('shows no description for an empty list', async () => {
     server.use(http.get('*/v1/servers', () => json(200, { servers: [], meta })))
     const { wrapper } = await mountList()

@@ -31,7 +31,7 @@ const listError = computed(() => (filterError.value ? null : error.value))
 
 const description = computed(() => {
   const list = servers.value
-  if (!list?.length || !project.value) return undefined
+  if (!list?.length || !project.value || selector.value) return undefined
   const running = list.filter((s) => s.status === 'running').length
   const n = list.length
   return `${n} ${n === 1 ? 'server' : 'servers'} in ${project.value.name}, ${running} running`
@@ -119,13 +119,15 @@ onBeforeUnmount(() => clearTimeout(timer))
         :to="{ name: 'server', params: { projectId, serverId: s.id } }"
       >
         <template #leading><StatusArch :status="s.status" /></template>
-        <span class="flex min-w-0 items-center gap-x-2">
-          <span class="truncate">{{ s.name }}</span>
-          <LabelChips :labels="s.labels" :max="3" />
-        </span>
-        <template #meta>
+        <span
+          class="flex min-w-0 flex-col gap-1 whitespace-normal sm:flex-row sm:items-center sm:gap-3"
+        >
+          <span class="flex min-w-0 flex-1 items-center gap-x-2">
+            <span class="truncate">{{ s.name }}</span>
+            <LabelChips :labels="s.labels" :max="3" />
+          </span>
           <span
-            class="flex flex-wrap gap-x-4 sm:grid sm:w-[28rem] sm:grid-cols-[1.4fr_1fr_1.1fr_0.8fr] sm:gap-x-3 lg:w-[38rem] [&>*]:min-w-0 [&>*]:truncate"
+            class="flex flex-wrap gap-x-4 text-sm font-normal text-muted sm:grid sm:w-[28rem] sm:shrink-0 sm:grid-cols-[1.4fr_1fr_1.1fr_0.8fr] sm:gap-x-3 lg:w-[38rem] [&>*]:min-w-0 [&>*]:truncate"
           >
             <span class="flex items-center gap-2">
               <OsBadge :name="s.image.os_flavor" />
@@ -138,7 +140,7 @@ onBeforeUnmount(() => clearTimeout(timer))
             <span v-else>{{ serverStatus(s.status).label }}</span>
             <span>{{ s.location.name }}</span>
           </span>
-        </template>
+        </span>
       </ListRow>
     </ListGroup>
   </div>
