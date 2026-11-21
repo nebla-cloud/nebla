@@ -34,7 +34,12 @@ function submit() {
     <template #body>
       <form id="confirm-by-name" class="flex flex-col gap-3" @submit.prevent="submit">
         <UAlert v-if="error" color="error" variant="subtle" :description="error" />
-        <UFormField :label="`Type ${name} to confirm`" name="confirm_name">
+        <UFormField name="confirm_name">
+          <template #label>
+            Type
+            <span class="nb-mono rounded-full bg-muted px-2 py-0.5 text-xs text-default">{{ name }}</span>
+            to confirm
+          </template>
           <UInput
             v-model="typed"
             name="confirm_name"

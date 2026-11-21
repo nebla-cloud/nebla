@@ -16,7 +16,7 @@ const failed = computed(() => props.action.status === 'error')
 </script>
 
 <template>
-  <div class="flex flex-col gap-2" role="status" aria-live="polite">
+  <div class="flex flex-col gap-2.5" role="status" aria-live="polite">
     <div class="flex items-baseline justify-between gap-3 text-sm">
       <span class="font-semibold text-highlighted">{{ label }}</span>
       <span class="text-muted">Started at {{ started }}</span>

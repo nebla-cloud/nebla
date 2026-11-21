@@ -14,7 +14,7 @@ const last = computed(() => Math.min(props.page * props.perPage, props.total))
   <nav
     v-if="total > perPage"
     aria-label="Pagination"
-    class="flex items-center justify-between gap-3 text-sm"
+    class="flex items-center justify-between gap-3 border-t border-(--ui-border) pt-3 text-sm"
   >
     <p class="text-muted tabular-nums">Showing {{ first }}–{{ last }} of {{ total }}</p>
     <div class="flex gap-2">

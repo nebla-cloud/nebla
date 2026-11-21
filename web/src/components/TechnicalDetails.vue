@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import UButton from '@nuxt/ui/components/Button.vue'
+import TerminalBlock from './TerminalBlock.vue'
 import { errorMessage } from '@/api/errors'
 import { unavailable, useAdminAction } from '@/features/admin/activity/queries'
 import { useCopy } from '@/lib/useCopy'
@@ -51,12 +52,11 @@ function onCopy() {
         {{ errorMessage(q.error.value) }}
       </p>
       <template v-else-if="shown">
-        <div
-          ref="block"
-          class="rounded-md bg-elevated px-3 py-2 font-mono text-xs text-default break-words whitespace-pre-wrap"
-        >
-          <div class="font-semibold text-highlighted">{{ shown.code }}</div>
-          <div>{{ shown.detail }}</div>
+        <div ref="block">
+          <TerminalBlock class="font-mono break-words">
+            <div class="font-semibold">{{ shown.code }}</div>
+            <div>{{ shown.detail }}</div>
+          </TerminalBlock>
         </div>
         <UButton
           color="neutral"
