@@ -40,6 +40,16 @@ var projectScopedOps = map[string]bool{
 	"RebuildServer":    true,
 	"ChangeServerType": true,
 
+	"GetFirewalls":                true,
+	"PostFirewalls":               true,
+	"GetFirewall":                 true,
+	"PutFirewall":                 true,
+	"DeleteFirewall":              true,
+	"GetFirewallActions":          true,
+	"SetFirewallRules":            true,
+	"ApplyFirewallToResources":    true,
+	"RemoveFirewallFromResources": true,
+
 	"RequestServerConsole": true,
 	"GetServerMetrics":     true,
 }

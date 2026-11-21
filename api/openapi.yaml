@@ -1808,6 +1808,234 @@ paths:
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /firewalls:
+    get:
+      operationId: getFirewalls
+      x-nebla-scope: project
+      summary: List the project's firewalls
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: label_selector
+          in: query
+          description: "Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)"
+          schema: { type: string }
+        - name: name
+          in: query
+          description: Exact firewall name
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [firewalls, meta]
+                properties:
+                  firewalls:
+                    type: array
+                    items: { $ref: "#/components/schemas/Firewall" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postFirewalls
+      x-nebla-scope: project
+      summary: Create a firewall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FirewallInput" }
+      responses:
+        "201":
+          description: Created; one apply_firewalls action per server it covers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [firewall, actions]
+                properties:
+                  firewall: { $ref: "#/components/schemas/Firewall" }
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /firewalls/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getFirewall
+      x-nebla-scope: project
+      summary: Get a firewall
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Firewall" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putFirewall
+      x-nebla-scope: project
+      summary: Rename a firewall or replace its labels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FirewallUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Firewall" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteFirewall
+      x-nebla-scope: project
+      summary: Delete a firewall, removing it from every server
+      responses:
+        "200": { $ref: "#/components/responses/ActionsCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /firewalls/{id}/actions:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getFirewallActions
+      x-nebla-scope: project
+      summary: List the apply_firewalls actions a firewall caused
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          description: Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: sort
+          in: query
+          description: "id, id:asc or id:desc (default)"
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, meta]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /firewalls/{id}/actions/set_rules:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: setFirewallRules
+      x-nebla-scope: project
+      summary: Replace a firewall's rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rules]
+              properties:
+                rules:
+                  type: array
+                  items: { $ref: "#/components/schemas/FirewallRule" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionsCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /firewalls/{id}/actions/apply_to_resources:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: applyFirewallToResources
+      x-nebla-scope: project
+      summary: Apply a firewall to servers or label selectors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [apply_to]
+              properties:
+                apply_to:
+                  type: array
+                  items: { $ref: "#/components/schemas/FirewallResource" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionsCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /firewalls/{id}/actions/remove_from_resources:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: removeFirewallFromResources
+      x-nebla-scope: project
+      summary: Remove a firewall from servers or label selectors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [remove_from]
+              properties:
+                remove_from:
+                  type: array
+                  items: { $ref: "#/components/schemas/FirewallResource" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionsCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
   /actions:
     get:
       operationId: getActions
@@ -2271,6 +2499,17 @@ components:
             required: [action]
             properties:
               action: { $ref: "#/components/schemas/Action" }
+    ActionsCreated:
+      description: One apply_firewalls action per affected server
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [actions]
+            properties:
+              actions:
+                type: array
+                items: { $ref: "#/components/schemas/Action" }
     Error:
       description: Error
       content:
@@ -2582,7 +2821,7 @@ components:
           properties:
             code:
               type: string
-              description: "Stable kind: failed, timed_out, unreachable, server_missing, server_gone or orphaned"
+              description: "Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned or firewall_unenforced"
             message: { type: string, description: Plain text safe to show members }
         started: { type: string, format: date-time }
         finished: { type: string, format: date-time, nullable: true }
@@ -2674,7 +2913,7 @@ components:
         disk_storage_override: { type: string, description: "Empty clears the override" }
     AdminLocation:
       type: object
-      required: [id, name, description, pve, disk_storage, iso_storage, import_storage, nodes, created, updated]
+      required: [id, name, description, pve, disk_storage, iso_storage, import_storage, firewall_enabled, nodes, created, updated]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -2683,6 +2922,10 @@ components:
         disk_storage: { type: string }
         iso_storage: { type: string }
         import_storage: { type: string }
+        firewall_enabled:
+          type: boolean
+          nullable: true
+          description: Whether the datacenter firewall was on at the last check; null until checked
         nodes:
           type: array
           items: { $ref: "#/components/schemas/Node" }
@@ -2963,6 +3206,93 @@ components:
       type: object
       description: "At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty"
       additionalProperties: { type: string }
+    FirewallRule:
+      type: object
+      required: [direction, protocol]
+      properties:
+        direction: { type: string, enum: [in, out] }
+        protocol: { type: string, enum: [tcp, udp, icmp, esp, gre] }
+        port:
+          type: string
+          nullable: true
+          description: "A port (80) or range (8000-8100); required for tcp and udp, not allowed otherwise"
+        source_ips:
+          type: array
+          description: "Inbound rules only: CIDRs allowed to connect, at most 50; 0.0.0.0/0 and ::/0 mean any"
+          items: { type: string }
+        destination_ips:
+          type: array
+          description: "Outbound rules only: CIDRs the server may reach, at most 50; 0.0.0.0/0 and ::/0 mean any"
+          items: { type: string }
+        description: { type: string, description: At most 255 characters }
+    FirewallResource:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [server, label_selector] }
+        server:
+          type: object
+          required: [id]
+          properties:
+            id: { type: integer, format: int64 }
+        label_selector:
+          type: object
+          required: [selector]
+          properties:
+            selector: { type: string, description: "Same syntax as GET /servers?label_selector=" }
+        applied_to_resources:
+          type: array
+          readOnly: true
+          description: For a label selector, the servers it currently matches
+          items:
+            type: object
+            required: [type, server]
+            properties:
+              type: { type: string, enum: [server] }
+              server:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: integer, format: int64 }
+    Firewall:
+      type: object
+      required: [id, name, labels, rules, applied_to, created]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+        rules:
+          type: array
+          items: { $ref: "#/components/schemas/FirewallRule" }
+        applied_to:
+          type: array
+          items: { $ref: "#/components/schemas/FirewallResource" }
+        created: { type: string, format: date-time }
+    FirewallInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" }
+        labels: { $ref: "#/components/schemas/Labels" }
+        rules:
+          type: array
+          description: At most 100
+          items: { $ref: "#/components/schemas/FirewallRule" }
+        apply_to:
+          type: array
+          items: { $ref: "#/components/schemas/FirewallResource" }
+    FirewallUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+    ServerFirewall:
+      type: object
+      required: [id, name, via]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        via: { type: string, description: "\"direct\", or the label selector that applies it" }
     ServerInput:
       type: object
       required: [name, server_type, image, location]
@@ -2983,6 +3313,14 @@ components:
             ipv6: { type: boolean, default: false }
         labels: { $ref: "#/components/schemas/Labels" }
         start_after_create: { type: boolean, default: true }
+        firewalls:
+          type: array
+          description: The project's firewalls to apply directly; the server boots with their rules in place
+          items:
+            type: object
+            required: [firewall]
+            properties:
+              firewall: { type: integer, format: int64 }
     ServerUpdate:
       type: object
       properties:
@@ -3032,7 +3370,7 @@ components:
         ip: { type: string }
     Server:
       type: object
-      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, created]
+      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, firewalls, created]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -3050,4 +3388,8 @@ components:
             ipv6: { $ref: "#/components/schemas/ServerIp" }
         labels: { $ref: "#/components/schemas/Labels" }
         disk_gb: { type: integer }
+        firewalls:
+          type: array
+          description: Firewalls in effect on the server and why each applies
+          items: { $ref: "#/components/schemas/ServerFirewall" }
         created: { type: string, format: date-time }

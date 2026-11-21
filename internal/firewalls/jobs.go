@@ -3,12 +3,15 @@ package firewalls
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"slices"
 
 	entsql "entgo.io/ent/dialect/sql"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/firewall"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/riverqueue/river"
@@ -73,4 +76,22 @@ func Bump(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, projec
 		out = append(out, a)
 	}
 	return out, nil
+}
+
+// Actions lists the project's actions that firewall id caused; not_found when the firewall isn't the project's.
+func (s *Service) Actions(ctx context.Context, projectID, id int64, f actions.ListFilter, page, perPage int) ([]actions.Action, int, error) {
+	ok, err := s.o.Ent.Firewall.Query().Where(firewall.ID(id), firewall.ProjectID(projectID)).Exist(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !ok {
+		return nil, 0, errNotFound
+	}
+	doc, _ := json.Marshal([]actions.Resource{{ID: id, Type: ResourceType}})
+	f.Where = append(f.Where, func(s *entsql.Selector) {
+		s.Where(entsql.P(func(b *entsql.Builder) {
+			b.Ident(s.C(action.FieldResources)).WriteString(" @> ").Arg(string(doc)).WriteString("::jsonb")
+		}))
+	})
+	return actions.List(ctx, s.o.Ent, projectID, f, page, perPage)
 }

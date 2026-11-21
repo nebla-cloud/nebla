@@ -41,8 +41,9 @@ func apiNode(n catalog.Node) apigen.Node {
 
 func apiAdminLocation(l catalog.Location) apigen.AdminLocation {
 	out := apigen.AdminLocation{Id: l.ID, Name: l.Name, Description: l.Description, DiskStorage: l.DiskStorage, IsoStorage: l.ISOStorage, ImportStorage: l.ImportStorage,
-		Pve:   apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
-		Nodes: make([]apigen.Node, len(l.Nodes)), Created: l.CreatedAt, Updated: l.UpdatedAt}
+		FirewallEnabled: l.FirewallEnabled,
+		Pve:             apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
+		Nodes:           make([]apigen.Node, len(l.Nodes)), Created: l.CreatedAt, Updated: l.UpdatedAt}
 	for i, n := range l.Nodes {
 		out.Nodes[i] = apiNode(n)
 	}

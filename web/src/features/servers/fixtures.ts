@@ -27,6 +27,7 @@ export function makeServer(over: Partial<Server> = {}): Server {
     public_net: { ipv4: { ip: '203.0.113.10' }, ipv6: null },
     labels: {},
     disk_gb: 40,
+    firewalls: [],
     created: '2026-11-18T10:00:00Z',
     ...over,
   }

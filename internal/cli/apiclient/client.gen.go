@@ -61,6 +61,84 @@ func (e AdminActionStatus) Valid() bool {
 	}
 }
 
+// Defines values for FirewallResourceAppliedToResourcesType.
+const (
+	FirewallResourceAppliedToResourcesTypeServer FirewallResourceAppliedToResourcesType = "server"
+)
+
+// Valid indicates whether the value is a known member of the FirewallResourceAppliedToResourcesType enum.
+func (e FirewallResourceAppliedToResourcesType) Valid() bool {
+	switch e {
+	case FirewallResourceAppliedToResourcesTypeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallResourceType.
+const (
+	FirewallResourceTypeLabelSelector FirewallResourceType = "label_selector"
+	FirewallResourceTypeServer        FirewallResourceType = "server"
+)
+
+// Valid indicates whether the value is a known member of the FirewallResourceType enum.
+func (e FirewallResourceType) Valid() bool {
+	switch e {
+	case FirewallResourceTypeLabelSelector:
+		return true
+	case FirewallResourceTypeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallRuleDirection.
+const (
+	In  FirewallRuleDirection = "in"
+	Out FirewallRuleDirection = "out"
+)
+
+// Valid indicates whether the value is a known member of the FirewallRuleDirection enum.
+func (e FirewallRuleDirection) Valid() bool {
+	switch e {
+	case In:
+		return true
+	case Out:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallRuleProtocol.
+const (
+	Esp  FirewallRuleProtocol = "esp"
+	Gre  FirewallRuleProtocol = "gre"
+	Icmp FirewallRuleProtocol = "icmp"
+	Tcp  FirewallRuleProtocol = "tcp"
+	Udp  FirewallRuleProtocol = "udp"
+)
+
+// Valid indicates whether the value is a known member of the FirewallRuleProtocol enum.
+func (e FirewallRuleProtocol) Valid() bool {
+	switch e {
+	case Esp:
+		return true
+	case Gre:
+		return true
+	case Icmp:
+		return true
+	case Tcp:
+		return true
+	case Udp:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IpPoolFamily.
 const (
 	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
@@ -230,7 +308,7 @@ func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone or orphaned
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned or firewall_unenforced
 		Code string `json:"code"`
 
 		// Message Plain text safe to show members
@@ -291,16 +369,19 @@ type AdminImage struct {
 
 // AdminLocation defines model for AdminLocation.
 type AdminLocation struct {
-	Created       time.Time     `json:"created"`
-	Description   string        `json:"description"`
-	DiskStorage   string        `json:"disk_storage"`
-	Id            int64         `json:"id"`
-	ImportStorage string        `json:"import_storage"`
-	IsoStorage    string        `json:"iso_storage"`
-	Name          string        `json:"name"`
-	Nodes         []Node        `json:"nodes"`
-	Pve           PveConnection `json:"pve"`
-	Updated       time.Time     `json:"updated"`
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	DiskStorage string    `json:"disk_storage"`
+
+	// FirewallEnabled Whether the datacenter firewall was on at the last check; null until checked
+	FirewallEnabled *bool         `json:"firewall_enabled"`
+	Id              int64         `json:"id"`
+	ImportStorage   string        `json:"import_storage"`
+	IsoStorage      string        `json:"iso_storage"`
+	Name            string        `json:"name"`
+	Nodes           []Node        `json:"nodes"`
+	Pve             PveConnection `json:"pve"`
+	Updated         time.Time     `json:"updated"`
 }
 
 // AdminProject defines model for AdminProject.
@@ -463,6 +544,85 @@ type Error struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
+}
+
+// Firewall defines model for Firewall.
+type Firewall struct {
+	AppliedTo []FirewallResource `json:"applied_to"`
+	Created   time.Time          `json:"created"`
+	Id        int64              `json:"id"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels Labels         `json:"labels"`
+	Name   string         `json:"name"`
+	Rules  []FirewallRule `json:"rules"`
+}
+
+// FirewallInput defines model for FirewallInput.
+type FirewallInput struct {
+	ApplyTo *[]FirewallResource `json:"apply_to,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   string  `json:"name"`
+
+	// Rules At most 100
+	Rules *[]FirewallRule `json:"rules,omitempty"`
+}
+
+// FirewallResource defines model for FirewallResource.
+type FirewallResource struct {
+	// AppliedToResources For a label selector, the servers it currently matches
+	AppliedToResources *[]struct {
+		Server struct {
+			Id int64 `json:"id"`
+		} `json:"server"`
+		Type FirewallResourceAppliedToResourcesType `json:"type"`
+	} `json:"applied_to_resources,omitempty"`
+	LabelSelector *struct {
+		// Selector Same syntax as GET /servers?label_selector=
+		Selector string `json:"selector"`
+	} `json:"label_selector,omitempty"`
+	Server *struct {
+		Id int64 `json:"id"`
+	} `json:"server,omitempty"`
+	Type FirewallResourceType `json:"type"`
+}
+
+// FirewallResourceAppliedToResourcesType defines model for FirewallResource.AppliedToResources.Type.
+type FirewallResourceAppliedToResourcesType string
+
+// FirewallResourceType defines model for FirewallResource.Type.
+type FirewallResourceType string
+
+// FirewallRule defines model for FirewallRule.
+type FirewallRule struct {
+	// Description At most 255 characters
+	Description *string `json:"description,omitempty"`
+
+	// DestinationIps Outbound rules only: CIDRs the server may reach, at most 50; 0.0.0.0/0 and ::/0 mean any
+	DestinationIps *[]string             `json:"destination_ips,omitempty"`
+	Direction      FirewallRuleDirection `json:"direction"`
+
+	// Port A port (80) or range (8000-8100); required for tcp and udp, not allowed otherwise
+	Port     *string              `json:"port,omitempty"`
+	Protocol FirewallRuleProtocol `json:"protocol"`
+
+	// SourceIps Inbound rules only: CIDRs allowed to connect, at most 50; 0.0.0.0/0 and ::/0 mean any
+	SourceIps *[]string `json:"source_ips,omitempty"`
+}
+
+// FirewallRuleDirection defines model for FirewallRule.Direction.
+type FirewallRuleDirection string
+
+// FirewallRuleProtocol defines model for FirewallRule.Protocol.
+type FirewallRuleProtocol string
+
+// FirewallUpdate defines model for FirewallUpdate.
+type FirewallUpdate struct {
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
 }
 
 // Image defines model for Image.
@@ -805,8 +965,11 @@ type Role string
 type Server struct {
 	Created time.Time `json:"created"`
 	DiskGb  int       `json:"disk_gb"`
-	Id      int64     `json:"id"`
-	Image   Image     `json:"image"`
+
+	// Firewalls Firewalls in effect on the server and why each applies
+	Firewalls []ServerFirewall `json:"firewalls"`
+	Id        int64            `json:"id"`
+	Image     Image            `json:"image"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels    Labels      `json:"labels"`
@@ -823,8 +986,22 @@ type Server struct {
 // ServerStatus defines model for Server.Status.
 type ServerStatus string
 
+// ServerFirewall defines model for ServerFirewall.
+type ServerFirewall struct {
+	Id   int64  `json:"id"`
+	Name string `json:"name"`
+
+	// Via "direct", or the label selector that applies it
+	Via string `json:"via"`
+}
+
 // ServerInput defines model for ServerInput.
 type ServerInput struct {
+	// Firewalls The project's firewalls to apply directly; the server boots with their rules in place
+	Firewalls *[]struct {
+		Firewall int64 `json:"firewall"`
+	} `json:"firewalls,omitempty"`
+
 	// Image Image id or name
 	Image string `json:"image"`
 
@@ -972,6 +1149,11 @@ type ActionCreated struct {
 	Action Action `json:"action"`
 }
 
+// ActionsCreated defines model for ActionsCreated.
+type ActionsCreated struct {
+	Actions []Action `json:"actions"`
+}
+
 // GetActionsParams defines parameters for GetActions.
 type GetActionsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -1070,6 +1252,45 @@ type PostAuthLoginJSONBody struct {
 
 // PostEnrollReportJSONBody defines parameters for PostEnrollReport.
 type PostEnrollReportJSONBody = stdjson.RawMessage
+
+// GetFirewallsParams defines parameters for GetFirewalls.
+type GetFirewallsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact firewall name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+}
+
+// GetFirewallActionsParams defines parameters for GetFirewallActions.
+type GetFirewallActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// ApplyFirewallToResourcesJSONBody defines parameters for ApplyFirewallToResources.
+type ApplyFirewallToResourcesJSONBody struct {
+	ApplyTo []FirewallResource `json:"apply_to"`
+}
+
+// RemoveFirewallFromResourcesJSONBody defines parameters for RemoveFirewallFromResources.
+type RemoveFirewallFromResourcesJSONBody struct {
+	RemoveFrom []FirewallResource `json:"remove_from"`
+}
+
+// SetFirewallRulesJSONBody defines parameters for SetFirewallRules.
+type SetFirewallRulesJSONBody struct {
+	Rules []FirewallRule `json:"rules"`
+}
 
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
@@ -1242,6 +1463,21 @@ type PostAuthTotpVerifyJSONRequestBody = TotpCode
 
 // PostEnrollReportJSONRequestBody defines body for PostEnrollReport for application/json ContentType.
 type PostEnrollReportJSONRequestBody = PostEnrollReportJSONBody
+
+// PostFirewallsJSONRequestBody defines body for PostFirewalls for application/json ContentType.
+type PostFirewallsJSONRequestBody = FirewallInput
+
+// PutFirewallJSONRequestBody defines body for PutFirewall for application/json ContentType.
+type PutFirewallJSONRequestBody = FirewallUpdate
+
+// ApplyFirewallToResourcesJSONRequestBody defines body for ApplyFirewallToResources for application/json ContentType.
+type ApplyFirewallToResourcesJSONRequestBody ApplyFirewallToResourcesJSONBody
+
+// RemoveFirewallFromResourcesJSONRequestBody defines body for RemoveFirewallFromResources for application/json ContentType.
+type RemoveFirewallFromResourcesJSONRequestBody RemoveFirewallFromResourcesJSONBody
+
+// SetFirewallRulesJSONRequestBody defines body for SetFirewallRules for application/json ContentType.
+type SetFirewallRulesJSONRequestBody SetFirewallRulesJSONBody
 
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
@@ -1886,6 +2122,96 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
 	PostEnrollReport(ctx context.Context, body PostEnrollReportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFirewalls List the project's firewalls
+	//
+	// Corresponds with GET /firewalls (the `GetFirewalls` operationId).
+	GetFirewalls(ctx context.Context, params *GetFirewallsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostFirewallsWithBody Create a firewall
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+	PostFirewallsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostFirewalls Create a firewall
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+	PostFirewalls(ctx context.Context, body PostFirewallsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteFirewall Delete a firewall, removing it from every server
+	//
+	// Corresponds with DELETE /firewalls/{id} (the `DeleteFirewall` operationId).
+	DeleteFirewall(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFirewall Get a firewall
+	//
+	// Corresponds with GET /firewalls/{id} (the `GetFirewall` operationId).
+	GetFirewall(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutFirewallWithBody Rename a firewall or replace its labels
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+	PutFirewallWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutFirewall Rename a firewall or replace its labels
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+	PutFirewall(ctx context.Context, id ID, body PutFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFirewallActions List the apply_firewalls actions a firewall caused
+	//
+	// Corresponds with GET /firewalls/{id}/actions (the `GetFirewallActions` operationId).
+	GetFirewallActions(ctx context.Context, id ID, params *GetFirewallActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ApplyFirewallToResourcesWithBody Apply a firewall to servers or label selectors
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+	ApplyFirewallToResourcesWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ApplyFirewallToResources Apply a firewall to servers or label selectors
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+	ApplyFirewallToResources(ctx context.Context, id ID, body ApplyFirewallToResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RemoveFirewallFromResourcesWithBody Remove a firewall from servers or label selectors
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+	RemoveFirewallFromResourcesWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RemoveFirewallFromResources Remove a firewall from servers or label selectors
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+	RemoveFirewallFromResources(ctx context.Context, id ID, body RemoveFirewallFromResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetFirewallRulesWithBody Replace a firewall's rules
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+	SetFirewallRulesWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetFirewallRules Replace a firewall's rules
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+	SetFirewallRules(ctx context.Context, id ID, body SetFirewallRulesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealthz Liveness check; pings the database
 	//
@@ -3673,6 +3999,236 @@ func (c *Client) PostEnrollReportWithBody(ctx context.Context, contentType strin
 // Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
 func (c *Client) PostEnrollReport(ctx context.Context, body PostEnrollReportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostEnrollReportRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFirewalls List the project's firewalls
+//
+// Corresponds with GET /firewalls (the `GetFirewalls` operationId).
+func (c *Client) GetFirewalls(ctx context.Context, params *GetFirewallsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFirewallsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostFirewallsWithBody Create a firewall
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+func (c *Client) PostFirewallsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostFirewallsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostFirewalls Create a firewall
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+func (c *Client) PostFirewalls(ctx context.Context, body PostFirewallsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostFirewallsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteFirewall Delete a firewall, removing it from every server
+//
+// Corresponds with DELETE /firewalls/{id} (the `DeleteFirewall` operationId).
+func (c *Client) DeleteFirewall(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteFirewallRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFirewall Get a firewall
+//
+// Corresponds with GET /firewalls/{id} (the `GetFirewall` operationId).
+func (c *Client) GetFirewall(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFirewallRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutFirewallWithBody Rename a firewall or replace its labels
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+func (c *Client) PutFirewallWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutFirewallRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutFirewall Rename a firewall or replace its labels
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+func (c *Client) PutFirewall(ctx context.Context, id ID, body PutFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutFirewallRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFirewallActions List the apply_firewalls actions a firewall caused
+//
+// Corresponds with GET /firewalls/{id}/actions (the `GetFirewallActions` operationId).
+func (c *Client) GetFirewallActions(ctx context.Context, id ID, params *GetFirewallActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFirewallActionsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ApplyFirewallToResourcesWithBody Apply a firewall to servers or label selectors
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+func (c *Client) ApplyFirewallToResourcesWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewApplyFirewallToResourcesRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ApplyFirewallToResources Apply a firewall to servers or label selectors
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+func (c *Client) ApplyFirewallToResources(ctx context.Context, id ID, body ApplyFirewallToResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewApplyFirewallToResourcesRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RemoveFirewallFromResourcesWithBody Remove a firewall from servers or label selectors
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+func (c *Client) RemoveFirewallFromResourcesWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRemoveFirewallFromResourcesRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RemoveFirewallFromResources Remove a firewall from servers or label selectors
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+func (c *Client) RemoveFirewallFromResources(ctx context.Context, id ID, body RemoveFirewallFromResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRemoveFirewallFromResourcesRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetFirewallRulesWithBody Replace a firewall's rules
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+func (c *Client) SetFirewallRulesWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetFirewallRulesRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetFirewallRules Replace a firewall's rules
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+func (c *Client) SetFirewallRules(ctx context.Context, id ID, body SetFirewallRulesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetFirewallRulesRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7457,6 +8013,489 @@ func NewPostEnrollReportRequestWithBody(server string, contentType string, body 
 	return req, nil
 }
 
+// NewGetFirewallsRequest constructs an http.Request for the GetFirewalls method
+func NewGetFirewallsRequest(server string, params *GetFirewallsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "label_selector", *params.LabelSelector, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostFirewallsRequest calls the generic PostFirewalls builder with application/json body
+func NewPostFirewallsRequest(server string, body PostFirewallsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostFirewallsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostFirewallsRequestWithBody constructs an http.Request for the PostFirewalls method, with any body, and a specified content type
+func NewPostFirewallsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteFirewallRequest constructs an http.Request for the DeleteFirewall method
+func NewDeleteFirewallRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetFirewallRequest constructs an http.Request for the GetFirewall method
+func NewGetFirewallRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutFirewallRequest calls the generic PutFirewall builder with application/json body
+func NewPutFirewallRequest(server string, id ID, body PutFirewallJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutFirewallRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutFirewallRequestWithBody constructs an http.Request for the PutFirewall method, with any body, and a specified content type
+func NewPutFirewallRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetFirewallActionsRequest constructs an http.Request for the GetFirewallActions method
+func NewGetFirewallActionsRequest(server string, id ID, params *GetFirewallActionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls/%s/actions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewApplyFirewallToResourcesRequest calls the generic ApplyFirewallToResources builder with application/json body
+func NewApplyFirewallToResourcesRequest(server string, id ID, body ApplyFirewallToResourcesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewApplyFirewallToResourcesRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewApplyFirewallToResourcesRequestWithBody constructs an http.Request for the ApplyFirewallToResources method, with any body, and a specified content type
+func NewApplyFirewallToResourcesRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls/%s/actions/apply_to_resources", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRemoveFirewallFromResourcesRequest calls the generic RemoveFirewallFromResources builder with application/json body
+func NewRemoveFirewallFromResourcesRequest(server string, id ID, body RemoveFirewallFromResourcesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRemoveFirewallFromResourcesRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewRemoveFirewallFromResourcesRequestWithBody constructs an http.Request for the RemoveFirewallFromResources method, with any body, and a specified content type
+func NewRemoveFirewallFromResourcesRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls/%s/actions/remove_from_resources", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSetFirewallRulesRequest calls the generic SetFirewallRules builder with application/json body
+func NewSetFirewallRulesRequest(server string, id ID, body SetFirewallRulesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetFirewallRulesRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewSetFirewallRulesRequestWithBody constructs an http.Request for the SetFirewallRules method, with any body, and a specified content type
+func NewSetFirewallRulesRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/firewalls/%s/actions/set_rules", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetHealthzRequest constructs an http.Request for the GetHealthz method
 func NewGetHealthzRequest(server string) (*http.Request, error) {
 	var err error
@@ -10451,6 +11490,104 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /enroll/report (the `PostEnrollReport` operationId).
 	PostEnrollReportWithResponse(ctx context.Context, body PostEnrollReportJSONRequestBody, reqEditors ...RequestEditorFn) (*PostEnrollReportResponse, error)
+
+	// GetFirewallsWithResponse List the project's firewalls
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /firewalls (the `GetFirewalls` operationId).
+	GetFirewallsWithResponse(ctx context.Context, params *GetFirewallsParams, reqEditors ...RequestEditorFn) (*GetFirewallsResponse, error)
+
+	// PostFirewallsWithBodyWithResponse Create a firewall
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+	PostFirewallsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostFirewallsResponse, error)
+
+	// PostFirewallsWithResponse Create a firewall
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+	PostFirewallsWithResponse(ctx context.Context, body PostFirewallsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostFirewallsResponse, error)
+
+	// DeleteFirewallWithResponse Delete a firewall, removing it from every server
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /firewalls/{id} (the `DeleteFirewall` operationId).
+	DeleteFirewallWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteFirewallResponse, error)
+
+	// GetFirewallWithResponse Get a firewall
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /firewalls/{id} (the `GetFirewall` operationId).
+	GetFirewallWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetFirewallResponse, error)
+
+	// PutFirewallWithBodyWithResponse Rename a firewall or replace its labels
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+	PutFirewallWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFirewallResponse, error)
+
+	// PutFirewallWithResponse Rename a firewall or replace its labels
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+	PutFirewallWithResponse(ctx context.Context, id ID, body PutFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*PutFirewallResponse, error)
+
+	// GetFirewallActionsWithResponse List the apply_firewalls actions a firewall caused
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /firewalls/{id}/actions (the `GetFirewallActions` operationId).
+	GetFirewallActionsWithResponse(ctx context.Context, id ID, params *GetFirewallActionsParams, reqEditors ...RequestEditorFn) (*GetFirewallActionsResponse, error)
+
+	// ApplyFirewallToResourcesWithBodyWithResponse Apply a firewall to servers or label selectors
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+	ApplyFirewallToResourcesWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ApplyFirewallToResourcesResponse, error)
+
+	// ApplyFirewallToResourcesWithResponse Apply a firewall to servers or label selectors
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+	ApplyFirewallToResourcesWithResponse(ctx context.Context, id ID, body ApplyFirewallToResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*ApplyFirewallToResourcesResponse, error)
+
+	// RemoveFirewallFromResourcesWithBodyWithResponse Remove a firewall from servers or label selectors
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+	RemoveFirewallFromResourcesWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RemoveFirewallFromResourcesResponse, error)
+
+	// RemoveFirewallFromResourcesWithResponse Remove a firewall from servers or label selectors
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+	RemoveFirewallFromResourcesWithResponse(ctx context.Context, id ID, body RemoveFirewallFromResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*RemoveFirewallFromResourcesResponse, error)
+
+	// SetFirewallRulesWithBodyWithResponse Replace a firewall's rules
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+	SetFirewallRulesWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetFirewallRulesResponse, error)
+
+	// SetFirewallRulesWithResponse Replace a firewall's rules
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+	SetFirewallRulesWithResponse(ctx context.Context, id ID, body SetFirewallRulesJSONRequestBody, reqEditors ...RequestEditorFn) (*SetFirewallRulesResponse, error)
 
 	// GetHealthzWithResponse Liveness check; pings the database
 	//
@@ -15286,6 +16423,729 @@ func (r PostEnrollReportResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostEnrollReportResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFirewallsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Firewalls []Firewall `json:"firewalls"`
+		Meta      Meta       `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFirewallsResponse) GetJSON200() *struct {
+	Firewalls []Firewall `json:"firewalls"`
+	Meta      Meta       `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetFirewallsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetFirewallsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetFirewallsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetFirewallsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFirewallsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFirewallsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFirewallsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFirewallsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostFirewallsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *struct {
+		Actions  []Action `json:"actions"`
+		Firewall Firewall `json:"firewall"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostFirewallsResponse) GetJSON201() *struct {
+	Actions  []Action `json:"actions"`
+	Firewall Firewall `json:"firewall"`
+} {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostFirewallsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostFirewallsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostFirewallsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostFirewallsResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostFirewallsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PostFirewallsResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostFirewallsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostFirewallsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostFirewallsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostFirewallsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostFirewallsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteFirewallResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ActionsCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteFirewallResponse) GetJSON200() *ActionsCreated {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteFirewallResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteFirewallResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteFirewallResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteFirewallResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteFirewallResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteFirewallResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteFirewallResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteFirewallResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteFirewallResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFirewallResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Firewall
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFirewallResponse) GetJSON200() *Firewall {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetFirewallResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetFirewallResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetFirewallResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFirewallResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFirewallResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFirewallResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFirewallResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutFirewallResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Firewall
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutFirewallResponse) GetJSON200() *Firewall {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutFirewallResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PutFirewallResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PutFirewallResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PutFirewallResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutFirewallResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutFirewallResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutFirewallResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutFirewallResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutFirewallResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutFirewallResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFirewallActionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Actions []Action `json:"actions"`
+		Meta    Meta     `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFirewallActionsResponse) GetJSON200() *struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetFirewallActionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetFirewallActionsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetFirewallActionsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetFirewallActionsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFirewallActionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFirewallActionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFirewallActionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFirewallActionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ApplyFirewallToResourcesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ActionsCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSON201() *ActionsCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r ApplyFirewallToResourcesResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ApplyFirewallToResourcesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ApplyFirewallToResourcesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ApplyFirewallToResourcesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ApplyFirewallToResourcesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RemoveFirewallFromResourcesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ActionsCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r RemoveFirewallFromResourcesResponse) GetJSON201() *ActionsCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RemoveFirewallFromResourcesResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RemoveFirewallFromResourcesResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RemoveFirewallFromResourcesResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r RemoveFirewallFromResourcesResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r RemoveFirewallFromResourcesResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r RemoveFirewallFromResourcesResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RemoveFirewallFromResourcesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RemoveFirewallFromResourcesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RemoveFirewallFromResourcesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RemoveFirewallFromResourcesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetFirewallRulesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ActionsCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r SetFirewallRulesResponse) GetJSON201() *ActionsCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r SetFirewallRulesResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r SetFirewallRulesResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r SetFirewallRulesResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r SetFirewallRulesResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r SetFirewallRulesResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r SetFirewallRulesResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetFirewallRulesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetFirewallRulesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetFirewallRulesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetFirewallRulesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -20329,6 +22189,188 @@ func (c *ClientWithResponses) PostEnrollReportWithResponse(ctx context.Context, 
 	return ParsePostEnrollReportResponse(rsp)
 }
 
+// GetFirewallsWithResponse List the project's firewalls
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /firewalls (the `GetFirewalls` operationId).
+func (c *ClientWithResponses) GetFirewallsWithResponse(ctx context.Context, params *GetFirewallsParams, reqEditors ...RequestEditorFn) (*GetFirewallsResponse, error) {
+	rsp, err := c.GetFirewalls(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFirewallsResponse(rsp)
+}
+
+// PostFirewallsWithBodyWithResponse Create a firewall
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+func (c *ClientWithResponses) PostFirewallsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostFirewallsResponse, error) {
+	rsp, err := c.PostFirewallsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostFirewallsResponse(rsp)
+}
+
+// PostFirewallsWithResponse Create a firewall
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls (the `PostFirewalls` operationId).
+func (c *ClientWithResponses) PostFirewallsWithResponse(ctx context.Context, body PostFirewallsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostFirewallsResponse, error) {
+	rsp, err := c.PostFirewalls(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostFirewallsResponse(rsp)
+}
+
+// DeleteFirewallWithResponse Delete a firewall, removing it from every server
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /firewalls/{id} (the `DeleteFirewall` operationId).
+func (c *ClientWithResponses) DeleteFirewallWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteFirewallResponse, error) {
+	rsp, err := c.DeleteFirewall(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteFirewallResponse(rsp)
+}
+
+// GetFirewallWithResponse Get a firewall
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /firewalls/{id} (the `GetFirewall` operationId).
+func (c *ClientWithResponses) GetFirewallWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetFirewallResponse, error) {
+	rsp, err := c.GetFirewall(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFirewallResponse(rsp)
+}
+
+// PutFirewallWithBodyWithResponse Rename a firewall or replace its labels
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+func (c *ClientWithResponses) PutFirewallWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFirewallResponse, error) {
+	rsp, err := c.PutFirewallWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutFirewallResponse(rsp)
+}
+
+// PutFirewallWithResponse Rename a firewall or replace its labels
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /firewalls/{id} (the `PutFirewall` operationId).
+func (c *ClientWithResponses) PutFirewallWithResponse(ctx context.Context, id ID, body PutFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*PutFirewallResponse, error) {
+	rsp, err := c.PutFirewall(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutFirewallResponse(rsp)
+}
+
+// GetFirewallActionsWithResponse List the apply_firewalls actions a firewall caused
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /firewalls/{id}/actions (the `GetFirewallActions` operationId).
+func (c *ClientWithResponses) GetFirewallActionsWithResponse(ctx context.Context, id ID, params *GetFirewallActionsParams, reqEditors ...RequestEditorFn) (*GetFirewallActionsResponse, error) {
+	rsp, err := c.GetFirewallActions(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFirewallActionsResponse(rsp)
+}
+
+// ApplyFirewallToResourcesWithBodyWithResponse Apply a firewall to servers or label selectors
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+func (c *ClientWithResponses) ApplyFirewallToResourcesWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ApplyFirewallToResourcesResponse, error) {
+	rsp, err := c.ApplyFirewallToResourcesWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseApplyFirewallToResourcesResponse(rsp)
+}
+
+// ApplyFirewallToResourcesWithResponse Apply a firewall to servers or label selectors
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls/{id}/actions/apply_to_resources (the `ApplyFirewallToResources` operationId).
+func (c *ClientWithResponses) ApplyFirewallToResourcesWithResponse(ctx context.Context, id ID, body ApplyFirewallToResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*ApplyFirewallToResourcesResponse, error) {
+	rsp, err := c.ApplyFirewallToResources(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseApplyFirewallToResourcesResponse(rsp)
+}
+
+// RemoveFirewallFromResourcesWithBodyWithResponse Remove a firewall from servers or label selectors
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+func (c *ClientWithResponses) RemoveFirewallFromResourcesWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RemoveFirewallFromResourcesResponse, error) {
+	rsp, err := c.RemoveFirewallFromResourcesWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRemoveFirewallFromResourcesResponse(rsp)
+}
+
+// RemoveFirewallFromResourcesWithResponse Remove a firewall from servers or label selectors
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls/{id}/actions/remove_from_resources (the `RemoveFirewallFromResources` operationId).
+func (c *ClientWithResponses) RemoveFirewallFromResourcesWithResponse(ctx context.Context, id ID, body RemoveFirewallFromResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*RemoveFirewallFromResourcesResponse, error) {
+	rsp, err := c.RemoveFirewallFromResources(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRemoveFirewallFromResourcesResponse(rsp)
+}
+
+// SetFirewallRulesWithBodyWithResponse Replace a firewall's rules
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+func (c *ClientWithResponses) SetFirewallRulesWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetFirewallRulesResponse, error) {
+	rsp, err := c.SetFirewallRulesWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetFirewallRulesResponse(rsp)
+}
+
+// SetFirewallRulesWithResponse Replace a firewall's rules
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
+func (c *ClientWithResponses) SetFirewallRulesWithResponse(ctx context.Context, id ID, body SetFirewallRulesJSONRequestBody, reqEditors ...RequestEditorFn) (*SetFirewallRulesResponse, error) {
+	rsp, err := c.SetFirewallRules(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetFirewallRulesResponse(rsp)
+}
+
 // GetHealthzWithResponse Liveness check; pings the database
 //
 // Returns a wrapper object for the known response body format(s).
@@ -24731,6 +26773,585 @@ func ParsePostEnrollReportResponse(rsp *http.Response) (*PostEnrollReportRespons
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFirewallsResponse parses an HTTP response from a GetFirewallsWithResponse call
+func ParseGetFirewallsResponse(rsp *http.Response) (*GetFirewallsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFirewallsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Firewalls []Firewall `json:"firewalls"`
+			Meta      Meta       `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostFirewallsResponse parses an HTTP response from a PostFirewallsWithResponse call
+func ParsePostFirewallsResponse(rsp *http.Response) (*PostFirewallsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostFirewallsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Actions  []Action `json:"actions"`
+			Firewall Firewall `json:"firewall"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteFirewallResponse parses an HTTP response from a DeleteFirewallWithResponse call
+func ParseDeleteFirewallResponse(rsp *http.Response) (*DeleteFirewallResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteFirewallResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ActionsCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFirewallResponse parses an HTTP response from a GetFirewallWithResponse call
+func ParseGetFirewallResponse(rsp *http.Response) (*GetFirewallResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFirewallResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Firewall
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutFirewallResponse parses an HTTP response from a PutFirewallWithResponse call
+func ParsePutFirewallResponse(rsp *http.Response) (*PutFirewallResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutFirewallResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Firewall
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFirewallActionsResponse parses an HTTP response from a GetFirewallActionsWithResponse call
+func ParseGetFirewallActionsResponse(rsp *http.Response) (*GetFirewallActionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFirewallActionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Actions []Action `json:"actions"`
+			Meta    Meta     `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseApplyFirewallToResourcesResponse parses an HTTP response from a ApplyFirewallToResourcesWithResponse call
+func ParseApplyFirewallToResourcesResponse(rsp *http.Response) (*ApplyFirewallToResourcesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ApplyFirewallToResourcesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ActionsCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRemoveFirewallFromResourcesResponse parses an HTTP response from a RemoveFirewallFromResourcesWithResponse call
+func ParseRemoveFirewallFromResourcesResponse(rsp *http.Response) (*RemoveFirewallFromResourcesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RemoveFirewallFromResourcesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ActionsCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetFirewallRulesResponse parses an HTTP response from a SetFirewallRulesWithResponse call
+func ParseSetFirewallRulesResponse(rsp *http.Response) (*SetFirewallRulesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetFirewallRulesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ActionsCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error

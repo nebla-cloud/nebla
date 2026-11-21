@@ -61,6 +61,84 @@ func (e AdminActionStatus) Valid() bool {
 	}
 }
 
+// Defines values for FirewallResourceAppliedToResourcesType.
+const (
+	FirewallResourceAppliedToResourcesTypeServer FirewallResourceAppliedToResourcesType = "server"
+)
+
+// Valid indicates whether the value is a known member of the FirewallResourceAppliedToResourcesType enum.
+func (e FirewallResourceAppliedToResourcesType) Valid() bool {
+	switch e {
+	case FirewallResourceAppliedToResourcesTypeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallResourceType.
+const (
+	FirewallResourceTypeLabelSelector FirewallResourceType = "label_selector"
+	FirewallResourceTypeServer        FirewallResourceType = "server"
+)
+
+// Valid indicates whether the value is a known member of the FirewallResourceType enum.
+func (e FirewallResourceType) Valid() bool {
+	switch e {
+	case FirewallResourceTypeLabelSelector:
+		return true
+	case FirewallResourceTypeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallRuleDirection.
+const (
+	In  FirewallRuleDirection = "in"
+	Out FirewallRuleDirection = "out"
+)
+
+// Valid indicates whether the value is a known member of the FirewallRuleDirection enum.
+func (e FirewallRuleDirection) Valid() bool {
+	switch e {
+	case In:
+		return true
+	case Out:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallRuleProtocol.
+const (
+	Esp  FirewallRuleProtocol = "esp"
+	Gre  FirewallRuleProtocol = "gre"
+	Icmp FirewallRuleProtocol = "icmp"
+	Tcp  FirewallRuleProtocol = "tcp"
+	Udp  FirewallRuleProtocol = "udp"
+)
+
+// Valid indicates whether the value is a known member of the FirewallRuleProtocol enum.
+func (e FirewallRuleProtocol) Valid() bool {
+	switch e {
+	case Esp:
+		return true
+	case Gre:
+		return true
+	case Icmp:
+		return true
+	case Tcp:
+		return true
+	case Udp:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IpPoolFamily.
 const (
 	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
@@ -230,7 +308,7 @@ func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone or orphaned
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned or firewall_unenforced
 		Code string `json:"code"`
 
 		// Message Plain text safe to show members
@@ -291,16 +369,19 @@ type AdminImage struct {
 
 // AdminLocation defines model for AdminLocation.
 type AdminLocation struct {
-	Created       time.Time     `json:"created"`
-	Description   string        `json:"description"`
-	DiskStorage   string        `json:"disk_storage"`
-	Id            int64         `json:"id"`
-	ImportStorage string        `json:"import_storage"`
-	IsoStorage    string        `json:"iso_storage"`
-	Name          string        `json:"name"`
-	Nodes         []Node        `json:"nodes"`
-	Pve           PveConnection `json:"pve"`
-	Updated       time.Time     `json:"updated"`
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	DiskStorage string    `json:"disk_storage"`
+
+	// FirewallEnabled Whether the datacenter firewall was on at the last check; null until checked
+	FirewallEnabled *bool         `json:"firewall_enabled"`
+	Id              int64         `json:"id"`
+	ImportStorage   string        `json:"import_storage"`
+	IsoStorage      string        `json:"iso_storage"`
+	Name            string        `json:"name"`
+	Nodes           []Node        `json:"nodes"`
+	Pve             PveConnection `json:"pve"`
+	Updated         time.Time     `json:"updated"`
 }
 
 // AdminProject defines model for AdminProject.
@@ -463,6 +544,85 @@ type Error struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
+}
+
+// Firewall defines model for Firewall.
+type Firewall struct {
+	AppliedTo []FirewallResource `json:"applied_to"`
+	Created   time.Time          `json:"created"`
+	Id        int64              `json:"id"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels Labels         `json:"labels"`
+	Name   string         `json:"name"`
+	Rules  []FirewallRule `json:"rules"`
+}
+
+// FirewallInput defines model for FirewallInput.
+type FirewallInput struct {
+	ApplyTo *[]FirewallResource `json:"apply_to,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   string  `json:"name"`
+
+	// Rules At most 100
+	Rules *[]FirewallRule `json:"rules,omitempty"`
+}
+
+// FirewallResource defines model for FirewallResource.
+type FirewallResource struct {
+	// AppliedToResources For a label selector, the servers it currently matches
+	AppliedToResources *[]struct {
+		Server struct {
+			Id int64 `json:"id"`
+		} `json:"server"`
+		Type FirewallResourceAppliedToResourcesType `json:"type"`
+	} `json:"applied_to_resources,omitempty"`
+	LabelSelector *struct {
+		// Selector Same syntax as GET /servers?label_selector=
+		Selector string `json:"selector"`
+	} `json:"label_selector,omitempty"`
+	Server *struct {
+		Id int64 `json:"id"`
+	} `json:"server,omitempty"`
+	Type FirewallResourceType `json:"type"`
+}
+
+// FirewallResourceAppliedToResourcesType defines model for FirewallResource.AppliedToResources.Type.
+type FirewallResourceAppliedToResourcesType string
+
+// FirewallResourceType defines model for FirewallResource.Type.
+type FirewallResourceType string
+
+// FirewallRule defines model for FirewallRule.
+type FirewallRule struct {
+	// Description At most 255 characters
+	Description *string `json:"description,omitempty"`
+
+	// DestinationIps Outbound rules only: CIDRs the server may reach, at most 50; 0.0.0.0/0 and ::/0 mean any
+	DestinationIps *[]string             `json:"destination_ips,omitempty"`
+	Direction      FirewallRuleDirection `json:"direction"`
+
+	// Port A port (80) or range (8000-8100); required for tcp and udp, not allowed otherwise
+	Port     *string              `json:"port,omitempty"`
+	Protocol FirewallRuleProtocol `json:"protocol"`
+
+	// SourceIps Inbound rules only: CIDRs allowed to connect, at most 50; 0.0.0.0/0 and ::/0 mean any
+	SourceIps *[]string `json:"source_ips,omitempty"`
+}
+
+// FirewallRuleDirection defines model for FirewallRule.Direction.
+type FirewallRuleDirection string
+
+// FirewallRuleProtocol defines model for FirewallRule.Protocol.
+type FirewallRuleProtocol string
+
+// FirewallUpdate defines model for FirewallUpdate.
+type FirewallUpdate struct {
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
 }
 
 // Image defines model for Image.
@@ -805,8 +965,11 @@ type Role string
 type Server struct {
 	Created time.Time `json:"created"`
 	DiskGb  int       `json:"disk_gb"`
-	Id      int64     `json:"id"`
-	Image   Image     `json:"image"`
+
+	// Firewalls Firewalls in effect on the server and why each applies
+	Firewalls []ServerFirewall `json:"firewalls"`
+	Id        int64            `json:"id"`
+	Image     Image            `json:"image"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels    Labels      `json:"labels"`
@@ -823,8 +986,22 @@ type Server struct {
 // ServerStatus defines model for Server.Status.
 type ServerStatus string
 
+// ServerFirewall defines model for ServerFirewall.
+type ServerFirewall struct {
+	Id   int64  `json:"id"`
+	Name string `json:"name"`
+
+	// Via "direct", or the label selector that applies it
+	Via string `json:"via"`
+}
+
 // ServerInput defines model for ServerInput.
 type ServerInput struct {
+	// Firewalls The project's firewalls to apply directly; the server boots with their rules in place
+	Firewalls *[]struct {
+		Firewall int64 `json:"firewall"`
+	} `json:"firewalls,omitempty"`
+
 	// Image Image id or name
 	Image string `json:"image"`
 
@@ -972,6 +1149,11 @@ type ActionCreated struct {
 	Action Action `json:"action"`
 }
 
+// ActionsCreated defines model for ActionsCreated.
+type ActionsCreated struct {
+	Actions []Action `json:"actions"`
+}
+
 // GetActionsParams defines parameters for GetActions.
 type GetActionsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -1070,6 +1252,45 @@ type PostAuthLoginJSONBody struct {
 
 // PostEnrollReportJSONBody defines parameters for PostEnrollReport.
 type PostEnrollReportJSONBody = stdjson.RawMessage
+
+// GetFirewallsParams defines parameters for GetFirewalls.
+type GetFirewallsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact firewall name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+}
+
+// GetFirewallActionsParams defines parameters for GetFirewallActions.
+type GetFirewallActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// ApplyFirewallToResourcesJSONBody defines parameters for ApplyFirewallToResources.
+type ApplyFirewallToResourcesJSONBody struct {
+	ApplyTo []FirewallResource `json:"apply_to"`
+}
+
+// RemoveFirewallFromResourcesJSONBody defines parameters for RemoveFirewallFromResources.
+type RemoveFirewallFromResourcesJSONBody struct {
+	RemoveFrom []FirewallResource `json:"remove_from"`
+}
+
+// SetFirewallRulesJSONBody defines parameters for SetFirewallRules.
+type SetFirewallRulesJSONBody struct {
+	Rules []FirewallRule `json:"rules"`
+}
 
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
@@ -1242,6 +1463,21 @@ type PostAuthTotpVerifyJSONRequestBody = TotpCode
 
 // PostEnrollReportJSONRequestBody defines body for PostEnrollReport for application/json ContentType.
 type PostEnrollReportJSONRequestBody = PostEnrollReportJSONBody
+
+// PostFirewallsJSONRequestBody defines body for PostFirewalls for application/json ContentType.
+type PostFirewallsJSONRequestBody = FirewallInput
+
+// PutFirewallJSONRequestBody defines body for PutFirewall for application/json ContentType.
+type PutFirewallJSONRequestBody = FirewallUpdate
+
+// ApplyFirewallToResourcesJSONRequestBody defines body for ApplyFirewallToResources for application/json ContentType.
+type ApplyFirewallToResourcesJSONRequestBody ApplyFirewallToResourcesJSONBody
+
+// RemoveFirewallFromResourcesJSONRequestBody defines body for RemoveFirewallFromResources for application/json ContentType.
+type RemoveFirewallFromResourcesJSONRequestBody RemoveFirewallFromResourcesJSONBody
+
+// SetFirewallRulesJSONRequestBody defines body for SetFirewallRules for application/json ContentType.
+type SetFirewallRulesJSONRequestBody SetFirewallRulesJSONBody
 
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
@@ -1482,6 +1718,33 @@ type ServerInterface interface {
 	// PostEnrollReport The setup script's report of the new token, nodes and storages
 	// (POST /enroll/report)
 	PostEnrollReport(w http.ResponseWriter, r *http.Request)
+	// GetFirewalls List the project's firewalls
+	// (GET /firewalls)
+	GetFirewalls(w http.ResponseWriter, r *http.Request, params GetFirewallsParams)
+	// PostFirewalls Create a firewall
+	// (POST /firewalls)
+	PostFirewalls(w http.ResponseWriter, r *http.Request)
+	// DeleteFirewall Delete a firewall, removing it from every server
+	// (DELETE /firewalls/{id})
+	DeleteFirewall(w http.ResponseWriter, r *http.Request, id ID)
+	// GetFirewall Get a firewall
+	// (GET /firewalls/{id})
+	GetFirewall(w http.ResponseWriter, r *http.Request, id ID)
+	// PutFirewall Rename a firewall or replace its labels
+	// (PUT /firewalls/{id})
+	PutFirewall(w http.ResponseWriter, r *http.Request, id ID)
+	// GetFirewallActions List the apply_firewalls actions a firewall caused
+	// (GET /firewalls/{id}/actions)
+	GetFirewallActions(w http.ResponseWriter, r *http.Request, id ID, params GetFirewallActionsParams)
+	// ApplyFirewallToResources Apply a firewall to servers or label selectors
+	// (POST /firewalls/{id}/actions/apply_to_resources)
+	ApplyFirewallToResources(w http.ResponseWriter, r *http.Request, id ID)
+	// RemoveFirewallFromResources Remove a firewall from servers or label selectors
+	// (POST /firewalls/{id}/actions/remove_from_resources)
+	RemoveFirewallFromResources(w http.ResponseWriter, r *http.Request, id ID)
+	// SetFirewallRules Replace a firewall's rules
+	// (POST /firewalls/{id}/actions/set_rules)
+	SetFirewallRules(w http.ResponseWriter, r *http.Request, id ID)
 	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
@@ -2010,6 +2273,60 @@ func (_ Unimplemented) GetEnrollCheck(w http.ResponseWriter, r *http.Request) {
 // PostEnrollReport The setup script's report of the new token, nodes and storages
 // (POST /enroll/report)
 func (_ Unimplemented) PostEnrollReport(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetFirewalls List the project's firewalls
+// (GET /firewalls)
+func (_ Unimplemented) GetFirewalls(w http.ResponseWriter, r *http.Request, params GetFirewallsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostFirewalls Create a firewall
+// (POST /firewalls)
+func (_ Unimplemented) PostFirewalls(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteFirewall Delete a firewall, removing it from every server
+// (DELETE /firewalls/{id})
+func (_ Unimplemented) DeleteFirewall(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetFirewall Get a firewall
+// (GET /firewalls/{id})
+func (_ Unimplemented) GetFirewall(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutFirewall Rename a firewall or replace its labels
+// (PUT /firewalls/{id})
+func (_ Unimplemented) PutFirewall(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetFirewallActions List the apply_firewalls actions a firewall caused
+// (GET /firewalls/{id}/actions)
+func (_ Unimplemented) GetFirewallActions(w http.ResponseWriter, r *http.Request, id ID, params GetFirewallActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ApplyFirewallToResources Apply a firewall to servers or label selectors
+// (POST /firewalls/{id}/actions/apply_to_resources)
+func (_ Unimplemented) ApplyFirewallToResources(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RemoveFirewallFromResources Remove a firewall from servers or label selectors
+// (POST /firewalls/{id}/actions/remove_from_resources)
+func (_ Unimplemented) RemoveFirewallFromResources(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SetFirewallRules Replace a firewall's rules
+// (POST /firewalls/{id}/actions/set_rules)
+func (_ Unimplemented) SetFirewallRules(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3953,6 +4270,329 @@ func (siw *ServerInterfaceWrapper) PostEnrollReport(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostEnrollReport(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFirewalls operation middleware
+func (siw *ServerInterfaceWrapper) GetFirewalls(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFirewallsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "label_selector" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label_selector", r.URL.Query(), &params.LabelSelector, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label_selector"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label_selector", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFirewalls(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostFirewalls operation middleware
+func (siw *ServerInterfaceWrapper) PostFirewalls(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostFirewalls(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFirewall operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFirewall(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFirewall(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFirewall operation middleware
+func (siw *ServerInterfaceWrapper) GetFirewall(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFirewall(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutFirewall operation middleware
+func (siw *ServerInterfaceWrapper) PutFirewall(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutFirewall(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFirewallActions operation middleware
+func (siw *ServerInterfaceWrapper) GetFirewallActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFirewallActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFirewallActions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ApplyFirewallToResources operation middleware
+func (siw *ServerInterfaceWrapper) ApplyFirewallToResources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ApplyFirewallToResources(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveFirewallFromResources operation middleware
+func (siw *ServerInterfaceWrapper) RemoveFirewallFromResources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveFirewallFromResources(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetFirewallRules operation middleware
+func (siw *ServerInterfaceWrapper) SetFirewallRules(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetFirewallRules(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5907,6 +6547,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/ssh_keys/{id}", wrapper.PutSshKey)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/firewalls", wrapper.GetFirewalls)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/firewalls", wrapper.PostFirewalls)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/firewalls/{id}", wrapper.DeleteFirewall)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/firewalls/{id}", wrapper.GetFirewall)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/firewalls/{id}", wrapper.PutFirewall)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/firewalls/{id}/actions", wrapper.GetFirewallActions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/firewalls/{id}/actions/set_rules", wrapper.SetFirewallRules)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/firewalls/{id}/actions/apply_to_resources", wrapper.ApplyFirewallToResources)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/firewalls/{id}/actions/remove_from_resources", wrapper.RemoveFirewallFromResources)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/actions", wrapper.GetActions)
 	})
 	r.Group(func(r chi.Router) {
@@ -5969,6 +6636,10 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 
 type ActionCreatedJSONResponse struct {
 	Action Action `json:"action"`
+}
+
+type ActionsCreatedJSONResponse struct {
+	Actions []Action `json:"actions"`
 }
 
 type ErrorJSONResponse Error
@@ -11225,6 +11896,917 @@ func (response PostEnrollReportdefaultJSONResponse) VisitPostEnrollReportRespons
 	return err
 }
 
+type GetFirewallsRequestObject struct {
+	Params GetFirewallsParams
+}
+
+type GetFirewallsResponseObject interface {
+	VisitGetFirewallsResponse(w http.ResponseWriter) error
+}
+
+type GetFirewalls200JSONResponse struct {
+	Firewalls []Firewall `json:"firewalls"`
+	Meta      Meta       `json:"meta"`
+}
+
+func (response GetFirewalls200JSONResponse) VisitGetFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewalls401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetFirewalls401JSONResponse) VisitGetFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewalls404JSONResponse Error
+
+func (response GetFirewalls404JSONResponse) VisitGetFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewalls422JSONResponse Error
+
+func (response GetFirewalls422JSONResponse) VisitGetFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewallsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetFirewallsdefaultJSONResponse) VisitGetFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewallsRequestObject struct {
+	Body *PostFirewallsJSONRequestBody
+}
+
+type PostFirewallsResponseObject interface {
+	VisitPostFirewallsResponse(w http.ResponseWriter) error
+}
+
+type PostFirewalls201JSONResponse struct {
+	Actions  []Action `json:"actions"`
+	Firewall Firewall `json:"firewall"`
+}
+
+func (response PostFirewalls201JSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewalls401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostFirewalls401JSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewalls403JSONResponse Error
+
+func (response PostFirewalls403JSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewalls404JSONResponse Error
+
+func (response PostFirewalls404JSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewalls409JSONResponse Error
+
+func (response PostFirewalls409JSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewalls422JSONResponse Error
+
+func (response PostFirewalls422JSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewalls503JSONResponse Error
+
+func (response PostFirewalls503JSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFirewallsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostFirewallsdefaultJSONResponse) VisitPostFirewallsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFirewallRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteFirewallResponseObject interface {
+	VisitDeleteFirewallResponse(w http.ResponseWriter) error
+}
+
+type DeleteFirewall200JSONResponse struct{ ActionsCreatedJSONResponse }
+
+func (response DeleteFirewall200JSONResponse) VisitDeleteFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFirewall401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteFirewall401JSONResponse) VisitDeleteFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFirewall403JSONResponse Error
+
+func (response DeleteFirewall403JSONResponse) VisitDeleteFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFirewall404JSONResponse Error
+
+func (response DeleteFirewall404JSONResponse) VisitDeleteFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFirewall503JSONResponse Error
+
+func (response DeleteFirewall503JSONResponse) VisitDeleteFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFirewalldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteFirewalldefaultJSONResponse) VisitDeleteFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewallRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetFirewallResponseObject interface {
+	VisitGetFirewallResponse(w http.ResponseWriter) error
+}
+
+type GetFirewall200JSONResponse Firewall
+
+func (response GetFirewall200JSONResponse) VisitGetFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewall401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetFirewall401JSONResponse) VisitGetFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewall404JSONResponse Error
+
+func (response GetFirewall404JSONResponse) VisitGetFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewalldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetFirewalldefaultJSONResponse) VisitGetFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFirewallRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutFirewallJSONRequestBody
+}
+
+type PutFirewallResponseObject interface {
+	VisitPutFirewallResponse(w http.ResponseWriter) error
+}
+
+type PutFirewall200JSONResponse Firewall
+
+func (response PutFirewall200JSONResponse) VisitPutFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFirewall401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutFirewall401JSONResponse) VisitPutFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFirewall403JSONResponse Error
+
+func (response PutFirewall403JSONResponse) VisitPutFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFirewall404JSONResponse Error
+
+func (response PutFirewall404JSONResponse) VisitPutFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFirewall409JSONResponse Error
+
+func (response PutFirewall409JSONResponse) VisitPutFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFirewall422JSONResponse Error
+
+func (response PutFirewall422JSONResponse) VisitPutFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFirewalldefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutFirewalldefaultJSONResponse) VisitPutFirewallResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewallActionsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetFirewallActionsParams
+}
+
+type GetFirewallActionsResponseObject interface {
+	VisitGetFirewallActionsResponse(w http.ResponseWriter) error
+}
+
+type GetFirewallActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetFirewallActions200JSONResponse) VisitGetFirewallActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewallActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetFirewallActions401JSONResponse) VisitGetFirewallActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewallActions404JSONResponse Error
+
+func (response GetFirewallActions404JSONResponse) VisitGetFirewallActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewallActions422JSONResponse Error
+
+func (response GetFirewallActions422JSONResponse) VisitGetFirewallActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFirewallActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetFirewallActionsdefaultJSONResponse) VisitGetFirewallActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResourcesRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ApplyFirewallToResourcesJSONRequestBody
+}
+
+type ApplyFirewallToResourcesResponseObject interface {
+	VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error
+}
+
+type ApplyFirewallToResources201JSONResponse struct{ ActionsCreatedJSONResponse }
+
+func (response ApplyFirewallToResources201JSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResources401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ApplyFirewallToResources401JSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResources403JSONResponse Error
+
+func (response ApplyFirewallToResources403JSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResources404JSONResponse Error
+
+func (response ApplyFirewallToResources404JSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResources409JSONResponse Error
+
+func (response ApplyFirewallToResources409JSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResources422JSONResponse Error
+
+func (response ApplyFirewallToResources422JSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResources503JSONResponse Error
+
+func (response ApplyFirewallToResources503JSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApplyFirewallToResourcesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ApplyFirewallToResourcesdefaultJSONResponse) VisitApplyFirewallToResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFirewallFromResourcesRequestObject struct {
+	Id   ID `json:"id"`
+	Body *RemoveFirewallFromResourcesJSONRequestBody
+}
+
+type RemoveFirewallFromResourcesResponseObject interface {
+	VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error
+}
+
+type RemoveFirewallFromResources201JSONResponse struct{ ActionsCreatedJSONResponse }
+
+func (response RemoveFirewallFromResources201JSONResponse) VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFirewallFromResources401JSONResponse struct{ ErrorJSONResponse }
+
+func (response RemoveFirewallFromResources401JSONResponse) VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFirewallFromResources403JSONResponse Error
+
+func (response RemoveFirewallFromResources403JSONResponse) VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFirewallFromResources404JSONResponse Error
+
+func (response RemoveFirewallFromResources404JSONResponse) VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFirewallFromResources422JSONResponse Error
+
+func (response RemoveFirewallFromResources422JSONResponse) VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFirewallFromResources503JSONResponse Error
+
+func (response RemoveFirewallFromResources503JSONResponse) VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveFirewallFromResourcesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RemoveFirewallFromResourcesdefaultJSONResponse) VisitRemoveFirewallFromResourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFirewallRulesRequestObject struct {
+	Id   ID `json:"id"`
+	Body *SetFirewallRulesJSONRequestBody
+}
+
+type SetFirewallRulesResponseObject interface {
+	VisitSetFirewallRulesResponse(w http.ResponseWriter) error
+}
+
+type SetFirewallRules201JSONResponse struct{ ActionsCreatedJSONResponse }
+
+func (response SetFirewallRules201JSONResponse) VisitSetFirewallRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFirewallRules401JSONResponse struct{ ErrorJSONResponse }
+
+func (response SetFirewallRules401JSONResponse) VisitSetFirewallRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFirewallRules403JSONResponse Error
+
+func (response SetFirewallRules403JSONResponse) VisitSetFirewallRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFirewallRules404JSONResponse Error
+
+func (response SetFirewallRules404JSONResponse) VisitSetFirewallRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFirewallRules422JSONResponse Error
+
+func (response SetFirewallRules422JSONResponse) VisitSetFirewallRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFirewallRules503JSONResponse Error
+
+func (response SetFirewallRules503JSONResponse) VisitSetFirewallRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFirewallRulesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response SetFirewallRulesdefaultJSONResponse) VisitSetFirewallRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthzRequestObject struct {
 }
 
@@ -16095,6 +17677,33 @@ type StrictServerInterface interface {
 	// PostEnrollReport The setup script's report of the new token, nodes and storages
 	// (POST /enroll/report)
 	PostEnrollReport(ctx context.Context, request PostEnrollReportRequestObject) (PostEnrollReportResponseObject, error)
+	// GetFirewalls List the project's firewalls
+	// (GET /firewalls)
+	GetFirewalls(ctx context.Context, request GetFirewallsRequestObject) (GetFirewallsResponseObject, error)
+	// PostFirewalls Create a firewall
+	// (POST /firewalls)
+	PostFirewalls(ctx context.Context, request PostFirewallsRequestObject) (PostFirewallsResponseObject, error)
+	// DeleteFirewall Delete a firewall, removing it from every server
+	// (DELETE /firewalls/{id})
+	DeleteFirewall(ctx context.Context, request DeleteFirewallRequestObject) (DeleteFirewallResponseObject, error)
+	// GetFirewall Get a firewall
+	// (GET /firewalls/{id})
+	GetFirewall(ctx context.Context, request GetFirewallRequestObject) (GetFirewallResponseObject, error)
+	// PutFirewall Rename a firewall or replace its labels
+	// (PUT /firewalls/{id})
+	PutFirewall(ctx context.Context, request PutFirewallRequestObject) (PutFirewallResponseObject, error)
+	// GetFirewallActions List the apply_firewalls actions a firewall caused
+	// (GET /firewalls/{id}/actions)
+	GetFirewallActions(ctx context.Context, request GetFirewallActionsRequestObject) (GetFirewallActionsResponseObject, error)
+	// ApplyFirewallToResources Apply a firewall to servers or label selectors
+	// (POST /firewalls/{id}/actions/apply_to_resources)
+	ApplyFirewallToResources(ctx context.Context, request ApplyFirewallToResourcesRequestObject) (ApplyFirewallToResourcesResponseObject, error)
+	// RemoveFirewallFromResources Remove a firewall from servers or label selectors
+	// (POST /firewalls/{id}/actions/remove_from_resources)
+	RemoveFirewallFromResources(ctx context.Context, request RemoveFirewallFromResourcesRequestObject) (RemoveFirewallFromResourcesResponseObject, error)
+	// SetFirewallRules Replace a firewall's rules
+	// (POST /firewalls/{id}/actions/set_rules)
+	SetFirewallRules(ctx context.Context, request SetFirewallRulesRequestObject) (SetFirewallRulesResponseObject, error)
 	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
@@ -17980,6 +19589,274 @@ func (sh *strictHandler) PostEnrollReport(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostEnrollReportResponseObject); ok {
 		if err := validResponse.VisitPostEnrollReportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFirewalls operation middleware
+func (sh *strictHandler) GetFirewalls(w http.ResponseWriter, r *http.Request, params GetFirewallsParams) {
+	var request GetFirewallsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFirewalls(ctx, request.(GetFirewallsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFirewalls")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFirewallsResponseObject); ok {
+		if err := validResponse.VisitGetFirewallsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostFirewalls operation middleware
+func (sh *strictHandler) PostFirewalls(w http.ResponseWriter, r *http.Request) {
+	var request PostFirewallsRequestObject
+
+	var body PostFirewallsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostFirewalls(ctx, request.(PostFirewallsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostFirewalls")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostFirewallsResponseObject); ok {
+		if err := validResponse.VisitPostFirewallsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFirewall operation middleware
+func (sh *strictHandler) DeleteFirewall(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteFirewallRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFirewall(ctx, request.(DeleteFirewallRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFirewall")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFirewallResponseObject); ok {
+		if err := validResponse.VisitDeleteFirewallResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFirewall operation middleware
+func (sh *strictHandler) GetFirewall(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetFirewallRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFirewall(ctx, request.(GetFirewallRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFirewall")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFirewallResponseObject); ok {
+		if err := validResponse.VisitGetFirewallResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutFirewall operation middleware
+func (sh *strictHandler) PutFirewall(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutFirewallRequestObject
+
+	request.Id = id
+
+	var body PutFirewallJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutFirewall(ctx, request.(PutFirewallRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutFirewall")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutFirewallResponseObject); ok {
+		if err := validResponse.VisitPutFirewallResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFirewallActions operation middleware
+func (sh *strictHandler) GetFirewallActions(w http.ResponseWriter, r *http.Request, id ID, params GetFirewallActionsParams) {
+	var request GetFirewallActionsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFirewallActions(ctx, request.(GetFirewallActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFirewallActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFirewallActionsResponseObject); ok {
+		if err := validResponse.VisitGetFirewallActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ApplyFirewallToResources operation middleware
+func (sh *strictHandler) ApplyFirewallToResources(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ApplyFirewallToResourcesRequestObject
+
+	request.Id = id
+
+	var body ApplyFirewallToResourcesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ApplyFirewallToResources(ctx, request.(ApplyFirewallToResourcesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApplyFirewallToResources")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ApplyFirewallToResourcesResponseObject); ok {
+		if err := validResponse.VisitApplyFirewallToResourcesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveFirewallFromResources operation middleware
+func (sh *strictHandler) RemoveFirewallFromResources(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RemoveFirewallFromResourcesRequestObject
+
+	request.Id = id
+
+	var body RemoveFirewallFromResourcesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveFirewallFromResources(ctx, request.(RemoveFirewallFromResourcesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveFirewallFromResources")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveFirewallFromResourcesResponseObject); ok {
+		if err := validResponse.VisitRemoveFirewallFromResourcesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetFirewallRules operation middleware
+func (sh *strictHandler) SetFirewallRules(w http.ResponseWriter, r *http.Request, id ID) {
+	var request SetFirewallRulesRequestObject
+
+	request.Id = id
+
+	var body SetFirewallRulesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetFirewallRules(ctx, request.(SetFirewallRulesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetFirewallRules")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetFirewallRulesResponseObject); ok {
+		if err := validResponse.VisitSetFirewallRulesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -11,7 +11,11 @@ import (
 
 func apiServer(s servers.Server) apigen.Server {
 	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apigen.LocationRef{Id: s.Location.ID, Name: s.Location.Name, Description: s.Location.Description},
-		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Created: s.CreatedAt}
+		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Created: s.CreatedAt,
+		Firewalls: make([]apigen.ServerFirewall, len(s.Firewalls))}
+	for i, f := range s.Firewalls {
+		out.Firewalls[i] = apigen.ServerFirewall{Id: f.FirewallID, Name: f.Name, Via: f.Via}
+	}
 	if s.IPv4.IsValid() {
 		out.PublicNet.Ipv4 = &apigen.ServerIp{Ip: s.IPv4.String()}
 	}
@@ -67,6 +71,9 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 			in.IPv4 = *b.PublicNet.Ipv4
 		}
 		in.IPv6 = deref(b.PublicNet.Ipv6)
+	}
+	for _, f := range deref(b.Firewalls) {
+		in.Firewalls = append(in.Firewalls, f.Firewall)
 	}
 	if b.StartAfterCreate != nil {
 		in.StartAfter = *b.StartAfterCreate

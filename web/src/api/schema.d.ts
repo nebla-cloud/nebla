@@ -1232,6 +1232,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/firewalls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the project's firewalls */
+        get: operations["getFirewalls"];
+        put?: never;
+        /** Create a firewall */
+        post: operations["postFirewalls"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/firewalls/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get a firewall */
+        get: operations["getFirewall"];
+        /** Rename a firewall or replace its labels */
+        put: operations["putFirewall"];
+        post?: never;
+        /** Delete a firewall, removing it from every server */
+        delete: operations["deleteFirewall"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/firewalls/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** List the apply_firewalls actions a firewall caused */
+        get: operations["getFirewallActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/firewalls/{id}/actions/set_rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace a firewall's rules */
+        post: operations["setFirewallRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/firewalls/{id}/actions/apply_to_resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply a firewall to servers or label selectors */
+        post: operations["applyFirewallToResources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/firewalls/{id}/actions/remove_from_resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove a firewall from servers or label selectors */
+        post: operations["removeFirewallFromResources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/actions": {
         parameters: {
             query?: never;
@@ -1748,7 +1863,7 @@ export interface components {
                 type: string;
             }[];
             error: {
-                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone or orphaned */
+                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned or firewall_unenforced */
                 code: string;
                 /** @description Plain text safe to show members */
                 message: string;
@@ -1858,6 +1973,8 @@ export interface components {
             disk_storage: string;
             iso_storage: string;
             import_storage: string;
+            /** @description Whether the datacenter firewall was on at the last check; null until checked */
+            firewall_enabled: boolean | null;
             nodes: components["schemas"]["Node"][];
             /** Format: date-time */
             created: string;
@@ -2090,6 +2207,69 @@ export interface components {
         Labels: {
             [key: string]: string;
         };
+        FirewallRule: {
+            /** @enum {string} */
+            direction: "in" | "out";
+            /** @enum {string} */
+            protocol: "tcp" | "udp" | "icmp" | "esp" | "gre";
+            /** @description A port (80) or range (8000-8100); required for tcp and udp, not allowed otherwise */
+            port?: string | null;
+            /** @description Inbound rules only: CIDRs allowed to connect, at most 50; 0.0.0.0/0 and ::/0 mean any */
+            source_ips?: string[];
+            /** @description Outbound rules only: CIDRs the server may reach, at most 50; 0.0.0.0/0 and ::/0 mean any */
+            destination_ips?: string[];
+            /** @description At most 255 characters */
+            description?: string;
+        };
+        FirewallResource: {
+            /** @enum {string} */
+            type: "server" | "label_selector";
+            server?: {
+                /** Format: int64 */
+                id: number;
+            };
+            label_selector?: {
+                /** @description Same syntax as GET /servers?label_selector= */
+                selector: string;
+            };
+            /** @description For a label selector, the servers it currently matches */
+            readonly applied_to_resources?: {
+                /** @enum {string} */
+                type: "server";
+                server: {
+                    /** Format: int64 */
+                    id: number;
+                };
+            }[];
+        };
+        Firewall: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            labels: components["schemas"]["Labels"];
+            rules: components["schemas"]["FirewallRule"][];
+            applied_to: components["schemas"]["FirewallResource"][];
+            /** Format: date-time */
+            created: string;
+        };
+        FirewallInput: {
+            name: string;
+            labels?: components["schemas"]["Labels"];
+            /** @description At most 100 */
+            rules?: components["schemas"]["FirewallRule"][];
+            apply_to?: components["schemas"]["FirewallResource"][];
+        };
+        FirewallUpdate: {
+            name?: string;
+            labels?: components["schemas"]["Labels"];
+        };
+        ServerFirewall: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description "direct", or the label selector that applies it */
+            via: string;
+        };
         ServerInput: {
             name: string;
             /** @description Server type id or name */
@@ -2111,6 +2291,11 @@ export interface components {
             labels?: components["schemas"]["Labels"];
             /** @default true */
             start_after_create: boolean;
+            /** @description The project's firewalls to apply directly; the server boots with their rules in place */
+            firewalls?: {
+                /** Format: int64 */
+                firewall: number;
+            }[];
         };
         ServerUpdate: {
             name?: string;
@@ -2160,6 +2345,8 @@ export interface components {
             };
             labels: components["schemas"]["Labels"];
             disk_gb: number;
+            /** @description Firewalls in effect on the server and why each applies */
+            firewalls: components["schemas"]["ServerFirewall"][];
             /** Format: date-time */
             created: string;
         };
@@ -2173,6 +2360,17 @@ export interface components {
             content: {
                 "application/json": {
                     action: components["schemas"]["Action"];
+                };
+            };
+        };
+        /** @description One apply_firewalls action per affected server */
+        ActionsCreated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    actions: components["schemas"]["Action"][];
                 };
             };
         };
@@ -4874,6 +5072,265 @@ export interface operations {
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFirewalls: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key) */
+                label_selector?: string;
+                /** @description Exact firewall name */
+                name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        firewalls: components["schemas"]["Firewall"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postFirewalls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirewallInput"];
+            };
+        };
+        responses: {
+            /** @description Created; one apply_firewalls action per server it covers */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        firewall: components["schemas"]["Firewall"];
+                        actions: components["schemas"]["Action"][];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFirewall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Firewall"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    putFirewall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirewallUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Firewall"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteFirewall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ActionsCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFirewallActions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Only actions in these statuses (running, success, error); repeat the parameter or separate with commas */
+                status?: string[];
+                /** @description id, id:asc or id:desc (default) */
+                sort?: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        actions: components["schemas"]["Action"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    setFirewallRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rules: components["schemas"]["FirewallRule"][];
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["ActionsCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    applyFirewallToResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    apply_to: components["schemas"]["FirewallResource"][];
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["ActionsCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeFirewallFromResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    remove_from: components["schemas"]["FirewallResource"][];
+                };
+            };
+        };
+        responses: {
+            201: components["responses"]["ActionsCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

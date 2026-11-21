@@ -76,4 +76,10 @@ func TestScopedHandlersFailClosed(t *testing.T) {
 	require.ErrorIs(t, err, errScopeNotFound)
 	_, err = s.GetServerMetrics(ctx, apigen.GetServerMetricsRequestObject{Id: 1})
 	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.GetFirewalls(ctx, apigen.GetFirewallsRequestObject{})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.DeleteFirewall(ctx, apigen.DeleteFirewallRequestObject{Id: 1})
+	require.ErrorIs(t, err, errScopeNotFound)
+	_, err = s.SetFirewallRules(ctx, apigen.SetFirewallRulesRequestObject{Id: 1, Body: &apigen.SetFirewallRulesJSONRequestBody{}})
+	require.ErrorIs(t, err, errScopeNotFound)
 }
