@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type uPlot from 'uplot'
-import { formatPercent, formatRate, readout, toSeries } from './metrics'
+import {
+  chartHeader,
+  formatPercent,
+  formatRate,
+  nearestIndex,
+  readout,
+  toRows,
+  toSeries,
+  yDomain,
+} from './metrics'
 
 describe('toSeries', () => {
   it('nulls stay null', () => {
@@ -98,5 +107,99 @@ describe('readout', () => {
     expect(readout(cpu, 0, ['CPU'], formatPercent, 'UTC')?.values).toEqual([
       { label: 'CPU', value: '42%' },
     ])
+  })
+})
+
+describe('toRows', () => {
+  it('unions timestamps and keeps nulls', () => {
+    const rows = toRows(
+      {
+        a: [
+          [1, 5],
+          [3, null],
+        ],
+        b: [[2, 7]],
+      },
+      ['a', 'b'],
+    )
+    expect(rows).toEqual([
+      { t: 1, v: [5, null] },
+      { t: 2, v: [null, 7] },
+      { t: 3, v: [null, null] },
+    ])
+  })
+
+  it('missing key is all null', () => {
+    expect(toRows({ a: [[1, 2]] }, ['a', 'zz'])).toEqual([{ t: 1, v: [2, null] }])
+  })
+})
+
+describe('nearestIndex', () => {
+  const rows = [
+    { t: 0, v: [] },
+    { t: 60, v: [] },
+    { t: 120, v: [] },
+  ]
+
+  it('snaps to the closest row', () => {
+    expect(nearestIndex(rows, 25)).toBe(0)
+    expect(nearestIndex(rows, 35)).toBe(1)
+    expect(nearestIndex(rows, 999)).toBe(2)
+  })
+
+  it('is -1 for no rows', () => expect(nearestIndex([], 5)).toBe(-1))
+})
+
+describe('yDomain', () => {
+  it('percent is fixed', () => expect(yDomain([{ t: 0, v: [250] }], 'percent')).toEqual([0, 100]))
+
+  it('idle rate floors at 1 KB/s', () =>
+    expect(yDomain([{ t: 0, v: [0, null] }], 'rate')).toEqual([0, 1024]))
+
+  it('rate uses the peak across series', () =>
+    expect(yDomain([{ t: 0, v: [10, 4096] }], 'rate')).toEqual([0, 4096]))
+})
+
+describe('chartHeader', () => {
+  const cpu = [
+    { t: 0, v: [7] },
+    { t: 60, v: [78] },
+    { t: 120, v: [14] },
+    { t: 180, v: [null] },
+  ]
+
+  it('single series: latest value and min / avg / max', () => {
+    expect(chartHeader(cpu, ['CPU'], 'percent', null)).toEqual({
+      value: '14%',
+      stats: ['min 7%', 'avg 33%', 'max 78%'],
+    })
+  })
+
+  it('follows the hovered index', () => {
+    expect(chartHeader(cpu, ['CPU'], 'percent', 1).value).toBe('78%')
+  })
+
+  it('two series: first big, second in the unit slot, peak per series', () => {
+    const disk = [
+      { t: 0, v: [1536, 0] },
+      { t: 60, v: [4096, null] },
+    ]
+    expect(chartHeader(disk, ['Read', 'Write'], 'rate', null)).toEqual({
+      value: '4.0 KB/s',
+      unit: 'read / 0 B/s write',
+      stats: ['peak read 4.0 KB/s', 'peak write 0 B/s'],
+    })
+  })
+
+  it('a series with no data shows a dash', () => {
+    expect(chartHeader([{ t: 0, v: [5, null] }], ['In', 'Out'], 'rate', null)).toEqual({
+      value: '5 B/s',
+      unit: 'in / — out',
+      stats: ['peak in 5 B/s', 'peak out —'],
+    })
+  })
+
+  it('hovering a gap shows a dash', () => {
+    expect(chartHeader(cpu, ['CPU'], 'percent', 3).value).toBe('—')
   })
 })

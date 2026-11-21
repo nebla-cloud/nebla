@@ -51,6 +51,88 @@ export function toSeries(
   return [xs, ...cols] as uPlot.AlignedData
 }
 
+export type MetricRow = { t: number; v: (number | null)[] }
+
+// Union of all timestamps (unix seconds), one value per key, null where a series has no sample.
+export function toRows(ts: TimeSeries, keys: string[]): MetricRow[] {
+  const stamps = new Set<number>()
+  for (const k of keys) for (const [t] of ts[k] ?? []) stamps.add(t)
+  const byKey = keys.map((k) => new Map<number, number | null>(ts[k] ?? []))
+  return [...stamps]
+    .sort((a, b) => a - b)
+    .map((t) => ({ t, v: byKey.map((m) => m.get(t) ?? null) }))
+}
+
+export function nearestIndex(rows: MetricRow[], t: number): number {
+  let best = -1
+  let dist = Infinity
+  rows.forEach((r, i) => {
+    const d = Math.abs(r.t - t)
+    if (d < dist) {
+      best = i
+      dist = d
+    }
+  })
+  return best
+}
+
+// Rates floor at 1 KB/s so an idle chart isn't all noise.
+export function yDomain(rows: MetricRow[], unit: 'percent' | 'rate'): [number, number] {
+  if (unit === 'percent') return [0, 100]
+  let peak = 0
+  for (const r of rows) for (const v of r.v) if (v != null && v > peak) peak = v
+  return [0, Math.max(peak, 1024)]
+}
+
+export type ChartHeader = { value: string; unit?: string; stats: string[] }
+
+const DASH = '\u2014'
+
+function column(rows: MetricRow[], i: number): number[] {
+  return rows.map((r) => r.v[i]).filter((v): v is number => v != null)
+}
+
+function latest(rows: MetricRow[], i: number): number | null {
+  for (let j = rows.length - 1; j >= 0; j--) {
+    const v = rows[j]!.v[i]
+    if (v != null) return v
+  }
+  return null
+}
+
+// What the chart header reads: values at idx, or each series' latest value when idx is null.
+export function chartHeader(
+  rows: MetricRow[],
+  labels: string[],
+  unit: 'percent' | 'rate',
+  idx: number | null,
+): ChartHeader {
+  const fmt = (v: number | null) =>
+    v == null ? DASH : unit === 'percent' ? formatPercent(v) : formatRate(v)
+  const at = (i: number) => (idx == null ? latest(rows, i) : (rows[idx]?.v[i] ?? null))
+  if (labels.length === 1) {
+    const col = column(rows, 0)
+    const stats = col.length
+      ? [
+          `min ${fmt(Math.min(...col))}`,
+          `avg ${fmt(col.reduce((a, b) => a + b, 0) / col.length)}`,
+          `max ${fmt(Math.max(...col))}`,
+        ]
+      : [`min ${DASH}`, `avg ${DASH}`, `max ${DASH}`]
+    return { value: fmt(at(0)), stats }
+  }
+  const words = labels.map((l) => l.toLowerCase())
+  const peak = (i: number) => {
+    const col = column(rows, i)
+    return col.length ? Math.max(...col) : null
+  }
+  return {
+    value: fmt(at(0)),
+    unit: `${words[0]} / ${fmt(at(1))} ${words[1]}`,
+    stats: words.map((w, i) => `peak ${w} ${fmt(peak(i))}`),
+  }
+}
+
 export function formatRate(bytesPerSec: number): string {
   const units = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s']
   let v = Math.max(0, bytesPerSec)
