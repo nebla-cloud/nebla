@@ -204,10 +204,10 @@ func ParseReport(raw []byte) (Report, error) {
 		if st.NeblaISO {
 			ok := false
 			for _, c := range content {
-				ok = ok || c == "iso" || c == "import"
+				ok = ok || c == "iso" || c == "import" || c == "images"
 			}
 			if !ok {
-				return Report{}, bad("nebla_iso storage " + s.Storage + " has no iso or import content")
+				return Report{}, bad("nebla_iso storage " + s.Storage + " has no iso, import or images content")
 			}
 		}
 		seen[s.Storage] = true

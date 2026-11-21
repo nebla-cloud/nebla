@@ -172,3 +172,29 @@ func TestFakeGuestExistsSeesContainers(t *testing.T) {
 		t.Fatal("VMs lists only QEMU guests")
 	}
 }
+
+func TestFakePermissions(t *testing.T) {
+	ctx := context.Background()
+	s, c := volEnv(t)
+	got, err := c.Permissions(ctx, "/storage/local-lvm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["/storage/local-lvm"]["Datastore.Allocate"]; !ok {
+		t.Fatalf("default should grant everything: %+v", got)
+	}
+	s.DenyAllocateOn("local-lvm")
+	got, _ = c.Permissions(ctx, "/storage/local-lvm")
+	if _, ok := got["/storage/local-lvm"]["Datastore.Allocate"]; ok || len(got["/storage/local-lvm"]) == 0 {
+		t.Fatalf("deny: %+v", got)
+	}
+	if other, _ := c.Permissions(ctx, "/storage/ceph"); other["/storage/ceph"]["Datastore.Allocate"] != 1 {
+		t.Fatalf("deny leaked: %+v", other)
+	}
+	s.SetPermissions("/storage/local-lvm", map[string]int{})
+	s.SetPermissions("/", map[string]int{"Datastore.Allocate": 1})
+	got, _ = c.Permissions(ctx, "/storage/local-lvm")
+	if len(got["/storage/local-lvm"]) != 0 || got["/"]["Datastore.Allocate"] != 1 {
+		t.Fatalf("explicit: %+v", got)
+	}
+}

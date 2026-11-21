@@ -36,6 +36,17 @@ const liveRerun = computed(() =>
     (e) => e.location_id === id.value && !e.expired && Date.parse(e.expires_at) > Date.now(),
   ),
 )
+// Every storage volumes may use here; granting one that already has the role is harmless.
+const volumeGrants = computed(() => {
+  const l = location.value
+  if (!l || l.volume_storage_ok || !l.nodes.length) return []
+  const ids = l.volume_storage
+    ? [l.volume_storage]
+    : l.nodes.filter((n) => n.enabled).map((n) => n.disk_storage_override || l.disk_storage)
+  return [...new Set(ids)].map(
+    (s) => `pveum acl modify /storage/${s} --users nebla@pve --roles NeblaISO`,
+  )
+})
 const cleanup = ref<string[]>(readCleanup())
 const editing = ref(false)
 const confirmOpen = ref(false)
@@ -165,6 +176,21 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
         variant="subtle"
         description="The Proxmox datacenter firewall is off at this location. Server firewalls and anti-spoofing filters aren't enforced."
       />
+
+      <UAlert
+        v-if="volumeGrants.length"
+        data-testid="volume-grant"
+        color="warning"
+        variant="subtle"
+        title="Volumes need one more permission"
+      >
+        <template #description>
+          <p>Re-run the setup command, or run:</p>
+          <pre
+            class="mt-2 overflow-x-auto rounded border border-default bg-default p-2 text-xs whitespace-pre-wrap break-all"
+            >{{ volumeGrants.join('\n') }}</pre>
+        </template>
+      </UAlert>
 
       <UAlert
         v-if="cleanup.length"

@@ -141,6 +141,8 @@ type Client interface {
 	Destroy(ctx context.Context, node string, vmid int) (UPID, error)
 	UploadISO(ctx context.Context, node, storage, filename string, r io.Reader) error
 	DeleteVolume(ctx context.Context, node, storage, volid string) error
+	// Permissions returns the token's privileges by ACL path, as GET /access/permissions?path= answers.
+	Permissions(ctx context.Context, path string) (map[string]map[string]int, error)
 	VNCProxy(ctx context.Context, node string, vmid int) (VNCTicket, error)
 	VNCWebsocketURL(node string, vmid int, t VNCTicket) string
 	RRD(ctx context.Context, node string, vmid int, timeframe string) ([]RRDPoint, error)

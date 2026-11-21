@@ -62,6 +62,28 @@ set_role() {
     fi
 }
 
+# Grants NeblaISO on every storage with images content, so volumes can be deleted; the panel offers to
+# remove the grant from storages the location doesn't use. Appends to the caller's $isos.
+grant_volume_storages() {
+    local line id content
+    while IFS= read -r line; do
+        id=$(field "$line" storage)
+        content=$(field "$line" content)
+        case ",$content," in
+        *,images,*) ;;
+        *) continue ;;
+        esac
+        case " $isos " in *" $id "*) continue ;; esac
+        if ! [[ $id =~ $re_storage ]]; then
+            warn "skipping storage '$id': unexpected id"
+            continue
+        fi
+        pveum acl modify "/storage/$id" --users nebla@pve --roles NeblaISO
+        isos="$isos $id"
+        say "granted NeblaISO on /storage/$id (volumes)"
+    done < <(printf '%s\n' "$1" | tr '{}' '\n\n')
+}
+
 main() {
     # NEBLA_PVE_DIR exists only for tests.
     local pve_dir=${NEBLA_PVE_DIR:-/etc/pve}
@@ -155,6 +177,7 @@ main() {
         isos="$isos $id"
         say "granted NeblaISO on /storage/$id"
     done < <(printf '%s\n' "$storage" | tr '{}' '\n\n')
+    grant_volume_storages "$storage"
 
     local tok secret tid
     tok=$(pveum user token add nebla@pve "$token_name" --privsep 0 --comment "Nebla panel" --output-format json)

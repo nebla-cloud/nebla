@@ -282,7 +282,8 @@ func TestLocationVolumesAvailable(t *testing.T) {
 		require.Equal(t, out.Locations[0].VolumesAvailable, one.VolumesAvailable)
 		return one.VolumesAvailable
 	}
-	require.False(t, avail(), "volume_storage_ok is false until checked")
+	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.Location).SetVolumeStorageOk(false).Exec(context.Background()))
+	require.False(t, avail(), "volume_storage_ok false hides volumes")
 	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.Location).SetVolumeStorageOk(true).Exec(context.Background()))
 	require.True(t, avail())
 
@@ -326,7 +327,7 @@ func TestAdminLocationVolumeStorage(t *testing.T) {
 	}
 	l := decodeJSON[loc](t, app, admin.Send(http.MethodPost, "/v1/admin/locations", body(new("local-lvm"))), http.StatusCreated)
 	require.Equal(t, "local-lvm", l.VolumeStorage)
-	require.False(t, l.VolumeStorageOK)
+	require.True(t, l.VolumeStorageOK, "checked on create")
 	path := "/v1/admin/locations/" + itoa(l.ID)
 
 	res := admin.Send(http.MethodPut, path, body(new("nope")))
@@ -337,14 +338,15 @@ func TestAdminLocationVolumeStorage(t *testing.T) {
 	require.Equal(t, "ceph", decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new("ceph"))), http.StatusOK).VolumeStorage)
 	require.Empty(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new(""))), http.StatusOK).VolumeStorage)
 
-	// A checked storage fails closed when volume_storage changes, and stays checked otherwise.
-	require.NoError(t, app.Ent.Location.UpdateOneID(l.ID).SetVolumeStorageOk(true).Exec(context.Background()))
-	require.True(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(nil)), http.StatusOK).VolumeStorageOK)
-	require.True(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new(""))), http.StatusOK).VolumeStorageOK)
+	// Every save re-checks Datastore.Allocate on the resolved storages.
+	app.PVE.DenyAllocateOn("local-lvm")
 	require.False(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new("local-lvm"))), http.StatusOK).VolumeStorageOK)
 	got := decodeJSON[map[string]any](t, app, admin.Get(path), http.StatusOK)
 	require.Contains(t, got, "volume_storage")
 	require.Equal(t, false, got["volume_storage_ok"])
+	require.True(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new(""))), http.StatusOK).VolumeStorageOK)
+	app.PVE.SetPermissions("/storage/local-lvm", nil)
+	require.True(t, decodeJSON[loc](t, app, admin.Send(http.MethodPut, path, body(new("local-lvm"))), http.StatusOK).VolumeStorageOK)
 }
 
 func TestAdminQuotaVolumes(t *testing.T) {
@@ -376,4 +378,33 @@ func TestAdminQuotaVolumes(t *testing.T) {
 	require.Equal(t, 6, p.Quota["max_volumes"])
 	require.Contains(t, p.Usage, "volumes")
 	require.Contains(t, p.Usage, "volume_gb")
+}
+
+func TestVolumesUnavailableWithoutAllocate(t *testing.T) {
+	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
+	type avail struct {
+		VolumesAvailable bool `json:"volumes_available"`
+	}
+	type adminLoc struct {
+		VolumeStorageOK bool `json:"volume_storage_ok"`
+	}
+	lp, ap := "/v1/locations/"+itoa(e.Location), "/v1/admin/locations/"+itoa(e.Location)
+	require.True(t, decodeJSON[avail](t, e.App, e.C.Get(lp), http.StatusOK).VolumesAvailable)
+
+	// The location's disk storage is ceph; a sync sees the missing grant.
+	e.App.PVE.DenyAllocateOn("ceph")
+	res := e.Admin.Send(http.MethodPost, ap+"/sync_nodes", nil)
+	require.Equal(t, http.StatusOK, res.StatusCode, e.App.Body(res))
+	res.Body.Close()
+	require.False(t, decodeJSON[adminLoc](t, e.App, e.Admin.Get(ap), http.StatusOK).VolumeStorageOK)
+	require.False(t, decodeJSON[avail](t, e.App, e.C.Get(lp), http.StatusOK).VolumesAvailable)
+	res = e.C.Send(http.MethodPost, "/v1/volumes", map[string]any{"name": "x", "size": 10, "location": "eu-1"})
+	require.NotEqual(t, http.StatusCreated, res.StatusCode)
+	res.Body.Close()
+
+	e.App.PVE.SetPermissions("/storage/ceph", nil)
+	res = e.Admin.Send(http.MethodPost, ap+"/sync_nodes", nil)
+	require.Equal(t, http.StatusOK, res.StatusCode, e.App.Body(res))
+	res.Body.Close()
+	require.True(t, decodeJSON[avail](t, e.App, e.C.Get(lp), http.StatusOK).VolumesAvailable)
 }

@@ -95,6 +95,8 @@ type Server struct {
 	// DenyDatastoreAllocate makes volume deletes fail with a 403 like a token without Datastore.Allocate.
 	DenyDatastoreAllocate bool
 
+	perms map[string]map[string]int // explicit GET /access/permissions answers by path
+
 	srv     *httptest.Server
 	tokenID string
 	secret  string
@@ -176,6 +178,42 @@ func (s *Server) AddStorage(nodeName, id string, content []string, shared bool) 
 	defer s.mu.Unlock()
 	s.sweep()
 	s.nodes[nodeName].storages[id] = &storage{content: content, shared: shared, availMB: 500_000}
+}
+
+// allPrivs is what the fake grants on a path without an explicit answer.
+var allPrivs = []string{"Datastore.Allocate", "Datastore.AllocateSpace", "Datastore.AllocateTemplate", "Datastore.Audit",
+	"Sys.Audit", "VM.Allocate", "VM.Audit", "VM.Config.Disk"}
+
+// SetPermissions fixes the privileges the fake reports for path; nil restores the default (everything).
+func (s *Server) SetPermissions(path string, privs map[string]int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.perms == nil {
+		s.perms = map[string]map[string]int{}
+	}
+	if privs == nil {
+		delete(s.perms, path)
+		return
+	}
+	s.perms[path] = maps.Clone(privs)
+}
+
+// DenyAllocateOn reports every privilege but Datastore.Allocate on /storage/<id>.
+func (s *Server) DenyAllocateOn(storage string) {
+	privs := map[string]int{}
+	for _, p := range allPrivs {
+		if p != "Datastore.Allocate" {
+			privs[p] = 1
+		}
+	}
+	s.SetPermissions("/storage/"+storage, privs)
+}
+
+// RemoveStorage drops a storage from a node.
+func (s *Server) RemoveStorage(nodeName, id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.nodes[nodeName].storages, id)
 }
 
 // SetStorageAvail sets the free space a node's storage reports.
@@ -672,6 +710,26 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 	s.handle(mux, "GET /version", false, func(*http.Request, bool) (any, *apiErr) {
 		return map[string]any{"version": "8.4.1", "release": "8.4", "repoid": "fake"}, nil
+	})
+	s.handle(mux, "GET /access/permissions", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		path := r.URL.Query().Get("path")
+		out := map[string]map[string]int{}
+		if p, ok := s.perms[path]; ok {
+			out[path] = maps.Clone(p)
+		} else {
+			out[path] = map[string]int{}
+			for _, p := range allPrivs {
+				if p != "Datastore.Allocate" || !s.DenyDatastoreAllocate || !strings.HasPrefix(path, "/storage/") {
+					out[path][p] = 1
+				}
+			}
+		}
+		if p, ok := s.perms["/"]; ok && path != "/" {
+			out["/"] = maps.Clone(p)
+		}
+		return out, nil
 	})
 	s.handle(mux, "GET /nodes/{node}/version", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		s.mu.Lock()

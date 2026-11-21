@@ -31,7 +31,7 @@ func TestParseReportPVE9(t *testing.T) {
 	}, r.Nodes)
 	require.Equal(t, []ReportStorage{
 		{ID: "local", Type: "dir", Content: []string{"iso", "vztmpl", "backup"}, NeblaISO: true},
-		{ID: "local-lvm", Type: "lvmthin", Content: []string{"images", "rootdir"}},
+		{ID: "local-lvm", Type: "lvmthin", Content: []string{"images", "rootdir"}, NeblaISO: true},
 		{ID: "nfs-iso", Type: "nfs", Content: []string{"iso", "import"}, Shared: true, NeblaISO: true},
 	}, r.Storages)
 }
@@ -116,8 +116,8 @@ func TestParseReportRejects(t *testing.T) {
 		"bad content item":  {func(m map[string]any) { stor0(m)["content"] = "iso,b\"ad" }, "invalid storage content"},
 		"long content item": {func(m map[string]any) { stor0(m)["content"] = "iso," + strings.Repeat("a", 65) }, "invalid storage content"},
 		"nebla_iso without iso content": {func(m map[string]any) {
-			stor0(m)["content"] = "images,backup"
-		}, "no iso or import"},
+			stor0(m)["content"] = "rootdir,backup"
+		}, "no iso, import or images"},
 		"nebla_iso unknown storage": {func(m map[string]any) { m["nebla_iso"] = []any{"ghost"} }, "unknown storage"},
 		"invalid online flag":       {func(m map[string]any) { node0(m)["online"] = "yes" }, "invalid flag"},
 		"invalid shared flag":       {func(m map[string]any) { stor0(m)["shared"] = 2 }, "invalid flag"},

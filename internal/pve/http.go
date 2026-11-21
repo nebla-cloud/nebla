@@ -226,6 +226,21 @@ func (c *httpClient) Storages(ctx context.Context, node string) ([]Storage, erro
 	return out, nil
 }
 
+func (c *httpClient) Permissions(ctx context.Context, path string) (map[string]map[string]int, error) {
+	var raw map[string]map[string]num
+	if err := c.do(ctx, http.MethodGet, "/access/permissions", url.Values{"path": {path}}, &raw); err != nil {
+		return nil, err
+	}
+	out := make(map[string]map[string]int, len(raw))
+	for p, privs := range raw {
+		out[p] = make(map[string]int, len(privs))
+		for k, v := range privs {
+			out[p][k] = int(v)
+		}
+	}
+	return out, nil
+}
+
 func (c *httpClient) VMs(ctx context.Context) ([]VM, error) {
 	var raw []struct {
 		Type     string `json:"type"`

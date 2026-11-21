@@ -779,3 +779,16 @@ func TestPending(t *testing.T) {
 		t.Fatalf("got %+v err=%v", got, err)
 	}
 }
+
+func TestPermissions(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api2/json/access/permissions" || r.URL.Query().Get("path") != "/storage/local-lvm" {
+			t.Errorf("got %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
+		}
+		fmt.Fprint(w, `{"data":{"/storage/local-lvm":{"Datastore.Allocate":1,"Datastore.Audit":"0"},"/":{}}}`)
+	})
+	got, err := c.Permissions(ctx(t), "/storage/local-lvm")
+	if err != nil || got["/storage/local-lvm"]["Datastore.Allocate"] != 1 || len(got["/storage/local-lvm"]) != 2 || got["/"] == nil {
+		t.Fatalf("got %+v err=%v", got, err)
+	}
+}

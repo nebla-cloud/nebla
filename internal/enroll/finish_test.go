@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/enroll"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
@@ -165,10 +166,73 @@ func TestFinishRerunSwitchesToken(t *testing.T) {
 	require.False(t, got.InsecureTLS)
 }
 
+// reportedWith is reported with a report of the given storages.
+func (e *env) reportedWith(t *testing.T, in enroll.CreateInput, storages ...rstorage) enroll.Created {
+	t.Helper()
+	c, err := e.svc.Create(context.Background(), in, e.userID)
+	require.NoError(t, err)
+	require.NoError(t, e.svc.Report(context.Background(), c.Token, reportJSON(t, c.TokenName, e.pv.Conn().CAFingerprint, storages...)))
+	e.pv.AddToken("nebla@pve!"+c.TokenName, testSecret)
+	return c
+}
+
+var withVolume = []rstorage{{"ceph", "images", true}, {"local", "iso,vztmpl", true}, {"imp", "import", true}, {"local-lvm", "images,rootdir", true}}
+
+func TestFinishRequiresNeblaISOOnVolumeStorage(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	c := e.reportedWith(t, enroll.CreateInput{Name: "home"},
+		rstorage{"ceph", "images", true}, rstorage{"local", "iso,vztmpl", true}, rstorage{"local-lvm", "images,rootdir", false})
+	in := e.finishInput()
+	in.VolumeStorage = new("local-lvm")
+	_, err := e.svc.Finish(ctx, c.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+	require.Contains(t, err.Error(), "volume storage \"local-lvm\"")
+
+	c = e.reportedWith(t, enroll.CreateInput{Name: "home2"}, withVolume...)
+	f, err := e.svc.Finish(ctx, c.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, "local-lvm", f.Location.VolumeStorage)
+	require.True(t, f.Location.VolumeStorageOK)
+	// ceph is the disk storage only, so its grant can go; local-lvm's stays.
+	require.ElementsMatch(t, []string{aclImp, "pveum acl delete /storage/ceph --users nebla@pve --roles NeblaISO"}, f.Cleanup)
+}
+
+func TestFinishDefaultVolumeStorageUsesDiskStorages(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	c := e.reportedWith(t, enroll.CreateInput{Name: "home"}, rstorage{"ceph", "images", false}, rstorage{"local", "iso,vztmpl", true})
+	_, err := e.svc.Finish(ctx, c.ID, e.finishInput())
+	requireCode(t, err, 422, "invalid_input")
+	require.Contains(t, err.Error(), "ceph")
+
+	require.NoError(t, e.ent.LocationEnrollment.DeleteOneID(c.ID).Exec(ctx))
+	c = e.reportedWith(t, enroll.CreateInput{Name: "home"}, withVolume...)
+	f, err := e.svc.Finish(ctx, c.ID, e.finishInput())
+	require.NoError(t, err)
+	require.True(t, f.Location.VolumeStorageOK)
+	require.ElementsMatch(t, []string{aclImp, "pveum acl delete /storage/local-lvm --users nebla@pve --roles NeblaISO"}, f.Cleanup)
+
+	// A re-run checks each node's override too and keeps its grant.
+	_, err = e.cat.UpdateNode(ctx, f.Location.ID, f.Location.Nodes[1].ID, catalog.NodeUpdate{DiskStorageOverride: new("local-lvm")})
+	require.NoError(t, err)
+	c = e.reportedWith(t, enroll.CreateInput{LocationID: &f.Location.ID}, rstorage{"ceph", "images", true}, rstorage{"local", "iso,vztmpl", true},
+		rstorage{"local-lvm", "images,rootdir", false})
+	_, err = e.svc.Finish(ctx, c.ID, e.finishInput())
+	requireCode(t, err, 422, "invalid_input")
+	require.Contains(t, err.Error(), "local-lvm")
+	require.NoError(t, e.ent.LocationEnrollment.DeleteOneID(c.ID).Exec(ctx))
+	c = e.reportedWith(t, enroll.CreateInput{LocationID: &f.Location.ID}, withVolume...)
+	f, err = e.svc.Finish(ctx, c.ID, e.finishInput())
+	require.NoError(t, err)
+	require.Equal(t, aclImp, f.Cleanup[0])
+	require.NotContains(t, strings.Join(f.Cleanup, "\n"), "/storage/local-lvm")
+}
+
 func TestFinishStoresVolumeStorage(t *testing.T) {
 	ctx := context.Background()
 	e := setup(t)
-	c := e.reported(t, enroll.CreateInput{Name: "home"})
+	c := e.reportedWith(t, enroll.CreateInput{Name: "home"}, withVolume...)
 	in := e.finishInput()
 	in.VolumeStorage = new(" local-lvm ")
 	f, err := e.svc.Finish(ctx, c.ID, in)
@@ -176,7 +240,7 @@ func TestFinishStoresVolumeStorage(t *testing.T) {
 	require.Equal(t, "local-lvm", f.Location.VolumeStorage)
 
 	// A re-run without volume_storage keeps it.
-	c2 := e.reported(t, enroll.CreateInput{LocationID: &f.Location.ID})
+	c2 := e.reportedWith(t, enroll.CreateInput{LocationID: &f.Location.ID}, withVolume...)
 	f2, err := e.svc.Finish(ctx, c2.ID, e.finishInput())
 	require.NoError(t, err)
 	require.Equal(t, "local-lvm", f2.Location.VolumeStorage)

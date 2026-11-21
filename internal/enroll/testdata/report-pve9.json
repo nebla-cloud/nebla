@@ -9,5 +9,5 @@
   {"storage":"local-lvm","type":"lvmthin","content":"images,rootdir"},
   {"storage":"nfs-iso","type":"nfs","content":"iso,import","shared":1}],
  "fingerprints":{"pve1":"AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA","pve2":"BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB:BB"},
- "nebla_iso":["local","nfs-iso"],
+ "nebla_iso":["local","local-lvm","nfs-iso"],
  "extra":"ignored"}

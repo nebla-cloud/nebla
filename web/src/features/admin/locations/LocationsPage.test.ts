@@ -108,6 +108,51 @@ describe('admin locations', () => {
     expect(put).toEqual({ enabled: false })
   })
 
+  const detailRouter = () =>
+    testRouter([
+      { path: '/admin/locations', name: 'admin-locations', component: LocationsPage },
+      {
+        path: '/admin/locations/:locationId',
+        name: 'admin-location',
+        component: LocationDetailPage,
+      },
+    ])
+
+  it('shows the volume grant hint until volume_storage_ok', async () => {
+    const nodes = [
+      node(2, 'pve1', 'online', true),
+      { ...node(3, 'pve2', 'online', true), disk_storage_override: 'ceph' },
+      { ...node(4, 'pve3', 'online', false), disk_storage_override: 'off' },
+    ]
+    const router = detailRouter()
+    server.use(list([loc(nodes)]))
+    await router.push('/admin/locations/1')
+    const { wrapper } = mountApp(LocationDetailPage, { router })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('pve1'))
+    const hint = wrapper.find('[data-testid="volume-grant"]')
+    expect(hint.text()).toContain('Volumes need one more permission')
+    expect(hint.text()).toContain('Re-run the setup command, or run:')
+    expect(hint.find('pre').text()).toBe(
+      'pveum acl modify /storage/local-lvm --users nebla@pve --roles NeblaISO\n' +
+        'pveum acl modify /storage/ceph --users nebla@pve --roles NeblaISO',
+    )
+  })
+
+  it('hides the volume grant hint when ok or without nodes', async () => {
+    for (const l of [
+      { ...loc([node(2, 'pve1', 'online', true)]), volume_storage_ok: true },
+      loc(),
+    ]) {
+      document.body.innerHTML = ''
+      const router = detailRouter()
+      server.use(list([l]))
+      await router.push('/admin/locations/1')
+      const { wrapper } = mountApp(LocationDetailPage, { router })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('Delete location'))
+      expect(wrapper.find('[data-testid="volume-grant"]').exists()).toBe(false)
+    }
+  })
+
   it('delete confirms by name', async () => {
     let deleted = false
     server.use(

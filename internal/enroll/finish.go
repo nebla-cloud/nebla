@@ -32,7 +32,7 @@ type Finished struct {
 // pveTokenNameRe is PVE's token name pattern; other old names get no cleanup command.
 var pveTokenNameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]*$`)
 
-func validStorages(rep Report, in FinishInput) error {
+func validStorages(rep Report, in FinishInput, vols []string) error {
 	find := func(id string) (ReportStorage, bool) {
 		i := slices.IndexFunc(rep.Storages, func(s ReportStorage) bool { return s.ID == id })
 		if i < 0 {
@@ -51,7 +51,28 @@ func validStorages(rep Report, in FinishInput) error {
 			return invalidInput(fmt.Sprintf("import_storage %q is not a reported Nebla ISO storage with import content", in.ImportStorage))
 		}
 	}
+	for _, id := range vols {
+		if st, ok := find(id); !ok || !st.NeblaISO || !slices.Contains(st.Content, "images") {
+			return invalidInput(fmt.Sprintf("volume storage %q is not a reported Nebla ISO storage with images content; re-run the setup command", id))
+		}
+	}
 	return nil
+}
+
+// volumeStorages resolves where volumes go: vol, else the disk storage of every node, overrides included.
+func volumeStorages(vol, disk string, cur *catalog.Location) []string {
+	if vol != "" {
+		return []string{vol}
+	}
+	out := []string{disk}
+	if cur != nil {
+		for _, n := range cur.Nodes {
+			if n.DiskStorageOverride != "" && !slices.Contains(out, n.DiskStorageOverride) {
+				out = append(out, n.DiskStorageOverride)
+			}
+		}
+	}
+	return out
 }
 
 func finishURL(raw string) (*url.URL, error) {
@@ -92,7 +113,19 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 	if err != nil {
 		return Finished{}, err
 	}
-	if err := validStorages(rep, in); err != nil {
+	var cur *catalog.Location
+	if r.LocationID != nil {
+		l, err := s.o.Catalog.GetLocation(ctx, *r.LocationID)
+		if err != nil {
+			return Finished{}, err
+		}
+		cur = &l
+		if in.VolumeStorage == nil {
+			vol = l.VolumeStorage
+		}
+	}
+	vols := volumeStorages(vol, in.DiskStorage, cur)
+	if err := validStorages(rep, in, vols); err != nil {
 		return Finished{}, err
 	}
 	seen, err := s.o.LeafFingerprint(ctx, u.String())
@@ -115,18 +148,14 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 		PVE: catalog.PVEInput{URL: u.String(), TokenID: r.TokenID, TokenSecret: &sec, CAFingerprint: seen}}
 	var cleanup []string
 	for _, st := range rep.Storages {
-		if st.NeblaISO && st.ID != in.ISOStorage && st.ID != in.ImportStorage && st.ID != vol {
+		if st.NeblaISO && st.ID != in.ISOStorage && st.ID != in.ImportStorage && !slices.Contains(vols, st.ID) {
 			cleanup = append(cleanup, "pveum acl delete /storage/"+st.ID+" --users nebla@pve --roles NeblaISO")
 		}
 	}
 	var loc catalog.Location
-	if r.LocationID == nil {
+	if cur == nil {
 		loc, err = s.o.Catalog.CreateLocation(ctx, li)
 	} else {
-		var cur catalog.Location
-		if cur, err = s.o.Catalog.GetLocation(ctx, *r.LocationID); err != nil {
-			return Finished{}, err
-		}
 		li.Name, li.Description = cur.Name, cur.Description
 		if loc, err = s.o.Catalog.UpdateLocation(ctx, cur.ID, li); err == nil {
 			if old, ok := strings.CutPrefix(cur.TokenID, "nebla@pve!"); ok && cur.TokenID != r.TokenID && pveTokenNameRe.MatchString(old) {

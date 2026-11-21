@@ -270,8 +270,21 @@ func TestScriptUserAndACLs(t *testing.T) {
 	require.True(t, r.has("pveum", "acl", "modify", "/", "--users", "nebla@pve", "--roles", "Nebla"))
 	require.True(t, r.has("pveum", "acl", "modify", "/storage/local", "--users", "nebla@pve", "--roles", "NeblaISO"))
 	require.True(t, r.has("pveum", "acl", "modify", "/storage/imp", "--users", "nebla@pve", "--roles", "NeblaISO"))
-	require.Equal(t, 3, r.count("pveum", "acl", "modify"))
+	// Volume storages: every storage with images content, each granted once.
+	require.True(t, r.has("pveum", "acl", "modify", "/storage/local-lvm", "--users", "nebla@pve", "--roles", "NeblaISO"))
+	require.Equal(t, 1, r.count("pveum", "acl", "modify", "/storage/imp"))
+	require.Equal(t, 4, r.count("pveum", "acl", "modify"))
 	require.True(t, r.has("pveum", "user", "token", "add", "nebla@pve", testName, "--privsep", "0", "--comment", "Nebla panel", "--output-format", "json"))
+}
+
+func TestScriptSkipsBadVolumeStorageID(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{"STUB_STORAGE": `[{"content":"images","storage":"9bad","type":"dir"},{"content":"iso","storage":"local","type":"dir"},{"content":"rootdir","storage":"ct","type":"dir"}]`})
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.Contains(t, r.stderr, "9bad")
+	require.False(t, r.has("pveum", "acl", "modify", "/storage/9bad"))
+	require.False(t, r.has("pveum", "acl", "modify", "/storage/ct"))
+	require.Equal(t, 1, r.count("pveum", "acl", "modify", "/storage/local"))
 }
 
 func TestScriptSkipsBadStorageID(t *testing.T) {
@@ -347,7 +360,7 @@ func TestScriptOnlineReportParses(t *testing.T) {
 	for _, s := range rep.Storages {
 		iso[s.ID] = s.NeblaISO
 	}
-	require.Equal(t, map[string]bool{"local": true, "local-lvm": false, "imp": true}, iso)
+	require.Equal(t, map[string]bool{"local": true, "local-lvm": true, "imp": true}, iso)
 	require.Contains(t, r.stdout, "nebla@pve!"+testName)
 	require.Contains(t, r.stdout, "Finish in the panel.")
 	require.NotContains(t, r.stdout, "nebla-enroll:")

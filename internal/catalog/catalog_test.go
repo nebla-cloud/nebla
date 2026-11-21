@@ -514,3 +514,85 @@ func TestLocationFirewallEnabled(t *testing.T) {
 	require.NotNil(t, got.FirewallEnabled)
 	require.False(t, *got.FirewallEnabled)
 }
+
+func TestVolumeStorageOKFromPermissions(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	require.True(t, loc.VolumeStorageOK, "the fake grants everything by default")
+	in := testutil.LocationInput(pv, "eu-1")
+	in.PVE.TokenSecret = nil
+	update := func(vol string) catalog.Location {
+		t.Helper()
+		in.VolumeStorage = new(vol)
+		l, err := svc.UpdateLocation(ctx, loc.ID, in)
+		require.NoError(t, err)
+		return l
+	}
+
+	// Inherited from "/" counts.
+	pv.SetPermissions("/storage/local-lvm", map[string]int{})
+	pv.SetPermissions("/", map[string]int{"Datastore.Allocate": 1})
+	require.True(t, update("local-lvm").VolumeStorageOK)
+
+	// A storage-level deny wins.
+	pv.DenyAllocateOn("local-lvm")
+	require.False(t, update("local-lvm").VolumeStorageOK)
+	pv.SetPermissions("/storage/local-lvm", nil)
+	require.True(t, update("local-lvm").VolumeStorageOK)
+
+	// Empty volume_storage checks every enabled node's disk storage, overrides included.
+	nodes, err := svc.Nodes(ctx, loc.ID)
+	require.NoError(t, err)
+	_, err = svc.UpdateNode(ctx, loc.ID, nodes[1].ID, catalog.NodeUpdate{DiskStorageOverride: new("local-lvm")})
+	require.NoError(t, err)
+	pv.DenyAllocateOn("local-lvm")
+	require.False(t, update("").VolumeStorageOK)
+	_, err = svc.UpdateNode(ctx, loc.ID, nodes[1].ID, catalog.NodeUpdate{Enabled: new(false)})
+	require.NoError(t, err)
+	require.True(t, update("").VolumeStorageOK, "a disabled node is not checked")
+	_, err = svc.UpdateNode(ctx, loc.ID, nodes[1].ID, catalog.NodeUpdate{Enabled: new(true)})
+	require.NoError(t, err)
+	pv.SetPermissions("/storage/local-lvm", nil)
+
+	// Missing images content on one node fails; absent on a node is fine.
+	pv.AddStorage("pve1", "vol", []string{"images"}, false)
+	pv.AddStorage("pve2", "vol", []string{"iso"}, false)
+	require.False(t, update("vol").VolumeStorageOK)
+	pv.RemoveStorage("pve2", "vol")
+	require.True(t, update("vol").VolumeStorageOK)
+}
+
+func TestVolumeStorageOKRecomputedOnSync(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	require.True(t, loc.VolumeStorageOK)
+
+	pv.DenyAllocateOn("ceph")
+	loc, err = svc.SyncNodes(ctx, loc.ID)
+	require.NoError(t, err)
+	require.False(t, loc.VolumeStorageOK)
+
+	pv.SetPermissions("/storage/ceph", nil)
+	loc, err = svc.SyncNodes(ctx, loc.ID)
+	require.NoError(t, err)
+	require.True(t, loc.VolumeStorageOK)
+
+	// A failing check keeps the stored value and the sync still succeeds.
+	pv.FailNext("GET /access/permissions", 500)
+	loc, err = svc.SyncNodes(ctx, loc.ID)
+	require.NoError(t, err)
+	require.True(t, loc.VolumeStorageOK)
+
+	// No enabled node with the storage means no volumes.
+	for _, n := range loc.Nodes {
+		_, err = svc.UpdateNode(ctx, loc.ID, n.ID, catalog.NodeUpdate{Enabled: new(false)})
+		require.NoError(t, err)
+	}
+	loc, err = svc.SyncNodes(ctx, loc.ID)
+	require.NoError(t, err)
+	require.False(t, loc.VolumeStorageOK)
+}

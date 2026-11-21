@@ -86,7 +86,7 @@ type rstorage struct {
 func reportJSON(t *testing.T, tokenName, fp string, storages ...rstorage) []byte {
 	t.Helper()
 	if storages == nil {
-		storages = []rstorage{{"ceph", "images", false}, {"local", "iso,vztmpl", true}, {"imp", "import", true}}
+		storages = []rstorage{{"ceph", "images", true}, {"local", "iso,vztmpl", true}, {"imp", "import", true}}
 	}
 	var st []any
 	var iso []string

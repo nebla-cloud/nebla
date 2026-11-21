@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -246,7 +247,7 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 	if err != nil {
 		return Location{}, err
 	}
-	return s.GetLocation(ctx, id)
+	return s.refreshVolumeStorage(ctx, s.opts.NewClient(conn), id)
 }
 
 // UpdateLocation re-verifies Proxmox when connection or storage settings change.
@@ -308,7 +309,7 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 		return Location{}, err
 	}
 	s.forget(id)
-	return s.GetLocation(ctx, id)
+	return s.refreshVolumeStorage(ctx, s.opts.NewClient(conn), id)
 }
 
 func (s *Service) GetLocation(ctx context.Context, id int64) (Location, error) {
@@ -436,7 +437,84 @@ func (s *Service) SyncNodes(ctx context.Context, id int64) (Location, error) {
 	if err := s.withTx(ctx, func(tx *ent.Client) error { return syncNodes(ctx, tx, id, nodes) }); err != nil {
 		return Location{}, err
 	}
+	return s.refreshVolumeStorage(ctx, c, id)
+}
+
+// refreshVolumeStorage re-checks and stores volume_storage_ok; a failed check keeps the stored value.
+func (s *Service) refreshVolumeStorage(ctx context.Context, c pve.Client, id int64) (Location, error) {
+	loc, err := s.GetLocation(ctx, id)
+	if err != nil {
+		return Location{}, err
+	}
+	tctx, cancel := context.WithTimeout(ctx, pveTimeout)
+	defer cancel()
+	ok, err := volumeStorageCheck(tctx, c, loc)
+	if err != nil {
+		slog.WarnContext(ctx, "catalog: volume storage check", "location_id", id, "err", err)
+		return loc, nil
+	}
+	if ok == loc.VolumeStorageOK {
+		return loc, nil
+	}
+	// Skipped if volume_storage changed meanwhile; that change reset the flag.
+	err = s.db.Location.Update().Where(location.ID(id), location.VolumeStorage(loc.VolumeStorage)).
+		SetVolumeStorageOk(ok).Exec(ctx)
+	if err != nil {
+		return Location{}, err
+	}
 	return s.GetLocation(ctx, id)
+}
+
+// volumeStorageCheck reports whether every enabled online node's resolved volume storage is absent there or
+// holds images with Datastore.Allocate granted, and at least one such node can hold volumes.
+func volumeStorageCheck(ctx context.Context, c pve.Client, loc Location) (bool, error) {
+	granted := map[string]bool{}
+	usable := false
+	for _, n := range loc.Nodes {
+		if !n.Enabled || n.Status != "online" {
+			continue
+		}
+		id := loc.VolumeStorage
+		if id == "" {
+			id = n.DiskStorage(loc)
+		}
+		sts, err := c.Storages(ctx, n.Name)
+		if err != nil {
+			return false, fmt.Errorf("list storages on %s: %w", n.Name, err)
+		}
+		i := slices.IndexFunc(sts, func(st pve.Storage) bool { return st.ID == id })
+		if i < 0 {
+			continue
+		}
+		if !slices.Contains(sts[i].Content, "images") {
+			return false, nil
+		}
+		ok, seen := granted[id]
+		if !seen {
+			if ok, err = canAllocate(ctx, c, "/storage/"+id); err != nil {
+				return false, err
+			}
+			granted[id] = ok
+		}
+		if !ok {
+			return false, nil
+		}
+		usable = true
+	}
+	return usable, nil
+}
+
+// canAllocate checks Datastore.Allocate on path, falling back to a propagated grant on "/".
+func canAllocate(ctx context.Context, c pve.Client, path string) (bool, error) {
+	perms, err := c.Permissions(ctx, path)
+	if err != nil {
+		return false, fmt.Errorf("permissions on %s: %w", path, err)
+	}
+	if p := perms[path]; len(p) > 0 {
+		_, ok := p["Datastore.Allocate"]
+		return ok, nil
+	}
+	return perms["/"]["Datastore.Allocate"] != 0, nil
 }
 
 // syncNodes locks the location's nodes in name order first, the order servers.Create uses.
