@@ -18,18 +18,21 @@ func newVolumeHarness(t *testing.T) *harness {
 	t.Helper()
 	h := newHarnessQueueOnly(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	done := make(chan struct{})
+	t.Cleanup(func() { cancel(); <-done })
 	client := h.Env.App.Ent
 	if err := client.Location.UpdateOneID(h.Env.Location).SetVolumeStorageOk(true).Exec(ctx); err != nil {
 		t.Fatal(err)
 	}
 	go func() {
+		defer close(done)
 		for ctx.Err() == nil {
 			ids, _ := client.Action.Query().Where(action.StatusEQ(action.StatusRunning)).IDs(ctx)
+			// Flip the volume first so a command that sees the action done never sees a creating volume.
+			_, _ = client.Volume.Update().Where(volume.StatusEQ(volume.StatusCreating)).SetStatus(volume.StatusAvailable).Save(ctx)
 			for _, id := range ids {
 				_ = actions.Succeed(ctx, client, id)
 			}
-			_, _ = client.Volume.Update().Where(volume.StatusEQ(volume.StatusCreating)).SetStatus(volume.StatusAvailable).Save(ctx)
 			time.Sleep(20 * time.Millisecond)
 		}
 	}()
@@ -73,17 +76,23 @@ func TestVolumeAttachByName(t *testing.T) {
 	if _, errOut, code := h.run("volume", "create", "--name", "data", "--size", "20", "--location", "eu-1"); code != 0 {
 		t.Fatal(errOut)
 	}
+	if _, errOut, code := h.run("volume", "create", "--name", "spare", "--size", "10", "--location", "eu-1"); code != 0 {
+		t.Fatal(errOut)
+	}
 	out, errOut, code := h.run("volume", "attach", "data", "--server", "web")
 	if code != 0 || !strings.Contains(out, "Volume data attached to web") {
 		t.Fatalf("attach: %d %q %q", code, out, errOut)
 	}
 	// The harness has no volume workers, so reflect the attach by hand.
-	vols, _ := h.Env.App.Ent.Volume.Query().All(context.Background())
+	vols, err := h.Env.App.Ent.Volume.Query().Where(volume.Name("data")).All(context.Background())
+	if err != nil || len(vols) != 1 {
+		t.Fatalf("query: %v %d", err, len(vols))
+	}
 	if err := h.Env.App.Ent.Volume.UpdateOneID(vols[0].ID).SetStatus(volume.StatusAttached).SetServerID(web.ServerID).SetDevice("virtio1").Exec(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	out, _, code = h.run("volume", "list", "--server", "web")
-	if code != 0 || !strings.Contains(out, "data") || !strings.Contains(out, "web") {
+	if code != 0 || !strings.Contains(out, "data") || !strings.Contains(out, "web") || strings.Contains(out, "spare") {
 		t.Fatalf("list: %d %q", code, out)
 	}
 }
