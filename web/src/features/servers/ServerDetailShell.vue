@@ -169,7 +169,7 @@ const notFound = computed(
           <li v-for="t in tabs" :key="String(t.name)">
             <RouterLink
               :to="{ name: t.name, params: { projectId, serverId } }"
-              class="inline-block px-3 pt-2 pb-2.5 text-sm font-medium text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary aria-[current=page]:font-semibold aria-[current=page]:shadow-[inset_0_-2px_0_var(--ui-border-inverted)] aria-[current=page]:text-highlighted"
+              class="inline-block px-3 pt-2 pb-2.5 text-sm font-medium text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:[--nb-focus-offset:-2px] focus-visible:outline-primary aria-[current=page]:font-semibold aria-[current=page]:shadow-[inset_0_-2px_0_var(--ui-border-inverted)] aria-[current=page]:text-highlighted"
             >
               {{ t.label }}
             </RouterLink>

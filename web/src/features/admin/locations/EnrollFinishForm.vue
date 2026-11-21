@@ -7,7 +7,7 @@ import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import type { LocationEnrollment } from '@/api/types'
 import { useAdminLocations } from '@/lib/adminQueries'
-import { selectClass, table, tableWrap, tbody, td, th, thead, tr } from '@/lib/ui'
+import { selectFullClass, table, tableWrap, tbody, td, th, thead, tr } from '@/lib/ui'
 import { useFinishEnrollment, type EnrollmentFinish, type EnrollmentFinished } from './queries'
 
 const props = defineProps<{ enrollment: LocationEnrollment }>()
@@ -58,7 +58,6 @@ watch(
 )
 const formError = ref<string | null>(null)
 
-const fieldSelect = `${selectClass} sm:w-full`
 
 async function submit() {
   formError.value = null
@@ -97,7 +96,7 @@ async function submit() {
           v-if="others.length"
           name="node_url"
           aria-label="Use another node's address"
-          :class="fieldSelect"
+          :class="selectFullClass"
           @change="
             (e) => (
               (form.url = (e.target as HTMLSelectElement).value),
@@ -113,17 +112,17 @@ async function submit() {
       </div>
     </UFormField>
     <UFormField label="Disk storage" name="disk_storage" help="Where server disks live.">
-      <select v-model="form.disk" name="disk_storage" :class="fieldSelect">
+      <select v-model="form.disk" name="disk_storage" :class="selectFullClass">
         <option v-for="s in disks" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>
     </UFormField>
     <UFormField label="ISO storage" name="iso_storage" help="Where Nebla keeps installer images.">
-      <select v-model="form.iso" name="iso_storage" :class="fieldSelect">
+      <select v-model="form.iso" name="iso_storage" :class="selectFullClass">
         <option v-for="s in isos" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>
     </UFormField>
     <UFormField label="Import storage" name="import_storage" help="Optional. For disk images.">
-      <select v-model="form.imp" name="import_storage" :class="fieldSelect">
+      <select v-model="form.imp" name="import_storage" :class="selectFullClass">
         <option value="">None</option>
         <option v-for="s in imports" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>

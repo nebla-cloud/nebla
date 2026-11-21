@@ -50,7 +50,7 @@ const soonTone = computed(() =>
           :key="item.name === null ? `soon-${item.label}` : String(item.name)"
           :aria-disabled="item.soon ? 'true' : undefined"
         >
-          <div v-if="item.soon" :class="[base, 'cursor-default opacity-70']">
+          <div v-if="item.soon" :class="[base, 'cursor-default', headingTone]">
             <UIcon :name="item.icon" class="size-4 shrink-0" aria-hidden="true" />
             <span>{{ item.label }}</span>
             <span class="ml-auto rounded-full px-1.5 py-0.5 text-xs" :class="soonTone">Soon</span>

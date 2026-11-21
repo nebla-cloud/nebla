@@ -153,8 +153,8 @@ async function run(
           </tr>
         </thead>
         <tbody :class="tbody">
-          <tr v-for="u in users" :key="u.id" :class="tr">
-            <td :class="[td, 'min-w-0 font-semibold text-highlighted']">
+          <tr v-for="u in users" :key="u.id" :class="[tr, 'max-sm:relative max-sm:pr-14']">
+            <td :class="[td, 'min-w-0 wrap-anywhere font-semibold text-highlighted']">
               {{ label(u) }}
               <span v-if="isSelf(u)" class="font-normal text-muted">(you)</span>
             </td>
@@ -172,7 +172,7 @@ async function run(
                 <span class="sm:hidden">Passkeys </span>{{ u.passkey_count }}
               </template>
             </td>
-            <td data-col="actions" :class="[td, 'ms-auto sm:text-right']">
+            <td data-col="actions" :class="[td, 'max-sm:absolute max-sm:top-2.5 max-sm:right-3 sm:text-right']">
               <UDropdownMenu :items="menu(u)" :content="{ align: 'end' }">
                 <UButton
                   color="neutral"

@@ -86,24 +86,21 @@ const placeholder = computed(() =>
 </script>
 
 <template>
-  <button
-    type="button"
-    aria-label="Search"
-    aria-keyshortcuts="Meta+K Control+K"
-    class="grid size-10 shrink-0 place-items-center rounded-[8px] text-muted hover:bg-elevated hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary sm:flex sm:h-[34px] sm:w-56 sm:items-center sm:gap-2 sm:rounded-[9px] sm:border sm:border-default sm:bg-muted sm:px-2.5 sm:text-sm sm:hover:bg-muted lg:w-64"
-    @click="open = true"
-  >
-    <UIcon name="i-lucide-search" class="size-4 shrink-0" aria-hidden="true" />
-    <span class="hidden sm:inline">Search</span>
-    <UKbd class="ml-auto hidden sm:inline-flex">{{ shortcut }}</UKbd>
-  </button>
-
   <UModal
     v-model:open="open"
     title="Search"
     description="Go to a page, server or SSH key."
     :ui="{ content: 'sm:max-w-xl' }"
   >
+    <button
+      type="button"
+      aria-keyshortcuts="Meta+K Control+K"
+      class="grid size-10 shrink-0 place-items-center rounded-[8px] text-muted hover:bg-elevated hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary sm:flex sm:h-[34px] sm:w-56 sm:items-center sm:gap-2 sm:rounded-[9px] sm:border sm:border-default sm:bg-muted sm:px-2.5 sm:text-sm sm:hover:bg-muted lg:w-64"
+    >
+      <UIcon name="i-lucide-search" class="size-4 shrink-0" aria-hidden="true" />
+      <span class="sr-only sm:not-sr-only">Search</span>
+      <UKbd aria-hidden="true" class="ml-auto hidden sm:inline-flex">{{ shortcut }}</UKbd>
+    </button>
     <template #content>
       <UCommandPalette
         :groups="groups"

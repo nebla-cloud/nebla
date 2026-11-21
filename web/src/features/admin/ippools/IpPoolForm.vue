@@ -6,7 +6,7 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import { useAdminLocations } from '@/lib/adminQueries'
-import { selectClass as baseSelectClass } from '@/lib/ui'
+import { selectFullClass } from '@/lib/ui'
 import { addrFamily, inCidr, rangeSize } from './cidr'
 import { useSaveIpPool, type IpPool, type IpPoolInput } from './queries'
 
@@ -28,7 +28,6 @@ const rangeEnd = ref(props.item?.range_end ?? '')
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
 
-const selectClass = `${baseSelectClass} sm:w-full`
 
 async function submit() {
   formError.value = null
@@ -91,13 +90,13 @@ async function submit() {
     <UAlert v-if="formError" color="error" variant="subtle" :description="formError" />
     <div class="grid gap-4 sm:grid-cols-2">
       <UFormField label="Location" name="location_id" :error="errors.location_id">
-        <select v-model="locationId" name="location_id" :class="selectClass">
+        <select v-model="locationId" name="location_id" :class="selectFullClass">
           <option value="" disabled>Choose a location</option>
           <option v-for="l in locations" :key="l.id" :value="String(l.id)">{{ l.name }}</option>
         </select>
       </UFormField>
       <UFormField label="Family" name="family">
-        <select v-model="family" name="family" :class="selectClass">
+        <select v-model="family" name="family" :class="selectFullClass">
           <option value="ipv4">IPv4</option>
           <option value="ipv6">IPv6</option>
         </select>

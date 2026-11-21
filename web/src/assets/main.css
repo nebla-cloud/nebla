@@ -40,6 +40,7 @@
   --ui-primary: var(--color-ink-950);
   /* red-500 is 3.7:1 on the light background; 700 reaches 6.2:1. */
   --ui-error: var(--ui-color-error-700);
+  --ui-warning: var(--ui-color-warning-800);
   /* Nuxt UI scales its radii from this (md = 1.5x), so controls land on 9px. */
   --ui-radius: .375rem;
 
@@ -63,6 +64,7 @@
   --nb-term-bg: #15181D;
   --nb-term-fg: #DCE1E6;
   --nb-term-muted: #98A2AE;
+  --nb-term-border: var(--color-ink-700);
 }
 
 .dark {
@@ -75,6 +77,7 @@
   --ui-primary: #F2F4F6;
   /* Restated because the unlayered :root value would otherwise win; red-400 is 6.2:1 here. */
   --ui-error: var(--ui-color-error-400);
+  --ui-warning: var(--ui-color-warning-400);
 
   --nb-sidebar: #101317;
   --nb-soft: #1A1E25;
@@ -100,7 +103,7 @@
 /* Unlayered so it beats Nuxt UI's translucent focus utilities. */
 :focus-visible:not([tabindex="-1"]) {
   outline: 2px solid var(--nb-focus);
-  outline-offset: 2px;
+  outline-offset: var(--nb-focus-offset, 2px);
 }
 
 .nb-h1 {

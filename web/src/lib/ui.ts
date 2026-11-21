@@ -8,8 +8,9 @@ export const tr = 'flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 sm:ta
 export const td = 'sm:table-cell sm:px-4 sm:py-3'
 
 // The one native-select style; matches UInput's 36px height and --ui-border.
-export const selectClass =
-  'h-9 w-full rounded-[9px] border border-default bg-default px-2.5 text-sm text-highlighted focus-visible:outline-2 focus-visible:outline-primary sm:w-auto'
+export const selectFullClass =
+  'h-9 w-full rounded-[9px] border border-default bg-default px-2.5 text-sm text-highlighted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+export const selectClass = `${selectFullClass} sm:w-auto`
 
 // The one style for checkboxes that stay native.
 export const checkboxClass =

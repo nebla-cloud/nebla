@@ -226,7 +226,7 @@ describe('CommandPalette', () => {
 
   it('has a Search button that names its shortcut and opens the palette', async () => {
     await mountAt('/p/1/servers')
-    const btn = document.querySelector('button[aria-label="Search"]') as HTMLButtonElement
+    const btn = document.querySelector('button[aria-keyshortcuts]') as HTMLButtonElement
     expect(btn.getAttribute('aria-keyshortcuts')).toBe('Meta+K Control+K')
     expect(btn.textContent).toContain('Search')
     expect(btn.querySelector('kbd')?.textContent?.trim()).toMatch(/^(⌘K|Ctrl K)$/)

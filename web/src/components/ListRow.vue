@@ -5,7 +5,7 @@ defineProps<{ to?: RouteLocationRaw }>()
 
 const inner = 'flex items-center gap-3 px-4 py-3'
 const linkClass =
-  'hover:bg-(--nb-soft) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary'
+  'hover:bg-(--nb-soft) focus-visible:outline-2 focus-visible:[--nb-focus-offset:-2px] focus-visible:outline-primary'
 </script>
 
 <template>

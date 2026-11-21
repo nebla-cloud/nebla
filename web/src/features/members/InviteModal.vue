@@ -7,7 +7,7 @@ import UModal from '@nuxt/ui/components/Modal.vue'
 import { errorMessage } from '@/api/errors'
 import type { Role } from '@/api/types'
 import CopyField from '@/components/CopyField.vue'
-import { selectClass } from '@/lib/ui'
+import { selectFullClass } from '@/lib/ui'
 import { useCurrentProject } from '@/lib/project'
 import { assignableRoles, roleLabel } from '@/lib/roles'
 import { useCreateInvite } from './queries'
@@ -83,7 +83,7 @@ async function submit() {
             name="role"
             :aria-invalid="formError ? 'true' : undefined"
             :aria-describedby="formError ? roleErrorId : undefined"
-            :class="selectClass"
+            :class="selectFullClass"
           >
             <option v-for="r in roles" :key="r" :value="r">{{ roleLabel(r) }}</option>
           </select>

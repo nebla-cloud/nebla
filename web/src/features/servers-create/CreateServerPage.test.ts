@@ -131,7 +131,7 @@ const createButton = () =>
 
 const stepFieldset = (title: string) =>
   Array.from(document.body.querySelectorAll('li[data-step]'))
-    .find((li) => li.querySelector('h3')?.textContent?.trim() === title)
+    .find((li) => li.querySelector('h2')?.textContent?.trim() === title)
     ?.querySelector('fieldset')
 
 async function pick(sel: string) {
@@ -166,7 +166,7 @@ describe('CreateServerPage', () => {
     serveCatalog()
     await mountCreate()
     const steps = Array.from(document.body.querySelectorAll<HTMLElement>('form ol > li[data-step]'))
-    expect(steps.map((s) => [s.dataset.step, s.querySelector('h3')?.textContent?.trim()])).toEqual([
+    expect(steps.map((s) => [s.dataset.step, s.querySelector('h2')?.textContent?.trim()])).toEqual([
       ['1', 'Location'],
       ['2', 'Image'],
       ['3', 'Type'],

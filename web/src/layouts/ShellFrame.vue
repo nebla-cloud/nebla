@@ -27,7 +27,7 @@ const title = computed(() => props.nav?.find((i) => isActive(router, route, i))?
 
 const sidebar = computed(() =>
   props.ink
-    ? 'bg-ink-950 text-ink-300 dark:border-r dark:border-ink-800'
+    ? 'bg-ink-950 text-ink-300 [--nb-focus:var(--color-ink-100)] dark:border-r dark:border-ink-800'
     : 'bg-(--nb-sidebar) text-toned border-r border-default',
 )
 </script>
@@ -45,23 +45,31 @@ const sidebar = computed(() =>
     <div class="min-w-0">
       <TopBar :title="title">
         <template #leading>
-          <button
-            type="button"
-            class="grid size-10 shrink-0 place-items-center rounded-[8px] text-highlighted hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary lg:hidden"
-            aria-label="Open menu"
-            :aria-expanded="open"
-            @click="open = true"
+          <USlideover
+            v-model:open="open"
+            side="left"
+            :title="label"
+            :ui="{ content: ['flex w-72 max-w-[85vw] flex-col overflow-y-auto', sidebar] }"
           >
-            <svg viewBox="0 0 20 20" class="size-5" aria-hidden="true">
-              <path
-                d="M3 5.5h14M3 10h14M3 14.5h14"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-          <div class="flex min-w-0 shrink items-center gap-2 text-highlighted lg:hidden">
+            <button
+              type="button"
+              class="grid size-10 shrink-0 place-items-center rounded-[8px] text-highlighted hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary lg:hidden"
+              aria-label="Open menu"
+            >
+              <svg viewBox="0 0 20 20" class="size-5" aria-hidden="true">
+                <path
+                  d="M3 5.5h14M3 10h14M3 14.5h14"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+            <template #content>
+              <slot name="sidebar" />
+            </template>
+          </USlideover>
+          <div class="flex min-w-0 max-w-[45%] shrink items-center gap-2 text-highlighted lg:hidden">
             <slot name="topbar" />
           </div>
           <span v-if="title" class="text-muted lg:hidden" aria-hidden="true">/</span>
@@ -76,16 +84,5 @@ const sidebar = computed(() =>
         <RouterView />
       </main>
     </div>
-
-    <USlideover
-      v-model:open="open"
-      side="left"
-      :title="label"
-      :ui="{ content: ['flex w-72 max-w-[85vw] flex-col overflow-y-auto', sidebar] }"
-    >
-      <template #content>
-        <slot name="sidebar" />
-      </template>
-    </USlideover>
   </div>
 </template>

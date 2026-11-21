@@ -82,7 +82,7 @@ describe('ShellFrame', () => {
 
   it('puts the Search button in the top bar, with no palette in the DOM until opened', async () => {
     await mountAt('/p/1/servers')
-    expect(topBar().querySelector('button[aria-label="Search"]')).not.toBeNull()
+    expect(topBar().querySelector('button[aria-keyshortcuts="Meta+K Control+K"]')).not.toBeNull()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
@@ -122,7 +122,9 @@ describe('ShellFrame', () => {
     await mountAt('/p/1/servers', longName)
     ;(document.querySelector('button[aria-label="Open menu"]') as HTMLElement).click()
     await flushPromises()
-    const switchers = document.querySelectorAll('button[aria-label="Switch project"]')
+    const switchers = [...document.querySelectorAll('button')].filter((button) =>
+      button.textContent?.includes('Switch project'),
+    )
     expect(switchers.length).toBe(2)
     for (const s of switchers) {
       const label = [...s.querySelectorAll('span')].find(

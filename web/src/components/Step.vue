@@ -23,6 +23,7 @@ const st = computed<StepState>(
     ref="el"
     :data-step="num"
     :data-state="st"
+    :aria-current="st === 'current' ? 'step' : undefined"
     class="relative grid grid-cols-[1.75rem_1fr] gap-3.5 pb-4 not-last:before:absolute not-last:before:top-8 not-last:before:-bottom-1 not-last:before:left-[0.8125rem] not-last:before:w-[1.5px] not-last:before:bg-(--ui-border) not-last:before:content-['']"
   >
     <span
@@ -35,11 +36,12 @@ const st = computed<StepState>(
             : 'border-(--ui-border) text-muted'
       "
     >
-      <UIcon v-if="st === 'done'" name="i-lucide-check" class="size-4" aria-label="Done" />
+      <UIcon v-if="st === 'done'" name="i-lucide-check" class="size-4" aria-hidden="true" />
       <template v-else>{{ num }}</template>
     </span>
     <div class="min-w-0">
-      <h3 class="mt-1 mb-2.5 text-base font-semibold text-highlighted">{{ title }}</h3>
+      <span v-if="st === 'done'" class="sr-only">Done</span>
+      <h2 class="nb-h2 mt-1 mb-2.5 text-highlighted">{{ title }}</h2>
       <slot />
     </div>
   </li>

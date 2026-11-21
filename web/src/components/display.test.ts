@@ -59,7 +59,8 @@ describe('StepList and Step', () => {
 
   it('shows a check, not the number, when done', () => {
     const s = mount(Step, { props: { n: 3, state: 'done', title: 'Type' } })
-    expect(s.find('svg, [class*="i-lucide-check"], [aria-label="Done"]').exists()).toBe(true)
+    expect(s.find('svg, [class*="i-lucide-check"]').attributes('aria-hidden')).toBe('true')
+    expect(s.get('.sr-only').text()).toBe('Done')
   })
 })
 

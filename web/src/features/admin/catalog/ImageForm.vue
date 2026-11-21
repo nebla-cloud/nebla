@@ -6,7 +6,7 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import { useAdminLocations } from '@/lib/adminQueries'
-import { selectClass } from '@/lib/ui'
+import { selectFullClass } from '@/lib/ui'
 import { useCatalog, useSaveImage, type AdminImage, type ImageInput } from './queries'
 
 interface Row {
@@ -66,7 +66,6 @@ const selectValue = computed({
   },
 })
 
-const fieldSelect = `${selectClass} sm:w-full`
 
 function nodesFor(location: string): string[] {
   const l = locations.value?.find((x) => String(x.id) === location)
@@ -145,7 +144,7 @@ async function submit() {
     </UFormField>
     <div class="grid gap-4 sm:grid-cols-2">
       <UFormField label="OS flavor" name="os_flavor" :error="errors.os_flavor">
-        <select v-model="selectValue" name="os_flavor" :class="fieldSelect">
+        <select v-model="selectValue" name="os_flavor" :class="selectFullClass">
           <option value="" disabled>Choose a flavor</option>
           <option v-for="f in flavors" :key="f" :value="f">{{ f }}</option>
           <option :value="OTHER">Other</option>
@@ -188,7 +187,7 @@ async function submit() {
             <select
               :value="r.location"
               :name="`location-${i}`"
-              :class="fieldSelect"
+              :class="selectFullClass"
               @change="pickLocation(r, ($event.target as HTMLSelectElement).value)"
             >
               <option value="" disabled>Choose a location</option>
@@ -196,7 +195,7 @@ async function submit() {
             </select>
           </UFormField>
           <UFormField label="Node" :name="`node-${i}`" :error="errors[`node-${r.id}`]">
-            <select v-model="r.node" :name="`node-${i}`" :class="fieldSelect">
+            <select v-model="r.node" :name="`node-${i}`" :class="selectFullClass">
               <option value="">Shared storage</option>
               <option v-for="n in nodesFor(r.location)" :key="n" :value="n">{{ n }}</option>
             </select>

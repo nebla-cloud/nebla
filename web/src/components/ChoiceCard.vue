@@ -20,7 +20,7 @@ const model = defineModel<unknown>()
       variant === 'arch'
         ? 'gap-1.5 rounded-t-[28px] rounded-b-[12px] pt-4 pb-3'
         : 'gap-0.5 rounded-[12px] py-3',
-      disabled ? 'cursor-not-allowed border-dashed border-default opacity-60' : 'cursor-pointer border-default',
+      disabled ? 'cursor-not-allowed border-dashed border-default bg-muted' : 'cursor-pointer border-default',
     ]"
   >
     <input
