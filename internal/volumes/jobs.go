@@ -213,9 +213,10 @@ func ourKey(cfg map[string]string, id int64) string {
 	return ""
 }
 
-func freeKey(cfg map[string]string) string {
+// freeKey is the first virtioN key neither in cfg nor in taken, the keys other volumes record on the server.
+func freeKey(cfg map[string]string, taken []string) string {
 	for _, k := range vref.Keys() {
-		if _, used := cfg[k]; !used {
+		if _, used := cfg[k]; !used && !slices.Contains(taken, k) {
 			return k
 		}
 	}

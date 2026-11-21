@@ -78,7 +78,7 @@ func (r *Reconciler) syncVolumes(ctx context.Context, log *slog.Logger, location
 			}
 		}
 	}
-	r.checkAttached(ctx, log, rows, vms)
+	r.checkAttached(ctx, log, locationID, rows, vms)
 	return errors.Join(errs...)
 }
 
@@ -134,23 +134,30 @@ func (r *Reconciler) applyVolume(ctx context.Context, log *slog.Logger, id int64
 	})
 }
 
-// checkAttached warns, once per pass, about attached rows whose server VM config no longer holds their disk.
-func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, rows []*ent.Volume, vms view) {
+// checkAttached warns, once per pass, about attached rows whose server VM config no longer holds their disk,
+// and about Nebla volume keys the DB does not record on that server. Only servers of projects with volumes here are read.
+func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, locationID int64, rows []*ent.Volume, vms view) {
+	if len(rows) == 0 {
+		return
+	}
 	byServer := map[int64][]*ent.Volume{}
+	projects := map[int64]bool{}
 	for _, v := range rows {
-		if v.Status == volume.StatusAttached && v.ServerID != nil {
+		projects[v.ProjectID] = true
+		if v.ServerID != nil {
 			byServer[*v.ServerID] = append(byServer[*v.ServerID], v)
 		}
 	}
-	if len(byServer) == 0 {
-		return
-	}
-	srvs, err := r.o.Ent.Server.Query().Where(server.IDIn(slices.Collect(maps.Keys(byServer))...)).All(ctx)
+	srvs, err := r.o.Ent.Server.Query().Where(server.LocationID(locationID), server.ProjectIDIn(slices.Collect(maps.Keys(projects))...)).
+		Order(ent.Asc(server.FieldID)).All(ctx)
 	if err != nil {
-		log.Warn("reconcile: read servers of attached volumes", "err", err)
+		log.Warn("reconcile: read servers of volume projects", "err", err)
 		return
 	}
-	pc, err := r.o.Catalog.ProxmoxFor(ctx, rows[0].LocationID)
+	if len(srvs) == 0 {
+		return
+	}
+	pc, err := r.o.Catalog.ProxmoxFor(ctx, locationID)
 	if err != nil {
 		return
 	}
@@ -166,9 +173,23 @@ func (r *Reconciler) checkAttached(ctx context.Context, log *slog.Logger, rows [
 			log.Warn("reconcile: read vm config", "server_id", s.ID, "err", err)
 			continue
 		}
+		recorded := map[string]int64{}
 		for _, v := range byServer[s.ID] {
+			recorded[v.Device] = v.ID
+			if v.Status != volume.StatusAttached {
+				continue
+			}
 			if id, ok := vref.Parse(cfg[v.Device]); !ok || id != v.ID {
 				log.Warn("reconcile: attached volume not in server config", "volume_id", v.ID, "server_id", s.ID, "device", v.Device)
+			}
+		}
+		for _, k := range vref.Keys() {
+			id, ok := vref.Parse(cfg[k])
+			if !ok {
+				continue
+			}
+			if got, has := recorded[k]; !has || got != id {
+				log.Warn("reconcile: volume key not recorded on its server", "volume_id", id, "server_id", s.ID, "device", k)
 			}
 		}
 	}

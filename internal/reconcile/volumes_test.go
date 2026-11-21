@@ -159,3 +159,23 @@ func TestReconcileSharedVolume(t *testing.T) {
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Equal(t, volume.StatusAvailable, volStatus(t, e, v.ID))
 }
+
+func TestReconcileWarnsUntrackedVolumeKey(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	logs := &lockedBuffer{}
+	r := newReconciler(e, newLogger(logs))
+	id, volid := diskVolume(t, e, "data", 5)
+	srv, vmid := running(t, e, "web")
+	e.App.PVE.SetVMConfig(vmid, "virtio3", vref.ConfigValue(volid, id))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Contains(t, logs.String(), "volume key not recorded on its server")
+	require.Equal(t, volume.StatusAvailable, volStatus(t, e, id), "only logged")
+
+	require.NoError(t, e.App.Ent.Volume.UpdateOneID(id).SetStatus(volume.StatusAttached).SetServerID(srv.ID).SetDevice("virtio3").Exec(ctx))
+	logs2 := &lockedBuffer{}
+	require.NoError(t, newReconciler(e, newLogger(logs2)).Run(ctx, e.Location))
+	require.NotContains(t, logs2.String(), "volume key not recorded")
+	require.NotContains(t, logs2.String(), "attached volume not in server config")
+}

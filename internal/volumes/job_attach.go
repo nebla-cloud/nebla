@@ -26,14 +26,9 @@ func (o *WorkerOptions) plug(ctx context.Context, pc pve.Client, vms []pve.VM, r
 	if err != nil {
 		return nil, err
 	}
-	key, err := setKey(ctx, pc, vm, row)
+	row, key, err := o.setKey(ctx, pc, vm, row, srv.ID)
 	if err != nil {
 		return nil, err
-	}
-	if row.ServerID == nil || *row.ServerID != srv.ID || row.Device != key {
-		if row, err = row.Update().SetServerID(srv.ID).SetDevice(key).Save(ctx); err != nil {
-			return nil, err
-		}
 	}
 	if err := actions.Progress(ctx, o.Ent, actionID, progress); err != nil {
 		return nil, err
@@ -50,32 +45,49 @@ func (o *WorkerOptions) plug(ctx context.Context, pc pve.Client, vms []pve.VM, r
 }
 
 // setKey writes row's virtioN key with the config digest, unless a key already references it.
-func setKey(ctx context.Context, pc pve.Client, vm pve.VM, row *ent.Volume) (string, error) {
+// The row records the server and key before the write, so a write whose reply is lost is never untracked.
+func (o *WorkerOptions) setKey(ctx context.Context, pc pve.Client, vm pve.VM, row *ent.Volume, serverID int64) (*ent.Volume, string, error) {
 	for range digestTries {
 		cfg, err := pc.Config(ctx, vm.Node, vm.VMID)
 		if err != nil {
-			return "", servers.StepError("read vm config", err)
+			return row, "", servers.StepError("read vm config", err)
 		}
 		if key := ourKey(cfg, row.ID); key != "" {
-			return key, nil
+			row, err = record(ctx, row, serverID, key)
+			return row, key, err
 		}
 		if err := needsPowerOff(vm, cfg); err != nil {
-			return "", err
+			return row, "", err
 		}
-		key := freeKey(cfg)
+		taken, err := o.Ent.Volume.Query().Where(volume.ServerID(serverID), volume.IDNEQ(row.ID)).Select(volume.FieldDevice).Strings(ctx)
+		if err != nil {
+			return row, "", err
+		}
+		key := freeKey(cfg, taken)
 		if key == "" {
-			return "", servers.Permanent("vm %d has no free virtio slot", vm.VMID)
+			return row, "", servers.Permanent("vm %d has no free virtio slot", vm.VMID)
+		}
+		if row, err = record(ctx, row, serverID, key); err != nil {
+			return row, "", err
 		}
 		err = pc.SetConfigDigest(ctx, vm.Node, vm.VMID, map[string]string{key: vref.ConfigValue(row.Volid, row.ID)}, cfg["digest"])
 		if errors.Is(err, pve.ErrDigestMismatch) {
 			continue
 		}
 		if err != nil {
-			return "", servers.StepError("attach volume", err)
+			return row, "", servers.StepError("attach volume", err)
 		}
-		return key, nil
+		return row, key, nil
 	}
-	return "", servers.Transient("vm %d config kept changing", vm.VMID)
+	return row, "", servers.Transient("vm %d config kept changing", vm.VMID)
+}
+
+// record saves serverID and key on row unless it holds them already.
+func record(ctx context.Context, row *ent.Volume, serverID int64, key string) (*ent.Volume, error) {
+	if row.ServerID != nil && *row.ServerID == serverID && row.Device == key {
+		return row, nil
+	}
+	return row.Update().SetServerID(serverID).SetDevice(key).Save(ctx)
 }
 
 // unplug deletes row's virtioN key from the VM; an unplug still pending is retried.
