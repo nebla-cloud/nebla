@@ -937,11 +937,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		rule := pve.FirewallRule{Type: f["type"], Action: f["action"], Iface: f["iface"], Proto: f["proto"], Dport: f["dport"],
 			Source: f["source"], Dest: f["dest"], Comment: f["comment"], Enable: f["enable"] == "1"}
-		pos := len(v.rules)
-		if p, err := strconv.Atoi(f["pos"]); err == nil && p >= 0 && p <= len(v.rules) {
-			pos = p
-		}
-		v.rules = slices.Insert(v.rules, pos, rule)
+		// Real PVE inserts new rules at the top and ignores pos.
+		v.rules = slices.Insert(v.rules, 0, rule)
 		return nil, nil
 	})
 	s.handle(mux, "DELETE /nodes/{node}/qemu/{vmid}/firewall/rules/{pos}", false, func(r *http.Request, _ bool) (any, *apiErr) {

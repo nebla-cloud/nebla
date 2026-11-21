@@ -109,7 +109,7 @@ type Client interface {
 	FirewallOptions(ctx context.Context, node string, vmid int) (map[string]string, error)
 	SetFirewallOptions(ctx context.Context, node string, vmid int, kv map[string]string) error
 	FirewallRules(ctx context.Context, node string, vmid int) ([]FirewallRule, error)
-	// AddFirewallRule appends at r.Pos, which callers set to the current rule count.
+	// AddFirewallRule adds r; Proxmox puts it at the top, shifting the rest down.
 	AddFirewallRule(ctx context.Context, node string, vmid int, r FirewallRule) error
 	DeleteFirewallRule(ctx context.Context, node string, vmid, pos int) error
 	ClusterFirewallEnabled(ctx context.Context) (bool, error)

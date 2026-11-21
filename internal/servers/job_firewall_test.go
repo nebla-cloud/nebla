@@ -297,7 +297,8 @@ func TestApplyCoalesces(t *testing.T) {
 		require.NoError(t, f.work(t, a, 1))
 		require.Equal(t, actions.StatusSuccess, f.action(t, a.ID).Status)
 	}
-	require.LessOrEqual(t, syncs()-first, 1, "quick changes collapse into one sync")
+	// One sync reads rules 2-3 times (before, after adds, verify); two would read at least 4.
+	require.LessOrEqual(t, syncs()-first, 3, "quick changes collapse into one sync")
 	require.Equal(t, []string{"8080"}, dports(t, f.ServerEnv, f.vmid))
 	desired, applied := gens(t, f.ServerEnv, f.srv)
 	require.Equal(t, desired, applied)

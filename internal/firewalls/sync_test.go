@@ -47,15 +47,13 @@ func converged(t *testing.T, s *fake.Server, d Desired) {
 			t.Errorf("option %s = %q, want %q", k, v.Firewall[k], want)
 		}
 	}
+	// Rule order does not matter for an allow-only list.
 	if len(v.Rules) != len(d.Rules) {
 		t.Fatalf("rules = %+v, want %+v", v.Rules, d.Rules)
 	}
-	for i, r := range v.Rules {
-		w := d.Rules[i]
-		w.Pos = 0
-		r.Pos = 0
-		if r != w {
-			t.Errorf("rule %d = %+v, want %+v", i, r, w)
+	for _, w := range d.Rules {
+		if !slices.ContainsFunc(v.Rules, func(r pve.FirewallRule) bool { r.Pos = w.Pos; return r == w }) {
+			t.Errorf("rule %+v missing from %+v", w, v.Rules)
 		}
 	}
 }
@@ -130,7 +128,7 @@ func TestSyncRemovesForeignRules(t *testing.T) {
 	if err := pc.AddFirewallRule(ctx, node, vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "3306", Enable: true, Comment: "mine"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := pc.AddFirewallRule(ctx, node, vmid, pve.FirewallRule{Pos: 1, Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "25", Enable: true}); err != nil {
+	if err := pc.AddFirewallRule(ctx, node, vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "25", Enable: true}); err != nil {
 		t.Fatal(err)
 	}
 	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
@@ -291,5 +289,25 @@ func TestDrift(t *testing.T) {
 	extra := append(slices.Clone(cur), pve.FirewallRule{Pos: 1, Type: "in", Action: "ACCEPT", Comment: "hand made"})
 	if got := Drift(extra, d.Options, d); got != `unexpected rule at pos 1 ("hand made")` {
 		t.Fatalf("extra: %q", got)
+	}
+}
+
+func TestSyncReplacesRulesWithPrependingAdds(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	old := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	if err := Sync(ctx, pc, node, vmid, old); err != nil {
+		t.Fatal(err)
+	}
+	next := Render([]Rule{
+		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")},
+		{ID: 3, FirewallID: 1, Direction: "in", Protocol: "udp", Port: ptr("9999"), IPs: pfx("10.99.0.11/32")},
+	}, true)
+	if err := Sync(ctx, pc, node, vmid, next); err != nil {
+		t.Fatal(err)
+	}
+	v, _ := s.VM(vmid)
+	if got := comments(v.Rules); len(v.Rules) != 2 || !covers(got, next.Rules) {
+		t.Fatalf("rules = %+v, want %+v", v.Rules, next.Rules)
 	}
 }

@@ -9,35 +9,75 @@ import (
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
-// Sync applies d to a VM so that a protected VM is never briefly open.
+// Sync applies d to a VM so that a protected VM is never briefly open, then verifies it.
 func Sync(ctx context.Context, pc pve.Client, node string, vmid int, d Desired) error {
-	cur, err := pc.FirewallRules(ctx, node, vmid)
+	cur, err := readRules(ctx, pc, node, vmid)
 	if err != nil {
-		return fmt.Errorf("read firewall rules: %w", err)
+		return err
 	}
 	missing, stale := diff(cur, d)
 	if d.Options["policy_in"] == "DROP" {
-		n := len(cur)
 		for _, r := range missing {
-			r.Pos = n
 			if err := pc.AddFirewallRule(ctx, node, vmid, r); err != nil {
 				return fmt.Errorf("add firewall rule: %w", err)
 			}
-			n++
+		}
+		// Adds shift positions (PVE prepends), so find stale rules again.
+		if len(missing) > 0 {
+			if cur, err = readRules(ctx, pc, node, vmid); err != nil {
+				return err
+			}
+			if missing, stale = diff(cur, d); len(missing) > 0 {
+				return fmt.Errorf("firewall rule %s not in place after adding it", missing[0].Comment)
+			}
 		}
 		if err := deleteRules(ctx, pc, node, vmid, stale); err != nil {
 			return err
 		}
-		return setOptions(ctx, pc, node, vmid, d.Options)
+		if err := setOptions(ctx, pc, node, vmid, d.Options); err != nil {
+			return err
+		}
+	} else {
+		if err := setOptions(ctx, pc, node, vmid, d.Options); err != nil {
+			return err
+		}
+		if err := deleteRules(ctx, pc, node, vmid, stale); err != nil {
+			return err
+		}
 	}
-	if err := setOptions(ctx, pc, node, vmid, d.Options); err != nil {
+	return verify(ctx, pc, node, vmid, d)
+}
+
+// verify re-reads the VM firewall and errors if it still differs from d.
+func verify(ctx context.Context, pc pve.Client, node string, vmid int, d Desired) error {
+	cur, err := readRules(ctx, pc, node, vmid)
+	if err != nil {
 		return err
 	}
-	return deleteRules(ctx, pc, node, vmid, stale)
+	opts, err := pc.FirewallOptions(ctx, node, vmid)
+	if err != nil {
+		return fmt.Errorf("read firewall options: %w", err)
+	}
+	if drift := Drift(cur, opts, d); drift != "" {
+		return fmt.Errorf("firewall differs after sync: %s", drift)
+	}
+	return nil
+}
+
+func readRules(ctx context.Context, pc pve.Client, node string, vmid int) ([]pve.FirewallRule, error) {
+	cur, err := pc.FirewallRules(ctx, node, vmid)
+	if err != nil {
+		return nil, fmt.Errorf("read firewall rules: %w", err)
+	}
+	return cur, nil
 }
 
 // deleteRules removes rules highest position first so lower positions stay valid.
-func deleteRules(ctx context.Context, pc pve.Client, node string, vmid int, pos []int) error {
+func deleteRules(ctx context.Context, pc pve.Client, node string, vmid int, rules []pve.FirewallRule) error {
+	pos := make([]int, len(rules))
+	for i, r := range rules {
+		pos[i] = r.Pos
+	}
 	slices.Sort(pos)
 	for _, p := range slices.Backward(pos) {
 		if err := pc.DeleteFirewallRule(ctx, node, vmid, p); err != nil {
@@ -79,11 +119,7 @@ func Drift(cur []pve.FirewallRule, curOpts map[string]string, d Desired) string 
 		return "rule missing: " + missing[0].Comment
 	}
 	if len(stale) > 0 {
-		for _, r := range cur {
-			if r.Pos == stale[0] {
-				return fmt.Sprintf("unexpected rule at pos %d (%q)", r.Pos, r.Comment)
-			}
-		}
+		return fmt.Sprintf("unexpected rule at pos %d (%q)", stale[0].Pos, stale[0].Comment)
 	}
 	return ""
 }
@@ -103,8 +139,8 @@ func same(a, b pve.FirewallRule) bool {
 	return a == b
 }
 
-// diff returns desired rules not live and positions of live rules not desired.
-func diff(cur []pve.FirewallRule, d Desired) (missing []pve.FirewallRule, stale []int) {
+// diff returns desired rules not live and live rules not desired.
+func diff(cur []pve.FirewallRule, d Desired) (missing, stale []pve.FirewallRule) {
 	want := map[string]pve.FirewallRule{}
 	for _, r := range d.Rules {
 		want[r.Comment] = r
@@ -115,7 +151,7 @@ func diff(cur []pve.FirewallRule, d Desired) (missing []pve.FirewallRule, stale 
 			have[r.Comment] = true
 			continue
 		}
-		stale = append(stale, r.Pos)
+		stale = append(stale, r)
 	}
 	for _, r := range d.Rules {
 		if !have[r.Comment] {

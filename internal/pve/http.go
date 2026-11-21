@@ -424,7 +424,7 @@ func (c *httpClient) FirewallRules(ctx context.Context, node string, vmid int) (
 }
 
 func (c *httpClient) AddFirewallRule(ctx context.Context, node string, vmid int, r FirewallRule) error {
-	f := url.Values{"type": {r.Type}, "action": {r.Action}, "enable": {"0"}, "pos": {strconv.Itoa(r.Pos)}}
+	f := url.Values{"type": {r.Type}, "action": {r.Action}, "enable": {"0"}}
 	if r.Enable {
 		f.Set("enable", "1")
 	}

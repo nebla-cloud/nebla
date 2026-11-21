@@ -615,11 +615,7 @@ func TestFirewallRulesRoundTrip(t *testing.T) {
 	f, c := setup(t)
 	f.AddVM("pve1", 101, "a")
 	for _, cm := range []string{"a", "b", "c"} {
-		n, err := c.FirewallRules(ctx(t), "pve1", 101)
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = c.AddFirewallRule(ctx(t), "pve1", 101, pve.FirewallRule{Pos: len(n), Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "22", Comment: cm, Enable: true})
+		err := c.AddFirewallRule(ctx(t), "pve1", 101, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "22", Comment: cm, Enable: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -631,7 +627,7 @@ func TestFirewallRulesRoundTrip(t *testing.T) {
 	if err != nil || len(got) != 2 {
 		t.Fatalf("rules = %+v, %v", got, err)
 	}
-	if got[0].Pos != 0 || got[0].Comment != "a" || got[1].Pos != 1 || got[1].Comment != "c" || !got[1].Enable || got[1].Dport != "22" {
+	if got[0].Pos != 0 || got[0].Comment != "c" || got[1].Pos != 1 || got[1].Comment != "a" || !got[1].Enable || got[1].Dport != "22" {
 		t.Fatalf("rules = %+v", got)
 	}
 	if vm, _ := f.VM(101); len(vm.Rules) != 2 {
@@ -684,7 +680,7 @@ func TestFirewallFormEncoding(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"POST /api2/json/nodes/n1/qemu/101/firewall/rules action=ACCEPT&comment=web&dest=5.6.7.8&dport=8000%3A8100&enable=1&iface=net0&pos=2&proto=tcp&source=1.2.3.4&type=in",
+		"POST /api2/json/nodes/n1/qemu/101/firewall/rules action=ACCEPT&comment=web&dest=5.6.7.8&dport=8000%3A8100&enable=1&iface=net0&proto=tcp&source=1.2.3.4&type=in",
 		"DELETE /api2/json/nodes/n1/qemu/101/firewall/rules/2 ",
 		"PUT /api2/json/nodes/n1/qemu/101/firewall/options policy_in=DROP",
 	}
