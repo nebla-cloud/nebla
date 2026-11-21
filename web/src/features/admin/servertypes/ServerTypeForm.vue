@@ -55,6 +55,7 @@ function applyTemplate(t: ServerTypeTemplate) {
   memoryGb.value = String(t.memory_mb / 1024)
   diskGb.value = String(t.disk_gb)
   errors.value = {}
+  formError.value = null
 }
 
 const hasLocations = computed(() => (locations.value?.length ?? 0) > 0)

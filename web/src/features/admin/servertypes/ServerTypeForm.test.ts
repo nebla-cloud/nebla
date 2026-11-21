@@ -135,9 +135,26 @@ describe('ServerTypeForm', () => {
         json(500, { error: { code: 'internal', message: 'boom' } }),
       ),
     )
-    const { wrapper } = mountApp(ServerTypeForm)
+    const { wrapper, queryClient } = mountApp(ServerTypeForm)
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryState(['admin', 'server-types'])?.status).toBe('error'),
+    )
     await flushPromises()
     expect(wrapper.find('button[data-template="small"]').exists()).toBe(true)
     expect(wrapper.find('button[data-template="small"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('picking a template clears an earlier server error', async () => {
+    server.use(
+      http.post('*/v1/admin/server_types', () =>
+        json(409, { error: { code: 'conflict', message: 'A server type with that name exists.' } }),
+      ),
+    )
+    const { wrapper } = mountApp(ServerTypeForm)
+    await fill(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('A server type with that name exists.'))
+    await wrapper.find('button[data-template="medium"]').trigger('click')
+    expect(wrapper.text()).not.toContain('A server type with that name exists.')
   })
 })
