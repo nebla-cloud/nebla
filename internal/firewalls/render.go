@@ -46,19 +46,26 @@ func Render(rules []Rule, anyFirewall bool) Desired {
 		if r.Direction == "out" {
 			d.Options["policy_out"] = "DROP"
 		}
-		for _, v6 := range []bool{false, true} {
-			var cidrs []string
-			for _, p := range r.IPs {
-				if p.Addr().Unmap().Is6() == v6 {
-					cidrs = append(cidrs, p.String())
-				}
-			}
-			for part, list := range split(cidrs) {
-				d.Rules = append(d.Rules, render(r, v6, part, list))
-			}
-		}
+		d.Rules = append(d.Rules, renderRule(r)...)
 	}
 	return d
+}
+
+// renderRule splits one rule into Proxmox rules by address family and list length.
+func renderRule(r Rule) []pve.FirewallRule {
+	var out []pve.FirewallRule
+	for _, v6 := range []bool{false, true} {
+		var cidrs []string
+		for _, p := range r.IPs {
+			if p.Addr().Unmap().Is6() == v6 {
+				cidrs = append(cidrs, p.String())
+			}
+		}
+		for part, list := range split(cidrs) {
+			out = append(out, render(r, v6, part, list))
+		}
+	}
+	return out
 }
 
 func render(r Rule, v6 bool, part int, list string) pve.FirewallRule {

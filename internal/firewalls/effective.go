@@ -102,11 +102,7 @@ func RulesFor(ctx context.Context, c *ent.Client, serverID int64) ([]Rule, bool,
 	if err != nil || len(eff) == 0 {
 		return nil, false, err
 	}
-	ids := make([]int64, len(eff))
-	for i, a := range eff {
-		ids[i] = a.FirewallID
-	}
-	rows, err := c.FirewallRule.Query().Where(firewallrule.FirewallIDIn(ids...)).
+	rows, err := c.FirewallRule.Query().Where(firewallrule.FirewallIDIn(firewallIDs(eff)...)).
 		Order(firewallrule.ByFirewallID(), firewallrule.ByPosition()).All(ctx)
 	if err != nil {
 		return nil, false, err
@@ -137,7 +133,47 @@ func overLimit(name string) error {
 	return limitExceeded(fmt.Sprintf("server %s would have more than %d firewalls", name, MaxEffective))
 }
 
-// CheckLimit refuses a server whose effective firewalls, with these labels and extraDirect added, would exceed MaxEffective.
+func overRules(name string) error {
+	return limitExceeded(fmt.Sprintf("server %s would have more than %d firewall rules", name, MaxRenderedRules))
+}
+
+// ruleCounts maps each firewall in ids to the number of Proxmox rules its rules render to.
+func ruleCounts(ctx context.Context, c *ent.Client, ids []int64) (map[int64]int, error) {
+	out := map[int64]int{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := c.FirewallRule.Query().Where(firewallrule.FirewallIDIn(ids...)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		rule, err := toRule(r)
+		if err != nil {
+			return nil, err
+		}
+		out[r.FirewallID] += len(renderRule(rule))
+	}
+	return out, nil
+}
+
+func firewallIDs(eff []Applied) []int64 {
+	out := make([]int64, len(eff))
+	for i, a := range eff {
+		out[i] = a.FirewallID
+	}
+	return out
+}
+
+func rendered(eff []Applied, counts map[int64]int) int {
+	n := 0
+	for _, a := range eff {
+		n += counts[a.FirewallID]
+	}
+	return n
+}
+
+// CheckLimit refuses a server over MaxEffective firewalls or MaxRenderedRules rules with these labels and extraDirect.
 func CheckLimit(ctx context.Context, c *ent.Client, projectID, serverID int64, lbls map[string]string, extraDirect []int64) error {
 	row, err := c.Server.Query().Where(server.ID(serverID), server.ProjectID(projectID)).Only(ctx)
 	if err != nil {
@@ -147,8 +183,16 @@ func CheckLimit(ctx context.Context, c *ent.Client, projectID, serverID int64, l
 	if err != nil {
 		return err
 	}
-	if len(x.effective(serverID, lbls, extraDirect)) > MaxEffective {
+	eff := x.effective(serverID, lbls, extraDirect)
+	if len(eff) > MaxEffective {
 		return overLimit(row.Name)
+	}
+	counts, err := ruleCounts(ctx, c, firewallIDs(eff))
+	if err != nil {
+		return err
+	}
+	if rendered(eff, counts) > MaxRenderedRules {
+		return overRules(row.Name)
 	}
 	return nil
 }

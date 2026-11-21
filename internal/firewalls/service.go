@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -216,7 +217,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 		if err := ownServers(ctx, etx, projectID, res, true); err != nil {
 			return err
 		}
-		acts, err = s.change(ctx, tx, etx, projectID, true, func() (int64, error) {
+		acts, err = s.change(ctx, tx, etx, projectID, 0, true, func() (int64, error) {
 			fw, err := etx.Firewall.Create().SetProjectID(projectID).SetName(in.Name).SetLabels(in.Labels).Save(ctx)
 			if err != nil {
 				return 0, writeErr(err)
@@ -284,10 +285,7 @@ func (s *Service) SetRules(ctx context.Context, projectID, id int64, in []RuleIn
 		return nil, err
 	}
 	return s.locked(ctx, projectID, id, false, false, nil, func(etx *ent.Client) error {
-		if _, err := etx.FirewallRule.Delete().Where(firewallrule.FirewallID(id)).Exec(ctx); err != nil {
-			return err
-		}
-		return insertRules(ctx, etx, id, rules)
+		return replaceRules(ctx, etx, id, rules)
 	})
 }
 
@@ -382,14 +380,14 @@ func (s *Service) locked(ctx context.Context, projectID, id int64, onlyChanged, 
 			return err
 		}
 		var err error
-		acts, err = s.change(ctx, tx, etx, projectID, onlyChanged, func() (int64, error) { return id, mutate(etx) })
+		acts, err = s.change(ctx, tx, etx, projectID, id, onlyChanged, func() (int64, error) { return id, mutate(etx) })
 		return err
 	})
 	return acts, err
 }
 
-// change runs mutate, bumps servers the firewall covers before or after (onlyChanged: where that differs) and enforces MaxEffective.
-func (s *Service) change(ctx context.Context, tx *sql.Tx, etx *ent.Client, projectID int64, onlyChanged bool,
+// change runs mutate on firewall id (0 when it creates one), bumps the servers it covers before or after (onlyChanged: where that differs) and enforces the per-server limits.
+func (s *Service) change(ctx context.Context, tx *sql.Tx, etx *ent.Client, projectID, id int64, onlyChanged bool,
 	mutate func() (int64, error)) ([]actions.Action, error) {
 	srvs, err := liveServers(ctx, etx, projectID)
 	if err != nil {
@@ -399,8 +397,13 @@ func (s *Service) change(ctx context.Context, tx *sql.Tx, etx *ent.Client, proje
 	if err != nil {
 		return nil, err
 	}
-	id, err := mutate()
-	if err != nil {
+	var prev map[int64]int
+	if id != 0 {
+		if prev, err = ruleCounts(ctx, etx, []int64{id}); err != nil {
+			return nil, err
+		}
+	}
+	if id, err = mutate(); err != nil {
 		return nil, err
 	}
 	after, err := loadIndex(ctx, etx, projectID)
@@ -427,13 +430,85 @@ func (s *Service) change(ctx context.Context, tx *sql.Tx, etx *ent.Client, proje
 	if err != nil {
 		return nil, err
 	}
+	var ids []int64
 	for _, r := range rows {
-		n := len(fresh.effective(r.ID, r.Labels, nil))
-		if n > MaxEffective && n > len(before.effective(r.ID, r.Labels, nil)) {
+		ids = append(ids, firewallIDs(fresh.effective(r.ID, r.Labels, nil))...)
+		ids = append(ids, firewallIDs(before.effective(r.ID, r.Labels, nil))...)
+	}
+	counts, err := ruleCounts(ctx, etx, slices.Compact(slices.Sorted(slices.Values(ids))))
+	if err != nil {
+		return nil, err
+	}
+	old := maps.Clone(counts)
+	if prev != nil {
+		old[id] = prev[id]
+	}
+	// Only refuse growth, so a server already over a limit can always shrink.
+	for _, r := range rows {
+		a, b := fresh.effective(r.ID, r.Labels, nil), before.effective(r.ID, r.Labels, nil)
+		if len(a) > MaxEffective && len(a) > len(b) {
 			return nil, overLimit(r.Name)
+		}
+		if n := rendered(a, counts); n > MaxRenderedRules && n > rendered(b, old) {
+			return nil, overRules(r.Name)
 		}
 	}
 	return acts, nil
+}
+
+// replaceRules keeps the rows of unchanged rules, so their ids and rendered Proxmox rules stay put.
+func replaceRules(ctx context.Context, etx *ent.Client, id int64, rules []RuleInput) error {
+	cur, err := etx.FirewallRule.Query().Where(firewallrule.FirewallID(id)).
+		Order(firewallrule.ByPosition(), firewallrule.ByID()).All(ctx)
+	if err != nil {
+		return err
+	}
+	used := make([]bool, len(cur))
+	var add []*ent.FirewallRuleCreate
+	for i, r := range rules {
+		j := -1
+		for k, c := range cur {
+			if !used[k] && sameRule(c, r) {
+				j = k
+				break
+			}
+		}
+		if j < 0 {
+			add = append(add, ruleCreate(etx, id, i, r))
+			continue
+		}
+		used[j] = true
+		if cur[j].Position != i {
+			if err := etx.FirewallRule.UpdateOne(cur[j]).SetPosition(i).Exec(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	var drop []int64
+	for j, c := range cur {
+		if !used[j] {
+			drop = append(drop, c.ID)
+		}
+	}
+	if len(drop) > 0 {
+		if _, err := etx.FirewallRule.Delete().Where(firewallrule.IDIn(drop...)).Exec(ctx); err != nil {
+			return err
+		}
+	}
+	if len(add) == 0 {
+		return nil
+	}
+	return etx.FirewallRule.CreateBulk(add...).Exec(ctx)
+}
+
+func sameRule(c *ent.FirewallRule, r RuleInput) bool {
+	return string(c.Direction) == r.Direction && string(c.Protocol) == r.Protocol && c.Description == r.Description &&
+		(c.Port == nil) == (r.Port == nil) && (c.Port == nil || *c.Port == *r.Port) && slices.Equal(c.Ips, r.IPs)
+}
+
+func ruleCreate(etx *ent.Client, id int64, pos int, r RuleInput) *ent.FirewallRuleCreate {
+	return etx.FirewallRule.Create().SetFirewallID(id).SetPosition(pos).SetDirection(schema.Direction(r.Direction)).
+		SetProtocol(firewallrule.Protocol(r.Protocol)).SetNillablePort(r.Port).SetIps(r.IPs).SetDescription(r.Description)
 }
 
 func insertRules(ctx context.Context, etx *ent.Client, id int64, rules []RuleInput) error {
@@ -442,8 +517,7 @@ func insertRules(ctx context.Context, etx *ent.Client, id int64, rules []RuleInp
 	}
 	b := make([]*ent.FirewallRuleCreate, len(rules))
 	for i, r := range rules {
-		b[i] = etx.FirewallRule.Create().SetFirewallID(id).SetPosition(i).SetDirection(schema.Direction(r.Direction)).
-			SetProtocol(firewallrule.Protocol(r.Protocol)).SetNillablePort(r.Port).SetIps(r.IPs).SetDescription(r.Description)
+		b[i] = ruleCreate(etx, id, i, r)
 	}
 	return etx.FirewallRule.CreateBulk(b...).Exec(ctx)
 }

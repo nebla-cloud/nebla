@@ -280,6 +280,52 @@ func TestApplyAfterOrphanedRebuild(t *testing.T) {
 	require.Equal(t, []string{"22"}, dports(t, f.ServerEnv, f.vmid))
 }
 
+// fwCalls counts the fake's VM firewall calls by method and path kind.
+func fwCalls(e *testutil.ServerEnv) map[string]int {
+	out := map[string]int{}
+	for _, c := range e.App.PVE.Calls() {
+		method, path, _ := strings.Cut(c, " ")
+		if i := strings.Index(path, "/firewall/"); i >= 0 && strings.Contains(path, "/qemu/") {
+			kind, _, _ := strings.Cut(path[i+len("/firewall/"):], "/")
+			out[method+" "+kind]++
+		}
+	}
+	return out
+}
+
+func TestOneRuleChangeTouchesOneRule(t *testing.T) {
+	f := newFWEnv(t)
+	rules := make([]firewalls.RuleInput, firewalls.MaxRules)
+	for i := range rules {
+		rules[i] = tcpIn(strconv.Itoa(1000 + i))
+	}
+	id, acts := f.create(t, "big", rules, onServer(f.srv))
+	require.NoError(t, f.work(t, acts[0], 1))
+	vm, ok := f.App.PVE.VM(f.vmid)
+	require.True(t, ok)
+	require.Len(t, vm.Rules, 2*firewalls.MaxRules)
+
+	rules[50] = tcpIn("9999")
+	a := f.setRules(t, id, rules...)
+	before := fwCalls(f.ServerEnv)
+	require.NoError(t, f.work(t, a, 1))
+	require.Equal(t, actions.StatusSuccess, f.action(t, a.ID).Status)
+	after := fwCalls(f.ServerEnv)
+	delta := map[string]int{}
+	total := 0
+	for k, n := range after {
+		if d := n - before[k]; d > 0 {
+			delta[k] = d
+			total += d
+		}
+	}
+	require.Equal(t, 2, delta["POST rules"], "only the changed rule's two families are added: %v", delta)
+	require.Equal(t, 2, delta["DELETE rules"], "only the old rule's two families are deleted: %v", delta)
+	require.LessOrEqual(t, total, 15, "a one-rule change costs a constant number of calls: %v", delta)
+	vm, _ = f.App.PVE.VM(f.vmid)
+	require.Len(t, vm.Rules, 2*firewalls.MaxRules)
+}
+
 func TestApplyClusterFirewallOff(t *testing.T) {
 	f := newFWEnv(t)
 	_, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))
@@ -565,6 +611,44 @@ func TestCreateWithLabelsOverLimit(t *testing.T) {
 	n, err := e.App.Ent.Server.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Zero(t, n)
+}
+
+func TestServerOverRenderedRuleLimit(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	fw := fwService(e)
+	// Each firewall renders 200 Proxmox rules: one fits, two do not.
+	rules := make([]firewalls.RuleInput, firewalls.MaxRules)
+	for i := range rules {
+		rules[i] = tcpIn(strconv.Itoa(1000 + i))
+	}
+	a, _, err := fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "a", Rules: rules})
+	require.NoError(t, err)
+	b, _, err := fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "b", Rules: rules,
+		ApplyTo: []firewalls.ResourceInput{bySelector("role=web")}})
+	require.NoError(t, err)
+	svc := serverService(e)
+	want := "server web would have more than 250 firewall rules"
+
+	_, _, err = svc.Create(ctx, e.Project, servers.CreateInput{Name: "web", ServerType: "small", Image: "ubuntu", Location: "eu-1",
+		Firewalls: []int64{a.ID, b.ID}})
+	var ae apierr.E
+	require.ErrorAs(t, err, &ae)
+	require.Equal(t, "limit_exceeded", ae.Code)
+	require.Equal(t, want, ae.Msg)
+	_, _, err = svc.Create(ctx, e.Project, servers.CreateInput{Name: "web", ServerType: "small", Image: "ubuntu", Location: "eu-1",
+		Firewalls: []int64{a.ID}, Labels: map[string]string{"role": "web"}})
+	require.ErrorAs(t, err, &ae)
+	require.Equal(t, want, ae.Msg)
+
+	srv, act, err := svc.Create(ctx, e.Project, servers.CreateInput{Name: "web", ServerType: "small", Image: "ubuntu", Location: "eu-1",
+		Firewalls: []int64{a.ID}})
+	require.NoError(t, err)
+	settle(t, e, testutil.CreatedServer{ServerID: srv.ID, ActionID: act.ID}, servers.StatusRunning)
+	_, err = svc.Update(ctx, e.Project, srv.ID, servers.UpdateInput{Labels: &map[string]string{"role": "web"}})
+	require.ErrorAs(t, err, &ae)
+	require.Equal(t, http.StatusUnprocessableEntity, ae.Status)
+	require.Equal(t, want, ae.Msg)
 }
 
 func TestFailedCreateGetsNoApply(t *testing.T) {

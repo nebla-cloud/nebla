@@ -20,6 +20,8 @@ const (
 	MaxEffective   = 5
 	MaxDescription = 255
 	MaxLabels      = 64
+	// MaxRenderedRules caps the Proxmox rules one server's firewalls render to.
+	MaxRenderedRules = 250
 
 	TypeServer        = "server"
 	TypeLabelSelector = "label_selector"

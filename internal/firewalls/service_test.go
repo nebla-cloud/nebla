@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -431,4 +432,96 @@ func TestService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, got.AppliedTo)
 	})
+}
+
+func tcp(p string) firewalls.RuleInput {
+	return firewalls.RuleInput{Direction: "in", Protocol: "tcp", Port: ptr(p), IPs: []string{"0.0.0.0/0", "::/0"}}
+}
+
+func ruleIDs(fw firewalls.Firewall) map[string]int64 {
+	out := map[string]int64{}
+	for _, r := range fw.Rules {
+		out[*r.Port+"|"+r.Description] = r.ID
+	}
+	return out
+}
+
+func TestSetRulesKeepsUnchangedIDs(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	p := e.project("p")
+	fw, _ := e.create(p, "web", firewalls.CreateInput{Rules: []firewalls.RuleInput{tcp("22"), tcp("80"), tcp("443")}})
+	before := ruleIDs(fw)
+
+	desc := tcp("80")
+	desc.Description = "http"
+	_, err := e.svc.SetRules(ctx, p, fw.ID, []firewalls.RuleInput{tcp("443"), desc, tcp("22"), tcp("8080")})
+	require.NoError(t, err)
+	got, err := e.svc.Get(ctx, p, fw.ID)
+	require.NoError(t, err)
+	after := ruleIDs(got)
+	require.Equal(t, before["22|"], after["22|"])
+	require.Equal(t, before["443|"], after["443|"])
+	require.NotEqual(t, before["80|"], after["80|http"], "a changed rule is a new rule")
+	require.NotContains(t, after, "80|")
+	var ports []string
+	for _, r := range got.Rules {
+		ports = append(ports, *r.Port)
+	}
+	require.Equal(t, []string{"443", "80", "22", "8080"}, ports, "positions follow the new order")
+
+	// Duplicates each keep a row of their own.
+	_, err = e.svc.SetRules(ctx, p, fw.ID, []firewalls.RuleInput{tcp("22"), tcp("22")})
+	require.NoError(t, err)
+	got, err = e.svc.Get(ctx, p, fw.ID)
+	require.NoError(t, err)
+	require.Len(t, got.Rules, 2)
+	require.Equal(t, after["22|"], got.Rules[0].ID)
+	require.NotEqual(t, got.Rules[0].ID, got.Rules[1].ID)
+}
+
+// longV6 is n distinct IPv6 /128s of 42 characters each, so 11 fit in one 512-character Proxmox list.
+func longV6(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = fmt.Sprintf("2001:db8:1111:2222:3333:4444:5555:%x/128", 0x1000+i)
+	}
+	return out
+}
+
+func TestRenderedRuleLimit(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	p := e.project("p")
+	srv := e.server(p, "web", map[string]string{"role": "web"})
+
+	// 50 rules of 50 CIDRs each split into 5 Proxmox rules: exactly the limit.
+	big := make([]firewalls.RuleInput, 50)
+	for i := range big {
+		big[i] = firewalls.RuleInput{Direction: "in", Protocol: "tcp", Port: ptr(strconv.Itoa(1000 + i)), IPs: longV6(50)}
+	}
+	fw, _ := e.create(p, "big", firewalls.CreateInput{Rules: big, ApplyTo: []firewalls.ResourceInput{onServer(srv)}})
+	one := []firewalls.RuleInput{{Direction: "in", Protocol: "icmp", IPs: []string{"0.0.0.0/0"}}}
+
+	_, err := e.svc.SetRules(ctx, p, fw.ID, append(slices.Clone(big), one...))
+	ae := requireAPI(t, err, 422, "limit_exceeded")
+	require.Equal(t, fmt.Sprintf("server web would have more than %d firewall rules", firewalls.MaxRenderedRules), ae.Msg)
+
+	_, _, err = e.svc.Create(ctx, p, firewalls.CreateInput{Name: "extra", Rules: one, ApplyTo: []firewalls.ResourceInput{bySelector("role=web")}})
+	requireAPI(t, err, 422, "limit_exceeded")
+
+	small, _ := e.create(p, "small", firewalls.CreateInput{Rules: one})
+	_, err = e.svc.ApplyTo(ctx, p, small.ID, []firewalls.ResourceInput{onServer(srv)})
+	requireAPI(t, err, 422, "limit_exceeded")
+	_, err = e.svc.ApplyTo(ctx, p, small.ID, []firewalls.ResourceInput{bySelector("role=web")})
+	requireAPI(t, err, 422, "limit_exceeded")
+	err = firewalls.CheckLimit(ctx, e.ent, p, srv, map[string]string{}, []int64{small.ID})
+	requireAPI(t, err, 422, "limit_exceeded")
+	require.NoError(t, firewalls.CheckLimit(ctx, e.ent, p, srv, map[string]string{}, nil))
+
+	// Shrinking is never refused.
+	_, err = e.svc.SetRules(ctx, p, fw.ID, big[:10])
+	require.NoError(t, err)
+	_, err = e.svc.ApplyTo(ctx, p, small.ID, []firewalls.ResourceInput{onServer(srv)})
+	require.NoError(t, err)
 }
