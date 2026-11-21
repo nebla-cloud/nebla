@@ -38,9 +38,10 @@ describe('navItems', () => {
 describe('navItems groups and soon entries', () => {
   const app = () => createAppRouter(createMemoryHistory())
 
-  it('adds Firewalls as a soon item on the project side', () => {
+  it('links to Firewalls on the project side', () => {
     const fw = navItems(app(), 'project', 'owner').find((i) => i.label === 'Firewalls')
-    expect(fw).toMatchObject({ soon: true, name: null, icon: 'i-lucide-shield' })
+    expect(fw).toMatchObject({ name: 'firewalls', icon: 'i-lucide-shield' })
+    expect(fw?.soon).toBeUndefined()
   })
   it('drops the Volumes soon entry even while the real one is hidden', () => {
     expect(navItems(app(), 'project', 'owner').filter((i) => i.label === 'Volumes')).toEqual([])
