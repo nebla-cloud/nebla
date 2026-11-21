@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { assignableRoles, isManager, permissionLabel, roleLabel } from './roles'
+import { assignableRoles, canWrite, isManager, permissionLabel, roleLabel } from './roles'
 
 describe('roles', () => {
+  it('canWrite is false only for read_only', () => {
+    expect(canWrite('read_only')).toBe(false)
+    expect(canWrite('member')).toBe(true)
+    expect(canWrite('owner')).toBe(true)
+  })
   it('labels roles and permissions', () => {
     expect(roleLabel('read_only')).toBe('Read-only')
     expect(roleLabel('owner')).toBe('Owner')

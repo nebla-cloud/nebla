@@ -24,3 +24,7 @@ export function assignableRoles(caller: Role): Role[] {
   if (caller === 'admin') return ['admin', 'member', 'read_only']
   return []
 }
+
+export function canWrite(r?: Role): boolean {
+  return r !== 'read_only'
+}

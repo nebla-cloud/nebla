@@ -46,6 +46,7 @@ const type = (id: number, name: string, cores: number) => ({
   deprecated: false,
 })
 const types = [type(1, 'tiny-1', 1), type(2, 'small-2', 2)]
+let firewalls: { id: number; name: string; labels: object; rules: []; applied_to: []; created: string }[]
 let keys: { id: number; name: string; public_key: string; fingerprint: string; created: string }[]
 
 function key(id: number, name: string) {
@@ -91,6 +92,7 @@ function serveCatalog(locs = locations) {
     ),
     http.get('*/v1/ssh_keys', () => json(200, { ssh_keys: keys, meta: meta(keys.length) })),
     http.get('*/v1/servers', () => json(200, { servers: [], meta: meta(0) })),
+    http.get('*/v1/firewalls', () => json(200, { firewalls, meta: meta(firewalls.length) })),
   )
 }
 
@@ -141,6 +143,7 @@ async function type_(sel: string, value: string) {
 beforeEach(() => {
   document.body.innerHTML = ''
   keys = [key(5, 'laptop')]
+  firewalls = []
 })
 afterEach(() => {
   document.body.innerHTML = ''
@@ -193,6 +196,45 @@ describe('CreateServerPage', () => {
     ])
     expect(router.currentRoute.value.params.serverId).toBe('42')
     await vi.waitFor(() => expect(wrapper.text()).toContain('Creating'))
+  })
+
+  it('sends the firewalls field', async () => {
+    firewalls = [
+      { id: 8, name: 'web', labels: {}, rules: [], applied_to: [], created: '2026-11-20T10:00:00Z' },
+    ]
+    serveCatalog()
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.post('*/v1/servers', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return json(201, { server: makeServer({ id: 42 }), action: action(), next_actions: [] })
+      }),
+      http.get('*/v1/servers/42', () => json(200, makeServer({ id: 42 }))),
+      http.get('*/v1/actions/7', () => json(200, action())),
+    )
+    const { router } = await mountCreate()
+    await pick('input[name="firewall"][value="8"]')
+    createButton().click()
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
+    expect(bodies[0]!.firewalls).toEqual([{ firewall: 8 }])
+  })
+
+  it('hides the firewall picker when the project has none', async () => {
+    serveCatalog()
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.post('*/v1/servers', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return json(201, { server: makeServer({ id: 42 }), action: action(), next_actions: [] })
+      }),
+      http.get('*/v1/servers/42', () => json(200, makeServer({ id: 42 }))),
+      http.get('*/v1/actions/7', () => json(200, action())),
+    )
+    const { router } = await mountCreate()
+    expect($('input[name="firewall"]')).toBeNull()
+    createButton().click()
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
+    expect(bodies[0]).not.toHaveProperty('firewalls')
   })
 
   it('sends user_data only when filled in', async () => {

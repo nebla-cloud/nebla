@@ -50,6 +50,7 @@ export default [
         component: () => import('./tabs/ActivityTab.vue'),
         meta: { side: 'project' },
       },
+      ...Object.values(import.meta.glob<{ default: RouteRecordRaw[] }>('../firewalls/serverTabs.ts', { eager: true })).flatMap((m) => m.default), // redesign: remove, serverTabs.ts glob covers it
     ],
   },
 ] satisfies RouteRecordRaw[]

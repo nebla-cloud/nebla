@@ -8,6 +8,7 @@ const labels: Record<string, string> = {
   reset_server: 'Resetting',
   rebuild_server: 'Rebuilding',
   change_server_type: 'Resizing',
+  apply_firewalls: 'Applying firewalls',
 }
 
 const done: Record<string, string> = {
@@ -32,6 +33,7 @@ const titles: Record<string, string> = {
   reset_server: 'Reset',
   rebuild_server: 'Rebuild',
   change_server_type: 'Resize',
+  apply_firewalls: 'Apply firewalls',
 }
 
 function sentence(command: string): string {

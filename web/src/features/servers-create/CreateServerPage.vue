@@ -15,6 +15,7 @@ import { useCurrentProject } from '@/lib/project'
 import { useServers } from '@/features/servers/queries'
 import AddSshKeyModal from '@/features/sshkeys/AddSshKeyModal.vue'
 import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
+import FirewallPicker from '@/features/firewalls/FirewallPicker.vue'
 import CreateSummary from './CreateSummary.vue'
 import {
   MAX_USER_DATA,
@@ -57,6 +58,7 @@ const form = reactive<CreateForm>({
   nameTouched: false,
 })
 const ipTouched = ref(false)
+const firewallIds = ref<number[]>([])
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
 
@@ -175,6 +177,7 @@ async function submit() {
     ssh_keys: form.sshKeyIds.map(String),
     public_net: { ipv4: form.ipv4, ipv6: form.ipv6 },
     ...(form.userData.trim() ? { user_data: form.userData } : {}),
+    ...(firewallIds.value.length ? { firewalls: firewallIds.value.map((firewall) => ({ firewall })) } : {}),
   } as components['schemas']['ServerInput']
   try {
     const res = unwrap(await api.POST('/servers', { body }))
@@ -378,6 +381,8 @@ const legend = 'mb-2 text-sm font-semibold text-highlighted'
           </p>
           <AddSshKeyModal v-model:open="keyModal" @created="keyCreated" />
         </fieldset>
+
+        <FirewallPicker v-model="firewallIds" />
 
         <UCollapsible :unmount-on-hide="false">
           <UButton
