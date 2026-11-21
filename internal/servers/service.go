@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -21,11 +22,14 @@ import (
 	"github.com/nebla-cloud/nebla/internal/cloudinit"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/firewall"
+	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
+	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
@@ -98,6 +102,7 @@ type Server struct {
 	DiskGB        int
 	IPv4, IPv6    netip.Addr
 	CreatedAt     time.Time
+	Firewalls     []firewalls.Applied
 }
 
 type CreateInput struct {
@@ -108,6 +113,7 @@ type CreateInput struct {
 	IPv4, IPv6 bool
 	Labels     map[string]string
 	StartAfter bool
+	Firewalls  []int64
 }
 
 // UpdateInput changes only the non-nil fields.
@@ -238,6 +244,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	fwIDs := slices.Compact(slices.Sorted(slices.Values(in.Firewalls)))
 	delta := projects.Usage{Servers: 1, VCPU: typ.Cores, MemoryMB: typ.MemoryMB, DiskGB: typ.DiskGB, IPs: len(families)}
 
 	var id int64
@@ -245,6 +252,9 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	for range 3 {
 		err = db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 			if err := s.o.Projects.ReserveQuota(ctx, etx, projectID, delta); err != nil {
+				return err
+			}
+			if err := lockFirewalls(ctx, etx, projectID, fwIDs); err != nil {
 				return err
 			}
 			loads, err := lockNodes(ctx, etx, loc.ID)
@@ -270,6 +280,9 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 					return err
 				}
 			}
+			if err := attachFirewalls(ctx, etx, projectID, row.ID, labels, fwIDs); err != nil {
+				return err
+			}
 			act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindCreateServer,
 				[]actions.Resource{{ID: row.ID, Type: ResourceType}},
 				func(actionID int64) river.JobArgs {
@@ -287,6 +300,36 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	}
 	srv, err := s.Get(ctx, projectID, id)
 	return srv, act, err
+}
+
+// lockFirewalls share-locks the project's firewalls ids, before any server row; one outside the project is not found.
+func lockFirewalls(ctx context.Context, etx *ent.Client, projectID int64, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	got, err := etx.Firewall.Query().Where(firewall.IDIn(ids...), firewall.ProjectID(projectID)).ForShare().IDs(ctx)
+	if err != nil {
+		return err
+	}
+	if len(got) != len(ids) {
+		return errNotFound
+	}
+	return nil
+}
+
+// attachFirewalls applies firewalls ids directly to a new server; its build renders them, so no apply is queued.
+func attachFirewalls(ctx context.Context, etx *ent.Client, projectID, serverID int64, labels map[string]string, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := firewalls.CheckLimit(ctx, etx, projectID, serverID, labels, ids); err != nil {
+		return err
+	}
+	b := make([]*ent.FirewallResourceCreate, len(ids))
+	for i, id := range ids {
+		b[i] = etx.FirewallResource.Create().SetFirewallID(id).SetType(firewallresource.TypeServer).SetServerID(serverID)
+	}
+	return etx.FirewallResource.CreateBulk(b...).Exec(ctx)
 }
 
 // resolveKeys returns the public keys for refs (ids first, then names) in the project, deduplicated.
@@ -443,6 +486,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			e.v4 = ip
 		}
 	}
+	atts := map[int64]firewalls.Attachments{}
 	types := map[int64]catalog.ServerType{}
 	imgs := map[int64]catalog.Image{}
 	locs := map[int64]catalog.Location{}
@@ -477,6 +521,14 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 		if e := byServer[r.ID]; e != nil {
 			out[i].IPv4, out[i].IPv6 = e.v4, e.v6
 		}
+		att, ok := atts[r.ProjectID]
+		if !ok {
+			if att, err = firewalls.LoadAttachments(ctx, s.o.Ent, r.ProjectID); err != nil {
+				return nil, err
+			}
+			atts[r.ProjectID] = att
+		}
+		out[i].Firewalls = att.Effective(r.ID, out[i].Labels)
 	}
 	return out, nil
 }
@@ -496,9 +548,15 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 			return Server{}, err
 		}
 	}
-	err := db.WithTx(ctx, s.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
-		if _, err := LockServer(ctx, etx, projectID, id); err != nil {
+	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		row, err := LockServer(ctx, etx, projectID, id)
+		if err != nil {
 			return err
+		}
+		if labels != nil {
+			if err := s.relabel(ctx, tx, etx, row, labels); err != nil {
+				return err
+			}
 		}
 		u := etx.Server.UpdateOneID(id)
 		if in.Name != nil {
@@ -515,7 +573,37 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 	return s.Get(ctx, projectID, id)
 }
 
-// HasRunningAction reports whether any running action in the project lists the server.
+// relabel checks the firewall limit and queues an apply when new labels change the server's effective firewalls.
+func (s *Service) relabel(ctx context.Context, tx *sql.Tx, etx *ent.Client, row *ent.Server, labels map[string]string) error {
+	att, err := firewalls.LoadAttachments(ctx, etx, row.ProjectID)
+	if err != nil {
+		return err
+	}
+	ids := func(l map[string]string) []int64 {
+		var out []int64
+		for _, a := range att.Effective(row.ID, l) {
+			out = append(out, a.FirewallID)
+		}
+		return out
+	}
+	before, after := ids(row.Labels), ids(labels)
+	if slices.Equal(before, after) {
+		return nil
+	}
+	if err := firewalls.CheckLimit(ctx, etx, row.ProjectID, row.ID, labels, nil); err != nil {
+		return err
+	}
+	var causes []int64
+	for _, id := range append(slices.Clone(before), after...) {
+		if slices.Contains(before, id) != slices.Contains(after, id) {
+			causes = append(causes, id)
+		}
+	}
+	_, err = firewalls.Bump(ctx, tx, etx, s.o.Jobs, row.ProjectID, []int64{row.ID}, causes)
+	return err
+}
+
+// HasRunningAction reports whether any running action other than a firewall apply lists the server.
 func HasRunningAction(ctx context.Context, c *ent.Client, projectID, serverID int64) (bool, error) {
 	return c.Action.Query().Where(ActionsOf(projectID, serverID), actionRunning).Exist(ctx)
 }

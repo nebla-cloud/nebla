@@ -19,6 +19,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
@@ -788,4 +789,22 @@ func TestReconcileIgnoresTemplateBuildVMs(t *testing.T) {
 	require.Equal(t, server.StatusRunning, get(t, e, row.ID).Status)
 	_, ok := e.App.PVE.VM(600)
 	require.True(t, ok)
+}
+
+func TestRescueKeepsStatusForApply(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	id := build(t, e, "web")
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetStatus(server.StatusInitializing).Exec(ctx))
+	fw := firewalls.New(firewalls.Options{SQL: e.App.SQL, Ent: e.App.Ent, Jobs: e.App.Jobs})
+	_, acts, err := fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "fw",
+		ApplyTo: []firewalls.ResourceInput{{Type: "server", ServerID: &id}}})
+	require.NoError(t, err)
+	require.Len(t, acts, 1)
+	discard(t, e, acts[0].ID)
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, acts[0].ID)
+	require.Equal(t, server.StatusInitializing, get(t, e, id).Status, "a lost apply leaves the status alone")
 }

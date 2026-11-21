@@ -152,3 +152,17 @@ func CheckLimit(ctx context.Context, c *ent.Client, projectID, serverID int64, l
 	}
 	return nil
 }
+
+// Attachments is a snapshot of a project's firewall attachments.
+type Attachments struct{ x *index }
+
+// LoadAttachments reads a project's firewall attachments.
+func LoadAttachments(ctx context.Context, c *ent.Client, projectID int64) (Attachments, error) {
+	x, err := loadIndex(ctx, c, projectID)
+	return Attachments{x}, err
+}
+
+// Effective lists the firewalls in effect on a server with these labels, ordered by firewall id.
+func (a Attachments) Effective(serverID int64, lbls map[string]string) []Applied {
+	return a.x.effective(serverID, lbls, nil)
+}

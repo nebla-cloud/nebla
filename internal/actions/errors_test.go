@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var codes = []string{actions.CodeFailed, actions.CodeTimedOut, actions.CodeUnreachable, actions.CodeServerMissing, actions.CodeServerGone, actions.CodeOrphaned}
+var codes = []string{actions.CodeFailed, actions.CodeTimedOut, actions.CodeUnreachable, actions.CodeServerMissing, actions.CodeServerGone, actions.CodeOrphaned, actions.CodeFirewallUnenforced}
 
 func TestMessageTable(t *testing.T) {
 	commands := []string{"create_server", "delete_server", "rebuild_server", "change_server_type", "start_server",
@@ -84,4 +84,11 @@ func TestGetAnyAndListAll(t *testing.T) {
 	require.Equal(t, p2, got.ProjectID)
 	_, err = actions.GetAny(ctx, c, a2.ID+100)
 	require.Error(t, err)
+}
+
+func TestFirewallUnenforcedMessage(t *testing.T) {
+	require.True(t, actions.ValidCode(actions.CodeFirewallUnenforced))
+	require.Equal(t, "Firewall rules couldn't be enforced at this location; contact the administrator.",
+		actions.Message("apply_firewalls", actions.CodeFirewallUnenforced))
+	require.Equal(t, "Couldn't apply the firewall rules. Try again, or contact your admin.", actions.Message("apply_firewalls", actions.CodeFailed))
 }

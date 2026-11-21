@@ -32,3 +32,11 @@ var Missing = missing
 var TimedOut = timedOut
 
 func StepError(step string, err error) error { return &stepError{step: step, err: err} }
+
+const StepDone = stepDone
+
+// SetApplyBeforeLease runs f between loading the server and claiming its firewall lease.
+func SetApplyBeforeLease(w *ApplyFirewallsWorker, f func()) { w.beforeLease = f }
+
+// SetApplyBeforeApply runs f just before the firewall is rendered and written.
+func SetApplyBeforeApply(w *ApplyFirewallsWorker, f func()) { w.beforeApply = f }

@@ -10,6 +10,8 @@ const (
 	CodeServerMissing = "server_missing"
 	CodeServerGone    = "server_gone"
 	CodeOrphaned      = "orphaned"
+	// CodeFirewallUnenforced means the location's datacenter firewall is off, so rules would be ignored.
+	CodeFirewallUnenforced = "firewall_unenforced"
 )
 
 var verbs = map[string]string{
@@ -22,15 +24,17 @@ var verbs = map[string]string{
 	"shutdown_server":    "shut down the server",
 	"reboot_server":      "reboot the server",
 	"reset_server":       "reset the server",
+	"apply_firewalls":    "apply the firewall rules",
 }
 
 var templates = map[string]string{
-	CodeFailed:        "Couldn't %s. Try again, or contact your admin.",
-	CodeTimedOut:      "Couldn't %s because it took too long. Try again, or contact your admin.",
-	CodeUnreachable:   "Couldn't %s because the server's location can't be reached right now. Try again later.",
-	CodeServerMissing: "Couldn't %s because the server's machine is missing. Contact your admin.",
-	CodeServerGone:    "The server no longer exists.",
-	CodeOrphaned:      "Couldn't %s because the request was interrupted. Try again.",
+	CodeFailed:             "Couldn't %s. Try again, or contact your admin.",
+	CodeTimedOut:           "Couldn't %s because it took too long. Try again, or contact your admin.",
+	CodeUnreachable:        "Couldn't %s because the server's location can't be reached right now. Try again later.",
+	CodeServerMissing:      "Couldn't %s because the server's machine is missing. Contact your admin.",
+	CodeServerGone:         "The server no longer exists.",
+	CodeOrphaned:           "Couldn't %s because the request was interrupted. Try again.",
+	CodeFirewallUnenforced: "Firewall rules couldn't be enforced at this location; contact the administrator.",
 }
 
 // ValidCode reports whether code is one of the Code* kinds.

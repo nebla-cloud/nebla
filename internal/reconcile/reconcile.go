@@ -18,6 +18,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -283,7 +284,8 @@ func (r *Reconciler) apply(ctx context.Context, log *slog.Logger, id int64, vms 
 		if err != nil {
 			return err
 		}
-		busy, err := etx.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID),
+		// Firewall applies never touch status or node, so they don't hold the sync off.
+		busy, err := etx.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID), action.CommandNEQ(firewalls.KindApply),
 			action.Or(action.StatusEQ(action.StatusRunning), action.FinishedGTE(listedAt))).Exist(ctx)
 		if err != nil || busy {
 			return err
@@ -361,6 +363,10 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, actionID, 
 			return err
 		}
 		log.Warn("reconcile: failed orphaned action", "action_id", actionID, "command", command, "server_id", serverID)
+		if command == firewalls.KindApply {
+			// Applies never change the server's status.
+			return nil
+		}
 		u, dirty := etx.Server.UpdateOneID(serverID), false
 		if r.rescueHook != nil {
 			if err := r.rescueHook(actionID); err != nil {

@@ -12,6 +12,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
 )
@@ -68,7 +69,8 @@ func ActionsOf(projectID, serverID int64) predicate.Action {
 	})
 }
 
-var actionRunning = action.StatusEQ(action.StatusRunning)
+// actionRunning leaves out firewall applies, which run alongside other server work.
+var actionRunning = action.And(action.StatusEQ(action.StatusRunning), action.CommandNEQ(firewalls.KindApply))
 
 // HasServers is the projects.Hooks.HasServers implementation.
 func HasServers(ctx context.Context, c *ent.Client, projectID int64) (bool, error) {
