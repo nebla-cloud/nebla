@@ -7,7 +7,10 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
+import { table, tableWrap, tbody, td, th, thead, tr } from '@/lib/ui'
 import CatalogCell from './CatalogCell.vue'
 import ImageForm from './ImageForm.vue'
 import {
@@ -87,14 +90,11 @@ function locationNames(ids: number[]): string {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-8">
-    <header class="flex flex-col gap-1.5">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">OS images</h1>
-      <p class="max-w-prose text-muted">
-        Official cloud images Nebla builds for each location. People only see the ones that are
-        ready.
-      </p>
-    </header>
+  <div class="flex flex-col gap-4">
+    <PageHeader
+      title="OS images"
+      description="Official cloud images Nebla builds for each location. People only see the ones that are ready."
+    />
 
     <UAlert
       v-if="loadError"
@@ -113,24 +113,22 @@ function locationNames(ids: number[]): string {
     </EmptyState>
 
     <template v-else>
-      <div class="overflow-x-auto rounded-lg border border-default">
-        <table class="w-full min-w-max border-collapse text-sm">
-          <thead>
-            <tr class="border-b border-default">
-              <th scope="col" class="px-4 py-2.5 text-start font-medium text-muted">Image</th>
-              <th
-                v-for="l in columns"
-                :key="l.id"
-                scope="col"
-                class="px-4 py-2.5 text-start font-medium text-muted"
-              >
+      <div :class="tableWrap">
+        <table :class="table">
+          <thead :class="thead">
+            <tr>
+              <th scope="col" :class="th">Image</th>
+              <th v-for="l in columns" :key="l.id" scope="col" :class="th">
                 {{ l.name }}
               </th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-default">
-            <tr v-for="e in rows" :key="e.key">
-              <th scope="row" class="px-4 py-3 text-start align-middle font-normal">
+          <tbody :class="tbody">
+            <tr v-for="e in rows" :key="e.key" :class="tr">
+              <th
+                scope="row"
+                class="w-full text-start font-normal sm:table-cell sm:w-auto sm:px-4 sm:py-3"
+              >
                 <span
                   class="block font-semibold"
                   :class="e.retired ? 'text-muted' : 'text-highlighted'"
@@ -140,7 +138,7 @@ function locationNames(ids: number[]): string {
                   >No longer in the catalog</span
                 >
               </th>
-              <td v-for="l in columns" :key="l.id" class="px-4 py-3 align-middle">
+              <td v-for="l in columns" :key="l.id" :class="td">
                 <CatalogCell
                   v-if="cellFor(e, l.id)"
                   :entry="e"
@@ -155,55 +153,54 @@ function locationNames(ids: number[]): string {
       </div>
       <p v-if="!rows.length" class="text-muted">The catalog is empty.</p>
 
-      <section data-own-images class="flex flex-col gap-3">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="flex flex-col gap-1">
-            <h2 class="text-base font-bold text-highlighted">Your own images</h2>
-            <p class="text-muted">Images registered by hand from your own templates.</p>
-          </div>
+      <Panel data-own-images title="Your own images">
+        <template #header-actions>
           <UButton icon="i-lucide-plus" color="neutral" variant="subtle" @click="openForm()">
             Add image
           </UButton>
-        </div>
+        </template>
         <p v-if="!ownImages.length" class="text-muted">
           Register a template you made in Proxmox so people can pick it.
         </p>
-        <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
-          <li
-            v-for="i in ownImages"
-            :key="i.id"
-            class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-          >
-            <span class="min-w-0">
-              <span class="block truncate font-semibold text-highlighted">{{
-                i.description || i.name
-              }}</span>
-              <span class="block truncate text-xs text-muted">{{ i.name }}</span>
-              <span class="block text-sm text-muted">{{
-                locationNames(i.templates.map((t) => t.location_id))
-              }}</span>
-            </span>
-            <span class="flex gap-1">
-              <UButton
-                color="neutral"
-                variant="ghost"
-                :aria-label="`Edit ${i.description || i.name}`"
-                @click="openForm(i)"
-              >
-                Edit
-              </UButton>
-              <UButton
-                color="error"
-                variant="ghost"
-                :aria-label="`Delete ${i.description || i.name}`"
-                @click="ask(i)"
-              >
-                Delete
-              </UButton>
-            </span>
-          </li>
-        </ul>
-      </section>
+        <template v-else>
+          <p class="mb-3 text-muted">Images registered by hand from your own templates.</p>
+          <ul class="divide-y divide-default">
+            <li
+              v-for="i in ownImages"
+              :key="i.id"
+              class="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+            >
+              <span class="min-w-0">
+                <span class="block truncate font-semibold text-highlighted">{{
+                  i.description || i.name
+                }}</span>
+                <span class="block truncate text-xs text-muted">{{ i.name }}</span>
+                <span class="block text-sm text-muted">{{
+                  locationNames(i.templates.map((t) => t.location_id))
+                }}</span>
+              </span>
+              <span class="flex gap-1">
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  :aria-label="`Edit ${i.description || i.name}`"
+                  @click="openForm(i)"
+                >
+                  Edit
+                </UButton>
+                <UButton
+                  color="error"
+                  variant="ghost"
+                  :aria-label="`Delete ${i.description || i.name}`"
+                  @click="ask(i)"
+                >
+                  Delete
+                </UButton>
+              </span>
+            </li>
+          </ul>
+        </template>
+      </Panel>
     </template>
 
     <UModal

@@ -35,10 +35,11 @@ const verbs: Record<CatalogAction, string> = {
   disable: 'disable',
 }
 const dot = {
-  success: 'bg-success',
-  neutral: 'bg-ink-500 dark:bg-ink-400',
-  error: 'bg-error',
-  muted: 'border border-ink-300 dark:border-ink-600',
+  success: 'bg-(--nb-run)',
+  neutral: 'bg-(--nb-off)',
+  busy: 'bg-(--nb-busy)',
+  error: 'bg-(--nb-err)',
+  muted: 'border border-(--nb-off)',
 }
 
 async function run(action: CatalogAction) {
@@ -93,13 +94,13 @@ async function disable() {
         <span
           v-if="loc.state === 'partial'"
           aria-hidden="true"
-          class="inline-block size-2 shrink-0 rounded-full bg-[linear-gradient(90deg,var(--ui-success)_50%,var(--ui-error)_50%)]"
+          class="inline-block size-2 shrink-0 rounded-full bg-[linear-gradient(90deg,var(--nb-run)_50%,var(--nb-err)_50%)]"
         />
         <span
           v-else
           aria-hidden="true"
           class="inline-block size-2 shrink-0 rounded-full"
-          :class="[dot[view.tone], view.pulse && 'motion-safe:animate-pulse']"
+          :class="[dot[view.pulse ? 'busy' : view.tone], view.pulse && 'motion-safe:animate-pulse']"
         />
         <span class="underline decoration-dotted decoration-1 underline-offset-4">{{
           view.label
