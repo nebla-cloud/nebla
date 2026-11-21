@@ -3,11 +3,13 @@ import { computed, inject, ref, watch } from 'vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import { api } from '@/api/client'
 import { errorMessage, unwrap } from '@/api/errors'
+import ChoiceCard from '@/components/ChoiceCard.vue'
 import type { Action, Server } from '@/api/types'
 import { useServerTypes } from '@/features/servers-create/queries'
 import { RouterLink } from 'vue-router'
 import { useCurrentProject } from '@/lib/project'
 import { typeSpec } from '@/lib/format'
+import { checkboxClass } from '@/lib/ui'
 import { typeChoices } from '../resize'
 import { serverBusyKey } from '../shell'
 
@@ -22,6 +24,11 @@ const busy = inject(
 const types = useServerTypes()
 const grow = ref(false)
 const picked = ref<number | null>(null)
+// ChoiceCard values are strings; picked stays the type id.
+const pickedValue = computed({
+  get: () => (picked.value === null ? undefined : String(picked.value)),
+  set: (v) => (picked.value = v === undefined ? null : Number(v)),
+})
 const pending = ref(false)
 const error = ref('')
 
@@ -89,7 +96,7 @@ function shutdown() {
   <div class="flex max-w-2xl flex-col gap-4">
     <div
       v-if="!isOff"
-      class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-default p-3 text-sm"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-(--nb-radius-panel) border border-default bg-elevated px-4 py-3 text-sm text-highlighted"
     >
       <span>{{ note }}</span>
       <UButton
@@ -111,33 +118,32 @@ function shutdown() {
     </div>
     <p class="text-sm text-muted">Now {{ typeSpec(server.server_type) }}.</p>
     <label class="flex items-center gap-2 text-sm">
-      <input v-model="grow" type="checkbox" name="upgrade_disk" />
+      <input v-model="grow" type="checkbox" name="upgrade_disk" :class="checkboxClass" />
       Grow the disk too
     </label>
     <p class="text-sm text-muted">
       Disks never shrink. If you grow it, you can't move back to a type with a smaller disk.
     </p>
-    <fieldset class="flex flex-col gap-2">
-      <legend class="mb-1 text-sm font-medium">Type</legend>
-      <label
-        v-for="c in choices"
-        :key="c.type.id"
-        class="flex items-start gap-2 rounded-md border border-default p-3 text-sm"
-        :class="c.disabledReason ? 'opacity-60' : ''"
-      >
-        <input
-          v-model="picked"
+    <fieldset>
+      <legend class="mb-2 text-sm font-semibold text-highlighted">Type</legend>
+      <div class="grid gap-2 sm:grid-cols-2">
+        <ChoiceCard
+          v-for="c in choices"
+          :key="c.type.id"
+          v-model="pickedValue"
           type="radio"
           name="type"
-          :value="c.type.id"
+          variant="arch"
+          :value="String(c.type.id)"
           :disabled="!!c.disabledReason"
-          class="mt-1"
-        />
-        <span class="flex flex-col">
-          <span>{{ c.type.name }}, {{ typeSpec(c.type) }}</span>
-          <span class="text-muted">{{ c.disabledReason ?? c.delta }}</span>
-        </span>
-      </label>
+        >
+          {{ c.type.name }}
+          <template #meta>
+            <span class="block text-default">{{ typeSpec(c.type) }}</span>
+            <span class="block">{{ c.disabledReason ?? c.delta }}</span>
+          </template>
+        </ChoiceCard>
+      </div>
     </fieldset>
     <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
     <div>

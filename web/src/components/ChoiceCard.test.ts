@@ -27,6 +27,12 @@ describe('ChoiceCard', () => {
     expect((radios[0]!.element as HTMLInputElement).checked).toBe(true)
   })
 
+  it('stretches the invisible input over the card so clicks land on it', () => {
+    const cls = mount(Host).get('input').classes()
+    expect(cls).toEqual(expect.arrayContaining(['absolute', 'inset-0', 'opacity-0']))
+    expect(cls).not.toContain('sr-only')
+  })
+
   it('updates v-model on change', async () => {
     const w = mount(Host)
     await w.findAll('input')[1]!.setValue(true)

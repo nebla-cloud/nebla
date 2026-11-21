@@ -137,6 +137,26 @@ describe('ConsoleTab', () => {
     expect(screen.props?.url).toBe('wss://panel/v1/console/t2')
   })
 
+  it('console chrome uses tokens, not ink or white classes', async () => {
+    const raw = /\b(bg|text|hover:bg)-(ink-\d+|white)\b/
+    await mountConsole()
+    expect(document.body.innerHTML).not.toMatch(raw)
+    await connected()
+    screen.emit!('disconnect', true)
+    await flushPromises()
+    expect(byText('Reconnect')).toBeTruthy()
+    expect(document.body.innerHTML).not.toMatch(raw)
+    expect(document.body.innerHTML).toContain('--nb-term-bg')
+  })
+
+  it('not running and popped states sit in panels', async () => {
+    await mountConsole(makeServer({ status: 'off' }))
+    const p = Array.from(document.body.querySelectorAll('p')).find((e) =>
+      e.textContent?.includes("isn't running"),
+    )!
+    expect(p.closest('section')!.className).toContain('bg-elevated')
+  })
+
   it('ctrl alt del calls screen', async () => {
     await mountConsole()
     await connected()

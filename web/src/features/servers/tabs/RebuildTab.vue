@@ -5,9 +5,11 @@ import UButton from '@nuxt/ui/components/Button.vue'
 import { api } from '@/api/client'
 import { errorMessage, unwrap } from '@/api/errors'
 import type { Action, Server } from '@/api/types'
+import ChoiceCard from '@/components/ChoiceCard.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import { availableImages } from '@/features/servers-create/createServer'
 import { useImages } from '@/features/servers-create/queries'
+import OsBadge from '../OsBadge.vue'
 import { serverBusyKey } from '../shell'
 
 const props = defineProps<{ server: Server }>()
@@ -22,6 +24,11 @@ const choices = computed(() =>
   availableImages(images.data.value ?? [], props.server.location.id, props.server.location.name),
 )
 const picked = ref<number | null>(null)
+// ChoiceCard values are strings; picked stays the image id.
+const pickedValue = computed({
+  get: () => (picked.value === null ? undefined : String(picked.value)),
+  set: (v) => (picked.value = v === undefined ? null : Number(v)),
+})
 const confirmOpen = ref(false)
 const pending = ref(false)
 const error = ref('')
@@ -67,27 +74,25 @@ async function submit() {
       icon="i-lucide-triangle-alert"
       title="Rebuilding erases the disk and reinstalls from the image you pick. The IP addresses stay the same."
     />
-    <fieldset class="flex flex-col gap-2">
-      <legend class="mb-1 text-sm font-medium">Image</legend>
-      <label
-        v-for="c in choices"
-        :key="c.image.id"
-        class="flex items-start gap-2 rounded-md border border-default p-3 text-sm"
-        :class="c.disabledReason ? 'opacity-60' : ''"
-      >
-        <input
-          v-model="picked"
+    <fieldset>
+      <legend class="mb-2 text-sm font-semibold text-highlighted">Image</legend>
+      <div class="grid gap-2 sm:grid-cols-2">
+        <ChoiceCard
+          v-for="c in choices"
+          :key="c.image.id"
+          v-model="pickedValue"
           type="radio"
           name="image"
-          :value="c.image.id"
+          :value="String(c.image.id)"
           :disabled="!!c.disabledReason"
-          class="mt-1"
-        />
-        <span class="flex flex-col">
-          <span>{{ c.image.name }}</span>
-          <span v-if="c.disabledReason" class="text-muted">{{ c.disabledReason }}</span>
-        </span>
-      </label>
+        >
+          <span class="flex items-center gap-2">
+            <OsBadge :name="c.image.os_flavor" />
+            {{ c.image.name }}
+          </span>
+          <template v-if="c.disabledReason" #meta>{{ c.disabledReason }}</template>
+        </ChoiceCard>
+      </div>
     </fieldset>
     <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
     <div>

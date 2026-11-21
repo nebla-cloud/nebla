@@ -23,7 +23,7 @@ const model = defineModel<unknown>()
   >
     <input
       v-model="model"
-      class="sr-only"
+      class="absolute inset-0 z-10 m-0 cursor-[inherit] appearance-none rounded-[inherit] opacity-0"
       :type="type"
       :name="name"
       :value="value"

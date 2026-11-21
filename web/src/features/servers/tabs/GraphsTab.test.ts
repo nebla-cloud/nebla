@@ -10,8 +10,16 @@ import GraphsTab from './GraphsTab.vue'
 
 vi.mock('../metrics/MetricChart.vue', () => ({
   default: defineComponent({
-    props: ['title', 'data'],
-    setup: (p) => () => h('div', { class: 'chart' }, `${p.title}: ${p.data[0].length} points`),
+    props: ['title', 'data', 'series'],
+    setup: (p) => () =>
+      h(
+        'div',
+        {
+          class: 'chart',
+          'data-tones': p.series.map((s: { tone: string }) => s.tone).join(','),
+        },
+        `${p.title}: ${p.data[0].length} points`,
+      ),
   }),
 }))
 
@@ -92,6 +100,13 @@ describe('GraphsTab', () => {
     const { wrapper } = await mountTab()
     const text = wrapper.findAll('.chart').map((c) => c.text())
     expect(text).toEqual(['CPU: 2 points', 'Disk: 1 points', 'Network: 1 points'])
+  })
+
+  it('cpu is busy, in and read pair with out and write', async () => {
+    serveMetrics()
+    const { wrapper } = await mountTab()
+    const tones = wrapper.findAll('.chart').map((c) => c.attributes('data-tones'))
+    expect(tones).toEqual(['busy', 'busy,err', 'run,err'])
   })
 
   it('all-null shows empty', async () => {

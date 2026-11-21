@@ -78,6 +78,23 @@ describe('RebuildTab', () => {
     expect(wrapper.text()).toContain('Not available in home')
   })
 
+  it('images are radio choice cards named by the image', async () => {
+    const { wrapper } = await mountTab()
+    const radios = Array.from(
+      (wrapper.element as Element).querySelectorAll<HTMLInputElement>('input[type=radio]'),
+    )
+    const cards = radios.map((r) => r.closest('label.nb-choice')!)
+    expect(radios.map((r) => r.name)).toEqual(['image', 'image', 'image'])
+    expect(cards.map((c) => c.getAttribute('data-variant'))).toEqual([
+      'default',
+      'default',
+      'default',
+    ])
+    expect(cards[1]!.textContent).toContain('Ubuntu 24.04')
+    expect(cards[1]!.querySelector('[aria-hidden=true]')!.textContent).toBe('D')
+    expect(cards[2]!.textContent).toContain('Not available in home')
+  })
+
   it('warning copy', async () => {
     const { wrapper } = await mountTab()
     expect(wrapper.text()).toContain(

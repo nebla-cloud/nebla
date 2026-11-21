@@ -10,3 +10,7 @@ export const td = 'sm:table-cell sm:px-4 sm:py-3'
 // The one native-select style; matches UInput's 36px height and --ui-border.
 export const selectClass =
   'h-9 w-full rounded-md border border-default bg-default px-2.5 text-sm text-highlighted focus-visible:outline-2 focus-visible:outline-primary sm:w-auto'
+
+// The one style for checkboxes that stay native.
+export const checkboxClass =
+  'size-4 shrink-0 accent-(--ui-text-highlighted) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--nb-focus)'

@@ -76,3 +76,29 @@ export function readout(
     }),
   }
 }
+
+export type Tone = 'busy' | 'run' | 'err'
+export const TONE_VAR: Record<Tone, string> = {
+  busy: '--nb-busy',
+  run: '--nb-run',
+  err: '--nb-err',
+}
+
+// Light-mode token values, for when the stylesheet isn't there to read (jsdom).
+const FALLBACK: Record<string, string> = {
+  '--ui-text-muted': '#5B6470',
+  '--ui-border': '#DCE1E6',
+  '--nb-busy': '#3A86D6',
+  '--nb-run': '#1E9E74',
+  '--nb-err': '#D9547D',
+}
+
+export function chartColors(): { axis: string; grid: string; tone: Record<Tone, string> } {
+  const cs = getComputedStyle(document.documentElement)
+  const read = (v: string) => cs.getPropertyValue(v).trim() || FALLBACK[v]!
+  return {
+    axis: read('--ui-text-muted'),
+    grid: read('--ui-border'),
+    tone: { busy: read(TONE_VAR.busy), run: read(TONE_VAR.run), err: read(TONE_VAR.err) },
+  }
+}

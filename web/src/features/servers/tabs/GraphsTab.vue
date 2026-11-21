@@ -10,7 +10,7 @@ import type { Action, Server } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
 import { useCurrentProject } from '@/lib/project'
 import MetricChart from '../metrics/MetricChart.vue'
-import { RANGES, parseRange, toSeries, type Range } from '../metrics/metrics'
+import { RANGES, parseRange, toSeries, type Range, type Tone } from '../metrics/metrics'
 
 const props = defineProps<{ server: Server }>()
 defineEmits<{ started: [action: Action] }>()
@@ -47,7 +47,7 @@ const charts = computed(() => {
   const make = (
     title: string,
     unit: 'percent' | 'rate',
-    parts: { key: string; label: string; tone: 'primary' | 'secondary' }[],
+    parts: { key: string; label: string; tone: Tone }[],
   ) => ({
     title,
     unit,
@@ -58,14 +58,14 @@ const charts = computed(() => {
     ),
   })
   return [
-    make('CPU', 'percent', [{ key: 'cpu', label: 'CPU', tone: 'primary' }]),
+    make('CPU', 'percent', [{ key: 'cpu', label: 'CPU', tone: 'busy' }]),
     make('Disk', 'rate', [
-      { key: 'disk.read', label: 'Read', tone: 'primary' },
-      { key: 'disk.write', label: 'Write', tone: 'secondary' },
+      { key: 'disk.read', label: 'Read', tone: 'busy' },
+      { key: 'disk.write', label: 'Write', tone: 'err' },
     ]),
     make('Network', 'rate', [
-      { key: 'network.in', label: 'In', tone: 'primary' },
-      { key: 'network.out', label: 'Out', tone: 'secondary' },
+      { key: 'network.in', label: 'In', tone: 'run' },
+      { key: 'network.out', label: 'Out', tone: 'err' },
     ]),
   ]
 })

@@ -8,6 +8,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import type { Action, Server, ServerType } from '@/api/types'
 import { makeServer } from '../fixtures'
 import { serverBusyKey } from '../shell'
+import { checkboxClass } from '@/lib/ui'
 import ResizeTab from './ResizeTab.vue'
 
 const t = (id: number, cores: number, mem: number, disk: number): ServerType => ({
@@ -113,6 +114,30 @@ describe('ResizeTab', () => {
     button('Resize')!.click()
     await flushPromises()
     expect(posted).toBe(false)
+  })
+
+  it('types are arch choice cards and the note sits beside shut down', async () => {
+    const { wrapper } = await mountTab(makeServer({ status: 'running' }))
+    const el = wrapper.element as Element
+    const radios = Array.from(el.querySelectorAll<HTMLInputElement>('input[type=radio]'))
+    const cards = radios.map((r) => r.closest('label.nb-choice')!)
+    expect(radios.map((r) => r.name)).toEqual(['type', 'type'])
+    expect(cards.map((c) => c.getAttribute('data-variant'))).toEqual(['arch', 'arch'])
+    expect(cards[1]!.textContent).toContain('t4')
+    expect(cards[1]!.textContent).toContain('4 vCPU')
+    const note = Array.from(el.querySelectorAll('*')).find(
+      (n) => n.children.length === 0 && n.textContent === 'Shut the server down to resize it.',
+    )!
+    expect(note.parentElement!.contains(button('Shut down')!)).toBe(true)
+    expect(note.parentElement!.querySelector('button')).toBe(button('Shut down'))
+  })
+
+  it('grow disk is a native checkbox with the shared style', async () => {
+    const { wrapper } = await mountTab(makeServer({ status: 'off' }))
+    const box = (wrapper.element as Element).querySelector<HTMLInputElement>(
+      'input[type=checkbox][name=upgrade_disk]',
+    )!
+    expect(box.className).toBe(checkboxClass)
   })
 
   it('shut down posts and emits started', async () => {

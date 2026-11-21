@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import UButton from '@nuxt/ui/components/Button.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import type { Action, Server } from '@/api/types'
+import Panel from '@/components/Panel.vue'
 import { useCurrentProject } from '@/lib/project'
 import ConsolePanel from '../console/ConsolePanel.vue'
 import PowerActions from '../PowerActions.vue'
@@ -64,24 +65,21 @@ onBeforeUnmount(stopWatching)
 
 <template>
   <div class="flex flex-col gap-3">
-    <div
-      v-if="!running"
-      class="flex flex-col items-start gap-3 rounded-lg border border-default bg-default p-4"
-    >
-      <p class="text-sm text-muted">
-        {{ server.name }} isn't running. Power it on to use the console.
-      </p>
-      <PowerActions :server="server" :busy="busy" @started="emit('started', $event)" />
-    </div>
+    <Panel v-if="!running">
+      <div class="flex flex-col items-start gap-3">
+        <p class="text-sm text-muted">
+          {{ server.name }} isn't running. Power it on to use the console.
+        </p>
+        <PowerActions :server="server" :busy="busy" @started="emit('started', $event)" />
+      </div>
+    </Panel>
 
-    <div
-      v-else-if="popped === 'open'"
-      class="flex flex-col items-start gap-3 rounded-lg border border-default bg-default p-4"
-    >
-      <p class="font-medium text-highlighted">Open in another window</p>
-      <p class="text-sm text-muted">Only one console session runs at a time.</p>
-      <UButton color="neutral" variant="outline" @click="bringBack">Bring it back here</UButton>
-    </div>
+    <Panel v-else-if="popped === 'open'" title="Open in another window">
+      <div class="flex flex-col items-start gap-3">
+        <p class="text-sm text-muted">Only one console session runs at a time.</p>
+        <UButton color="neutral" variant="outline" @click="bringBack">Bring it back here</UButton>
+      </div>
+    </Panel>
 
     <ConsolePanel v-else :key="server.id" :server-id="server.id" :auto-connect="popped === 'no'">
       <template #actions>

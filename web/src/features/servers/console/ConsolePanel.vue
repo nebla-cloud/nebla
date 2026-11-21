@@ -65,7 +65,7 @@ onMounted(() => {
 <template>
   <div
     ref="root"
-    class="flex flex-col overflow-hidden rounded-lg border border-default bg-default [&:fullscreen]:h-screen [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
+    class="flex flex-col overflow-hidden rounded-(--nb-radius-panel) border border-default bg-elevated [&:fullscreen]:h-screen [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
     :class="fill ? 'h-full' : 'h-[70vh] min-h-80'"
   >
     <div class="flex flex-wrap items-center gap-2 border-b border-default px-3 py-2">
@@ -73,9 +73,7 @@ onMounted(() => {
         <span
           aria-hidden="true"
           class="inline-block size-2 rounded-full"
-          :class="
-            live ? 'bg-success' : state === 'failed' ? 'bg-error' : 'bg-ink-500 dark:bg-ink-400'
-          "
+          :class="live ? 'bg-(--nb-run)' : state === 'failed' ? 'bg-(--nb-err)' : 'bg-(--nb-off)'"
         />
         {{ label }}
       </span>
@@ -112,7 +110,7 @@ onMounted(() => {
       />
     </div>
 
-    <div class="relative min-h-0 flex-1 bg-ink-950 text-ink-200">
+    <div class="relative min-h-0 flex-1 bg-(--nb-term-bg) text-(--nb-term-fg)">
       <VncScreen
         v-if="grant"
         ref="screen"
@@ -137,7 +135,7 @@ onMounted(() => {
           <UButton
             color="neutral"
             variant="solid"
-            class="bg-white text-ink-950 hover:bg-ink-200"
+            class="bg-(--nb-term-fg) text-(--nb-term-bg) hover:bg-(--nb-term-muted)"
             @click="con.connect()"
           >
             Try again
@@ -147,7 +145,7 @@ onMounted(() => {
           v-else
           color="neutral"
           variant="solid"
-          class="bg-white text-ink-950 hover:bg-ink-200"
+          class="bg-(--nb-term-fg) text-(--nb-term-bg) hover:bg-(--nb-term-muted)"
           @click="con.connect()"
         >
           Reconnect
