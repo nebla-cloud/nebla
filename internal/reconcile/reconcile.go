@@ -31,6 +31,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/volumes"
 )
 
 // ErrProxmoxState means Proxmox answered with a state too implausible to act on.
@@ -554,11 +555,12 @@ type revert struct {
 }
 
 // rescue fails orphaned actions on this location's servers from the DB alone; err is set only if they cannot be listed.
+// Volume commands are skipped: volumes.RescueOrphaned settles them and their volume rows.
 func (r *Reconciler) rescue(ctx context.Context, log *slog.Logger, locationID int64) (reverts []revert, rowErrs []error, err error) {
 	q, err := r.o.SQL.QueryContext(ctx, `
 		select a.id, s.id from actions a join servers s
 		on s.location_id = $1 and a.resources @> jsonb_build_array(jsonb_build_object('id', s.id, 'type', $2::text))
-		where `+jobs.Orphaned+` order by a.id`, locationID, servers.ResourceType)
+		where a.command <> all($3) and `+jobs.Orphaned+` order by a.id`, locationID, servers.ResourceType, volumes.Commands)
 	if err != nil {
 		return nil, nil, fmt.Errorf("find orphaned actions: %w", err)
 	}

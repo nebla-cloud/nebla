@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var codes = []string{actions.CodeFailed, actions.CodeTimedOut, actions.CodeUnreachable, actions.CodeServerMissing, actions.CodeServerGone, actions.CodeOrphaned, actions.CodeFirewallUnenforced}
+var codes = []string{actions.CodeFailed, actions.CodeTimedOut, actions.CodeUnreachable, actions.CodeServerMissing, actions.CodeServerGone, actions.CodeOrphaned, actions.CodeFirewallUnenforced, actions.CodePowerOffRequired}
 
 func TestMessageTable(t *testing.T) {
 	commands := []string{"create_server", "delete_server", "rebuild_server", "change_server_type", "start_server",
@@ -32,6 +32,8 @@ func TestMessageTable(t *testing.T) {
 	require.Equal(t, "Couldn't reboot the server. Try again, or contact your admin.", actions.Message("reboot_server", "failed"))
 	require.Equal(t, "The server no longer exists.", actions.Message("create_server", "server_gone"))
 	require.Equal(t, "Couldn't attach the volume. Try again, or contact your admin.", actions.Message("attach_volume", "failed"))
+	require.Equal(t, "Power off the server to attach the volume.", actions.Message("attach_volume", "power_off_required"))
+	require.True(t, actions.ValidCode(actions.CodePowerOffRequired))
 	require.Equal(t, "Couldn't complete the action. Try again, or contact your admin.", actions.Message("x", "failed"))
 	require.Equal(t, actions.Message("delete_server", "failed"), actions.Message("delete_server", "pve_error"))
 }

@@ -330,6 +330,8 @@ func TestResizeShrinkRejected(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "resize_volume", act.Command)
 	require.Equal(t, []actions.Resource{{ID: off, Type: volumes.ResourceType}}, resources(act))
+	require.Equal(t, volumes.ResizeVolumeArgs{VolumeID: off, ActionID: act.ID, SizeGB: 30, PrevSizeGB: 20},
+		queuedArgs[volumes.ResizeVolumeArgs](t, e, act.ID))
 	r := e.row(t, off)
 	require.Equal(t, 30, r.SizeGB)
 	require.Equal(t, 20, r.AppliedGB)

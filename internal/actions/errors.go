@@ -12,6 +12,8 @@ const (
 	CodeOrphaned      = "orphaned"
 	// CodeFirewallUnenforced means the location's datacenter firewall is off, so rules would be ignored.
 	CodeFirewallUnenforced = "firewall_unenforced"
+	// CodePowerOffRequired means the change needs the server powered off first.
+	CodePowerOffRequired = "power_off_required"
 )
 
 var verbs = map[string]string{
@@ -40,6 +42,7 @@ var templates = map[string]string{
 	CodeServerGone:         "The server no longer exists.",
 	CodeOrphaned:           "Couldn't %s because the request was interrupted. Try again.",
 	CodeFirewallUnenforced: "Firewall rules couldn't be enforced at this location; contact the administrator.",
+	CodePowerOffRequired:   "Power off the server to %s.",
 }
 
 // ValidCode reports whether code is one of the Code* kinds.

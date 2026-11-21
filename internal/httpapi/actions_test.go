@@ -140,6 +140,26 @@ func TestActionErrorDoesNotLeak(t *testing.T) {
 	require.Equal(t, s.ActionID, list.Actions[0].ID)
 	require.Equal(t, detail, list.Actions[0].Error.Detail)
 
+	// power_off_required: members get only the template, the admin detail keeps the Proxmox text.
+	va, err := actions.Create(ctx, e.App.Ent, e.Project, "attach_volume", []actions.Resource{{ID: 1, Type: "volume"}})
+	require.NoError(t, err)
+	pdetail := "vm 4242 on pve-node-7 is running and hotplug \"network,usb\" excludes disk"
+	require.NoError(t, actions.Fail(ctx, e.App.Ent, va.ID, actions.CodePowerOffRequired, pdetail))
+	vid := strconv.FormatInt(va.ID, 10)
+	for _, c := range []*testutil.Client{e.C, member} {
+		res := c.Get("/v1/actions/" + vid)
+		b := body(res)
+		require.Equal(t, http.StatusOK, res.StatusCode, b)
+		require.Contains(t, b, `"power_off_required"`)
+		require.Contains(t, b, "Power off the server to attach the volume.")
+		for _, l := range []string{"4242", "pve-node-7", "hotplug", "detail"} {
+			require.NotContains(t, b, l)
+		}
+	}
+	vone := decode[adminAction](t, e.App, e.Admin.Get("/v1/admin/actions/"+vid))
+	require.Equal(t, actions.CodePowerOffRequired, vone.Error.Code)
+	require.Equal(t, pdetail, vone.Error.Detail)
+
 	require.Equal(t, http.StatusNotFound, e.Admin.Get("/v1/admin/actions/999999").StatusCode)
 	require.Equal(t, http.StatusUnauthorized, member.Get("/v1/admin/actions").StatusCode, "project tokens never reach admin ops")
 	e.App.CreateUser("u@example.com", false)

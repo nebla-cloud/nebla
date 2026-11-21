@@ -28,6 +28,9 @@ func TestContractExported(t *testing.T) {
 	if got.Code != actions.CodeFailed || got.Detail != "step: x" {
 		t.Fatalf("failure = %+v", got)
 	}
+	if f := Classify(StepError("attach", PermanentCode(actions.CodePowerOffRequired, "hotplug"))); f.Code != actions.CodePowerOffRequired || f.Detail != "attach: hotplug" {
+		t.Fatalf("permanent code: %+v", f)
+	}
 	terr := Transient("later")
 	if err := run(terr, 1); err != terr {
 		t.Fatalf("transient below cap: got %v", err)

@@ -24,6 +24,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/settings"
+	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/riverqueue/river"
 )
 
@@ -67,6 +68,7 @@ func run() error {
 	workers := river.NewWorkers()
 	osimages.Register(workers, osi)
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
+	volumes.RegisterWorkers(workers, volumes.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log})
 	reconcile.Register(workers, rec)
 	enr := enroll.New(sqlDB, client, enroll.Options{SecretKey: cfg.SecretKey, BaseURL: cfg.BaseURL, Catalog: cat, Logger: log})
@@ -77,7 +79,7 @@ func run() error {
 	}
 	auth.RegisterPasskeyJobs(workers, passkeys)
 	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
-		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), enroll.SweepPeriodicJob(),
+		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), volumes.UsagePeriodicJob(), enroll.SweepPeriodicJob(),
 			auth.ChallengeCleanupPeriodicJob()))
 	if err != nil {
 		return err
@@ -87,6 +89,13 @@ func run() error {
 	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
 	if err := rec.RescueAll(ctx); err != nil {
 		return err
+	}
+	rescued, err := volumes.RescueOrphaned(ctx, client, sqlDB)
+	if err != nil {
+		return err
+	}
+	if rescued > 0 {
+		log.Warn("failed orphaned volume actions", "count", rescued)
 	}
 	if _, err := projects.BackfillCreatedBy(ctx, client); err != nil {
 		return err

@@ -2,6 +2,7 @@ package servers
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/riverqueue/river"
@@ -33,6 +34,11 @@ func (c Contract) Work(ctx context.Context) error {
 
 // Permanent fails the job without retry.
 func Permanent(format string, a ...any) error { return permanent(format, a...) }
+
+// PermanentCode fails the job without retry under an actions Code* kind.
+func PermanentCode(code, format string, a ...any) error {
+	return &permanentError{code, fmt.Sprintf(format, a...)}
+}
 
 // Transient is retried like a transient Proxmox error.
 func Transient(format string, a ...any) error { return transient(format, a...) }

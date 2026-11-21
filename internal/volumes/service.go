@@ -73,10 +73,12 @@ type DetachVolumeArgs struct {
 func (DetachVolumeArgs) Kind() string                 { return KindDetachVolume }
 func (DetachVolumeArgs) InsertOpts() river.InsertOpts { return servers.InsertOpts() }
 
+// ResizeVolumeArgs is the resize_volume job; PrevSizeGB is restored if it fails.
 type ResizeVolumeArgs struct {
-	VolumeID int64 `json:"volume_id"`
-	ActionID int64 `json:"action_id"`
-	SizeGB   int   `json:"size_gb"`
+	VolumeID   int64 `json:"volume_id"`
+	ActionID   int64 `json:"action_id"`
+	SizeGB     int   `json:"size_gb"`
+	PrevSizeGB int   `json:"prev_size_gb"`
 }
 
 func (ResizeVolumeArgs) Kind() string                 { return KindResizeVolume }
@@ -505,7 +507,7 @@ func (s *Service) Resize(ctx context.Context, projectID, id int64, sizeGB int) (
 				return nil, err
 			}
 			return func(actionID int64) river.JobArgs {
-				return ResizeVolumeArgs{VolumeID: id, ActionID: actionID, SizeGB: sizeGB}
+				return ResizeVolumeArgs{VolumeID: id, ActionID: actionID, SizeGB: sizeGB, PrevSizeGB: vol.SizeGB}
 			}, nil
 		})
 }
