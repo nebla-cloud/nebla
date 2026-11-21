@@ -178,6 +178,7 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	if err := r.b.firewallCurrent(ctx, r.b.vmid()); err != nil {
 		return err
 	}
+	// The new VM must stay stopped until retire has unplugged the old one.
 	if err := r.plugNewVM(ctx); err != nil {
 		return &stepError{"attach volumes to new vm", err}
 	}

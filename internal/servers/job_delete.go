@@ -75,7 +75,7 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 	}
 	for _, vmid := range []*int{row.Vmid, row.RebuildVmid} {
 		if vmid != nil {
-			if err := unplugServerVolumes(ctx, pc, row.ID, *vmid, vols); err != nil {
+			if err := unplugServerVolumes(ctx, pc, w.o.Logger, row.ID, *vmid, vols); err != nil {
 				return &stepError{"detach volumes", err}
 			}
 		}
