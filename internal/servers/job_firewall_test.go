@@ -632,3 +632,48 @@ func mustFirewall(t *testing.T, fw *firewalls.Service, projectID int64, name str
 	require.Len(t, list, 1)
 	return list[0].ID
 }
+
+// TestLabelUpdateRacesChangeType races a label change on S against a change type on S.
+func TestLabelUpdateRacesChangeType(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.Admin.CreateServerType("medium", 2, 2048, 20)
+	s := e.CreateServer("web", nil)
+	settle(t, e, s, servers.StatusOff)
+	_, _, err := fwService(e).Create(ctx, e.Project, firewalls.CreateInput{Name: "sel", ApplyTo: []firewalls.ResourceInput{bySelector("r")}})
+	require.NoError(t, err)
+	svc := serverService(e)
+	for i := range 12 {
+		lbls := map[string]string{}
+		if i%2 == 0 {
+			lbls["r"] = strconv.Itoa(i)
+		}
+		typ := []string{"medium", "small"}[i%2]
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		var change actions.Action
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, errs[0] = svc.Update(ctx, e.Project, s.ServerID, servers.UpdateInput{Labels: &lbls})
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			change, errs[1] = svc.ChangeType(ctx, e.Project, s.ServerID, typ, false)
+		}()
+		close(start)
+		wg.Wait()
+		for _, err := range errs {
+			var ae apierr.E
+			if err != nil && !(errors.As(err, &ae) && ae.Status == http.StatusConflict && ae.Code == "locked") {
+				t.Fatalf("round %d: %v", i, err)
+			}
+		}
+		if errs[1] == nil {
+			require.NoError(t, actions.Succeed(ctx, e.App.Ent, change.ID))
+		}
+	}
+}

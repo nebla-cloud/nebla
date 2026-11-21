@@ -3,7 +3,6 @@ package firewalls
 import (
 	"context"
 	"database/sql"
-	entsql "entgo.io/ent/dialect/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -16,11 +15,11 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
 	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
 	"github.com/nebla-cloud/nebla/internal/ent/firewallrule"
-	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/schema"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
+	"github.com/nebla-cloud/nebla/internal/projects"
 )
 
 type Options struct {
@@ -204,8 +203,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	var id int64
 	var acts []actions.Action
 	err = db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
-		if _, err := etx.Project.Query().Where(project.ID(projectID)).
-			Modify(func(s *entsql.Selector) { s.For(entsql.LockNoKeyUpdate) }).Only(ctx); err != nil {
+		if err := projects.LockProject(ctx, etx, projectID); err != nil {
 			return notFound(err)
 		}
 		n, err := etx.Firewall.Query().Where(firewall.ProjectID(projectID)).Count(ctx)
