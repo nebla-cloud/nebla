@@ -1,106 +1,99 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useColorMode } from '@vueuse/core'
-import type uPlot from 'uplot'
-import 'uplot/dist/uPlot.min.css'
+import { computed, onBeforeUnmount, useId } from 'vue'
+import VisXYContainer from '@unovis/vue/containers/xy-container'
+import VisArea from '@unovis/vue/components/area'
+import VisLine from '@unovis/vue/components/line'
+import VisAxis from '@unovis/vue/components/axis'
+import VisCrosshair from '@unovis/vue/components/crosshair'
+import VisTooltip from '@unovis/vue/components/tooltip'
+import { CurveType } from '@unovis/ts/types/curve'
 import Panel from '@/components/Panel.vue'
+import { useHoverSync } from './hoverSync'
 import {
   TONE_VAR,
-  chartColors,
+  chartHeader,
   formatPercent,
   formatRate,
-  readout,
-  type Readout,
+  formatTime,
+  nearestIndex,
+  yDomain,
+  type MetricRow,
   type Tone,
 } from './metrics'
 
-const props = defineProps<{
-  title: string
-  data: uPlot.AlignedData
-  series: { label: string; tone: Tone }[]
-  unit: 'percent' | 'rate'
-}>()
+const props = withDefaults(
+  defineProps<{
+    title: string
+    rows: MetricRow[]
+    series: { label: string; tone: Tone }[]
+    unit: 'percent' | 'rate'
+    syncKey?: string
+  }>(),
+  { syncKey: 'server-metrics' },
+)
 
-const SYNC_KEY = 'server-metrics'
 const HEIGHT = 180
-const el = ref<HTMLDivElement>()
-const mode = useColorMode()
-const hover = ref<Readout | null>(null)
-let chart: uPlot | null = null
-let observer: ResizeObserver | null = null
+const uid = useId()
+const me = Symbol(props.title)
+const hover = useHoverSync(props.syncKey)
 
 const fmt = (v: number) => (props.unit === 'percent' ? formatPercent(v) : formatRate(v))
+const color = (i: number) => `var(${TONE_VAR[props.series[i]!.tone]})`
+const gradId = (i: number) => `${uid}-g${i}`
 
-// uPlot touches matchMedia on import, so load it only when a chart mounts.
-async function build() {
-  if (!el.value) return
-  const { default: UPlot } = await import('uplot')
-  if (!el.value) return
-  chart?.destroy()
-  // Read after the await, so a colour-mode switch has reached <html>.
-  const c = chartColors()
-  const axisBase = { stroke: c.axis, grid: { stroke: c.grid, width: 1 }, ticks: { stroke: c.grid } }
-  chart = new UPlot(
-    {
-      width: el.value.clientWidth || 300,
-      height: HEIGHT,
-      legend: { show: false },
-      cursor: { sync: { key: SYNC_KEY } },
-      // Synced charts fire this too, so all three read out the same moment.
-      hooks: {
-        setCursor: [
-          (u) => {
-            hover.value = readout(
-              u.data,
-              u.cursor.idx,
-              props.series.map((s) => s.label),
-              fmt,
-            )
-          },
-        ],
-      },
-      scales: {
-        y: {
-          range: props.unit === 'percent' ? [0, 100] : (_u, _min, max) => [0, Math.max(max, 1024)],
-        },
-      },
-      axes: [axisBase, { ...axisBase, size: 70, values: (_u, vals) => vals.map((v) => fmt(v)) }],
-      series: [
-        {},
-        ...props.series.map((s) => ({
-          label: s.label,
-          stroke: c.tone[s.tone],
-          width: 2,
-          spanGaps: false,
-          points: { show: false },
-        })),
-      ],
-    },
-    props.data,
-    el.value,
-  )
+const svgDefs = computed(() =>
+  props.series
+    .map(
+      (_, i) =>
+        `<linearGradient id="${gradId(i)}" x1="0" x2="0" y1="0" y2="1">` +
+        `<stop offset="0" style="stop-color: ${color(i)}; stop-opacity: 0.22"></stop>` +
+        `<stop offset="1" style="stop-color: ${color(i)}; stop-opacity: 0"></stop>` +
+        `</linearGradient>`,
+    )
+    .join(''),
+)
+
+const x = (r: MetricRow) => r.t
+const areaY = (i: number) => (r: MetricRow) => r.v[i] ?? undefined
+const lineY = computed(() => props.series.map((_, i) => areaY(i)))
+const lineColor = (_: unknown, i: number) => color(i)
+
+const following = computed(() => hover.value.source !== null && hover.value.source !== me)
+const hoverIdx = computed(() =>
+  hover.value.t == null ? null : nearestIndex(props.rows, hover.value.t),
+)
+const head = computed(() =>
+  chartHeader(
+    props.rows,
+    props.series.map((s) => s.label),
+    props.unit,
+    hoverIdx.value != null && hoverIdx.value >= 0 ? hoverIdx.value : null,
+  ),
+)
+
+function onCrosshairMove(t?: number | Date) {
+  if (t === undefined) release()
+  else hover.value = { t: +t, source: me }
+}
+function release() {
+  if (hover.value.source === me) hover.value = { t: null, source: null }
+}
+onBeforeUnmount(release)
+
+// Charts that follow another one show only the line, no tooltip.
+function template(d: MetricRow) {
+  if (following.value || !d) return ''
+  const values = props.series
+    .map((s, i) => {
+      const v = d.v[i]
+      return `<div><span style="display:inline-block;width:8px;height:8px;border-radius:9999px;margin-right:6px;background:${color(i)}"></span>${s.label} <b>${v == null ? 'No data' : fmt(v)}</b></div>`
+    })
+    .join('')
+  return `<div style="color:var(--ui-text-muted);font-size:11px">${formatTime(d.t)}</div>${values}`
 }
 
-onMounted(() => {
-  void build()
-  observer = new ResizeObserver(() => {
-    if (chart && el.value) chart.setSize({ width: el.value.clientWidth, height: HEIGHT })
-  })
-  if (el.value) observer.observe(el.value)
-})
-
-watch(
-  () => props.data,
-  (d) => chart?.setData(d),
-)
-watch(mode, () => void build(), { flush: 'post' })
-
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  chart?.destroy()
-  chart = null
-  hover.value = null
-})
+const xTick = (t: number | Date) => formatTime(+t)
+const yTick = (v: number | Date) => (+v === 0 ? '' : fmt(+v))
 </script>
 
 <template>
@@ -117,14 +110,81 @@ onBeforeUnmount(() => {
         </li>
       </ul>
     </template>
-    <p class="mb-1 flex min-h-5 flex-wrap gap-x-3 text-xs tabular-nums">
-      <template v-if="hover">
-        <time class="text-muted">{{ hover.time }}</time>
-        <span v-for="v in hover.values" :key="v.label" class="text-default">
-          <template v-if="series.length > 1">{{ v.label }} </template>{{ v.value }}
-        </span>
-      </template>
-    </p>
-    <div ref="el" class="w-full" role="img" :aria-label="`${title} over time`" />
+    <div class="mb-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+      <p class="text-highlighted">
+        <span data-value class="text-2xl font-bold tabular-nums">{{ head.value }}</span>
+        <span v-if="head.unit" class="ml-1 text-sm text-muted">{{ head.unit }}</span>
+      </p>
+      <p data-stats class="flex gap-3 text-xs text-muted tabular-nums">
+        <span v-for="s in head.stats" :key="s">{{ s }}</span>
+      </p>
+    </div>
+    <div
+      class="nb-chart w-full"
+      role="img"
+      :aria-label="`${title} over time`"
+      @mouseleave="release"
+    >
+      <VisXYContainer
+        :data="rows"
+        :height="HEIGHT"
+        :yDomain="yDomain(rows, unit)"
+        :svgDefs="svgDefs"
+        :margin="{ top: 8 }"
+      >
+        <VisArea
+          v-for="(s, i) in series"
+          :key="s.label"
+          :x="x"
+          :y="areaY(i)"
+          :color="`url(#${gradId(i)})`"
+          :curveType="CurveType.MonotoneX"
+        />
+        <VisLine
+          :x="x"
+          :y="lineY"
+          :color="lineColor"
+          :lineWidth="2"
+          :curveType="CurveType.MonotoneX"
+        />
+        <VisAxis
+          type="x"
+          :tickFormat="xTick"
+          :numTicks="5"
+          :gridLine="false"
+          :tickLine="false"
+        />
+        <VisAxis
+          type="y"
+          :tickFormat="yTick"
+          :numTicks="4"
+          :domainLine="false"
+          :tickLine="false"
+        />
+        <VisCrosshair
+          :template="template"
+          :onCrosshairMove="onCrosshairMove"
+          :forceShowAt="following ? (hover.t ?? undefined) : undefined"
+        />
+        <VisTooltip />
+      </VisXYContainer>
+    </div>
   </Panel>
 </template>
+
+<style scoped>
+/* Unovis reads its colours from these variables, so dark mode follows the tokens. */
+.nb-chart {
+  --vis-font-family: var(--font-sans);
+  --vis-axis-tick-label-color: var(--ui-text-muted);
+  --vis-axis-tick-label-font-size: 10px;
+  --vis-axis-grid-color: var(--ui-border);
+  --vis-axis-domain-color: var(--ui-border);
+  --vis-axis-tick-color: transparent;
+  --vis-crosshair-line-stroke-color: var(--ui-text-muted);
+  --vis-tooltip-background-color: var(--ui-bg-elevated);
+  --vis-tooltip-border-color: var(--ui-border);
+  --vis-tooltip-text-color: var(--ui-text);
+  --vis-tooltip-border-radius: 8px;
+}
+</style>
