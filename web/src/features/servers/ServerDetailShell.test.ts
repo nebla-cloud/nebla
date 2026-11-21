@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
+import { defineComponent, h, type Component } from 'vue'
 import { RouterView, type HistoryState } from 'vue-router'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { mountApp, testRouter } from '@/test/mount'
+import TopBar from '@/layouts/TopBar.vue'
 import type { Action, Server } from '@/api/types'
 import { makeServer } from './fixtures'
 import routes from './routes'
@@ -36,7 +38,13 @@ function serve(s: Server) {
 
 let mounted: VueWrapper | undefined
 
-async function mountDetail(path = '/p/1/servers/1', state?: HistoryState) {
+const WithTopBar = defineComponent({ render: () => h('div', [h(TopBar), h(RouterView)]) })
+
+async function mountDetail(
+  path = '/p/1/servers/1',
+  state?: HistoryState,
+  root: Component = RouterView,
+) {
   const router = testRouter([
     {
       path: '/p/:projectId',
@@ -45,7 +53,7 @@ async function mountDetail(path = '/p/1/servers/1', state?: HistoryState) {
     },
   ])
   await router.push({ path, state })
-  const res = mountApp(RouterView, { router })
+  const res = mountApp(root, { router })
   mounted = res.wrapper
   await vi.waitFor(() => expect(res.wrapper.text()).not.toContain('Loading server'))
   await flushPromises()
@@ -211,10 +219,57 @@ describe('ServerDetailShell', () => {
 
   it('breadcrumb links back to the server list', async () => {
     serve(makeServer())
+    const { wrapper } = await mountDetail('/p/1/servers/1', undefined, WithTopBar)
+    const navs = wrapper.findAll('nav[aria-label="Breadcrumb"]')
+    expect(navs).toHaveLength(1)
+    expect(navs[0]!.element.closest('[data-topbar]')).toBeTruthy()
+    const links = navs[0]!.findAll('a')
+    expect(links.map((a) => [a.text(), a.attributes('href')])).toEqual([
+      ['Servers', '/p/1/servers'],
+    ])
+    expect(navs[0]!.find('[aria-current="page"]').text()).toBe('web1')
+  })
+
+  it('header holds the title, status badge, console link and power actions', async () => {
+    serve(makeServer({ labels: { env: 'prod' } }))
     const { wrapper } = await mountDetail()
-    const crumb = wrapper.find('nav[aria-label="Breadcrumb"]')
-    expect(crumb.find('a').attributes('href')).toBe('/p/1/servers')
-    expect(crumb.find('[aria-current="page"]').text()).toBe('web1')
+    const headers = wrapper.findAll('header').filter((h) => h.find('h1').exists())
+    expect(headers).toHaveLength(1)
+    const header = headers[0]!
+    expect(header.find('h1').text()).toBe('web1')
+    expect(header.find('svg').exists()).toBe(true)
+    expect(header.text()).toContain('Running')
+    const console = header.findAll('a').find((a) => a.text() === 'Console')
+    expect(console?.attributes('href')).toBe('/p/1/servers/1/console')
+    expect(header.findAll('button').map((b) => b.text())).toContain('Reboot')
+    expect(wrapper.find('ul[aria-label="Labels"]').text()).toContain('env=prod')
+  })
+
+  it('a 63-character name truncates in a one-column header at 390px', async () => {
+    window.innerWidth = 390
+    const name = 'a'.repeat(63)
+    serve(makeServer({ name }))
+    const { wrapper } = await mountDetail()
+    const h1 = wrapper.find('header h1')
+    expect(h1.text()).toBe(name)
+    expect(h1.classes()).toContain('truncate')
+    expect(h1.classes()).toContain('min-w-0')
+    const header = h1.element.closest('header')!
+    expect(header.classList.contains('max-sm:flex-col')).toBe(true)
+    expect(header.classList.contains('max-sm:items-stretch')).toBe(true)
+  })
+
+  it('action progress sits in a panel', async () => {
+    serve(makeServer())
+    server.use(
+      http.post('*/v1/servers/1/actions/reboot', () => json(201, { action: action() })),
+      http.get('*/v1/actions/7', () => json(200, action())),
+    )
+    const { wrapper } = await mountDetail()
+    byText('Reboot')!.click()
+    await vi.waitFor(() => expect(wrapper.find('[role="status"]').exists()).toBe(true))
+    const panel = wrapper.find('[role="status"]').element.parentElement!
+    expect(panel.classList.contains('rounded-(--nb-radius-panel)')).toBe(true)
   })
 
   it('handoff ignored for another server', async () => {

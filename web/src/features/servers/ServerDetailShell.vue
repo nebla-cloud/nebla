@@ -3,15 +3,18 @@ import { computed, provide, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
+import UButton from '@nuxt/ui/components/Button.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { api } from '@/api/client'
 import { ApiError, errorMessage, unwrap } from '@/api/errors'
 import type { Action } from '@/api/types'
 import ActionProgress from '@/components/ActionProgress.vue'
 import { actionDone } from '@/components/actionLabel'
-import StatusDot from '@/components/StatusDot.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import Panel from '@/components/Panel.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
+import { useCrumbs } from '@/lib/crumbs'
 import { useCurrentProject, parseProjectId } from '@/lib/project'
-import { serverStatus } from '@/lib/status'
 import { useActionPoll } from '@/lib/useActionPoll'
 import LabelChips from './LabelChips.vue'
 import PowerActions from './PowerActions.vue'
@@ -40,6 +43,11 @@ const lastName = ref('')
 const { action, running, error: actionError } = useActionPoll(actionId, { onDone: finished })
 const { data: server, error: loadError } = useServer(serverId, running)
 provide(serverBusyKey, running)
+
+useCrumbs(() => [
+  { label: 'Servers', to: { name: 'servers', params: { projectId: projectId.value } } },
+  ...(server.value ? [{ label: server.value.name }] : []),
+])
 
 // The create page hands its create_server action over in history state.
 const handoff = router.options.history.state.actionId
@@ -101,27 +109,13 @@ watch(
   },
 )
 
-const status = computed(() => (server.value ? serverStatus(server.value.status) : null))
 const notFound = computed(
   () => !server.value && loadError.value instanceof ApiError && loadError.value.status === 404,
 )
 </script>
 
 <template>
-  <div class="flex max-w-3xl flex-col gap-5">
-    <nav aria-label="Breadcrumb" class="text-sm text-muted">
-      <RouterLink
-        :to="{ name: 'servers', params: { projectId } }"
-        class="hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
-      >
-        Servers
-      </RouterLink>
-      <template v-if="server">
-        <span aria-hidden="true"> / </span>
-        <span aria-current="page" class="text-default">{{ server.name }}</span>
-      </template>
-    </nav>
-
+  <div class="flex flex-col gap-5">
     <UAlert
       v-if="notFound"
       color="error"
@@ -137,30 +131,40 @@ const notFound = computed(
     <p v-else-if="!server" class="text-muted">Loading server…</p>
 
     <template v-else>
-      <header class="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h1 class="min-w-0 truncate text-xl font-bold tracking-tight text-highlighted">
-          {{ server.name }}
-        </h1>
-        <span class="inline-flex items-center gap-1.5 font-medium">
-          <StatusDot :status="server.status" />{{ status?.label }}
-        </span>
-        <div class="sm:ml-auto">
-          <PowerActions :server="server" :busy="running" @started="started" />
-        </div>
-      </header>
-      <LabelChips v-if="Object.keys(server.labels).length" :labels="server.labels" :max="8" />
-
-      <div v-if="action" class="rounded-lg border border-default bg-default p-3">
-        <ActionProgress :action="action" />
+      <div class="flex flex-col gap-3">
+        <PageHeader
+          :title="server.name"
+          class="max-sm:flex-col max-sm:items-stretch sm:items-center"
+        >
+          <template #meta>
+            <StatusBadge :status="server.status" class="shrink-0" />
+          </template>
+          <template #actions>
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-terminal"
+              :to="{ name: 'server-console', params: { projectId, serverId } }"
+            >
+              Console
+            </UButton>
+            <PowerActions :server="server" :busy="running" @started="started" />
+          </template>
+        </PageHeader>
+        <LabelChips v-if="Object.keys(server.labels).length" :labels="server.labels" :max="8" />
       </div>
+
+      <Panel v-if="action" as="div">
+        <ActionProgress :action="action" />
+      </Panel>
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
 
-      <nav aria-label="Server sections" class="-mx-1 overflow-x-auto border-b border-default">
-        <ul class="flex min-w-max gap-5 px-1">
+      <nav aria-label="Server sections" class="overflow-x-auto border-b border-default">
+        <ul class="flex min-w-max gap-1">
           <li v-for="t in tabs" :key="t.name">
             <RouterLink
               :to="{ name: t.name, params: { projectId, serverId } }"
-              class="-mb-px inline-block border-b-2 border-transparent py-2 text-sm text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary aria-[current=page]:border-inverted aria-[current=page]:font-semibold aria-[current=page]:text-highlighted"
+              class="-mb-px inline-block border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary aria-[current=page]:border-inverted aria-[current=page]:font-semibold aria-[current=page]:text-highlighted"
             >
               {{ t.label }}
             </RouterLink>

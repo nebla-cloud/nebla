@@ -19,7 +19,7 @@ const tone: Record<StatusTone, string> = {
     class="inline-flex items-center gap-1.5 rounded-t-full rounded-b-md px-2.5 py-1 text-xs font-semibold"
     :class="tone[s.tone]"
   >
-    <StatusArch :status="status" :size="16" />
+    <StatusArch :status="status" :size="16" decorative />
     {{ s.label }}
   </span>
 </template>

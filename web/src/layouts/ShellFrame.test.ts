@@ -93,6 +93,14 @@ describe('ShellFrame', () => {
     expect(last?.textContent?.trim()).toBe('web-1')
   })
 
+  it('hides the nav title when crumbs are set, so Servers shows once', async () => {
+    crumbs = [{ label: 'Servers', to: '/x' }, { label: 'web-1' }]
+    await mountAt('/p/1/servers/web-1')
+    expect(topBar().querySelector('p.font-semibold')).toBeNull()
+    const visible = [...topBar().querySelectorAll('nav, p')].map((e) => e.textContent ?? '')
+    expect(visible.join(' ').match(/Servers/g)).toHaveLength(1)
+  })
+
   it('truncates a long project name in the switcher at 390px', async () => {
     window.innerWidth = 390
     window.matchMedia = ((q: string) => ({
