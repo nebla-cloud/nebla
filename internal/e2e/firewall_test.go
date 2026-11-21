@@ -30,9 +30,33 @@ const (
 	fwStateWait = 60 * time.Second
 	fwBootWait  = 6 * time.Minute
 	udpPort     = 9999
-	// spoofSrc is TEST-NET-1: never assigned, so a spoofed packet can't hit a real host's address.
-	spoofSrc = "192.0.2.1"
 )
+
+// spoofSource picks the highest host address of the pool CIDR outside the allocation range, gateway and avoid.
+func spoofSource(t *testing.T, tg target, avoid ...string) string {
+	t.Helper()
+	p, err := netip.ParsePrefix(tg.cidr)
+	require.NoError(t, err, "E2E_POOL_CIDR")
+	p = p.Masked()
+	lo, err := netip.ParseAddr(tg.rangeStart)
+	require.NoError(t, err, "E2E_RANGE start")
+	hi, err := netip.ParseAddr(tg.rangeEnd)
+	require.NoError(t, err, "E2E_RANGE end")
+	last := p.Addr()
+	for n := last.Next(); n.IsValid() && p.Contains(n); n = n.Next() {
+		last = n
+	}
+	// last is the broadcast address; start one below it.
+	for a := last.Prev(); a.IsValid() && p.Contains(a) && a != p.Addr(); a = a.Prev() {
+		inRange := a.Compare(lo) >= 0 && a.Compare(hi) <= 0
+		if inRange || a.String() == tg.gateway || slices.Contains(avoid, a.String()) {
+			continue
+		}
+		return a.String()
+	}
+	t.Fatalf("no address in %s outside range %s-%s to spoof from", tg.cidr, tg.rangeStart, tg.rangeEnd)
+	return ""
+}
 
 // fwUserData starts an HTTP listener on 8080 and a UDP logger on 9999, and adds a sudo user with key.
 func fwUserData(key string) string {
@@ -359,6 +383,8 @@ func TestFirewallE2E(t *testing.T) {
 			send(A.ip, "real")
 			time.Sleep(2 * time.Second)
 		}
+		spoofSrc := spoofSource(t, tg, A.ip, B.ip)
+		t.Logf("SPOOF SOURCE: %s (pool %s, range %s-%s)", spoofSrc, tg.cidr, tg.rangeStart, tg.rangeEnd)
 		send(spoofSrc, "spoof")
 		time.Sleep(10 * time.Second)
 		got := logB()
