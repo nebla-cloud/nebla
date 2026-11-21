@@ -7,6 +7,9 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import type { Invite, Member, Role } from '@/api/types'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ListGroup from '@/components/ListGroup.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import { selectClass } from '@/lib/ui'
 import { useCurrentProject } from '@/lib/project'
 import { assignableRoles, isManager, roleLabel } from '@/lib/roles'
 import { useSession } from '@/lib/session'
@@ -127,10 +130,11 @@ async function confirmRevoke() {
 
 <template>
   <div class="flex flex-col gap-6">
-    <div class="flex items-center justify-between gap-3">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Members</h1>
-      <UButton v-if="manager" icon="i-lucide-user-plus" @click="inviting = true">Invite</UButton>
-    </div>
+    <PageHeader title="Members">
+      <template v-if="manager" #actions>
+        <UButton icon="i-lucide-user-plus" @click="inviting = true">Invite</UButton>
+      </template>
+    </PageHeader>
 
     <UAlert
       v-if="loadError"
@@ -139,7 +143,7 @@ async function confirmRevoke() {
       :description="errorMessage(loadError)"
     />
     <p v-else-if="isPending" class="text-muted">Loading members…</p>
-    <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+    <ListGroup v-else>
       <li
         v-for="m in members"
         :key="m.user_id"
@@ -160,7 +164,7 @@ async function confirmRevoke() {
             <select
               :value="m.role"
               :aria-label="`Role for ${m.name || m.email}`"
-              class="rounded-md bg-default px-2.5 py-1.5 text-sm text-highlighted ring ring-inset ring-accented focus-visible:outline-2 focus-visible:outline-primary"
+              :class="selectClass"
               @change="onRoleChange(m, $event)"
             >
               <option v-for="r in roleOptions" :key="r" :value="r">{{ roleLabel(r) }}</option>
@@ -180,11 +184,11 @@ async function confirmRevoke() {
           <span v-else class="text-sm text-muted">{{ roleLabel(m.role) }}</span>
         </div>
       </li>
-    </ul>
+    </ListGroup>
 
     <section v-if="manager && invites?.length" class="flex flex-col gap-3">
-      <h2 class="text-lg font-bold text-highlighted">Pending invites</h2>
-      <ul class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+      <h2 class="nb-h2 text-highlighted">Pending invites</h2>
+      <ListGroup>
         <li
           v-for="i in invites"
           :key="i.id"
@@ -208,7 +212,7 @@ async function confirmRevoke() {
             Revoke
           </UButton>
         </li>
-      </ul>
+      </ListGroup>
     </section>
 
     <InviteModal v-if="manager" v-model:open="inviting" />

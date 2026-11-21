@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import UButton from '@nuxt/ui/components/Button.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { errorMessage } from '@/api/errors'
 import ActionList from './ActionList.vue'
@@ -18,13 +19,14 @@ const actions = () => q.data.value?.pages.flatMap((p) => p.actions) ?? []
 
 <template>
   <div class="flex flex-col gap-4">
-    <h1 class="text-2xl font-bold tracking-tight text-highlighted">Activity</h1>
+    <PageHeader title="Activity" />
     <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
       <UButton
         v-for="f in filters"
         :key="f.value"
         :label="f.label"
         size="sm"
+        class="rounded-full"
         :variant="status === f.value ? 'solid' : 'outline'"
         :aria-pressed="status === f.value"
         @click="status = f.value"

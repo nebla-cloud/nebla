@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import type { components } from '@/api/schema'
 import type { Action } from '@/api/types'
 import { actionTitle } from '@/components/actionLabel'
+import ListGroup from '@/components/ListGroup.vue'
 import TechnicalDetails from '@/components/TechnicalDetails.vue'
 import { parseProjectId, useCurrentProject } from '@/lib/project'
 import { useSession } from '@/lib/session'
@@ -43,8 +44,10 @@ function status(a: Row): string {
 }
 
 function dot(a: Row): string {
-  if (a.status === 'error') return 'bg-error'
-  return a.status === 'running' ? 'bg-warning motion-safe:animate-pulse' : 'bg-success'
+  if (a.status === 'error') return 'bg-[var(--nb-err)]'
+  return a.status === 'running'
+    ? 'bg-[var(--nb-busy)] motion-safe:animate-pulse'
+    : 'bg-[var(--nb-run)]'
 }
 
 function relative(iso: string): string {
@@ -82,7 +85,7 @@ const rows = computed(() =>
 </script>
 
 <template>
-  <ul class="divide-y divide-default rounded-lg border border-default">
+  <ListGroup>
     <li v-for="{ a, srv, proj } in rows" :key="a.id" class="flex flex-col gap-1 px-4 py-3">
       <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <RouterLink
@@ -133,5 +136,5 @@ const rows = computed(() =>
         :detail="admin ? inlineDetail(a) : undefined"
       />
     </li>
-  </ul>
+  </ListGroup>
 </template>
