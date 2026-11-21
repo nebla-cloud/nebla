@@ -57,3 +57,23 @@ export function actionDone(command: string): string | null {
 export function actionTitle(command: string): string {
   return titles[command] ?? sentence(command)
 }
+
+export function actionStatus(a: { status: string; progress: number }): string {
+  if (a.status === 'running') return `Running ${Math.round(a.progress)}%`
+  return a.status === 'success' ? 'Done' : 'Failed'
+}
+
+export function relativeTime(iso: string): string {
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`
+  return `${Math.floor(s / 86400)} d ago`
+}
+
+export function actionDot(a: { status: string }): string {
+  if (a.status === 'error') return 'bg-[var(--nb-err)]'
+  return a.status === 'running'
+    ? 'bg-[var(--nb-busy)] motion-safe:animate-pulse'
+    : 'bg-[var(--nb-run)]'
+}

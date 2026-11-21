@@ -4,13 +4,20 @@ import { useRoute, useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
-import { api } from '@/api/client'
-import { ApiError, errorMessage, unwrap } from '@/api/errors'
+import { ApiError, errorMessage } from '@/api/errors'
 import type { Action, Server } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
 import { useCurrentProject } from '@/lib/project'
 import MetricChart from '../metrics/MetricChart.vue'
-import { RANGES, parseRange, toSeries, type Range, type Tone } from '../metrics/metrics'
+import {
+  RANGES,
+  fetchMetrics,
+  parseRange,
+  toSeries,
+  type Range,
+  type TimeSeries,
+  type Tone,
+} from '../metrics/metrics'
 
 const props = defineProps<{ server: Server }>()
 defineEmits<{ started: [action: Action] }>()
@@ -27,15 +34,7 @@ function setRange(r: Range) {
 const REFRESH_MS = 60_000
 const query = useQuery({
   queryKey: computed(() => ['server-metrics', projectId.value, props.server.id, range.value]),
-  queryFn: async () =>
-    unwrap(
-      await api.GET('/servers/{id}/metrics', {
-        params: {
-          path: { id: props.server.id },
-          query: { type: ['cpu', 'disk', 'network'], timeframe: range.value },
-        },
-      }),
-    ).metrics,
+  queryFn: () => fetchMetrics(props.server.id, range.value),
   enabled: computed(() => projectId.value > 0),
   retry: false,
   refetchInterval: () =>
@@ -43,7 +42,7 @@ const query = useQuery({
 })
 
 const charts = computed(() => {
-  const ts = (query.data.value?.time_series ?? {}) as Record<string, [number, number | null][]>
+  const ts = (query.data.value?.time_series ?? {}) as TimeSeries
   const make = (
     title: string,
     unit: 'percent' | 'rate',

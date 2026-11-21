@@ -1,4 +1,6 @@
 import type uPlot from 'uplot'
+import { api } from '@/api/client'
+import { unwrap } from '@/api/errors'
 
 export type Range = 'hour' | 'day' | 'week' | 'month'
 
@@ -11,6 +13,19 @@ export const RANGES: { value: Range; label: string }[] = [
 
 export function parseRange(v: unknown): Range {
   return RANGES.some((r) => r.value === v) ? (v as Range) : 'hour'
+}
+
+export type TimeSeries = Record<string, [number, number | null][]>
+
+export async function fetchMetrics(serverId: number, timeframe: Range) {
+  return unwrap(
+    await api.GET('/servers/{id}/metrics', {
+      params: {
+        path: { id: serverId },
+        query: { type: ['cpu', 'disk', 'network'], timeframe },
+      },
+    }),
+  ).metrics
 }
 
 // Union of all timestamps, one value array per key, null where a series has no sample.

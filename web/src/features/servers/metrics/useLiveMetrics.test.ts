@@ -1,0 +1,107 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h, ref, type Ref } from 'vue'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+import { http } from 'msw'
+import { json, server } from '@/test/server'
+import { testQueryClient, testRouter } from '@/test/mount'
+import { useLiveMetrics } from './useLiveMetrics'
+
+const fixture = {
+  metrics: {
+    start: '2026-11-20T10:00:00Z',
+    end: '2026-11-20T11:00:00Z',
+    step: 60,
+    time_series: {
+      cpu: [
+        [1, 12],
+        [2, 18.2],
+        [3, null],
+      ],
+      'network.in': [
+        [1, 100],
+        [2, 2048],
+      ],
+      'network.out': [[1, 512]],
+      'disk.read': [[1, null]],
+      'disk.write': [
+        [1, 7],
+        [2, 9],
+      ],
+    },
+  },
+}
+
+let urls: URL[] = []
+function serve() {
+  urls = []
+  server.use(
+    http.get('*/v1/projects/1', () =>
+      json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
+    ),
+    http.get('*/v1/servers/5/metrics', ({ request }) => {
+      urls.push(new URL(request.url))
+      return json(200, fixture)
+    }),
+  )
+}
+
+async function setup(enabled: Ref<boolean>) {
+  const router = testRouter([{ path: '/p/:projectId', component: { render: () => null } }])
+  await router.push('/p/1')
+  let result!: ReturnType<typeof useLiveMetrics>
+  const C = defineComponent({
+    setup() {
+      result = useLiveMetrics(ref(5), enabled)
+      return () => h('div')
+    },
+  })
+  const wrapper = mount(C, {
+    global: { plugins: [router, [VueQueryPlugin, { queryClient: testQueryClient() }]] },
+  })
+  return { result, wrapper }
+}
+
+afterEach(() => vi.useRealTimers())
+
+describe('useLiveMetrics', () => {
+  it('requests cpu, network and disk for the last hour', async () => {
+    serve()
+    await setup(ref(true))
+    await vi.waitFor(() => expect(urls).toHaveLength(1))
+    const types = urls[0]!.searchParams.getAll('type').flatMap((t) => t.split(','))
+    expect(types.sort()).toEqual(['cpu', 'disk', 'network'])
+    expect(urls[0]!.searchParams.get('timeframe')).toBe('hour')
+  })
+
+  it('latest values are the last non-null samples', async () => {
+    serve()
+    const { result } = await setup(ref(true))
+    await vi.waitFor(() => expect(result.cpu.value).not.toBeNull())
+    expect(result.cpu.value).toBe(18.2)
+    expect(result.netIn.value).toBe(2048)
+    expect(result.netOut.value).toBe(512)
+    expect(result.diskRead.value).toBeNull()
+    expect(result.diskWrite.value).toBe(9)
+    expect(result.series.value.cpu).toHaveLength(3)
+  })
+
+  it('makes no request while disabled', async () => {
+    serve()
+    const { result } = await setup(ref(false))
+    await flushPromises()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(urls).toHaveLength(0)
+    expect(result.cpu.value).toBeNull()
+    expect(result.series.value).toEqual({})
+  })
+
+  it('refreshes every 60 s', async () => {
+    serve()
+    vi.useFakeTimers({ toFake: ['setInterval', 'setTimeout', 'clearInterval', 'clearTimeout'] })
+    await setup(ref(true))
+    await vi.waitFor(() => expect(urls).toHaveLength(1))
+    await vi.advanceTimersByTimeAsync(60_000)
+    await vi.waitFor(() => expect(urls).toHaveLength(2))
+  })
+})

@@ -1,15 +1,82 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { RouterView } from 'vue-router'
+import { http } from 'msw'
+import { json, server as msw } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
-import type { Server } from '@/api/types'
+import type { Action, Server } from '@/api/types'
 import { makeServer } from '../fixtures'
 import OverviewTab from './OverviewTab.vue'
 
 let mounted: VueWrapper | undefined
 
+const metricsFixture = {
+  metrics: {
+    start: '2026-11-20T10:00:00Z',
+    end: '2026-11-20T11:00:00Z',
+    step: 60,
+    time_series: {
+      cpu: [
+        [1, 12],
+        [2, 18.4],
+      ],
+      'network.in': [
+        [1, 1024],
+        [2, 2.1 * 1024 * 1024],
+      ],
+      'network.out': [[2, 0.4 * 1024 * 1024]],
+      'disk.read': [[2, 512]],
+      'disk.write': [[2, 3 * 1024]],
+    },
+  },
+}
+
+function act(id: number, over: Partial<Action> = {}): Action {
+  return {
+    id,
+    command: 'start_server',
+    status: 'success',
+    progress: 100,
+    resources: [{ id: 1, type: 'server' }],
+    error: null,
+    started: new Date(Date.now() - 120_000).toISOString(),
+    finished: new Date(Date.now() - 110_000).toISOString(),
+    ...over,
+  }
+}
+
+const actions = [
+  act(5, { command: 'reboot_server', status: 'running', progress: 40, finished: null }),
+  act(4, { command: 'change_server_type' }),
+  act(3, { command: 'rebuild_server', status: 'error' }),
+  act(2, { command: 'start_server' }),
+  act(1, { command: 'create_server' }),
+]
+
+beforeEach(() => {
+  msw.use(
+    http.get('*/v1/projects/1', () =>
+      json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
+    ),
+    http.get('*/v1/servers/:id/metrics', () => json(200, metricsFixture)),
+    http.get('*/v1/servers/:id/actions', () =>
+      json(200, {
+        actions,
+        meta: { pagination: { page: 1, per_page: 25, total_entries: actions.length } },
+      }),
+    ),
+  )
+})
+
 async function mountTab(s: Server) {
-  const router = testRouter([{ path: '/p/:projectId', component: RouterView }])
+  const router = testRouter([
+    { path: '/p/:projectId', component: RouterView },
+    {
+      path: '/p/:projectId/servers/:serverId/activity',
+      name: 'server-activity',
+      component: RouterView,
+    },
+  ])
   await router.push('/p/1')
   const res = mountApp(OverviewTab, { router, props: { server: s } })
   mounted = res.wrapper
@@ -69,12 +136,66 @@ describe('OverviewTab', () => {
     expect(dds).toContain('debian-13')
   })
 
-  it('keeps Delete in its own panel', async () => {
+  it('puts Delete in the recent activity panel footer', async () => {
     const w = await mountTab(makeServer())
-    const danger = panels(w).find((p) => !p.find('dl').exists())
-    expect(danger).toBeTruthy()
-    expect(danger!.text()).toContain('Delete this server and free its IP addresses.')
-    expect(danger!.findAll('button').map((b) => b.text())).toEqual(['Delete server'])
+    const recent = panels(w).find(
+      (p) => p.find('h2').exists() && p.find('h2').text() === 'Recent activity',
+    )
+    expect(recent).toBeTruthy()
+    const footer = recent!.find('footer')
+    expect(footer.text()).toContain('Delete this server and free its IP addresses.')
+    expect(footer.findAll('button').map((b) => b.text())).toEqual(['Delete server'])
+    expect(w.findAll('button').filter((b) => b.text() === 'Delete server')).toHaveLength(1)
+  })
+
+  it('lists the last 3 actions with a link to the activity tab', async () => {
+    const w = await mountTab(makeServer({ id: 7 }))
+    const recent = panels(w).find(
+      (p) => p.find('h2').exists() && p.find('h2').text() === 'Recent activity',
+    )!
+    await vi.waitFor(() => expect(recent.findAll('li')).toHaveLength(3))
+    const items = recent.findAll('li').map((li) => li.text())
+    expect(items[0]).toContain('Reboot')
+    expect(items[0]).toContain('Running 40%')
+    expect(items[1]).toContain('Resize')
+    expect(items[1]).toContain('Done')
+    expect(items[1]).toContain('2 min ago')
+    expect(items[2]).toContain('Rebuild')
+    expect(items[2]).toContain('Failed')
+    const all = recent.findAll('a').find((a) => a.text() === 'View all')!
+    expect(all.attributes('href')).toBe('/p/1/servers/7/activity')
+  })
+
+  it('shows live metric cards for a running server', async () => {
+    const w = await mountTab(makeServer())
+    await vi.waitFor(() => expect(w.find('[data-metric="cpu"] [data-value]').text()).toBe('18%'))
+    // The second figure sits in the card's unit slot.
+    const reading = (k: string) => {
+      const v = w.find(`[data-metric="${k}"] [data-value]`)
+      return `${v.text()} ${v.element.nextElementSibling!.textContent!.trim()}`
+    }
+    expect(reading('network')).toBe('2.1 MB/s / 410 KB/s')
+    expect(reading('disk')).toBe('512 B/s / 3.0 KB/s')
+    expect(w.find('[data-metric="cpu"] svg').attributes('aria-hidden')).toBe('true')
+    expect(w.text()).not.toContain("Graphs appear once it's running")
+  })
+
+  it('shows placeholders while the metrics load', async () => {
+    msw.use(http.get('*/v1/servers/:id/metrics', () => new Promise(() => {})))
+    const w = await mountTab(makeServer())
+    const values = w.findAll('[data-metric] [data-value]').map((v) => v.text())
+    expect(values).toEqual(['—', '—', '—'])
+  })
+
+  it('an off server shows a note and makes no metrics request', async () => {
+    const handler = vi.fn(() => json(200, metricsFixture))
+    msw.use(http.get('*/v1/servers/9/metrics', handler))
+    const w = await mountTab(makeServer({ id: 9, status: 'off' }))
+    await new Promise((r) => setTimeout(r, 20))
+    await flushPromises()
+    expect(handler).not.toHaveBeenCalled()
+    expect(w.find('[data-metric]').exists()).toBe(false)
+    expect(w.text()).toContain("Graphs appear once it's running")
   })
 
   it('opens the label editor in place of the chips', async () => {

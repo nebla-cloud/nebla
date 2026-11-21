@@ -3,7 +3,12 @@ import { computed, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import type { components } from '@/api/schema'
 import type { Action } from '@/api/types'
-import { actionTitle } from '@/components/actionLabel'
+import {
+  actionDot as dot,
+  actionStatus as status,
+  actionTitle,
+  relativeTime as relative,
+} from '@/components/actionLabel'
 import ListGroup from '@/components/ListGroup.vue'
 import TechnicalDetails from '@/components/TechnicalDetails.vue'
 import { parseProjectId, useCurrentProject } from '@/lib/project'
@@ -36,26 +41,6 @@ function projectOf(a: Row): { id: number; name: string } | null {
 function inlineDetail(a: Row): { code: string; detail: string } | undefined {
   if (!a.error || !('detail' in a.error)) return undefined
   return { code: a.error.code, detail: a.error.detail }
-}
-
-function status(a: Row): string {
-  if (a.status === 'running') return `Running ${Math.round(a.progress)}%`
-  return a.status === 'success' ? 'Done' : 'Failed'
-}
-
-function dot(a: Row): string {
-  if (a.status === 'error') return 'bg-[var(--nb-err)]'
-  return a.status === 'running'
-    ? 'bg-[var(--nb-busy)] motion-safe:animate-pulse'
-    : 'bg-[var(--nb-run)]'
-}
-
-function relative(iso: string): string {
-  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
-  if (s < 60) return 'just now'
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`
-  if (s < 86400) return `${Math.floor(s / 3600)} h ago`
-  return `${Math.floor(s / 86400)} d ago`
 }
 
 function duration(a: Row): string {
