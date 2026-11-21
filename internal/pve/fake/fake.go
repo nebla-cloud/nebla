@@ -368,9 +368,9 @@ func (s *Server) RequireRuleDigest() {
 	s.needDigest = true
 }
 
-// rulesDigest stands in for the digest of a VM's firewall config.
-func rulesDigest(rules []pve.FirewallRule) string {
-	sum := sha256.Sum256(fmt.Appendf(nil, "%+v", rules))
+// fwDigest stands in for the digest of a VM's .fw file: options, ipsets and rules.
+func fwDigest(v *vm) string {
+	sum := sha256.Sum256(fmt.Appendf(nil, "%v|%v|%+v", v.firewall, v.ipsets, v.rules))
 	return fmt.Sprintf("%x", sum[:20])
 }
 
@@ -929,7 +929,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		out := []map[string]any{}
 		for i, x := range v.rules {
-			m := map[string]any{"pos": i, "type": x.Type, "action": x.Action, "enable": 0, "digest": rulesDigest(v.rules)}
+			m := map[string]any{"pos": i, "type": x.Type, "action": x.Action, "enable": 0, "digest": fwDigest(v)}
 			if x.Enable {
 				m["enable"] = 1
 			}
@@ -977,7 +977,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 			s.failRule = false
 			return nil, &apiErr{500, "injected rule write failure"}
 		}
-		if d := r.URL.Query().Get("digest"); d != "" && d != rulesDigest(v.rules) || d == "" && s.needDigest {
+		if d := r.URL.Query().Get("digest"); d != "" && d != fwDigest(v) || d == "" && s.needDigest {
 			return nil, &apiErr{500, "detected modified configuration - file changed by other user? Try again."}
 		}
 		pos, err := strconv.Atoi(r.PathValue("pos"))

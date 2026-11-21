@@ -201,9 +201,12 @@ func (o *WorkerOptions) applyFirewallsNow(ctx context.Context, pc pve.Client, id
 			return 0, false, &permanentError{actions.CodeFirewallUnenforced, unenforcedDetail}
 		}
 	}
-	if err := firewalls.Sync(ctx, pc, node, vmid, firewalls.Render(rules, anyFW)); errors.Is(err, firewalls.ErrStoredDiffers) {
+	switch err := firewalls.Sync(ctx, pc, node, vmid, firewalls.Render(rules, anyFW)); {
+	case errors.Is(err, firewalls.ErrStoredDiffers):
 		return 0, false, permanent("apply firewall: %v", err)
-	} else if err != nil {
+	case errors.Is(err, firewalls.ErrRuleGone):
+		return 0, false, transient("apply firewall: %v", err)
+	case err != nil:
 		return 0, false, &stepError{"apply firewall", err}
 	}
 	// The v1 anti-spoofing ipset is restored with every apply; Sync already set its flags.

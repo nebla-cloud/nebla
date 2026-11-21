@@ -359,10 +359,63 @@ func TestDeleteRuleDigestMismatch(t *testing.T) {
 	if err := pc.AddFirewallRule(ctx, node, vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Comment: "concurrent"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := pc.DeleteFirewallRule(ctx, node, vmid, 1, cur[1].Digest); err == nil {
-		t.Fatal("delete with a stale digest succeeded")
+	if err := pc.DeleteFirewallRule(ctx, node, vmid, 1, cur[1].Digest); err == nil || !pve.IsTransient(err) {
+		t.Fatalf("delete with a stale digest: err = %v, want a transient error", err)
 	}
 	if v, _ := s.VM(vmid); len(v.Rules) != 3 {
 		t.Fatalf("rules = %+v", v.Rules)
+	}
+	// An options change also changes the digest, like the real .fw file.
+	cur, _ = pc.FirewallRules(ctx, node, vmid)
+	if err := pc.SetFirewallOptions(ctx, node, vmid, map[string]string{"log_level_in": "info"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pc.DeleteFirewallRule(ctx, node, vmid, 0, cur[0].Digest); !pve.IsTransient(err) {
+		t.Fatalf("delete after an options change: err = %v, want a transient error", err)
+	}
+}
+
+func TestSyncStoredDiffersDeletesAllStale(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	old := Render([]Rule{{ID: 9, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("3306"), IPs: pfx("0.0.0.0/0")}}, true)
+	if err := Sync(ctx, pc, node, vmid, old); err != nil {
+		t.Fatal(err)
+	}
+	s.OnRuleAdd(func(r *pve.FirewallRule) {
+		if r.Dport == "22" {
+			r.Proto = strings.ToUpper(r.Proto)
+		}
+	})
+	s.OnFirewallWrite(func() {
+		if v, _ := s.VM(vmid); v.Firewall["policy_in"] != "DROP" {
+			t.Errorf("VM opened: %v", v.Firewall)
+		}
+	})
+	d := Render([]Rule{
+		{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")},
+		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "udp", Port: ptr("53"), IPs: pfx("0.0.0.0/0")},
+	}, true)
+	if err := Sync(ctx, pc, node, vmid, d); !errors.Is(err, ErrStoredDiffers) {
+		t.Fatalf("err = %v, want ErrStoredDiffers", err)
+	}
+	v, _ := s.VM(vmid)
+	if len(v.Rules) != 1 || v.Rules[0] != d.Rules[1] {
+		t.Fatalf("rules = %+v, want only %+v", v.Rules, d.Rules[1])
+	}
+}
+
+func TestSyncRuleGoneAfterAddIsTransient(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	// The rule is stored under another comment, as if deleted and replaced meanwhile.
+	s.OnRuleAdd(func(r *pve.FirewallRule) { r.Comment = "someone else" })
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	err := Sync(ctx, pc, node, vmid, d)
+	if !errors.Is(err, ErrRuleGone) || errors.Is(err, ErrStoredDiffers) {
+		t.Fatalf("err = %v, want ErrRuleGone only", err)
+	}
+	if v, _ := s.VM(vmid); v.Firewall["policy_in"] == "DROP" {
+		t.Fatalf("policy set although a rule is missing: %v", v.Firewall)
 	}
 }

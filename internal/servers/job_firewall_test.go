@@ -295,6 +295,17 @@ func TestApplyStoredRuleDiffersFailsOnce(t *testing.T) {
 	require.Empty(t, dports(t, f.ServerEnv, f.vmid), "mismatched copies are removed")
 }
 
+func TestApplyRuleGoneRetries(t *testing.T) {
+	f := newFWEnv(t)
+	f.App.PVE.OnRuleAdd(func(r *pve.FirewallRule) { r.Comment = "someone else" })
+	_, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))
+
+	err := f.work(t, acts[0], 1)
+	require.ErrorContains(t, err, firewalls.ErrRuleGone.Error())
+	require.False(t, cancelled(err), "a rule lost to a concurrent edit is retried")
+	require.Nil(t, f.action(t, acts[0].ID).Finished)
+}
+
 func TestApplyCoalesces(t *testing.T) {
 	f := newFWEnv(t)
 	id, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))

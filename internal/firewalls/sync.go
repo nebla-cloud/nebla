@@ -13,14 +13,16 @@ import (
 // ErrStoredDiffers means Proxmox stored a rule differently from what was sent; retrying will not help.
 var ErrStoredDiffers = errors.New("proxmox stored a firewall rule differently")
 
+// ErrRuleGone means a rule vanished right after it was added, likely a concurrent edit; retry.
+var ErrRuleGone = errors.New("firewall rule missing right after adding it")
+
 // Sync applies d to a VM so that a protected VM is never briefly open, then verifies it.
 func Sync(ctx context.Context, pc pve.Client, node string, vmid int, d Desired) error {
 	cur, err := readRules(ctx, pc, node, vmid)
 	if err != nil {
 		return err
 	}
-	missing, _ := diff(cur, d)
-	all := func(pve.FirewallRule) bool { return true }
+	missing, stale := diff(cur, d)
 	if d.Options["policy_in"] == "DROP" {
 		for _, r := range missing {
 			if err := pc.AddFirewallRule(ctx, node, vmid, r); err != nil {
@@ -36,7 +38,7 @@ func Sync(ctx context.Context, pc pve.Client, node string, vmid int, d Desired) 
 				return storedDiffers(ctx, pc, node, vmid, d, cur, missing[0])
 			}
 		}
-		if err := deleteStale(ctx, pc, node, vmid, d, cur, all); err != nil {
+		if err := deleteStale(ctx, pc, node, vmid, d, cur); err != nil {
 			return err
 		}
 		if err := setOptions(ctx, pc, node, vmid, d.Options); err != nil {
@@ -46,22 +48,27 @@ func Sync(ctx context.Context, pc pve.Client, node string, vmid int, d Desired) 
 		if err := setOptions(ctx, pc, node, vmid, d.Options); err != nil {
 			return err
 		}
-		if err := deleteStale(ctx, pc, node, vmid, d, cur, all); err != nil {
+		// Setting options changes the config digest, so re-read before deleting.
+		if len(stale) > 0 {
+			if cur, err = readRules(ctx, pc, node, vmid); err != nil {
+				return err
+			}
+		}
+		if err := deleteStale(ctx, pc, node, vmid, d, cur); err != nil {
 			return err
 		}
 	}
 	return verify(ctx, pc, node, vmid, d)
 }
 
-// storedDiffers removes our mismatched copies, so retries cannot pile them up, and fails for good.
+// storedDiffers fails for good when Proxmox kept a rule differently, after deleting all stale rules.
 func storedDiffers(ctx context.Context, pc pve.Client, node string, vmid int, d Desired, cur []pve.FirewallRule, r pve.FirewallRule) error {
-	why := ruleDrift(cur, r)
-	ours := map[string]bool{}
-	for _, w := range d.Rules {
-		ours[w.Comment] = true
+	if !slices.ContainsFunc(cur, func(x pve.FirewallRule) bool { return x.Comment == r.Comment }) {
+		return fmt.Errorf("%w: %s", ErrRuleGone, r.Comment)
 	}
-	// Under DROP this only removes ACCEPTs, so nothing opens.
-	if err := deleteStale(ctx, pc, node, vmid, d, cur, func(x pve.FirewallRule) bool { return ours[x.Comment] }); err != nil {
+	why := ruleDrift(cur, r)
+	// Stale rules are not in the desired allow-list, so deleting them only narrows access; retries cannot pile copies up.
+	if err := deleteStale(ctx, pc, node, vmid, d, cur); err != nil {
 		return fmt.Errorf("%w: %s (cleanup: %w)", ErrStoredDiffers, why, err)
 	}
 	return fmt.Errorf("%w: %s", ErrStoredDiffers, why)
@@ -91,11 +98,10 @@ func readRules(ctx context.Context, pc pve.Client, node string, vmid int) ([]pve
 	return cur, nil
 }
 
-// deleteStale deletes stale rules matching only, highest position first, re-reading before each delete.
-func deleteStale(ctx context.Context, pc pve.Client, node string, vmid int, d Desired, cur []pve.FirewallRule, only func(pve.FirewallRule) bool) error {
+// deleteStale deletes stale rules highest position first, re-reading before each delete.
+func deleteStale(ctx context.Context, pc pve.Client, node string, vmid int, d Desired, cur []pve.FirewallRule) error {
 	for range len(cur) + 1 {
 		_, stale := diff(cur, d)
-		stale = slices.DeleteFunc(stale, func(r pve.FirewallRule) bool { return !only(r) })
 		if len(stale) == 0 {
 			return nil
 		}
