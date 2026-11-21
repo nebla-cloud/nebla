@@ -11,18 +11,22 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
+	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/servers"
 )
 
 // Commands are the volume action commands; the server rescue leaves them to RescueOrphaned.
 var Commands = []string{KindCreateVolume, KindAttachVolume, KindDetachVolume, KindResizeVolume, KindDeleteVolume}
 
 // RescueOrphaned fails orphaned volume actions and repairs volume rows no running action will settle.
+// A create orphaned after its disk was allocated publishes volume.created on bus, which may be nil.
 // It returns how many actions it failed.
-func RescueOrphaned(ctx context.Context, _ *ent.Client, sqlDB *sql.DB) (int, error) {
+func RescueOrphaned(ctx context.Context, c *ent.Client, sqlDB *sql.DB, bus servers.Publisher) (int, error) {
 	n := 0
+	var created []int64
 	err := db.WithTx(ctx, sqlDB, func(tx *sql.Tx, etx *ent.Client) error {
-		n = 0
+		n, created = 0, nil
 		q, err := tx.QueryContext(ctx, `
 			update actions a set status = 'error', error_code = $1, error_message = $2, finished = now()
 			where a.command = any($3) and `+jobs.Orphaned+`
@@ -44,6 +48,10 @@ func RescueOrphaned(ctx context.Context, _ *ent.Client, sqlDB *sql.DB) (int, err
 			if command == KindResizeVolume && args != nil && json.Unmarshal(args, &a) == nil {
 				resizes = append(resizes, a)
 			}
+			var ca CreateVolumeArgs
+			if command == KindCreateVolume && args != nil && json.Unmarshal(args, &ca) == nil {
+				created = append(created, ca.VolumeID)
+			}
 		}
 		if err := errors.Join(q.Err(), q.Close()); err != nil {
 			return err
@@ -60,7 +68,19 @@ func RescueOrphaned(ctx context.Context, _ *ent.Client, sqlDB *sql.DB) (int, err
 		}
 		return repairRows(ctx, etx)
 	})
-	return n, err
+	if err != nil || bus == nil || len(created) == 0 {
+		return n, err
+	}
+	rows, err := c.Volume.Query().Where(volume.IDIn(created...), volume.VolidNEQ(""),
+		volume.StatusIn(volume.StatusAvailable, volume.StatusAttached)).All(ctx)
+	if err != nil {
+		return n, err
+	}
+	o := &WorkerOptions{Bus: bus}
+	for _, r := range rows {
+		o.publish(ctx, ext.VolumeCreated, r, r.SizeGB, r.ServerID != nil)
+	}
+	return n, nil
 }
 
 // repairRows settles volumes stuck mid-action: creating becomes error, deleting available, and a saved attachment attached.
@@ -68,7 +88,7 @@ func repairRows(ctx context.Context, etx *ent.Client) error {
 	rows, err := etx.Volume.Query().Where(volume.Or(
 		volume.StatusIn(volume.StatusCreating, volume.StatusDeleting),
 		volume.And(volume.StatusEQ(volume.StatusAvailable), volume.ServerIDNotNil()),
-	)).ForUpdate().All(ctx)
+	)).Order(ent.Asc(volume.FieldID)).ForUpdate().All(ctx)
 	if err != nil {
 		return err
 	}

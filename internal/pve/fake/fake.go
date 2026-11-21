@@ -1111,13 +1111,20 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if newGB < oldGB {
 			return nil, &apiErr{500, "shrinking disks is not supported"}
 		}
-		v.config[f["disk"]] = strings.Join(keep, ",") + ",size=" + f["size"]
-		v.rev++
-		volid, _, _ := strings.Cut(cur, ",")
-		if st, ok := s.storageOf(v.node, volid); ok {
-			st.vols[volid].size = int64(newGB) << 30
-		}
-		return nil, nil
+		// PVE 8+ grows the disk in a task.
+		disk, size := f["disk"], f["size"]
+		return s.newTask(v.node, "resize", id, nil, func() string {
+			if s.vms[id] != v {
+				return fmt.Sprintf("VM %d does not exist", id)
+			}
+			v.config[disk] = strings.Join(keep, ",") + ",size=" + size
+			v.rev++
+			volid, _, _ := strings.Cut(cur, ",")
+			if st, ok := s.storageOf(v.node, volid); ok {
+				st.vols[volid].size = int64(newGB) << 30
+			}
+			return "OK"
+		}), nil
 	})
 	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/firewall/options", false, func(r *http.Request, _ bool) (any, *apiErr) {
 		s.mu.Lock()

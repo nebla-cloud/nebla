@@ -71,7 +71,7 @@ func run() error {
 	volumes.RegisterWorkers(workers, volumes.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
 		VolumeRescue: func(ctx context.Context) error {
-			_, err := volumes.RescueOrphaned(ctx, client, sqlDB)
+			_, err := volumes.RescueOrphaned(ctx, client, sqlDB, bus)
 			return err
 		}})
 	reconcile.Register(workers, rec)
@@ -94,7 +94,7 @@ func run() error {
 	if err := rec.RescueAll(ctx); err != nil {
 		return err
 	}
-	rescued, err := volumes.RescueOrphaned(ctx, client, sqlDB)
+	rescued, err := volumes.RescueOrphaned(ctx, client, sqlDB, bus)
 	if err != nil {
 		return err
 	}

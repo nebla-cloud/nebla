@@ -489,9 +489,14 @@ func (c *httpClient) StorageContent(ctx context.Context, node, storage string, v
 	return out, nil
 }
 
+// ResizeDisk returns once the disk has grown; PVE 8+ may answer with a task to wait for.
 func (c *httpClient) ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error {
 	f := url.Values{"disk": {disk}, "size": {strconv.Itoa(sizeGB) + "G"}}
-	return c.do(ctx, http.MethodPut, vmPath(node, vmid)+"/resize", f, nil)
+	var up string
+	if err := c.do(ctx, http.MethodPut, vmPath(node, vmid)+"/resize", f, &up); err != nil {
+		return err
+	}
+	return c.settle(ctx, node, up)
 }
 
 func (c *httpClient) SetFirewallOptions(ctx context.Context, node string, vmid int, kv map[string]string) error {

@@ -305,11 +305,22 @@ func TestDeleteAttachedRejected(t *testing.T) {
 	bad := e.put(t, e.Project, "bad", "", "ceph", 10, nil, "")
 	require.NoError(t, e.App.Ent.Volume.UpdateOneID(bad).SetStatus(volume.StatusError).Exec(ctx))
 	_, err = e.svc.Attach(ctx, e.Project, bad, "web")
-	requireAPIErr(t, err, http.StatusConflict, "volume_not_ready")
+	ae := requireAPIErr(t, err, http.StatusConflict, "volume_not_ready")
+	require.Equal(t, "This volume can only be deleted.", ae.Msg)
 	_, err = e.svc.Resize(ctx, e.Project, bad, 20)
 	requireAPIErr(t, err, http.StatusConflict, "volume_not_ready")
 	_, err = e.svc.Delete(ctx, e.Project, bad)
 	require.NoError(t, err)
+
+	// A missing volume can still be detached or deleted.
+	gone := e.put(t, e.Project, "gone", "", "ceph", 10, nil, "")
+	require.NoError(t, e.App.Ent.Volume.UpdateOneID(gone).SetStatus(volume.StatusMissing).Exec(ctx))
+	_, err = e.svc.Attach(ctx, e.Project, gone, "web")
+	ae = requireAPIErr(t, err, http.StatusConflict, "volume_not_ready")
+	require.Equal(t, "This volume can't be used right now. You can detach or delete it.", ae.Msg)
+	_, err = e.svc.Resize(ctx, e.Project, gone, 20)
+	ae = requireAPIErr(t, err, http.StatusConflict, "volume_not_ready")
+	require.Equal(t, "This volume can't be used right now. You can detach or delete it.", ae.Msg)
 
 	// Detach of the attached one locks the server first.
 	act, err = e.svc.Detach(ctx, e.Project, on)
@@ -533,4 +544,14 @@ func TestPickTiesByNodeName(t *testing.T) {
 	require.Equal(t, "pve1", got.Node)
 	_, err = volumes.Pick(c, 21)
 	requireAPIErr(t, err, http.StatusUnprocessableEntity, "resource_unavailable")
+}
+
+func TestCreateProxmoxDownIsUnreachable(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.App.PVE.SetDown(true)
+	_, _, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "a", SizeGB: 10, Location: "eu-1"})
+	ae := requireAPIErr(t, err, http.StatusServiceUnavailable, "pve_unreachable")
+	require.NotContains(t, ae.Msg, "pve")
+	require.NotContains(t, ae.Msg, "Proxmox")
 }

@@ -6,9 +6,11 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
+	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/volumes"
+	"github.com/nebla-cloud/nebla/internal/volumes/vref"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,7 +58,7 @@ func TestRescueVolumeActions(t *testing.T) {
 	require.NoError(t, rec.RescueAll(ctx))
 	require.Equal(t, actions.StatusRunning, e.action(t, attach.ID).Status)
 
-	n, err := volumes.RescueOrphaned(ctx, e.App.Ent, e.App.SQL)
+	n, err := volumes.RescueOrphaned(ctx, e.App.Ent, e.App.SQL, nil)
 	require.NoError(t, err)
 	require.Equal(t, 4, n)
 	for _, id := range []int64{attach.ID, create.ID, del.ID, resize.ID} {
@@ -77,7 +79,51 @@ func TestRescueVolumeActions(t *testing.T) {
 	require.Equal(t, volume.StatusCreating, e.row(t, live.ID).Status)
 
 	// Nothing is left to rescue.
-	n, err = volumes.RescueOrphaned(ctx, e.App.Ent, e.App.SQL)
+	n, err = volumes.RescueOrphaned(ctx, e.App.Ent, e.App.SQL, nil)
 	require.NoError(t, err)
 	require.Zero(t, n)
+}
+
+func TestRescuePublishesCreatedAfterAllocation(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s := e.RunningServer("web")
+	rec := &recorder{}
+
+	// Orphaned after the disk was allocated: the rescue publishes volume.created.
+	alloc, a1, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "alloc", SizeGB: 10, Location: "eu-1"})
+	require.NoError(t, err)
+	require.NoError(t, e.App.Ent.Volume.UpdateOneID(alloc.ID).SetStatus(volume.StatusAvailable).SetAppliedGB(10).
+		SetVolid(vref.Volid("ceph", alloc.ID, false)).Exec(ctx))
+	e.orphan(t, a1)
+	// Orphaned mid-attach: settles attached and publishes attached.
+	plug, a2, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "plug", SizeGB: 20, Server: "web"})
+	require.NoError(t, err)
+	require.NoError(t, e.App.Ent.Volume.UpdateOneID(plug.ID).SetStatus(volume.StatusAvailable).SetAppliedGB(20).
+		SetVolid(vref.Volid("ceph", plug.ID, false)).SetServerID(s.ServerID).SetDevice("virtio1").Exec(ctx))
+	e.orphan(t, a2)
+	// Orphaned before allocation: no disk, no event.
+	_, a3, err := e.svc.Create(ctx, e.Project, volumes.CreateInput{Name: "none", SizeGB: 10, Location: "eu-1"})
+	require.NoError(t, err)
+	e.orphan(t, a3)
+
+	n, err := volumes.RescueOrphaned(ctx, e.App.Ent, e.App.SQL, rec)
+	require.NoError(t, err)
+	require.Equal(t, 3, n)
+	require.Equal(t, volume.StatusAttached, e.row(t, plug.ID).Status)
+	evs := rec.all()
+	require.Len(t, evs, 2)
+	got := map[int64]map[string]any{}
+	for _, ev := range evs {
+		require.Equal(t, ext.VolumeCreated, ev.Kind)
+		got[ev.ResourceID] = ev.Data
+	}
+	require.Equal(t, map[string]any{"size_gb": 10, "location_id": e.Location, "attached": false}, got[alloc.ID])
+	require.Equal(t, map[string]any{"size_gb": 20, "location_id": e.Location, "attached": true}, got[plug.ID])
+
+	// A second pass publishes nothing more.
+	n, err = volumes.RescueOrphaned(ctx, e.App.Ent, e.App.SQL, rec)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Len(t, rec.all(), 2)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
@@ -219,6 +220,8 @@ func (w *DetachVolumeWorker) Work(ctx context.Context, job *river.Job[DetachVolu
 			// The server row is gone, and ON DELETE SET NULL already detached the volume.
 		case err != nil:
 			return err
+		case srv.Vmid != nil && !slices.ContainsFunc(vms, func(v pve.VM) bool { return v.VMID == *srv.Vmid }):
+			// The VM is gone from the cluster, and the key with it; a VM at that ID that is not the server's still fails below.
 		case srv.Vmid != nil:
 			vm, err := serverVM(vms, srv)
 			if err != nil {

@@ -792,3 +792,40 @@ func TestPermissions(t *testing.T) {
 		t.Fatalf("got %+v err=%v", got, err)
 	}
 }
+
+func TestResizeDiskWaitsForTask(t *testing.T) {
+	polls := 0
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.Path == "/api2/json/nodes/pve1/qemu/101/resize":
+			fmt.Fprint(w, `{"data":"UPID:pve1:00000001:00000001:00000001:resize:101:root@pam:"}`)
+		case strings.HasSuffix(r.URL.Path, "/status"):
+			polls++
+			if polls < 2 {
+				fmt.Fprint(w, `{"data":{"status":"running"}}`)
+				return
+			}
+			fmt.Fprint(w, `{"data":{"status":"stopped","exitstatus":"OK"}}`)
+		default:
+			t.Errorf("got %s %s", r.Method, r.URL.Path)
+		}
+	})
+	if err := c.ResizeDisk(ctx(t), "pve1", 101, "virtio1", 30); err != nil || polls != 2 {
+		t.Fatalf("polls = %d err=%v", polls, err)
+	}
+	failed := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/status") {
+			fmt.Fprint(w, `{"data":{"status":"stopped","exitstatus":"lvresize failed"}}`)
+			return
+		}
+		fmt.Fprint(w, `{"data":"UPID:pve1:00000001:00000001:00000001:resize:101:root@pam:"}`)
+	})
+	if err := failed.ResizeDisk(ctx(t), "pve1", 101, "virtio1", 30); !errors.Is(err, pve.ErrTaskFailed) {
+		t.Fatalf("err = %v", err)
+	}
+	// Older PVE answers null.
+	plain := stubClient(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"data":null}`) })
+	if err := plain.ResizeDisk(ctx(t), "pve1", 101, "virtio1", 30); err != nil {
+		t.Fatal(err)
+	}
+}

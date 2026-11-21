@@ -18,7 +18,8 @@ var (
 	// errServerLocked matches servers' own locked error.
 	errServerLocked = apierr.New(http.StatusConflict, "locked", "the server has a running action")
 	errLocked       = apierr.New(http.StatusConflict, "locked", "the volume has a running action")
-	errNotReady     = apierr.New(http.StatusConflict, "volume_not_ready", "This volume can only be deleted")
+	errNotReady     = apierr.New(http.StatusConflict, "volume_not_ready", "This volume can only be deleted.")
+	errMissing      = apierr.New(http.StatusConflict, "volume_not_ready", "This volume can't be used right now. You can detach or delete it.")
 	errNameTaken    = apierr.New(http.StatusConflict, "uniqueness_error", "volume name is already taken")
 	errAttached     = apierr.New(http.StatusConflict, "volume_attached", "This volume is already attached to a server")
 	errNotAttached  = apierr.New(http.StatusConflict, "volume_not_attached", "This volume is not attached to a server")
@@ -27,6 +28,7 @@ var (
 	errLimit        = apierr.New(http.StatusUnprocessableEntity, "volume_limit", fmt.Sprintf("A server can hold at most %d volumes", vref.MaxPerServer))
 	errShrink       = apierr.New(http.StatusUnprocessableEntity, "volume_shrink_not_allowed", "Volumes can only grow")
 	errUnavailable  = apierr.New(http.StatusUnprocessableEntity, "volumes_unavailable", "Volumes are not available in this location")
+	errUnreachable  = apierr.New(http.StatusServiceUnavailable, "pve_unreachable", "This location can't be reached right now. Try again in a moment.")
 	errNoCapacity   = apierr.New(http.StatusUnprocessableEntity, "resource_unavailable", "no host in this location has room for this volume")
 )
 

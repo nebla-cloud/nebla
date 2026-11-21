@@ -179,3 +179,19 @@ func TestReconcileWarnsUntrackedVolumeKey(t *testing.T) {
 	require.NotContains(t, logs2.String(), "volume key not recorded")
 	require.NotContains(t, logs2.String(), "attached volume not in server config")
 }
+
+func TestReconcileListingFailureKeepsVolumes(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	id, volid := diskVolume(t, e, "data", 5)
+	pc, _ := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, pc.DeleteVolume(ctx, "pve1", "local-lvm", volid))
+
+	e.App.PVE.FailNext("GET /nodes/pve1/storage/local-lvm/content", 500)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, volume.StatusAvailable, volStatus(t, e, id), "a failed listing proves nothing")
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, volume.StatusMissing, volStatus(t, e, id))
+}

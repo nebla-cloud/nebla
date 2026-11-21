@@ -198,8 +198,10 @@ func usable(v *ent.Volume) error {
 	switch v.Status {
 	case volume.StatusCreating, volume.StatusDeleting:
 		return errLocked
-	case volume.StatusError, volume.StatusMissing:
+	case volume.StatusError:
 		return errNotReady
+	case volume.StatusMissing:
+		return errMissing
 	}
 	return nil
 }

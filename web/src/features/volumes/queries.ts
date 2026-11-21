@@ -20,16 +20,29 @@ const poll =
     return list.some((v) => isVolumeTransitional(v.status)) ? POLL_MS : false
   }
 
+const PER_PAGE = 50
+
+// fetchVolumes reads every page of the project's volumes, or of those on one server.
+export async function fetchVolumes(server?: number): Promise<Volume[]> {
+  const out: Volume[] = []
+  for (let page = 1; ; page++) {
+    const query = server
+      ? { page, per_page: PER_PAGE, server: String(server) }
+      : { page, per_page: PER_PAGE }
+    const body = unwrap(await api.GET('/volumes', { params: { query } }))
+    out.push(...body.volumes)
+    if (body.volumes.length < PER_PAGE || out.length >= body.meta.pagination.total_entries)
+      return out
+  }
+}
+
 // The project's volumes, or only those on one server.
 export function useVolumes(serverId?: Ref<number>, paused?: Ref<boolean>) {
   const { projectId } = useCurrentProject()
   return useQuery(
     computed(() => ({
       queryKey: ['volumes', projectId.value, serverId?.value ?? 0],
-      queryFn: async (): Promise<Volume[]> => {
-        const query = serverId ? { per_page: 50, server: String(serverId.value) } : { per_page: 50 }
-        return unwrap(await api.GET('/volumes', { params: { query } })).volumes
-      },
+      queryFn: (): Promise<Volume[]> => fetchVolumes(serverId?.value),
       enabled: projectId.value > 0 && (!serverId || serverId.value > 0),
       refetchInterval: poll(paused),
     })),

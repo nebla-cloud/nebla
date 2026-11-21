@@ -85,7 +85,8 @@ func (s *Service) place(ctx context.Context, locationID int64, pin string, sizeG
 	case err != nil:
 		return candidate{}, err
 	case len(cands) == 0 && pveErr != nil:
-		return candidate{}, pveErr
+		s.o.Logger.WarnContext(ctx, "volumes: list storages for placement", "location_id", locationID, "err", pveErr)
+		return candidate{}, errUnreachable
 	case len(cands) == 0:
 		return candidate{}, errUnavailable
 	}
