@@ -198,9 +198,9 @@ async function submit() {
       <UButton type="submit" block size="lg" :loading="busy">Log in</UButton>
       <template v-if="passkeys && !needsTotp">
         <div data-passkey-divider class="flex items-center gap-3 text-sm text-muted">
-          <span class="h-px flex-1 bg-[var(--ui-border)]" />
+          <span class="h-px flex-1 bg-(--ui-border)" />
           or
-          <span class="h-px flex-1 bg-[var(--ui-border)]" />
+          <span class="h-px flex-1 bg-(--ui-border)" />
         </div>
         <UButton
           type="button"
