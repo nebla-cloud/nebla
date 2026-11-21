@@ -44,7 +44,7 @@ var (
 	errLastOwner = apierr.New(http.StatusConflict, "last_owner", "a project needs at least one owner")
 )
 
-// HasServersFunc reports whether a project still owns servers; the servers package supplies it.
+// HasServersFunc reports whether a project still owns servers or volumes; servers and volumes supply it.
 type HasServersFunc func(ctx context.Context, db *ent.Client, projectID int64) (bool, error)
 
 // UsageFunc returns a project's live usage, read through tx so it sees the caller's writes.
@@ -272,7 +272,7 @@ func (s *Service) Rename(ctx context.Context, userID, projectID int64, name stri
 	return toProject(p, r), nil
 }
 
-// Delete removes a project; it fails with project_not_empty while servers exist.
+// Delete removes a project; it fails with project_not_empty while servers or volumes exist.
 func (s *Service) Delete(ctx context.Context, userID, projectID int64) error {
 	if _, err := s.require(ctx, userID, projectID, RoleOwner); err != nil {
 		return err
@@ -280,7 +280,7 @@ func (s *Service) Delete(ctx context.Context, userID, projectID int64) error {
 	return s.deleteProject(ctx, projectID)
 }
 
-// deleteProject locks the project and deletes it unless it still has servers.
+// deleteProject locks the project and deletes it unless HasServers reports servers or volumes.
 func (s *Service) deleteProject(ctx context.Context, projectID int64) error {
 	return withTx(ctx, s.db, func(tx *ent.Client) error {
 		if _, err := tx.Project.Query().Where(project.ID(projectID)).ForUpdate().Only(ctx); err != nil {
@@ -291,7 +291,7 @@ func (s *Service) deleteProject(ctx context.Context, projectID int64) error {
 			return err
 		}
 		if busy {
-			return apierr.New(http.StatusConflict, "project_not_empty", "Delete the project's servers first.")
+			return apierr.New(http.StatusConflict, "project_not_empty", "Delete the project's servers and volumes first.")
 		}
 		return tx.Project.DeleteOneID(projectID).Exec(ctx)
 	})

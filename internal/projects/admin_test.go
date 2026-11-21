@@ -220,7 +220,7 @@ func TestAdminDeleteProject(t *testing.T) {
 	pid := e.project(t, e.owner.ID, "Web")
 	e.busy[pid] = true
 	ae := requireAPIErr(t, e.svc.AdminDelete(ctx, pid), http.StatusConflict, "project_not_empty")
-	require.Equal(t, "Delete the project's servers first.", ae.Msg)
+	require.Equal(t, "Delete the project's servers and volumes first.", ae.Msg)
 	_, err := e.db.Project.Get(ctx, pid)
 	require.NoError(t, err)
 

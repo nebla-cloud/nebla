@@ -226,7 +226,7 @@ func New(deps Deps) http.Handler {
 // ServerHooks fills unset project and catalog hooks with the servers implementations.
 func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hooks) {
 	if p.HasServers == nil {
-		p.HasServers = servers.HasServers
+		p.HasServers = volumes.HasVolumesWith(servers.HasServers)
 	}
 	if p.Usage == nil {
 		p.Usage = volumes.UsageWith(servers.Usage)

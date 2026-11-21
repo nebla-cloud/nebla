@@ -681,6 +681,17 @@ func (s *Service) ServerVolumes(ctx context.Context, serverIDs []int64) (map[int
 	return out, nil
 }
 
+// HasVolumesWith reports next's answer, or whether the project still owns volumes.
+func HasVolumesWith(next projects.HasServersFunc) projects.HasServersFunc {
+	return func(ctx context.Context, tx *ent.Client, projectID int64) (bool, error) {
+		busy, err := next(ctx, tx, projectID)
+		if err != nil || busy {
+			return busy, err
+		}
+		return tx.Volume.Query().Where(volume.ProjectID(projectID)).Exist(ctx)
+	}
+}
+
 // UsageWith adds the project's volumes and their requested GB to next's usage.
 func UsageWith(next projects.UsageFunc) projects.UsageFunc {
 	return func(ctx context.Context, tx *ent.Client, projectID int64) (projects.Usage, error) {

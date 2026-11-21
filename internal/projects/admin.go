@@ -72,7 +72,7 @@ func (s *Service) AdminGet(ctx context.Context, projectID int64) (AdminProjectDe
 	return out, nil
 }
 
-// AdminDelete removes any project; it fails with project_not_empty while servers exist.
+// AdminDelete removes any project; it fails with project_not_empty while servers or volumes exist.
 func (s *Service) AdminDelete(ctx context.Context, projectID int64) error {
 	return s.deleteProject(ctx, projectID)
 }

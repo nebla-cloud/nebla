@@ -408,3 +408,24 @@ func TestVolumesUnavailableWithoutAllocate(t *testing.T) {
 	res.Body.Close()
 	require.True(t, decodeJSON[avail](t, e.App, e.C.Get(lp), http.StatusOK).VolumesAvailable)
 }
+
+func TestDeleteProjectWithVolumes(t *testing.T) {
+	e := newVolEnv(t)
+	ctx := context.Background()
+	v, err := e.App.Ent.Volume.Create().SetProjectID(e.Project).SetLocationID(e.Location).SetName("data").
+		SetLabels(map[string]string{}).SetSizeGB(10).SetStorage("ceph").SetStatus(volume.StatusAvailable).Save(ctx)
+	require.NoError(t, err)
+
+	type errBody struct {
+		Error struct{ Code, Message string }
+	}
+	got := decodeJSON[errBody](t, e.App, e.C.Send(http.MethodDelete, "/v1/projects/"+itoa(e.Project), nil), http.StatusConflict)
+	require.Equal(t, "project_not_empty", got.Error.Code)
+	require.Equal(t, "Delete the project's servers and volumes first.", got.Error.Message)
+	got = decodeJSON[errBody](t, e.App, e.Admin.Send(http.MethodDelete, "/v1/admin/projects/"+itoa(e.Project), nil), http.StatusConflict)
+	require.Equal(t, "project_not_empty", got.Error.Code)
+
+	require.NoError(t, e.App.Ent.Volume.DeleteOneID(v.ID).Exec(ctx))
+	res := e.Admin.Send(http.MethodDelete, "/v1/admin/projects/"+itoa(e.Project), nil)
+	require.Equal(t, http.StatusNoContent, res.StatusCode, e.App.Body(res))
+}
