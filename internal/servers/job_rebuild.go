@@ -178,6 +178,9 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	if err := r.b.firewallCurrent(ctx, r.b.vmid()); err != nil {
 		return err
 	}
+	if err := r.plugNewVM(ctx); err != nil {
+		return &stepError{"attach volumes to new vm", err}
+	}
 	old := buildState{Vmid: r.row.Vmid, Upid: r.row.CloneUpid, Nonce: r.row.CloneNonce, Step: stepSwap}
 	nu := r.b.st
 	var row *ent.Server
@@ -205,6 +208,9 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 }
 
 func (r *rebuildRun) retire(ctx context.Context) error {
+	if err := r.unplugOldVM(ctx); err != nil {
+		return &stepError{"detach volumes from old vm", err}
+	}
 	if r.b.st.Vmid != nil {
 		if err := destroyOrForget(ctx, r.b.pc, r.row.ID, *r.b.st.Vmid, CloneProof{}); err != nil {
 			return err

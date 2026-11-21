@@ -69,6 +69,17 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 	if err != nil {
 		return &stepError{"load location", err}
 	}
+	vols, err := attachedVolumes(ctx, w.o.Ent, row.ID)
+	if err != nil {
+		return err
+	}
+	for _, vmid := range []*int{row.Vmid, row.RebuildVmid} {
+		if vmid != nil {
+			if err := unplugServerVolumes(ctx, pc, row.ID, *vmid, vols); err != nil {
+				return &stepError{"detach volumes", err}
+			}
+		}
+	}
 	if row.Vmid != nil {
 		if err := destroyOrForget(ctx, pc, row.ID, *row.Vmid, CloneProof{UPID: row.CloneUpid, Nonce: row.CloneNonce}); err != nil {
 			return &stepError{"destroy vm", err}
@@ -93,6 +104,9 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 	}
 	err = db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
 		if err := ipam.Release(ctx, etx, row.ID); err != nil {
+			return err
+		}
+		if err := detachVolumesTx(ctx, etx, row.ID); err != nil {
 			return err
 		}
 		if err := etx.Server.DeleteOneID(row.ID).Exec(ctx); err != nil {
