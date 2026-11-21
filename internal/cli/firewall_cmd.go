@@ -75,6 +75,22 @@ func ruleRows(rules []apiclient.FirewallRule, dir apiclient.FirewallRuleDirectio
 	return rows
 }
 
+// ruleSummary reads like "inbound tcp 22 from 0.0.0.0/0".
+func ruleSummary(r apiclient.FirewallRule) string {
+	dir, ips, word := "inbound", r.SourceIps, "from"
+	if r.Direction == apiclient.Out {
+		dir, ips, word = "outbound", r.DestinationIps, "to"
+	}
+	out := dir + " " + string(r.Protocol)
+	if r.Port != nil {
+		out += " " + *r.Port
+	}
+	if ips != nil && len(*ips) > 0 {
+		out += " " + word + " " + strings.Join(*ips, ", ")
+	}
+	return out
+}
+
 func firewallDescribeCmd(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "describe <ref>",
@@ -110,6 +126,9 @@ func firewallDescribeCmd(a *app) *cobra.Command {
 				}
 				fmt.Fprintf(a.env.Stdout, "\n%s rules:\n", s.title)
 				p.Table([]string{"#", "Protocol", "Port", s.col, "Description"}, rows)
+			}
+			if len(f.Rules) > 0 {
+				fmt.Fprintln(a.env.Stdout, "\n# is the rule's position across all rules.")
 			}
 			return nil
 		},
@@ -348,8 +367,8 @@ func firewallAddRuleCmd(a *app) *cobra.Command {
 	fl.StringVar(&dir, "direction", "", "in or out")
 	fl.StringVar(&proto, "protocol", "", "tcp, udp, icmp, esp or gre")
 	fl.StringVar(&port, "port", "", "port (80) or range (8000-8100)")
-	fl.StringSliceVar(&src, "source-ips", nil, "inbound: CIDRs allowed to connect")
-	fl.StringSliceVar(&dst, "destination-ips", nil, "outbound: CIDRs the server may reach")
+	fl.StringSliceVar(&src, "source-ips", nil, "CIDRs allowed to connect (inbound only)")
+	fl.StringSliceVar(&dst, "destination-ips", nil, "CIDRs the server may reach (outbound only)")
 	fl.StringVar(&desc, "description", "", "rule description")
 	_ = cmd.MarkFlagRequired("direction")
 	_ = cmd.MarkFlagRequired("protocol")
@@ -358,7 +377,13 @@ func firewallAddRuleCmd(a *app) *cobra.Command {
 
 func firewallDeleteRuleCmd(a *app) *cobra.Command {
 	var index int
-	cmd := &cobra.Command{Use: "delete-rule <ref>", Short: "Delete a rule by its # in describe", Args: cobra.ExactArgs(1)}
+	var proto, port string
+	cmd := &cobra.Command{
+		Use:   "delete-rule <ref>",
+		Short: "Delete a rule by its # in describe",
+		Long:  "Delete a rule by its # in describe. # is the rule's position across all rules, inbound and outbound.\nUse --protocol and --port to make sure the rule at that position is the one you mean.",
+		Args:  cobra.ExactArgs(1),
+	}
 	wo := addWaitFlags(cmd)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		api, err := a.api()
@@ -372,9 +397,19 @@ func firewallDeleteRuleCmd(a *app) *cobra.Command {
 		if index < 1 || index > len(f.Rules) {
 			return fmt.Errorf("firewall %s has no rule %d", f.Name, index)
 		}
+		victim := f.Rules[index-1]
+		desc := ruleSummary(victim)
+		if proto != "" && string(victim.Protocol) != proto {
+			return fmt.Errorf("rule %d is %s, not protocol %s; nothing changed", index, desc, proto)
+		}
+		if port != "" && (victim.Port == nil || *victim.Port != port) {
+			return fmt.Errorf("rule %d is %s, not port %s; nothing changed", index, desc, port)
+		}
 		rules := append(append([]apiclient.FirewallRule{}, f.Rules[:index-1]...), f.Rules[index:]...)
-		return setRules(a, cmd, api, wo, f, rules, fmt.Sprintf("Rule %d deleted from firewall %s", index, f.Name))
+		return setRules(a, cmd, api, wo, f, rules, fmt.Sprintf("Rule %d deleted (%s) from firewall %s", index, desc, f.Name))
 	}
+	cmd.Flags().StringVar(&proto, "protocol", "", "only delete if the rule has this protocol")
+	cmd.Flags().StringVar(&port, "port", "", "only delete if the rule has this port")
 	cmd.Flags().IntVar(&index, "index", 0, "rule number as shown by describe")
 	_ = cmd.MarkFlagRequired("index")
 	return cmd

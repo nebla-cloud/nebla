@@ -49,7 +49,12 @@ func TestFirewallLifecycle(t *testing.T) {
 	if out = ok("server", "describe", "web1"); !strings.Contains(out, "web (via role=web)") {
 		t.Fatalf("server describe: %q", out)
 	}
-	ok("firewall", "delete-rule", "web", "--index", "1")
+	if out = ok("firewall", "delete-rule", "web", "--index", "1", "--protocol", "tcp", "--port", "22"); !strings.Contains(out, "inbound tcp 22 from 0.0.0.0/0") {
+		t.Fatalf("delete-rule: %q", out)
+	}
+	if out = ok("firewall", "describe", "web"); strings.Contains(out, "ssh") || !strings.Contains(out, "443") {
+		t.Fatalf("after delete-rule: %q", out)
+	}
 	ok("firewall", "remove-from-resource", "web", "--type", "label_selector", "--label-selector", "role=web")
 	if out = ok("server", "describe", "web1"); strings.Contains(out, "via role=web") {
 		t.Fatalf("server describe after remove: %q", out)
@@ -102,5 +107,22 @@ func TestFirewallBadRuleExitCode(t *testing.T) {
 	_, errOut, code := h.run("firewall", "add-rule", "web", "--direction", "in", "--protocol", "tcp", "--port", "70000", "--source-ips", "0.0.0.0/0")
 	if code == 0 || !strings.Contains(strings.ToLower(errOut), "port") {
 		t.Fatalf("bad rule: %d %q", code, errOut)
+	}
+}
+
+func TestFirewallDeleteRuleGuards(t *testing.T) {
+	h := newHarness(t)
+	if _, e, code := h.run("firewall", "create", "--name", "web", "--rules-file", writeRules(t, inRule)); code != 0 {
+		t.Fatal(e)
+	}
+	if _, e, code := h.run("firewall", "delete-rule", "web", "--index", "5"); code == 0 || !strings.Contains(e, "no rule 5") {
+		t.Fatalf("range: %d %q", code, e)
+	}
+	_, e, code := h.run("firewall", "delete-rule", "web", "--index", "1", "--port", "80")
+	if code == 0 || !strings.Contains(e, "nothing changed") {
+		t.Fatalf("mismatch: %d %q", code, e)
+	}
+	if out, _, _ := h.run("firewall", "describe", "web"); !strings.Contains(out, "ssh") {
+		t.Fatalf("rules changed: %q", out)
 	}
 }
