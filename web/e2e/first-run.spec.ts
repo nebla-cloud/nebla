@@ -79,7 +79,7 @@ test('first run to first server', async ({ page }) => {
   await page.locator('input[name=name]').fill('Home lab')
   await page.getByRole('button', { name: 'Create project' }).click()
   await expect(page).toHaveURL(/\/p\/\d+\/servers$/)
-  await expect(page.getByText('No servers yet')).toBeVisible()
+  await expect(page.getByText('Create your first server')).toBeVisible()
   await snapshot()
 
   await nav.getByRole('link', { name: 'SSH keys' }).click()
@@ -107,6 +107,6 @@ test('first run to first server', async ({ page }) => {
   await confirm.locator('input[name=confirm_name]').fill(serverName)
   await confirm.getByRole('button', { name: 'Delete server' }).click()
   await expect(page).toHaveURL(/\/p\/\d+\/servers$/, { timeout: 60_000 })
-  await expect(page.getByText('No servers yet')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText('Create your first server')).toBeVisible({ timeout: 60_000 })
   await snapshot()
 })

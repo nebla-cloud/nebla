@@ -49,7 +49,11 @@ async function mountDetail(
     {
       path: '/p/:projectId',
       component: RouterView,
-      children: [{ path: 'servers/new', name: 'server-new', component: RouterView }, ...routes],
+      children: [
+        { path: 'servers/new', name: 'server-new', component: RouterView },
+        { path: 'ssh-keys', name: 'ssh-keys', component: RouterView },
+        ...routes,
+      ],
     },
   ])
   await router.push({ path, state })

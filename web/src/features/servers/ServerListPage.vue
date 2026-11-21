@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
@@ -11,19 +12,36 @@ import ListGroup from '@/components/ListGroup.vue'
 import ListRow from '@/components/ListRow.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusArch from '@/components/StatusArch.vue'
+import TerminalBlock from '@/components/TerminalBlock.vue'
+import type { ServerType } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
 import { serverStatus } from '@/lib/status'
 import LabelChips from './LabelChips.vue'
 import OsBadge from './OsBadge.vue'
 import { osLabel } from './osLabel'
 import { useServers } from './queries'
+import RowSparkline from './RowSparkline.vue'
+import type { Image } from '../servers-create/createServer'
 import { filterServers, parseStatusFilter, type StatusFilter } from './statusFilter'
 
 const { projectId, project } = useCurrentProject()
 // Shared by the head row and each server row so the columns line up.
 const cols =
-  'sm:grid sm:w-[30rem] sm:shrink-0 sm:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr] sm:gap-x-3 lg:w-[38rem] xl:w-[44rem] [&>*]:min-w-0 [&>*]:truncate'
+  'sm:grid sm:w-[30rem] sm:shrink-0 sm:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr] sm:gap-x-3 lg:w-[38rem] lg:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr_120px] xl:w-[48rem] [&>*]:min-w-0 [&>*]:truncate'
 const newRoute = computed(() => ({ name: 'server-new', params: { projectId: projectId.value } }))
+const keysRoute = computed(() => ({ name: 'ssh-keys', params: { projectId: projectId.value } }))
+
+// Read from the create form's cache only, so an empty list never fetches the catalog.
+const queryClient = useQueryClient()
+const cliLine = computed(() => {
+  const type =
+    queryClient
+      .getQueryData<ServerType[]>(['server-types', projectId.value])
+      ?.find((t) => !t.deprecated)?.name ?? '<type>'
+  const image =
+    queryClient.getQueryData<Image[]>(['images', projectId.value])?.[0]?.name ?? '<image>'
+  return `nebla server create --name web1 --type ${type} --image ${image}`
+})
 const route = useRoute()
 const router = useRouter()
 const selector = computed(() => (typeof route.query.labels === 'string' ? route.query.labels : ''))
@@ -190,10 +208,18 @@ onBeforeUnmount(() => clearTimeout(timer))
     <p v-else-if="!servers?.length && selector" class="text-muted">No servers match this filter.</p>
     <EmptyState
       v-else-if="!servers?.length"
-      title="No servers yet"
-      body="Create a server to get started. It is ready in about a minute."
+      title="Create your first server"
+      body="Pick an image and a type, add your SSH key, and it boots in about a minute with a static IP."
     >
-      <UButton :to="newRoute">Create server</UButton>
+      <div class="flex flex-wrap gap-2.5">
+        <UButton :to="newRoute" icon="i-lucide-plus">Create server</UButton>
+        <UButton :to="keysRoute" color="neutral" variant="outline" icon="i-lucide-key-round"
+          >Add an SSH key first</UButton
+        >
+      </div>
+      <template #aside>
+        <TerminalBlock caption="Or from your terminal">{{ cliLine }}</TerminalBlock>
+      </template>
     </EmptyState>
     <ListGroup v-else>
       <template #head>
@@ -208,6 +234,7 @@ onBeforeUnmount(() => clearTimeout(timer))
             <span>Type</span>
             <span>Public IPv4</span>
             <span>Location</span>
+            <span class="hidden lg:block">CPU, 1h</span>
           </span>
         </div>
       </template>
@@ -238,6 +265,9 @@ onBeforeUnmount(() => clearTimeout(timer))
             }}</span>
             <span v-else class="text-muted">{{ serverStatus(s.status).label }}</span>
             <span>{{ s.location.name }}</span>
+            <span data-col="cpu" class="hidden lg:block">
+              <RowSparkline :server-id="s.id" :running="s.status === 'running'" />
+            </span>
           </span>
         </span>
       </ListRow>

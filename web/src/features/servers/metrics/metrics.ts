@@ -17,12 +17,18 @@ export function parseRange(v: unknown): Range {
 
 export type TimeSeries = Record<string, [number, number | null][]>
 
-export async function fetchMetrics(serverId: number, timeframe: Range) {
+export type MetricType = 'cpu' | 'disk' | 'network'
+
+export async function fetchMetrics(
+  serverId: number,
+  timeframe: Range,
+  type: MetricType[] = ['cpu', 'disk', 'network'],
+) {
   return unwrap(
     await api.GET('/servers/{id}/metrics', {
       params: {
         path: { id: serverId },
-        query: { type: ['cpu', 'disk', 'network'], timeframe },
+        query: { type, timeframe },
       },
     }),
   ).metrics

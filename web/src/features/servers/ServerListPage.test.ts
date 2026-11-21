@@ -2,11 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
-import { mountApp, testRouter } from '@/test/mount'
+import { mountApp, testQueryClient, testRouter } from '@/test/mount'
 import { makeServer } from './fixtures'
 import ServerListPage from './ServerListPage.vue'
 
 const meta = { pagination: { page: 1, per_page: 50, total_entries: 1 } }
+const routes = [
+  { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
+  { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
+  { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
+  { path: '/p/:projectId/ssh-keys', name: 'ssh-keys', component: ServerListPage },
+]
 
 function useProject() {
   server.use(
@@ -17,11 +23,7 @@ function useProject() {
 }
 
 async function mountList() {
-  const router = testRouter([
-    { path: '/p/:projectId/servers', name: 'servers', component: ServerListPage },
-    { path: '/p/:projectId/servers/new', name: 'server-new', component: ServerListPage },
-    { path: '/p/:projectId/servers/:serverId', name: 'server', component: ServerListPage },
-  ])
+  const router = testRouter(routes)
   await router.push('/p/1/servers')
   const res = mountApp(ServerListPage, { router })
   await vi.waitFor(() => expect(res.wrapper.text()).not.toContain('Loading servers'))
@@ -117,11 +119,73 @@ describe('ServerListPage', () => {
   it('empty project shows create call to action', async () => {
     server.use(http.get('*/v1/servers', () => json(200, { servers: [], meta })))
     const { wrapper } = await mountList()
-    expect(wrapper.text()).toContain('No servers yet')
+    expect(wrapper.find('h2').text()).toBe('Create your first server')
+    expect(wrapper.text()).toContain(
+      'Pick an image and a type, add your SSH key, and it boots in about a minute with a static IP.',
+    )
     const links = wrapper.findAll('a').filter((a) => a.text() === 'Create server')
     expect(links.length).toBeGreaterThan(0)
     // Links by route name, so it resolves through the server-new route.
     expect(links[0]!.attributes('href')).toBe('/p/1/servers/new')
+    const keys = wrapper.findAll('a').find((a) => a.text() === 'Add an SSH key first')
+    expect(keys?.attributes('href')).toBe('/p/1/ssh-keys')
+  })
+
+  it('empty state shows the CLI line with placeholders when nothing is cached', async () => {
+    let catalog = 0
+    server.use(
+      http.get('*/v1/servers', () => json(200, { servers: [], meta })),
+      http.get('*/v1/images', () => (catalog++, json(200, { images: [] }))),
+      http.get('*/v1/server_types', () => (catalog++, json(200, { server_types: [] }))),
+    )
+    const { wrapper } = await mountList()
+    expect(wrapper.text()).toContain('Or from your terminal')
+    expect(wrapper.text()).toContain(
+      'nebla server create --name web1 --type <type> --image <image>',
+    )
+    await flushPromises()
+    expect(catalog).toBe(0)
+  })
+
+  it('empty state fills the CLI line from the cached create-form catalog', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [], meta })))
+    const queryClient = testQueryClient()
+    queryClient.setQueryData(
+      ['server-types', 1],
+      [
+        { id: 9, name: 'old-1', deprecated: true },
+        { id: 2, name: 'small-2', deprecated: false },
+        { id: 3, name: 'medium-4', deprecated: false },
+      ],
+    )
+    queryClient.setQueryData(
+      ['images', 1],
+      [
+        { id: 1, name: 'debian-13' },
+        { id: 2, name: 'ubuntu-24.04' },
+      ],
+    )
+    const router = testRouter(routes)
+    await router.push('/p/1/servers')
+    const { wrapper } = mountApp(ServerListPage, { router, queryClient })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Or from your terminal'))
+    expect(wrapper.text()).toContain(
+      'nebla server create --name web1 --type small-2 --image debian-13',
+    )
+  })
+
+  it('the column head has a CPU, 1h column from lg up', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [makeServer()], meta })))
+    const { wrapper } = await mountList()
+    const head = wrapper.find('[aria-hidden="true"].sm\\:flex')
+    const cpu = head.findAll('span').find((s) => s.text() === 'CPU, 1h')
+    expect(cpu?.classes()).toEqual(expect.arrayContaining(['hidden', 'lg:block']))
+    const cell = wrapper.find('li [data-col="cpu"]')
+    expect(cell.classes()).toEqual(expect.arrayContaining(['hidden', 'lg:block']))
+    // Head and rows share the column template.
+    expect(cpu!.element.parentElement!.className).toBe(
+      cell.element.parentElement!.className.replace(/ flex flex-wrap.*$/, ''),
+    )
   })
 
   it('filter is sent as label_selector and kept in URL', async () => {
