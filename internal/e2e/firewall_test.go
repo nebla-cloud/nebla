@@ -167,8 +167,23 @@ func netin(t *testing.T, tg target, s fwServer) float64 {
 	return st.Netin
 }
 
+// dumpFirewall logs s's live firewall rules, options and net0.
+func dumpFirewall(t *testing.T, pc pve.Client, s fwServer, why string) {
+	t.Helper()
+	ctx := context.Background()
+	rules, err := pc.FirewallRules(ctx, s.node, s.vmid)
+	t.Logf("[%s] VM %d rules (err=%v):", why, s.vmid, err)
+	for _, r := range rules {
+		t.Logf("  %+v", r)
+	}
+	opts, err := pc.FirewallOptions(ctx, s.node, s.vmid)
+	t.Logf("[%s] VM %d options (err=%v): %v", why, s.vmid, err, opts)
+	cfg, err := pc.Config(ctx, s.node, s.vmid)
+	t.Logf("[%s] VM %d net0 (err=%v): %s", why, s.vmid, err, cfg["net0"])
+}
+
 // waitFlow samples s's netin until a window is flowing (or flat) as wanted and returns that window's start.
-func waitFlow(t *testing.T, tg target, s fwServer, flowing bool, limit time.Duration) time.Time {
+func waitFlow(t *testing.T, pc pve.Client, tg target, s fwServer, flowing bool, limit time.Duration) time.Time {
 	t.Helper()
 	deadline := time.Now().Add(limit)
 	prevT, prev := time.Now(), netin(t, tg, s)
@@ -181,6 +196,7 @@ func waitFlow(t *testing.T, tg target, s fwServer, flowing bool, limit time.Dura
 			return prevT
 		}
 		if now.After(deadline) {
+			dumpFirewall(t, pc, s, "waitFlow timeout")
 			t.Fatalf("VM %d netin never became flowing=%v within %s; last window %+.0f B", s.vmid, flowing, limit, d)
 		}
 		prevT, prev = now, cur
@@ -287,6 +303,10 @@ func TestFirewallE2E(t *testing.T) {
 	A := create(fmt.Sprintf("nebla-fw-a-%d", stamp), senderUserData(B.ip, spoof), map[string]string{"role": "client"})
 	require.NotEqual(t, A.ip, spoof)
 	t.Logf("A=%+v B=%+v", A, B)
+	var nodeFW map[string]any
+	pveGet(t, tg, fmt.Sprintf("/nodes/%s/firewall/options", B.node), &nodeFW)
+	nodeVer, err := pc.NodeVersion(ctx, B.node)
+	t.Logf("PVE node %s version %q (err=%v); node firewall options %v; nftables=%v", B.node, nodeVer, err, nodeFW, nodeFW["nftables"])
 	t.Logf("SPOOF SOURCE: %s (pool %s, range %s-%s)", spoof, tg.cidr, tg.rangeStart, tg.rangeEnd)
 
 	require.True(t, t.Run("dhcp default", func(t *testing.T) {
@@ -304,7 +324,7 @@ func TestFirewallE2E(t *testing.T) {
 	}))
 
 	require.True(t, t.Run("baseline", func(t *testing.T) {
-		waitFlow(t, tg, B, true, fwBootWait)
+		waitFlow(t, pc, tg, B, true, fwBootWait)
 	}))
 
 	rule := func(proto, port, src, desc string) map[string]any {
@@ -329,15 +349,19 @@ func TestFirewallE2E(t *testing.T) {
 	waitActions(t, app, c, created.Actions)
 	fwPost := func(rest string, body any) time.Time {
 		var as fwActions
+		raw, _ := json.Marshal(body)
+		t.Logf("POST %s: %s", rest, raw)
 		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/firewalls/%d/actions/%s", fwID, rest), body, http.StatusCreated, &as)
 		require.NotEmpty(t, as.Actions, "%s should touch B", rest)
-		return waitActions(t, app, c, as.Actions)
+		done := waitActions(t, app, c, as.Actions)
+		dumpFirewall(t, pc, B, "after "+rest)
+		return done
 	}
 	setRules := func(rules ...any) time.Time { return fwPost("set_rules", map[string]any{"rules": rules}) }
 
 	require.True(t, t.Run("apply blocks", func(t *testing.T) {
 		done := fwPost("apply_to_resources", map[string]any{"apply_to": selector})
-		flat := waitFlow(t, tg, B, false, fwStateWait)
+		flat := waitFlow(t, pc, tg, B, false, fwStateWait)
 		load := flat.Sub(done)
 		t.Logf("RULE LOAD TIME: %s from the apply action finishing to B's netin going flat (FirewallSettle %s, %s windows)",
 			load.Round(100*time.Millisecond), servers.FirewallSettle, flowWindow)
@@ -351,12 +375,12 @@ func TestFirewallE2E(t *testing.T) {
 
 	require.True(t, t.Run("allow from A", func(t *testing.T) {
 		setRules(sshAny, udpFrom(A.ip))
-		waitFlow(t, tg, B, true, fwStateWait)
+		waitFlow(t, pc, tg, B, true, fwStateWait)
 	}))
 
 	require.True(t, t.Run("anti-spoofing", func(t *testing.T) {
 		setRules(udpFrom(spoof))
-		waitFlow(t, tg, B, false, fwStateWait)
+		waitFlow(t, pc, tg, B, false, fwStateWait)
 		holdFlat(t, tg, B, fwHoldFlat)
 		t.Logf("ANTI-SPOOF: B allows only udp %d from %s and stayed flat for %s; A's spoofed stream never left A",
 			udpPort, spoof, fwHoldFlat)
@@ -364,7 +388,7 @@ func TestFirewallE2E(t *testing.T) {
 
 	require.True(t, t.Run("remove", func(t *testing.T) {
 		fwPost("remove_from_resources", map[string]any{"remove_from": selector})
-		waitFlow(t, tg, B, true, fwStateWait)
+		waitFlow(t, pc, tg, B, true, fwStateWait)
 		opts, err := pc.FirewallOptions(ctx, B.node, B.vmid)
 		require.NoError(t, err)
 		require.Equal(t, "ACCEPT", opts["policy_in"], "%v", opts)
