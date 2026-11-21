@@ -27,6 +27,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -182,8 +183,10 @@ type env struct {
 	admin  *testutil.Client
 	c      *testutil.Client
 	proj   int64
+	loc    int64
 	pc     pve.Client
 	pubNet map[string]bool
+	log    *slog.Logger
 }
 
 func newEnv(t *testing.T) env {
@@ -193,6 +196,7 @@ func newEnv(t *testing.T) env {
 	workers := func(w *river.Workers, d *httpapi.Deps, _ *fake.Server) {
 		servers.RegisterWorkers(w, servers.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
 			PollInterval: time.Second})
+		volumes.RegisterWorkers(w, volumes.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log})
 	}
 	app := testutil.NewAppWithWorkers(t, workers, func(d *httpapi.Deps) {
 		d.Logger = log
@@ -235,7 +239,7 @@ func newEnv(t *testing.T) env {
 	call(t, app, c, http.MethodPost, "/v1/ssh_keys", map[string]string{"name": "e2e", "public_key": sshKey(t)},
 		http.StatusCreated, nil)
 
-	return env{tg: tg, app: app, admin: admin, c: c, proj: proj, pc: pc, pubNet: pubNet}
+	return env{tg: tg, app: app, admin: admin, c: c, proj: proj, loc: loc, pc: pc, pubNet: pubNet, log: log}
 }
 
 func TestSmoke(t *testing.T) {

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
-import type { Volume } from '@/api/types'
+import type { Action, Volume } from '@/api/types'
 import EmptyState from '@/components/EmptyState.vue'
 import ListGroup from '@/components/ListGroup.vue'
 import ListRow from '@/components/ListRow.vue'
@@ -14,6 +14,7 @@ import { useLocations } from '@/features/servers-create/queries'
 import { useServerNames } from '@/features/servers/queries'
 import { useCurrentProject } from '@/lib/project'
 import { volumeStatus } from '@/lib/status'
+import { useActionPoll } from '@/lib/useActionPoll'
 import { anyVolumes } from './available'
 import CreateVolumeModal from './CreateVolumeModal.vue'
 import { useRefreshVolumes, useVolumes } from './queries'
@@ -28,6 +29,15 @@ const anyAttached = computed(() => !!volumes.value?.some((v) => v.server !== nul
 const { data: names } = useServerNames(anyAttached)
 const refresh = useRefreshVolumes()
 const creating = ref(false)
+// A create that also attaches passes through available, so follow the action to its end.
+const actionId = ref<number | null>(null)
+const { action } = useActionPoll(actionId)
+watch(
+  () => (action.value && action.value.status !== 'running' ? action.value.id : null),
+  (id) => {
+    if (id !== null) void refresh()
+  },
+)
 
 // Attached rows name their server; the rest show their status.
 function state(v: Volume): string {
@@ -35,8 +45,9 @@ function state(v: Volume): string {
   return names.value?.names.get(v.server) ?? 'Attached'
 }
 
-function created(v: Volume) {
+function created(v: Volume, a: Action) {
   toast.add({ title: `Creating ${v.name}`, color: 'success' })
+  actionId.value = a.id
   void refresh()
 }
 </script>

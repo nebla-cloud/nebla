@@ -89,4 +89,46 @@ describe('VolumeListPage', () => {
     expect(created).toBe(true)
     expect(document.body.textContent).toContain('Creating data')
   })
+
+  it('refreshes when the create action ends, past the brief available state', async () => {
+    serveLists({
+      locations: [makeLocation()],
+      servers: [makeServer({ id: 5, name: 'web1' })],
+      volumes: [],
+    })
+    let created = false
+    let done = false
+    server.use(
+      http.post('*/v1/volumes', () => {
+        created = true
+        return json(201, {
+          volume: makeVolume({ status: 'creating' }),
+          action: runningAction('create_volume'),
+        })
+      }),
+      http.get('*/v1/actions/50', () => {
+        done = true
+        return json(200, { ...runningAction('create_volume'), status: 'success', progress: 100 })
+      }),
+      http.get('*/v1/volumes', () =>
+        json(200, {
+          volumes: !created
+            ? []
+            : done
+              ? [makeVolume({ status: 'attached', server: 5 })]
+              : [makeVolume({ status: 'available' })],
+          meta: { pagination: { page: 1, per_page: 50, total_entries: created ? 1 : 0 } },
+        }),
+      ),
+    )
+    await mountPage()
+    button('Create volume').click()
+    await settle()
+    await fill('input[name="name"]', 'data')
+    document.body.querySelector<HTMLFormElement>('#create-volume')!.requestSubmit()
+    await settle()
+    await settle()
+    expect(done).toBe(true)
+    expect(document.body.querySelector('li')!.textContent).toContain('web1')
+  })
 })

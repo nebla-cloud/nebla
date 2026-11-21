@@ -30,8 +30,10 @@ export default defineConfig({
       dependencies: ['catalog'],
     },
     { name: 'firewalls', testMatch: /firewalls\.spec\.ts/, dependencies: ['server-depth'] },
+    // Attaches a volume to the server server-depth leaves behind.
+    { name: 'volumes', testMatch: /volumes\.spec\.ts/, dependencies: ['firewalls'] },
     // Needs the Home lab project that first-run creates; runs last so it can't disturb server specs.
-    { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['firewalls'] },
+    { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['volumes'] },
     { name: 'enroll', testMatch: /enroll\.spec\.ts/, dependencies: ['people'] },
     { name: 'passkeys', testMatch: /passkeys\.spec\.ts/, dependencies: ['enroll'] },
     { name: 'admin', testMatch: /admin\.spec\.ts/, dependencies: ['passkeys'] },

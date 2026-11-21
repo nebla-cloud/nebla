@@ -5,6 +5,8 @@ package uiharness
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,8 +19,11 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/volumes"
+	"github.com/riverqueue/river"
 	"golang.org/x/time/rate"
 )
 
@@ -93,7 +98,12 @@ func TestUIHarness(t *testing.T) {
 		{Key: "ubuntu-24.04", Description: "Ubuntu 24.04", OSFlavor: "ubuntu", OSVersion: "24.04",
 			Dirs: []string{up.URL + "/ubuntu/"}, ChecksumName: "SHA256SUMS", File: regexp.MustCompile(`^ubuntu\.qcow2$`),
 			Algorithm: "sha256", Format: "qcow2"}}
-	app = testutil.NewAppWithWorkers(t, testutil.ServerWorkers, testutil.WithOSImages(entries, up.Client()), testutil.Localhost,
+	workers := func(w *river.Workers, d *httpapi.Deps, pv *fake.Server) {
+		testutil.ServerWorkers(w, d, pv)
+		volumes.RegisterWorkers(w, volumes.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus,
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	}
+	app = testutil.NewAppWithWorkers(t, workers, testutil.WithOSImages(entries, up.Client()), testutil.Localhost,
 		// The specs share one admin principal; the production limit would starve later specs.
 		func(d *httpapi.Deps) { d.APILimiter = ratelimit.New(rate.Limit(10000), 100000) })
 	app.SeedPVE()
