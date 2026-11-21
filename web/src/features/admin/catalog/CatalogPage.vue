@@ -113,8 +113,8 @@ function locationNames(ids: number[]): string {
     </EmptyState>
 
     <template v-else>
-      <div :class="tableWrap">
-        <table :class="table">
+      <div :class="[tableWrap, 'overflow-x-auto']">
+        <table :class="[table, 'sm:min-w-max']">
           <thead :class="thead">
             <tr>
               <th scope="col" :class="th">Image</th>
@@ -139,6 +139,7 @@ function locationNames(ids: number[]): string {
                 >
               </th>
               <td v-for="l in columns" :key="l.id" :class="td">
+                <span aria-hidden="true" class="me-2 text-muted sm:hidden">{{ l.name }}</span>
                 <CatalogCell
                   v-if="cellFor(e, l.id)"
                   :entry="e"
