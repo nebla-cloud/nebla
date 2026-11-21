@@ -52,7 +52,9 @@ type Node struct {
 }
 
 type Storage struct {
-	ID      string
+	ID string
+	// Type is the storage plugin, such as lvmthin, dir or nfs.
+	Type    string
 	Content []string
 	Shared  bool
 	Avail   int64

@@ -46,10 +46,12 @@ const (
 )
 
 // CreateVolumeArgs is the create_volume job; ServerID set attaches it in the same action.
+// File is set when the storage keeps disks as files.
 type CreateVolumeArgs struct {
 	VolumeID int64  `json:"volume_id"`
 	ActionID int64  `json:"action_id"`
 	ServerID *int64 `json:"server_id,omitempty"`
+	File     bool   `json:"file,omitempty"`
 }
 
 func (CreateVolumeArgs) Kind() string                 { return KindCreateVolume }
@@ -315,7 +317,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 		}
 		pin = srv.Node
 	}
-	nodeName, storage, err := s.place(ctx, locationID, pin, in.SizeGB)
+	c, err := s.place(ctx, locationID, pin, in.SizeGB)
 	if err != nil {
 		return Volume{}, actions.Action{}, err
 	}
@@ -347,14 +349,14 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			res = append(res, actions.Resource{ID: row.ID, Type: servers.ResourceType})
 		}
 		row, err := etx.Volume.Create().SetProjectID(projectID).SetLocationID(locationID).SetName(in.Name).SetLabels(labels).
-			SetSizeGB(in.SizeGB).SetNode(nodeName).SetStorage(storage).SetStatus(volume.StatusCreating).Save(ctx)
+			SetSizeGB(in.SizeGB).SetNode(c.Node).SetStorage(c.Storage).SetStatus(volume.StatusCreating).Save(ctx)
 		if err != nil {
 			return writeErr(err)
 		}
 		id = row.ID
 		res = append(res, actions.Resource{ID: row.ID, Type: ResourceType})
 		act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindCreateVolume, res, func(actionID int64) river.JobArgs {
-			return CreateVolumeArgs{VolumeID: row.ID, ActionID: actionID, ServerID: serverID}
+			return CreateVolumeArgs{VolumeID: row.ID, ActionID: actionID, ServerID: serverID, File: c.File}
 		}, nil)
 		return err
 	})

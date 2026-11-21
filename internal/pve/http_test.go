@@ -174,7 +174,7 @@ func TestInventory(t *testing.T) {
 		t.Fatalf("nodes = %+v err=%v", ns, err)
 	}
 	ss, err := c.Storages(ctx(t), "pve1")
-	if err != nil || len(ss) != 1 || ss[0].ID != "local-lvm" || !slices.Contains(ss[0].Content, "images") {
+	if err != nil || len(ss) != 1 || ss[0].ID != "local-lvm" || ss[0].Type != "lvmthin" || !slices.Contains(ss[0].Content, "images") {
 		t.Fatalf("storages = %+v err=%v", ss, err)
 	}
 }

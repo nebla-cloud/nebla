@@ -208,6 +208,7 @@ func (c *httpClient) Nodes(ctx context.Context) ([]Node, error) {
 func (c *httpClient) Storages(ctx context.Context, node string) ([]Storage, error) {
 	var raw []struct {
 		Storage string `json:"storage"`
+		Type    string `json:"type"`
 		Content string `json:"content"`
 		Shared  num    `json:"shared"`
 		Avail   num    `json:"avail"`
@@ -221,7 +222,7 @@ func (c *httpClient) Storages(ctx context.Context, node string) ([]Storage, erro
 		if r.Content != "" {
 			content = strings.Split(r.Content, ",")
 		}
-		out[i] = Storage{ID: r.Storage, Content: content, Shared: r.Shared != 0, Avail: int64(r.Avail)}
+		out[i] = Storage{ID: r.Storage, Type: r.Type, Content: content, Shared: r.Shared != 0, Avail: int64(r.Avail)}
 	}
 	return out, nil
 }

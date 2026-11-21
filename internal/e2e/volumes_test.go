@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -69,6 +70,8 @@ func ownerDisks(t *testing.T, pc pve.Client, node, storage string) []pve.Storage
 	require.NoError(t, err)
 	return slices.DeleteFunc(items, func(it pve.StorageItem) bool {
 		_, name, _ := strings.Cut(it.Volid, ":")
+		// File storages keep the disk under the owner's directory.
+		name = strings.TrimPrefix(name, fmt.Sprintf("%d/", vref.OwnerVMID))
 		return !strings.HasPrefix(name, ownerPrefix)
 	})
 }
@@ -335,4 +338,96 @@ func TestVolumes(t *testing.T) {
 	call(t, app, c, http.MethodGet, fmt.Sprintf("/v1/volumes/%d", vid), nil, http.StatusNotFound, nil)
 	_, ok = diskOf(t, pc, tg.node, storage, vid)
 	require.False(t, ok, "volume %d's disk is still on %s/%s", vid, tg.node, storage)
+}
+
+// TestVolumesFileStorage runs a short volume pass on the file storage (dir, nfs, ...) named by E2E_FILE_VOLUME_STORAGE.
+func TestVolumesFileStorage(t *testing.T) {
+	storage := os.Getenv("E2E_FILE_VOLUME_STORAGE")
+	if storage == "" {
+		t.Skip("E2E_FILE_VOLUME_STORAGE is not set")
+	}
+	e := newEnv(t)
+	app, c, pc, tg := e.app, e.c, e.pc, e.tg
+	ctx := context.Background()
+	require.NoError(t, app.Ent.Location.UpdateOneID(e.loc).SetVolumeStorage(storage).SetVolumeStorageOk(true).Exec(ctx))
+	if left := ownerDisks(t, pc, tg.node, storage); len(left) > 0 {
+		t.Fatalf("disks named %s* already exist on %s/%s; remove them before running: %+v", ownerPrefix, tg.node, storage, left)
+	}
+
+	var created struct {
+		Server struct {
+			ID int64 `json:"id"`
+		} `json:"server"`
+		Action action `json:"action"`
+	}
+	name := fmt.Sprintf("nebla-e2e-filevol-%d", time.Now().Unix())
+	call(t, app, c, http.MethodPost, "/v1/servers", map[string]any{"name": name, "server_type": "e2e-small",
+		"image": "e2e-debian", "location": "e2e", "ssh_keys": []string{"e2e"}, "public_net": e.pubNet},
+		http.StatusCreated, &created)
+	sid := created.Server.ID
+	var vid int64
+	serverGone, volumeGone := false, false
+	t.Cleanup(func() {
+		if left := ownerDisks(t, pc, tg.node, storage); len(left) > 0 {
+			t.Errorf("disks named %s* left on %s/%s: %+v", ownerPrefix, tg.node, storage, left)
+		}
+	})
+	t.Cleanup(func() {
+		if vid != 0 && !volumeGone {
+			cleanupVolume(t, app, c, vid)
+		}
+	})
+	t.Cleanup(func() {
+		if !serverGone {
+			cleanupServer(t, app, c, sid)
+		}
+	})
+	waitAction(t, app, c, created.Action.ID)
+	waitStatus(t, app, c, sid, "running")
+
+	var a actionBody
+	vms := taggedVMs(t, pc, sid)
+	require.Len(t, vms, 1)
+	if !diskHotplug(t, pc, vms[0]) {
+		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/poweroff", sid), nil, http.StatusCreated, &a)
+		waitAction(t, app, c, a.Action.ID)
+		waitStatus(t, app, c, sid, "off")
+	}
+
+	var vc struct {
+		Volume volumeOut `json:"volume"`
+		Action action    `json:"action"`
+	}
+	call(t, app, c, http.MethodPost, "/v1/volumes", map[string]any{"name": "e2e-filedata", "size": 10, "location": "e2e",
+		"server": fmt.Sprint(sid)}, http.StatusCreated, &vc)
+	vid = vc.Volume.ID
+	waitAction(t, app, c, vc.Action.ID)
+	require.Equal(t, "attached", getVolume(t, app, c, vid).Status)
+	require.NotEmpty(t, volumeKey(t, pc, sid, vid), "no virtio key references volume %d", vid)
+	disk, ok := diskOf(t, pc, tg.node, storage, vid)
+	require.True(t, ok, "volume %d has no disk on %s/%s", vid, tg.node, storage)
+	require.Equal(t, vref.Volid(storage, vid, true), disk.Volid)
+	require.Equal(t, int64(10)<<30, disk.Size)
+
+	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/volumes/%d/actions/resize", vid), map[string]any{"size": 20},
+		http.StatusCreated, &a)
+	waitAction(t, app, c, a.Action.ID)
+	disk, ok = diskOf(t, pc, tg.node, storage, vid)
+	require.True(t, ok)
+	require.Equal(t, int64(20)<<30, disk.Size)
+
+	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/volumes/%d/actions/detach", vid), nil, http.StatusCreated, &a)
+	waitAction(t, app, c, a.Action.ID)
+	require.Equal(t, "available", getVolume(t, app, c, vid).Status)
+	require.Empty(t, volumeKey(t, pc, sid, vid))
+
+	call(t, app, c, http.MethodDelete, fmt.Sprintf("/v1/volumes/%d", vid), nil, http.StatusOK, &a)
+	waitAction(t, app, c, a.Action.ID)
+	volumeGone = true
+	_, ok = diskOf(t, pc, tg.node, storage, vid)
+	require.False(t, ok, "volume %d's disk is still on %s/%s", vid, tg.node, storage)
+
+	call(t, app, c, http.MethodDelete, fmt.Sprintf("/v1/servers/%d", sid), nil, http.StatusOK, &a)
+	waitAction(t, app, c, a.Action.ID)
+	serverGone = true
 }

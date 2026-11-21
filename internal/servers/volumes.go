@@ -42,7 +42,7 @@ func plugVolumes(ctx context.Context, pc pve.Client, node string, vmid int, vols
 			if ok {
 				return nil, permanent("vm %d already uses %s for something else", vmid, v.Device)
 			}
-			kv[v.Device] = vref.ConfigValue(v.Storage, v.ID)
+			kv[v.Device] = vref.ConfigValue(v.Volid, v.ID)
 		}
 		return kv, nil
 	})

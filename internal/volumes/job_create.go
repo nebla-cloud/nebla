@@ -3,6 +3,7 @@ package volumes
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
@@ -42,7 +43,7 @@ func (w *CreateVolumeWorker) Work(ctx context.Context, job *river.Job[CreateVolu
 		}
 		row := row
 		if row.Status == volume.StatusCreating {
-			if row, err = w.alloc(ctx, pc, row, a.ServerID); err != nil {
+			if row, err = w.alloc(ctx, pc, row, a.ServerID, a.File); err != nil {
 				return err
 			}
 			if err := actions.Progress(ctx, w.o.Ent, a.ActionID, 30); err != nil {
@@ -91,8 +92,9 @@ func (w *CreateVolumeWorker) Work(ctx context.Context, job *river.Job[CreateVolu
 	return w.o.contract(job.JobRow, "create", act, row.ID, run, fail).Work(ctx)
 }
 
-// alloc creates the disk, on shared storage through the server's node if any; "already exists" with our exact name counts as done.
-func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.Volume, serverID *int64) (*ent.Volume, error) {
+// alloc creates the disk, on shared storage through the server's node if any, and records its volid.
+// "already exists" with our exact name counts as done.
+func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.Volume, serverID *int64, file bool) (*ent.Volume, error) {
 	var srv *ent.Server
 	if serverID != nil {
 		var err error
@@ -104,12 +106,18 @@ func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.
 	if err != nil {
 		return nil, err
 	}
-	name := vref.Name(row.ID)
-	if _, err := pc.AllocVolume(ctx, node, row.Storage, vref.OwnerVMID, name, row.SizeGB); err != nil {
-		if !alreadyExists(err) {
-			return nil, servers.StepError("allocate volume", err)
+	volid := vref.Volid(row.Storage, row.ID, file)
+	got, err := pc.AllocVolume(ctx, node, row.Storage, vref.OwnerVMID, vref.Filename(row.ID, file), row.SizeGB)
+	switch {
+	case err == nil && got != volid:
+		if id, ok := vref.Parse(got); !ok || id != row.ID || !strings.HasPrefix(got, row.Storage+":") {
+			return nil, servers.Permanent("allocate volume: storage %s returned volid %q, want %q", row.Storage, got, volid)
 		}
-		_, ok, lerr := diskPresent(ctx, pc, node, row.Storage, row.ID)
+		volid = got
+	case err != nil && !alreadyExists(err):
+		return nil, servers.StepError("allocate volume", err)
+	case err != nil:
+		_, ok, lerr := diskPresent(ctx, pc, node, row.Storage, volid, row.ID)
 		if lerr != nil {
 			return nil, servers.StepError("list storage", lerr)
 		}
@@ -117,5 +125,5 @@ func (w *CreateVolumeWorker) alloc(ctx context.Context, pc pve.Client, row *ent.
 			return nil, servers.StepError("allocate volume", err)
 		}
 	}
-	return row.Update().SetAppliedGB(row.SizeGB).SetStatus(volume.StatusAvailable).Save(ctx)
+	return row.Update().SetVolid(volid).SetAppliedGB(row.SizeGB).SetStatus(volume.StatusAvailable).Save(ctx)
 }

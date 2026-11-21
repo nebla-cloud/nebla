@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"slices"
 	"sort"
 	"strconv"
@@ -48,6 +49,7 @@ type node struct {
 }
 
 type storage struct {
+	typ     string // "" lists as lvmthin
 	content []string
 	shared  bool
 	availMB int64
@@ -207,6 +209,13 @@ func (s *Server) DenyAllocateOn(storage string) {
 		}
 	}
 	s.SetPermissions("/storage/"+storage, privs)
+}
+
+// SetStorageType sets the plugin type a node's storage lists; file types (dir, nfs, ...) keep disks as vmid/name.ext.
+func (s *Server) SetStorageType(nodeName, id, typ string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nodes[nodeName].storages[id].typ = typ
 }
 
 // RemoveStorage drops a storage from a node.
@@ -668,13 +677,22 @@ func (s *Server) storageOf(nodeName, volid string) (*storage, bool) {
 	return st, true
 }
 
+// file reports whether the storage keeps disks as files under a vmid directory.
+func (st *storage) file() bool {
+	switch st.typ {
+	case "dir", "nfs", "cifs", "glusterfs", "btrfs", "cephfs":
+		return true
+	}
+	return false
+}
+
 // dropOwnedVolumes removes volumes named vm-<vmid>-*; others stay, as in PVE. Caller holds s.mu.
 func (s *Server) dropOwnedVolumes(vmid int) {
 	pre := fmt.Sprintf("vm-%d-", vmid)
 	for _, n := range s.nodes {
 		for sid, st := range n.storages {
 			for id := range st.vols {
-				if strings.HasPrefix(id, sid+":"+pre) {
+				if strings.HasPrefix(id, sid+":"+pre) || strings.HasPrefix(id, fmt.Sprintf("%s:%d/%s", sid, vmid, pre)) {
 					delete(st.vols, id)
 				}
 			}
@@ -875,7 +893,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 			if st.shared {
 				shared = 1
 			}
-			out = append(out, map[string]any{"storage": id, "content": strings.Join(st.content, ","), "shared": shared,
+			typ := st.typ
+			if typ == "" {
+				typ = "lvmthin"
+			}
+			out = append(out, map[string]any{"storage": id, "type": typ, "content": strings.Join(st.content, ","), "shared": shared,
 				"avail": st.availMB << 20, "active": 1, "enabled": 1})
 		}
 		sort.Slice(out, func(i, j int) bool { return out[i]["storage"].(string) < out[j]["storage"].(string) })
@@ -1380,6 +1402,12 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, &apiErr{400, "parameter verification failed: vmid/filename/size"}
 		}
 		volid := r.PathValue("storage") + ":" + f["filename"]
+		if st.file() {
+			if ext := path.Ext(f["filename"]); ext != ".raw" && ext != ".qcow2" {
+				return nil, &apiErr{500, "unable to parse volume filename '" + f["filename"] + "'"}
+			}
+			volid = r.PathValue("storage") + ":" + strconv.Itoa(vmid) + "/" + f["filename"]
+		}
 		if st.vols[volid] != nil {
 			return nil, &apiErr{500, "unable to create volume '" + volid + "': volume already exists"}
 		}

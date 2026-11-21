@@ -388,7 +388,7 @@ func TestAttachRetriesOnDigestMismatch(t *testing.T) {
 	require.True(t, bp.bumped)
 	vm, _ := e.App.PVE.VM(vmid)
 	require.Equal(t, "virtio,bridge=vmbr1", vm.Config["net1"])
-	require.Equal(t, vref.ConfigValue("local-lvm", v.ID), vm.Config["virtio1"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("local-lvm", v.ID, false), v.ID), vm.Config["virtio1"])
 	puts := 0
 	for _, c := range e.App.PVE.Calls()[before:] {
 		if strings.HasPrefix(c, "PUT /nodes/pve1/qemu/") && strings.HasSuffix(c, "/config") {
@@ -455,7 +455,7 @@ func TestAttachAppliesDeferredGrow(t *testing.T) {
 	require.Equal(t, "virtio2", r.Device, "virtio1 is taken")
 	require.EqualValues(t, int64(30)<<30, e.disks(t, v.ID)[0].Size)
 	vm, _ := e.App.PVE.VM(vmid)
-	require.Equal(t, vref.ConfigValue("local-lvm", v.ID)+",size=30G", vm.Config["virtio2"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("local-lvm", v.ID, false), v.ID)+",size=30G", vm.Config["virtio2"])
 	require.Equal(t, "local-lvm:vm-"+ref(int64(vmid))+"-disk-1,size=5G", vm.Config["virtio1"])
 	require.Equal(t, []ext.EventKind{ext.VolumeCreated, ext.VolumeResized}, rec.kinds())
 }

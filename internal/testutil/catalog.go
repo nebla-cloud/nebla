@@ -27,6 +27,8 @@ func SeedPVE(pv *fake.Server) {
 		pv.AddStorage(n, "local", []string{"iso", "vztmpl"}, false)
 		pv.AddStorage(n, "local-lvm", []string{"images", "rootdir"}, false)
 		pv.AddStorage(n, "ceph", []string{"images"}, true)
+		pv.SetStorageType(n, "local", "dir")
+		pv.SetStorageType(n, "ceph", "rbd")
 	}
 	pv.AddTemplate("pve1", TemplateVMID, "ceph")
 }

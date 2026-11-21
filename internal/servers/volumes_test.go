@@ -30,9 +30,11 @@ func attachVol(t *testing.T, e *testutil.ServerEnv, serverID int64, vmid int, na
 	require.NoError(t, err)
 	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
 	require.NoError(t, err)
-	_, err = pc.AllocVolume(ctx, srv.Node, "ceph", vref.OwnerVMID, vref.Name(v.ID), sizeGB)
+	volid, err := pc.AllocVolume(ctx, srv.Node, "ceph", vref.OwnerVMID, vref.Name(v.ID), sizeGB)
 	require.NoError(t, err)
-	e.App.PVE.SetVMConfig(vmid, device, vref.ConfigValue("ceph", v.ID))
+	v, err = v.Update().SetVolid(volid).Save(ctx)
+	require.NoError(t, err)
+	e.App.PVE.SetVMConfig(vmid, device, vref.ConfigValue(vref.Volid("ceph", v.ID, false), v.ID))
 	return v
 }
 
@@ -119,7 +121,7 @@ func TestDeleteServerUnplugsRebuildVM(t *testing.T) {
 	// A failed rebuild left a tagged new VM holding the volume too.
 	e.App.PVE.AddVM(srv.Node, 777, "web")
 	e.App.PVE.SetVMConfig(777, "tags", servers.TagNebla+";"+tag(s.ServerID))
-	e.App.PVE.SetVMConfig(777, "virtio1", vref.ConfigValue("ceph", v.ID))
+	e.App.PVE.SetVMConfig(777, "virtio1", vref.ConfigValue(vref.Volid("ceph", v.ID, false), v.ID))
 	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetRebuildVmid(777).Exec(ctx))
 
 	del, _ := expect[actionBody](t, e.C.Send(http.MethodDelete, spath(s.ServerID), nil), http.StatusOK)
@@ -232,7 +234,7 @@ func TestRebuildResumeAfterPlug(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, row.RebuildVmid)
 	nu := *row.RebuildVmid
-	e.App.PVE.SetVMConfig(nu, "virtio1", vref.ConfigValue("ceph", a.ID))
+	e.App.PVE.SetVMConfig(nu, "virtio1", vref.ConfigValue(vref.Volid("ceph", a.ID, false), a.ID))
 
 	// Crash again right after the swap.
 	crashCtx, crash = context.WithCancel(ctx)
@@ -243,11 +245,11 @@ func TestRebuildResumeAfterPlug(t *testing.T) {
 	})
 	require.Error(t, w.Work(crashCtx, jobOf(args, 2)))
 	vm, _ := e.App.PVE.VM(nu)
-	require.Equal(t, vref.ConfigValue("ceph", a.ID), vm.Config["virtio1"])
-	require.Equal(t, vref.ConfigValue("ceph", b.ID), vm.Config["virtio2"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("ceph", a.ID, false), a.ID), vm.Config["virtio1"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("ceph", b.ID, false), b.ID), vm.Config["virtio2"])
 	oldVM, ok := e.App.PVE.VM(old)
 	require.True(t, ok)
-	require.Equal(t, vref.ConfigValue("ceph", a.ID), oldVM.Config["virtio1"], "old VM keeps them until it retires")
+	require.Equal(t, vref.ConfigValue(vref.Volid("ceph", a.ID, false), a.ID), oldVM.Config["virtio1"], "old VM keeps them until it retires")
 
 	servers.SetRebuildAfterStep(w, nil)
 	require.NoError(t, w.Work(ctx, jobOf(args, 3)))
@@ -255,8 +257,8 @@ func TestRebuildResumeAfterPlug(t *testing.T) {
 	_, ok = e.App.PVE.VM(old)
 	require.False(t, ok)
 	vm, _ = e.App.PVE.VM(nu)
-	require.Equal(t, vref.ConfigValue("ceph", a.ID), vm.Config["virtio1"])
-	require.Equal(t, vref.ConfigValue("ceph", b.ID), vm.Config["virtio2"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("ceph", a.ID, false), a.ID), vm.Config["virtio1"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("ceph", b.ID, false), b.ID), vm.Config["virtio2"])
 	for _, v := range []*ent.Volume{a, b} {
 		got := volRow(t, e, v.ID)
 		require.Equal(t, volume.StatusAttached, got.Status)
@@ -350,7 +352,7 @@ func TestRebuildRetireUnplugFailureIsBestEffort(t *testing.T) {
 	require.False(t, ok)
 	nu := vmidOf(t, e, s.ServerID)
 	vm, _ := e.App.PVE.VM(nu)
-	require.Equal(t, vref.ConfigValue("ceph", v.ID), vm.Config["virtio1"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("ceph", v.ID, false), v.ID), vm.Config["virtio1"])
 	got := volRow(t, e, v.ID)
 	require.Equal(t, volume.StatusAttached, got.Status)
 	require.Equal(t, s.ServerID, *got.ServerID)
@@ -368,7 +370,7 @@ func TestRebuildSkipsMissingVolumes(t *testing.T) {
 	id := startAction(t, e, s.ServerID, "rebuild", map[string]any{"image": "debian"})
 	require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.RebuildServerArgs](t, e, id), 1)))
 	vm, _ := e.App.PVE.VM(vmidOf(t, e, s.ServerID))
-	require.Equal(t, vref.ConfigValue("ceph", a.ID), vm.Config["virtio1"])
+	require.Equal(t, vref.ConfigValue(vref.Volid("ceph", a.ID, false), a.ID), vm.Config["virtio1"])
 	_, ok := vm.Config["virtio2"]
 	require.False(t, ok, "a missing volume is not plugged")
 	got := volRow(t, e, gone.ID)

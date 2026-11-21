@@ -198,3 +198,37 @@ func TestFakePermissions(t *testing.T) {
 		t.Fatalf("explicit: %+v", got)
 	}
 }
+
+func TestFakeFileStorageVolume(t *testing.T) {
+	ctx := context.Background()
+	s, c := volEnv(t)
+	s.AddStorage("pve1", "local", []string{"images", "iso"}, false)
+	s.SetStorageType("pve1", "local", "dir")
+	ss, err := c.Storages(ctx, "pve1")
+	if err != nil || len(ss) != 2 || ss[0].ID != "local" || ss[0].Type != "dir" || ss[1].Type != "lvmthin" {
+		t.Fatalf("storages = %+v err=%v", ss, err)
+	}
+	if _, err := c.AllocVolume(ctx, "pve1", "local", 999999999, "vm-999999999-nb-vol-7", 20); err == nil {
+		t.Fatal("file storage accepted a name without an extension")
+	}
+	volid, err := c.AllocVolume(ctx, "pve1", "local", 999999999, "vm-999999999-nb-vol-7.raw", 20)
+	if err != nil || volid != "local:999999999/vm-999999999-nb-vol-7.raw" {
+		t.Fatalf("volid = %q err=%v", volid, err)
+	}
+	if err := c.SetConfig(ctx, "pve1", 101, map[string]string{"virtio1": volid}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ResizeDisk(ctx, "pve1", 101, "virtio1", 30); err != nil {
+		t.Fatal(err)
+	}
+	items, err := c.StorageContent(ctx, "pve1", "local", 999999999)
+	if err != nil || len(items) != 1 || items[0].Volid != volid || items[0].Size != 30<<30 {
+		t.Fatalf("items = %+v err=%v", items, err)
+	}
+	if err := c.DeleteVolume(ctx, "pve1", "local", volid); err != nil {
+		t.Fatal(err)
+	}
+	if all, _ := c.StorageContent(ctx, "pve1", "local", 0); len(all) != 0 {
+		t.Fatalf("still there: %+v", all)
+	}
+}

@@ -9,8 +9,15 @@ import (
 
 func TestVrefNames(t *testing.T) {
 	require.Equal(t, "vm-999999999-nb-vol-12", vref.Name(12))
+	require.Equal(t, "vm-999999999-nb-vol-12", vref.Filename(12, false))
+	require.Equal(t, "vm-999999999-nb-vol-12.raw", vref.Filename(12, true))
+	require.Equal(t, "local-lvm:vm-999999999-nb-vol-12", vref.Volid("local-lvm", 12, false))
+	require.Equal(t, "local:999999999/vm-999999999-nb-vol-12.raw", vref.Volid("local", 12, true))
 	require.Equal(t, "nb-vol-12", vref.Serial(12))
-	require.Equal(t, "local-lvm:vm-999999999-nb-vol-12,serial=nb-vol-12,backup=0", vref.ConfigValue("local-lvm", 12))
+	require.Equal(t, "local-lvm:vm-999999999-nb-vol-12,serial=nb-vol-12,backup=0",
+		vref.ConfigValue("local-lvm:vm-999999999-nb-vol-12", 12))
+	require.Equal(t, "nfs:999999999/vm-999999999-nb-vol-12.raw,serial=nb-vol-12,backup=0",
+		vref.ConfigValue(vref.Volid("nfs", 12, true), 12))
 	require.Equal(t, "/dev/disk/by-id/virtio-nb-vol-12", vref.LinuxDevice(12))
 	require.Equal(t, 14, vref.MaxPerServer)
 	k := vref.Keys()
@@ -19,17 +26,39 @@ func TestVrefNames(t *testing.T) {
 	require.Equal(t, "virtio15", k[14])
 }
 
+func TestVrefIsFileStorage(t *testing.T) {
+	for _, typ := range []string{"dir", "nfs", "cifs", "glusterfs", "btrfs", "cephfs"} {
+		require.True(t, vref.IsFileStorage(typ), typ)
+	}
+	for _, typ := range []string{"lvmthin", "lvm", "zfspool", "rbd", "iscsi", "iscsidirect", "zfs", ""} {
+		require.False(t, vref.IsFileStorage(typ), typ)
+	}
+}
+
 func TestVrefParse(t *testing.T) {
-	id, ok := vref.Parse("local-lvm:vm-999999999-nb-vol-12,serial=nb-vol-12,backup=0")
-	require.True(t, ok)
-	require.EqualValues(t, 12, id)
-	id, ok = vref.Parse("vm-999999999-nb-vol-7")
-	require.True(t, ok)
-	require.EqualValues(t, 7, id)
+	for in, want := range map[string]int64{
+		"local-lvm:vm-999999999-nb-vol-12,serial=nb-vol-12,backup=0": 12,
+		"vm-999999999-nb-vol-7":                                            7,
+		"local-lvm:vm-999999999-nb-vol-7":                                  7,
+		"local:999999999/vm-999999999-nb-vol-7.raw":                        7,
+		"999999999/vm-999999999-nb-vol-7.raw":                              7,
+		"nfs:999999999/vm-999999999-nb-vol-7.raw,serial=nb-vol-7,backup=0": 7,
+		"nfs:999999999/vm-999999999-nb-vol-7.raw,size=20G":                 7,
+	} {
+		id, ok := vref.Parse(in)
+		require.True(t, ok, in)
+		require.Equal(t, want, id, in)
+	}
 	for _, bad := range []string{
 		"vm-999999999-nb-vol-12x", "vm-100-disk-0", "vm-99999999-nb-vol-12", "local:vm-999999999-nb-vol-",
 		"vm-999999999-nb-vol-012", "vm-999999999-nb-vol--1", "x-vm-999999999-nb-vol-12", "a:b:vm-999999999-nb-vol-12", "",
 		"vm-999999999-nb-vol-99999999999999999999",
+		"local:999999999/vm-999999999-nb-vol-7.qcow2", "local:999999999/vm-999999999-nb-vol-7.vmdk",
+		"local:999999999/vm-999999999-nb-vol-7", "local:vm-999999999-nb-vol-7.raw",
+		"local:100/vm-999999999-nb-vol-7.raw", "local:0999999999/vm-999999999-nb-vol-7.raw",
+		"local:999999999/vm-999999999-nb-vol-07.raw", "local:999999999//vm-999999999-nb-vol-7.raw",
+		"local:images/999999999/vm-999999999-nb-vol-7.raw", "local:999999999/vm-999999999-nb-vol-.raw",
+		"local:999999999/vm-999999999-nb-vol-7.raw.raw", "local:999999999/x/vm-999999999-nb-vol-7.raw",
 	} {
 		_, ok := vref.Parse(bad)
 		require.False(t, ok, bad)

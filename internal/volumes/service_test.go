@@ -22,6 +22,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/nebla-cloud/nebla/internal/volumes"
+	"github.com/nebla-cloud/nebla/internal/volumes/vref"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,6 +65,7 @@ func (e *env) put(t *testing.T, project int64, name, nodeName, storage string, s
 		SetSizeGB(sizeGB).SetAppliedGB(sizeGB).SetNode(nodeName).SetStorage(storage).SetNillableServerID(serverID).
 		SetDevice(device).SetStatus(st).Save(context.Background())
 	require.NoError(t, err)
+	require.NoError(t, v.Update().SetVolid(vref.Volid(storage, v.ID, false)).Exec(context.Background()))
 	return v.ID
 }
 

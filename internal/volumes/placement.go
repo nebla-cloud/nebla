@@ -5,13 +5,16 @@ import (
 	"slices"
 
 	"github.com/nebla-cloud/nebla/internal/ent/node"
+	"github.com/nebla-cloud/nebla/internal/volumes/vref"
 )
 
 // candidate is a node's resolved volume storage as Proxmox reports it now.
 type candidate struct {
 	Node, Storage string
 	Shared        bool
-	Avail         int64
+	// File storages keep disks as files, which need a format extension.
+	File  bool
+	Avail int64
 }
 
 // candidates lists the location's usable volume storages, one per node; pin limits it to that node, enabled or not.
@@ -48,7 +51,7 @@ func (s *Service) candidates(ctx context.Context, locationID int64, pin string) 
 		}
 		for _, st := range list {
 			if st.ID == want && slices.Contains(st.Content, "images") {
-				out = append(out, candidate{Node: n.Name, Storage: st.ID, Shared: st.Shared, Avail: st.Avail})
+				out = append(out, candidate{Node: n.Name, Storage: st.ID, Shared: st.Shared, File: vref.IsFileStorage(st.Type), Avail: st.Avail})
 			}
 		}
 	}
@@ -75,24 +78,25 @@ func pick(cands []candidate, sizeGB int) (candidate, error) {
 }
 
 // place picks the node and storage for a new volume; pin is the server's node, or "" for standalone.
-func (s *Service) place(ctx context.Context, locationID int64, pin string, sizeGB int) (nodeName, storage string, err error) {
+// The candidate's Node is "" on shared storage.
+func (s *Service) place(ctx context.Context, locationID int64, pin string, sizeGB int) (candidate, error) {
 	cands, pveErr, err := s.candidates(ctx, locationID, pin)
 	switch {
 	case err != nil:
-		return "", "", err
+		return candidate{}, err
 	case len(cands) == 0 && pveErr != nil:
-		return "", "", pveErr
+		return candidate{}, pveErr
 	case len(cands) == 0:
-		return "", "", errUnavailable
+		return candidate{}, errUnavailable
 	}
 	c, err := pick(cands, sizeGB)
 	if err != nil {
-		return "", "", err
+		return candidate{}, err
 	}
 	if c.Shared {
-		return "", c.Storage, nil
+		c.Node = ""
 	}
-	return c.Node, c.Storage, nil
+	return c, nil
 }
 
 // Available reports, from the DB only, whether the location's volume storage is checked and an enabled node is online.

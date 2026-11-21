@@ -15,27 +15,60 @@ const (
 
 	namePrefix = "vm-999999999-nb-vol-"
 	serialPre  = "nb-vol-"
+	// fileDir is the owner subdirectory file storages put the disk in; fileExt its raw format suffix.
+	fileDir = "999999999/"
+	fileExt = ".raw"
 )
 
 // Name is the Proxmox volume name for volume id.
 func Name(id int64) string { return namePrefix + strconv.FormatInt(id, 10) }
 
+// Filename is the name allocated on storage; file storages need the raw extension.
+func Filename(id int64, file bool) string {
+	if file {
+		return Name(id) + fileExt
+	}
+	return Name(id)
+}
+
+// Volid is the volume ID Proxmox gives volume id's disk on storage.
+func Volid(storage string, id int64, file bool) string {
+	if file {
+		return storage + ":" + fileDir + Filename(id, true)
+	}
+	return storage + ":" + Name(id)
+}
+
+// IsFileStorage reports whether a storage type keeps disks as files, which need a format extension.
+func IsFileStorage(typ string) bool {
+	switch typ {
+	case "dir", "nfs", "cifs", "glusterfs", "btrfs", "cephfs":
+		return true
+	}
+	return false
+}
+
 // Serial is the virtio serial for volume id.
 func Serial(id int64) string { return serialPre + strconv.FormatInt(id, 10) }
 
-// ConfigValue is the virtioN config value that attaches volume id on storage.
-func ConfigValue(storage string, id int64) string {
-	return fmt.Sprintf("%s:%s,serial=%s,backup=0", storage, Name(id), Serial(id))
+// ConfigValue is the virtioN config value that attaches volume id's disk volid.
+func ConfigValue(volid string, id int64) string {
+	return fmt.Sprintf("%s,serial=%s,backup=0", volid, Serial(id))
 }
 
 // LinuxDevice is the stable guest path of volume id.
 func LinuxDevice(id int64) string { return "/dev/disk/by-id/virtio-" + Serial(id) }
 
-// Parse extracts the volume ID from a volid or config value; only the exact Nebla name matches.
+// Parse extracts the volume ID from a volid or config value; only the exact Nebla block or raw file name matches.
 func Parse(volidOrValue string) (int64, bool) {
 	v, _, _ := strings.Cut(volidOrValue, ",")
 	if i := strings.IndexByte(v, ':'); i >= 0 {
 		v = v[i+1:]
+	}
+	if rest, ok := strings.CutPrefix(v, fileDir); ok {
+		if v, ok = strings.CutSuffix(rest, fileExt); !ok {
+			return 0, false
+		}
 	}
 	digits, ok := strings.CutPrefix(v, namePrefix)
 	if !ok || digits == "" || digits[0] == '0' {

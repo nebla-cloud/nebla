@@ -60,17 +60,20 @@ func (r *Reconciler) syncVolumes(ctx context.Context, log *slog.Logger, location
 		for _, it := range items {
 			disks[it.Volid] = it.Size
 		}
-		known := map[string]bool{}
+		rowIDs := map[int64]bool{}
 		for _, v := range vols {
-			volid := k.storage + ":" + vref.Name(v.ID)
-			known[volid] = true
-			size, present := disks[volid]
+			rowIDs[v.ID] = true
+			// No volid means the disk was never recorded as allocated; that row's create settles it.
+			if v.Volid == "" {
+				continue
+			}
+			size, present := disks[v.Volid]
 			if err := r.applyVolume(ctx, log, v.ID, present, size, listedAt); err != nil {
 				errs = append(errs, fmt.Errorf("volume %d: %w", v.ID, err))
 			}
 		}
 		for _, it := range items {
-			if !known[it.Volid] {
+			if id, ok := vref.Parse(it.Volid); !ok || !rowIDs[id] {
 				log.Warn("reconcile: disk without a volume row left alone", "volid", it.Volid)
 			}
 		}

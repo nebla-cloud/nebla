@@ -27,6 +27,7 @@ func diskVolume(t *testing.T, e *testutil.ServerEnv, name string, gb int) (id in
 	require.NoError(t, err)
 	volid, err = pc.AllocVolume(ctx, "pve1", "local-lvm", vref.OwnerVMID, vref.Name(v.ID), gb)
 	require.NoError(t, err)
+	require.NoError(t, v.Update().SetVolid(volid).Exec(ctx))
 	return v.ID, volid
 }
 
@@ -148,6 +149,7 @@ func TestReconcileSharedVolume(t *testing.T) {
 	v, err := e.App.Ent.Volume.Create().SetProjectID(e.Project).SetLocationID(e.Location).SetName("shared").
 		SetLabels(map[string]string{}).SetSizeGB(2).SetAppliedGB(2).SetStorage("ceph").SetStatus(volume.StatusAvailable).Save(ctx)
 	require.NoError(t, err)
+	require.NoError(t, v.Update().SetVolid(vref.Volid("ceph", v.ID, false)).Exec(ctx))
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Equal(t, volume.StatusMissing, volStatus(t, e, v.ID))
 

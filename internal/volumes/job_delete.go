@@ -13,7 +13,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
-	"github.com/nebla-cloud/nebla/internal/volumes/vref"
 	"github.com/riverqueue/river"
 )
 
@@ -49,12 +48,12 @@ func (w *DeleteVolumeWorker) Work(ctx context.Context, job *river.Job[DeleteVolu
 			return err
 		}
 		// An absent disk counts as deleted: real Proxmox may fail freeing it with a task error, not a 404.
-		_, present, err := diskPresent(ctx, pc, node, row.Storage, row.ID)
+		it, present, err := diskPresent(ctx, pc, node, row.Storage, row.Volid, row.ID)
 		if err != nil {
 			return servers.StepError("list storage", err)
 		}
 		if present {
-			if err := w.remove(ctx, pc, node, row); err != nil {
+			if err := w.remove(ctx, pc, node, row, it.Volid); err != nil {
 				return err
 			}
 		}
@@ -81,8 +80,8 @@ func (w *DeleteVolumeWorker) Work(ctx context.Context, job *river.Job[DeleteVolu
 	return w.o.contract(job.JobRow, "delete", act, row.ID, run, fail).Work(ctx)
 }
 
-func (w *DeleteVolumeWorker) remove(ctx context.Context, pc pve.Client, node string, row *ent.Volume) error {
-	err := pc.DeleteVolume(ctx, node, row.Storage, row.Storage+":"+vref.Name(row.ID))
+func (w *DeleteVolumeWorker) remove(ctx context.Context, pc pve.Client, node string, row *ent.Volume, volid string) error {
+	err := pc.DeleteVolume(ctx, node, row.Storage, volid)
 	switch {
 	case err == nil, errors.Is(err, pve.ErrNotFound):
 		return nil
@@ -90,7 +89,7 @@ func (w *DeleteVolumeWorker) remove(ctx context.Context, pc pve.Client, node str
 		return servers.Permanent("delete volume on storage %s: the token lacks Datastore.Allocate there; "+
 			"grant NeblaISO on /storage/%s; re-run the setup command (%v)", row.Storage, row.Storage, err)
 	}
-	if _, still, lerr := diskPresent(ctx, pc, node, row.Storage, row.ID); lerr == nil && !still {
+	if _, still, lerr := diskPresent(ctx, pc, node, row.Storage, volid, row.ID); lerr == nil && !still {
 		return nil
 	}
 	return servers.StepError("delete volume", err)

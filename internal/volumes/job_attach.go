@@ -66,7 +66,7 @@ func setKey(ctx context.Context, pc pve.Client, vm pve.VM, row *ent.Volume) (str
 		if key == "" {
 			return "", servers.Permanent("vm %d has no free virtio slot", vm.VMID)
 		}
-		err = pc.SetConfigDigest(ctx, vm.Node, vm.VMID, map[string]string{key: vref.ConfigValue(row.Storage, row.ID)}, cfg["digest"])
+		err = pc.SetConfigDigest(ctx, vm.Node, vm.VMID, map[string]string{key: vref.ConfigValue(row.Volid, row.ID)}, cfg["digest"])
 		if errors.Is(err, pve.ErrDigestMismatch) {
 			continue
 		}
