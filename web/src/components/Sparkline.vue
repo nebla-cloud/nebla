@@ -1,35 +1,52 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useId } from 'vue'
+import { area, curveMonotoneX, line } from 'd3-shape'
 
 type Tone = 'busy' | 'run' | 'err'
 const TONE_VAR: Record<Tone, string> = { busy: '--nb-busy', run: '--nb-run', err: '--nb-err' }
 
 const props = withDefaults(
   defineProps<{
-    points: [number, number | null][]
+    lines: { points: [number, number | null][]; tone: Tone }[]
     width: number
     height: number
-    tone?: Tone
-    dashed?: boolean
+    // Fixed top of the scale; by default the peak across every line.
+    max?: number
+    strokeWidth?: number
   }>(),
-  { tone: 'busy', dashed: false },
+  { max: undefined, strokeWidth: 1.5 },
 )
 
-const line = computed(() => {
-  const pts = props.points.filter((p): p is [number, number] => p[1] != null)
-  if (pts.length < 2) return null
-  const t0 = pts[0]![0]
-  const span = pts.at(-1)![0] - t0 || 1
-  const max = Math.max(...pts.map((p) => p[1]), 0) || 1
-  const pad = 1.5
-  const h = props.height - pad * 2
-  return pts
-    .map(([t, v]) => {
-      const x = ((t - t0) / span) * props.width
-      const y = pad + h - (Math.max(0, v) / max) * h
-      return `${+x.toFixed(2)},${+y.toFixed(2)}`
-    })
-    .join(' ')
+const uid = useId()
+
+const paths = computed(() => {
+  const sets = props.lines.map((l) => ({
+    tone: l.tone,
+    pts: l.points.filter((p): p is [number, number] => p[1] != null),
+  }))
+  const all = sets.flatMap((s) => s.pts)
+  if (!all.length) return []
+  const t0 = Math.min(...all.map((p) => p[0]))
+  const span = Math.max(...all.map((p) => p[0])) - t0 || 1
+  const max = props.max ?? (Math.max(...all.map((p) => p[1]), 0) || 1)
+  const h = props.height
+  const x = (p: [number, number]) => +(((p[0] - t0) / span) * props.width).toFixed(2)
+  const y = (p: [number, number]) => +(h - (Math.min(Math.max(0, p[1]), max) / max) * h).toFixed(2)
+  const stroke = line<[number, number]>().x(x).y(y).curve(curveMonotoneX)
+  const fill = area<[number, number]>().x(x).y1(y).y0(h).curve(curveMonotoneX)
+  return sets.flatMap((s, i) =>
+    s.pts.length < 2
+      ? []
+      : [
+          {
+            key: i,
+            id: `${uid}-g${i}`,
+            color: `var(${TONE_VAR[s.tone]})`,
+            line: stroke(s.pts)!,
+            area: fill(s.pts)!,
+          },
+        ],
+  )
 })
 </script>
 
@@ -41,16 +58,24 @@ const line = computed(() => {
     class="block w-full"
     :style="{ height: `${height}px` }"
   >
-    <polyline
-      v-if="line"
-      :points="line"
-      fill="none"
-      :stroke="`var(${TONE_VAR[tone]})`"
-      stroke-width="2"
-      :stroke-dasharray="dashed ? '4 3' : undefined"
-      stroke-linejoin="round"
-      stroke-linecap="round"
-      vector-effect="non-scaling-stroke"
-    />
+    <defs>
+      <linearGradient v-for="p in paths" :id="p.id" :key="p.key" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0" :style="`stop-color: ${p.color}; stop-opacity: 0.22`" />
+        <stop offset="1" :style="`stop-color: ${p.color}; stop-opacity: 0`" />
+      </linearGradient>
+    </defs>
+    <template v-for="p in paths" :key="p.key">
+      <path data-area :d="p.area" :fill="`url(#${p.id})`" />
+      <path
+        data-line
+        :d="p.line"
+        fill="none"
+        :stroke="p.color"
+        :stroke-width="strokeWidth"
+        stroke-linejoin="round"
+        stroke-linecap="round"
+        vector-effect="non-scaling-stroke"
+      />
+    </template>
   </svg>
 </template>

@@ -56,24 +56,28 @@ const cards = computed(() => {
       key: 'cpu',
       label: 'CPU',
       value: live.cpu.value == null ? DASH : formatPercent(live.cpu.value),
-      lines: [{ key: 'cpu', points: ts.cpu ?? [], tone: 'busy' as const }],
+      unit: undefined,
+      max: 100,
+      lines: [{ points: ts.cpu ?? [], tone: 'busy' as const }],
     },
     {
       key: 'network',
       label: 'Network',
       ...pair(live.netIn.value, live.netOut.value, ['in', 'out']),
+      max: undefined,
       lines: [
-        { key: 'in', points: ts['network.in'] ?? [], tone: 'run' as const },
-        { key: 'out', points: ts['network.out'] ?? [], tone: 'busy' as const, dashed: true },
+        { points: ts['network.in'] ?? [], tone: 'run' as const },
+        { points: ts['network.out'] ?? [], tone: 'err' as const },
       ],
     },
     {
       key: 'disk',
       label: 'Disk activity',
       ...pair(live.diskRead.value, live.diskWrite.value, ['read', 'write']),
+      max: undefined,
       lines: [
-        { key: 'read', points: ts['disk.read'] ?? [], tone: 'busy' as const },
-        { key: 'write', points: ts['disk.write'] ?? [], tone: 'busy' as const, dashed: true },
+        { points: ts['disk.read'] ?? [], tone: 'busy' as const },
+        { points: ts['disk.write'] ?? [], tone: 'err' as const },
       ],
     },
   ]
@@ -182,16 +186,9 @@ async function confirmDelete() {
         :unit="c.unit"
       >
         <template #chart>
-          <div class="grid *:col-start-1 *:row-start-1">
-            <Sparkline
-              v-for="l in c.lines"
-              :key="l.key"
-              :points="l.points"
-              :width="200"
-              :height="40"
-              :tone="l.tone"
-              :dashed="l.dashed"
-            />
+          <!-- Bleeds to the card's sides and bottom, past MetricCard's p-4. -->
+          <div class="-mx-4 -mb-4 overflow-hidden rounded-b-(--nb-radius-panel)">
+            <Sparkline :lines="c.lines" :width="200" :height="44" :max="c.max" />
           </div>
         </template>
       </MetricCard>

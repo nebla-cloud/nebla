@@ -23,7 +23,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDocumentVisibility, useElementVisibility } from '@vueuse/core'
 import Sparkline from '@/components/Sparkline.vue'
 import { useCurrentProject } from '@/lib/project'
-import { fetchMetrics } from './metrics/metrics'
+import { fetchMetrics, formatPercent } from './metrics/metrics'
 
 const props = defineProps<{ serverId: number; running: boolean }>()
 
@@ -62,11 +62,27 @@ const points = computed(() => {
   const cpu = query.data.value?.time_series?.cpu as [number, number | null][] | undefined
   return cpu && cpu.filter((p) => p[1] != null).length >= 2 ? cpu : null
 })
+const latest = computed(() => {
+  const pts = points.value ?? []
+  for (let i = pts.length - 1; i >= 0; i--) if (pts[i]![1] != null) return pts[i]![1]
+  return null
+})
 </script>
 
 <template>
-  <span ref="el" aria-hidden="true" class="block">
-    <Sparkline v-if="points" :points="points" :width="120" :height="22" />
-    <span v-else class="text-muted">—</span>
+  <span ref="el" class="block">
+    <span v-if="points" class="flex items-center gap-2">
+      <Sparkline
+        :lines="[{ points, tone: 'busy' }]"
+        :width="80"
+        :height="22"
+        :max="100"
+        class="min-w-0 flex-1"
+      />
+      <span class="w-8 shrink-0 text-right text-xs tabular-nums">{{
+        formatPercent(latest ?? 0)
+      }}</span>
+    </span>
+    <span v-else aria-hidden="true" class="text-muted">—</span>
   </span>
 </template>

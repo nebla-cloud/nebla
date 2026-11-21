@@ -186,18 +186,11 @@ describe('OverviewTab', () => {
     expect(reading('network')).toBe('2.1 MB/s in / 410 KB/s out')
     expect(reading('disk')).toBe('512 B/s read / 3.0 KB/s write')
     const lines = (k: string) =>
-      w
-        .findAll(`[data-metric="${k}"] polyline`)
-        .map((p) => [p.attributes('stroke'), p.attributes('stroke-dasharray') ? 'dashed' : 'solid'])
-    expect(lines('network')).toEqual([
-      ['var(--nb-run)', 'solid'],
-      ['var(--nb-busy)', 'dashed'],
-    ])
-    expect(lines('disk')).toEqual([
-      ['var(--nb-busy)', 'solid'],
-      ['var(--nb-busy)', 'dashed'],
-    ])
-    for (const card of w.findAll('[data-metric]')) expect(card.html()).not.toContain('--nb-err')
+      w.findAll(`[data-metric="${k}"] path[data-line]`).map((p) => p.attributes('stroke'))
+    expect(lines('cpu')).toEqual(['var(--nb-busy)'])
+    expect(lines('network')).toEqual(['var(--nb-run)', 'var(--nb-err)'])
+    expect(lines('disk')).toEqual(['var(--nb-busy)', 'var(--nb-err)'])
+    expect(w.find('[data-metric] [stroke-dasharray]').exists()).toBe(false)
     expect(w.find('[data-metric="cpu"] svg').attributes('aria-hidden')).toBe('true')
     expect(w.text()).not.toContain("Graphs appear once it's running")
   })

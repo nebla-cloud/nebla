@@ -5,6 +5,7 @@ import { VueQueryPlugin } from '@tanstack/vue-query'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { testQueryClient, testRouter } from '@/test/mount'
+import Sparkline from '@/components/Sparkline.vue'
 import RowSparkline from './RowSparkline.vue'
 
 const visible = ref(true)
@@ -74,14 +75,22 @@ describe('RowSparkline', () => {
   it('a visible running row fetches cpu for the last hour and draws a line', async () => {
     serve()
     const w = await mountRows([{ serverId: 5, running: true }])
-    await vi.waitFor(() => expect(w.find('polyline').exists()).toBe(true))
+    await vi.waitFor(() => expect(w.find('path[data-line]').exists()).toBe(true))
     expect(urls).toHaveLength(1)
     expect(urls[0]!.pathname).toMatch(/\/servers\/5\/metrics$/)
     expect(urls[0]!.searchParams.getAll('type').flatMap((t) => t.split(','))).toEqual(['cpu'])
     expect(urls[0]!.searchParams.get('timeframe')).toBe('hour')
     const svg = w.find('svg')
-    expect(svg.attributes('viewBox')).toBe('0 0 120 22')
+    expect(svg.attributes('viewBox')).toBe('0 0 80 22')
+    expect(w.text()).toBe('9%')
     expect(w.find('[aria-hidden="true"]').exists()).toBe(true)
+  })
+
+  it('cpu is drawn on a fixed 0–100 scale', async () => {
+    serve()
+    const w = await mountRows([{ serverId: 5, running: true }])
+    await vi.waitFor(() => expect(w.find('path[data-line]').exists()).toBe(true))
+    expect(w.findComponent(Sparkline).props('max')).toBe(100)
   })
 
   it('an off server makes no request and shows a dash', async () => {
@@ -126,7 +135,7 @@ describe('RowSparkline', () => {
     expect(w.text()).toBe('—'.repeat(25))
     open()
     await vi.waitFor(() => expect(urls).toHaveLength(25))
-    await vi.waitFor(() => expect(w.findAll('polyline')).toHaveLength(25))
+    await vi.waitFor(() => expect(w.findAll('path[data-line]')).toHaveLength(25))
   })
 
   it('drops queued requests for rows that are removed or stop running', async () => {
@@ -143,7 +152,7 @@ describe('RowSparkline', () => {
     } finally {
       release()
     }
-    await vi.waitFor(() => expect(w.findAll('polyline')).toHaveLength(21))
+    await vi.waitFor(() => expect(w.findAll('path[data-line]')).toHaveLength(21))
     expect(urls).toHaveLength(21)
     expect(urls.at(-1)!.pathname).toMatch(/\/servers\/23\/metrics$/)
   })
