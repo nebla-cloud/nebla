@@ -9,7 +9,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import TopBar from '@/layouts/TopBar.vue'
 import type { Action, Server } from '@/api/types'
 import { makeServer } from './fixtures'
-import routes from './routes'
+import routes, { builtInTabs, withServerTabs } from './routes'
 
 function action(over: Partial<Action> = {}): Action {
   return {
@@ -213,7 +213,14 @@ describe('ServerDetailShell', () => {
       meta: { side: 'project' as const, serverTab: { label: 'Firewalls', order: 45 } },
     }
     const withFirewalls = routes.map((r) =>
-      'children' in r && r.children ? { ...r, children: [...r.children, firewalls] } : r,
+      'children' in r
+        ? {
+            ...r,
+            children: withServerTabs(builtInTabs, {
+              '../firewalls/serverTabs.ts': { default: [firewalls] },
+            }),
+          }
+        : r,
     )
     const router = testRouter([
       {

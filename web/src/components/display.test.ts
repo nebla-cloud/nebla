@@ -12,14 +12,13 @@ describe('StepList and Step', () => {
   it('renders an ol of li with data-step and data-state', () => {
     const w = mount(StepList, {
       slots: {
-        default: ['<li data-step="1" data-state="done">x</li>'],
+        default: [
+          '<li data-step="1" data-state="done">x</li>',
+        ],
       },
     })
     expect(w.element.tagName).toBe('OL')
-    const s = mount(Step, {
-      props: { n: 2, state: 'current', title: 'Image' },
-      slots: { default: 'body' },
-    })
+    const s = mount(Step, { props: { n: 2, state: 'current', title: 'Image' }, slots: { default: 'body' } })
     expect(s.element.tagName).toBe('LI')
     expect(s.attributes('data-step')).toBe('2')
     expect(s.attributes('data-state')).toBe('current')
@@ -66,10 +65,7 @@ describe('StepList and Step', () => {
 
 describe('Meter', () => {
   it('exposes role=meter with value, max and label', () => {
-    const w = mount(Meter, {
-      props: { value: 2, max: 8, label: 'vCPU' },
-      slots: { default: 'vCPU, 2 of 8' },
-    })
+    const w = mount(Meter, { props: { value: 2, max: 8, label: 'vCPU' }, slots: { default: 'vCPU, 2 of 8' } })
     const m = w.get('[role="meter"]')
     expect(m.attributes('aria-valuenow')).toBe('2')
     expect(m.attributes('aria-valuemax')).toBe('8')
@@ -98,10 +94,7 @@ describe('MetricCard', () => {
 
 describe('TerminalBlock', () => {
   it('renders a caption and a div by default, pre when asked', () => {
-    const w = mount(TerminalBlock, {
-      props: { caption: 'user-data' },
-      slots: { default: '#cloud-config' },
-    })
+    const w = mount(TerminalBlock, { props: { caption: 'user-data' }, slots: { default: '#cloud-config' } })
     expect(w.text()).toContain('user-data')
     expect(w.text()).toContain('#cloud-config')
     expect(w.find('pre').exists()).toBe(false)
