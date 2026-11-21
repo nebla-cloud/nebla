@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { RouterView, useRoute } from 'vue-router'
+import { RouterView, useRoute, useRouter } from 'vue-router'
 import USlideover from '@nuxt/ui/components/Slideover.vue'
+import { isActive, type NavItem } from '@/router/nav'
+import TopBar from './TopBar.vue'
 
-const props = defineProps<{ ink?: boolean; label: string }>()
+const props = defineProps<{ ink?: boolean; label: string; nav?: NavItem[] }>()
 const route = useRoute()
+const router = useRouter()
 const open = ref(false)
 
 watch(
@@ -14,22 +17,19 @@ watch(
   },
 )
 
+const title = computed(() => props.nav?.find((i) => isActive(router, route, i))?.label)
+
 const sidebar = computed(() =>
   props.ink
     ? 'bg-ink-950 text-ink-300 dark:border-r dark:border-ink-800'
-    : 'bg-muted text-toned border-r border-default',
-)
-const topbar = computed(() =>
-  props.ink
-    ? 'bg-ink-950 text-white border-b border-ink-800'
-    : 'bg-default text-highlighted border-b border-default',
+    : 'bg-(--nb-sidebar) text-toned border-r border-default',
 )
 </script>
 
 <template>
-  <div class="min-h-dvh lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+  <div class="min-h-dvh lg:grid lg:grid-cols-[14.5rem_minmax(0,1fr)]">
     <aside
-      class="sticky top-0 hidden h-dvh flex-col overflow-y-auto lg:flex"
+      class="sticky top-0 hidden h-dvh min-w-0 flex-col overflow-y-auto lg:flex"
       :class="sidebar"
       :aria-label="label"
     >
@@ -37,29 +37,35 @@ const topbar = computed(() =>
     </aside>
 
     <div class="min-w-0">
-      <header class="sticky top-0 z-20 flex h-14 items-center gap-2 px-2 lg:hidden" :class="topbar">
-        <button
-          type="button"
-          class="grid size-10 place-items-center rounded-md hover:bg-current/10 focus-visible:outline-2 focus-visible:outline-current"
-          aria-label="Open menu"
-          :aria-expanded="open"
-          @click="open = true"
-        >
-          <svg viewBox="0 0 20 20" class="size-5" aria-hidden="true">
-            <path
-              d="M3 5.5h14M3 10h14M3 14.5h14"
-              stroke="currentColor"
-              stroke-width="1.75"
-              stroke-linecap="round"
-            />
-          </svg>
-        </button>
-        <div class="flex min-w-0 items-center gap-2">
-          <slot name="topbar" />
-        </div>
-      </header>
+      <TopBar :title="title">
+        <template #leading>
+          <button
+            type="button"
+            class="grid size-10 shrink-0 place-items-center rounded-md text-highlighted hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary lg:hidden"
+            aria-label="Open menu"
+            :aria-expanded="open"
+            @click="open = true"
+          >
+            <svg viewBox="0 0 20 20" class="size-5" aria-hidden="true">
+              <path
+                d="M3 5.5h14M3 10h14M3 14.5h14"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <div class="flex min-w-0 shrink items-center gap-2 text-highlighted lg:hidden">
+            <slot name="topbar" />
+          </div>
+          <span v-if="title" class="text-muted lg:hidden" aria-hidden="true">/</span>
+        </template>
+        <template #actions>
+          <slot name="actions" />
+        </template>
+      </TopBar>
 
-      <main class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 lg:px-10 lg:py-10">
+      <main class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-8 lg:py-8">
         <RouterView />
       </main>
     </div>

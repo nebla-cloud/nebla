@@ -1,7 +1,12 @@
 import { computed, type ComputedRef } from 'vue'
 import type { Role } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
-import { useRouter, type RouteRecordName, type Router } from 'vue-router'
+import {
+  useRouter,
+  type RouteLocationNormalizedLoaded,
+  type RouteRecordName,
+  type Router,
+} from 'vue-router'
 
 export type Side = 'project' | 'admin' | 'root'
 
@@ -53,11 +58,21 @@ export function navItems(router: Router, side: Exclude<Side, 'root'>, role?: Rol
       icon: r.meta.nav!.icon ?? 'i-lucide-circle-dot',
       group: r.meta.nav!.group ?? null,
     }))
-  const soon =
-    side === 'project' ? SOON.filter((s) => !real.some((r) => r.label === s.label)) : []
+  const soon = side === 'project' ? SOON.filter((s) => !real.some((r) => r.label === s.label)) : []
   return [...real, ...soon].sort(
     (a, b) => groupRank(a.group) - groupRank(b.group) || a.order - b.order,
   )
+}
+
+// The page is the item's own path or somewhere under it.
+export function isActive(
+  router: Router,
+  route: RouteLocationNormalizedLoaded,
+  item: NavItem,
+): boolean {
+  if (item.name === null) return false
+  const href = router.resolve({ name: item.name, params: route.params }).path
+  return route.path === href || route.path.startsWith(`${href}/`)
 }
 
 export function useNav(side: Exclude<Side, 'root'>): ComputedRef<NavItem[]> {

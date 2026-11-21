@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import UIcon from '@nuxt/ui/components/Icon.vue'
 import BrandMark from '@/components/BrandMark.vue'
+import Lockup from '@/components/Lockup.vue'
 import { useProjects } from '@/features/projects/queries'
 import { readLastProject } from '@/lib/project'
 import { useNav } from '@/router/nav'
@@ -15,19 +17,23 @@ const last = computed(() => projects.value?.find((p) => p.id === lastId))
 </script>
 
 <template>
-  <ShellFrame ink label="Admin menu">
+  <ShellFrame ink label="Admin menu" :nav="nav">
     <template #sidebar>
-      <div class="flex flex-1 flex-col gap-4 p-3">
-        <div class="flex items-center gap-2.5 px-2.5 py-2">
-          <BrandMark :size="22" />
-          <span class="font-bold tracking-tight text-white">Admin</span>
+      <div class="flex min-w-0 flex-1 flex-col gap-3.5 px-3 py-4">
+        <!-- The ink sidebar is dark in both modes, so the lockup is drawn in white. -->
+        <div
+          class="flex min-w-0 items-center gap-2.5 px-2 py-1 [--ui-text-highlighted:var(--color-white)]"
+        >
+          <Lockup :height="22" />
+          <span class="shrink-0 font-bold tracking-tight text-white">Admin</span>
         </div>
         <SideNav :items="nav" ink />
         <RouterLink
           :to="last ? `/p/${last.id}/servers` : { name: 'projects' }"
-          class="mt-auto truncate rounded-md px-2.5 py-1.5 text-sm text-ink-300 hover:bg-ink-900 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+          class="mt-auto flex min-w-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm hover:bg-ink-900 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
         >
-          {{ last ? `Back to ${last.name}` : 'Go to projects' }}
+          <UIcon name="i-lucide-arrow-left" class="size-4 shrink-0" aria-hidden="true" />
+          <span class="truncate">{{ last ? `Back to ${last.name}` : 'Go to projects' }}</span>
         </RouterLink>
       </div>
     </template>

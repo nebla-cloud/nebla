@@ -2,12 +2,15 @@
 import { computed } from 'vue'
 import UDropdownMenu from '@nuxt/ui/components/DropdownMenu.vue'
 import type { DropdownMenuItem } from '@nuxt/ui/components/DropdownMenu.vue'
-import BrandMark from '@/components/BrandMark.vue'
 import { useCurrentProject } from '@/lib/project'
+import { roleLabel } from '@/lib/roles'
 import { useProjects } from './queries'
 
 const { projectId, project } = useCurrentProject()
 const { data: projects } = useProjects()
+
+const name = computed(() => project.value?.name ?? 'Project')
+const initial = computed(() => name.value.trim().charAt(0).toUpperCase() || '?')
 
 const items = computed<DropdownMenuItem[][]>(() => [
   (projects.value ?? []).map((p) => ({
@@ -23,12 +26,19 @@ const items = computed<DropdownMenuItem[][]>(() => [
   <UDropdownMenu :items="items" :content="{ align: 'start' }" :ui="{ content: 'w-56' }">
     <button
       type="button"
-      class="flex w-full min-w-0 items-center gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
+      class="flex w-full min-w-0 items-center gap-2.5 rounded-[0.625rem] border border-default bg-elevated p-2 text-left hover:bg-accented/50 focus-visible:outline-2 focus-visible:outline-primary"
       aria-label="Switch project"
     >
-      <BrandMark :size="22" />
-      <span class="min-w-0 flex-1 truncate font-bold tracking-tight text-highlighted">
-        {{ project?.name ?? 'Project' }}
+      <span
+        class="grid size-7 shrink-0 place-items-center rounded-lg bg-(--ui-bg-muted) text-xs font-bold text-highlighted ring-1 ring-default"
+        aria-hidden="true"
+        >{{ initial }}</span
+      >
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-semibold text-highlighted">{{ name }}</span>
+        <span v-if="project" class="block truncate text-xs text-muted">{{
+          roleLabel(project.role)
+        }}</span>
       </span>
       <svg viewBox="0 0 20 20" class="size-4 shrink-0 text-muted" aria-hidden="true">
         <path

@@ -29,10 +29,12 @@ const svg = computed(() =>
     class="inline-flex shrink-0 text-highlighted"
     v-html="svg"
   />
-  <span v-else class="inline-flex items-center gap-2.5 text-highlighted">
+  <span v-else class="inline-flex min-w-0 items-center gap-2.5 text-highlighted">
     <BrandMark :size="height" />
-    <span class="font-bold tracking-[-0.035em]" :style="{ fontSize: `${height * 0.8}px` }">{{
-      product
-    }}</span>
+    <span
+      class="min-w-0 truncate font-bold tracking-[-0.035em]"
+      :style="{ fontSize: `${height * 0.8}px` }"
+      >{{ product }}</span
+    >
   </span>
 </template>

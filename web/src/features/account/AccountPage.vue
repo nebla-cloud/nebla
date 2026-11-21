@@ -11,8 +11,9 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { api } from '@/api/client'
 import { unwrap } from '@/api/errors'
 import AccountMenu from '@/components/AccountMenu.vue'
-import BrandMark from '@/components/BrandMark.vue'
+import Lockup from '@/components/Lockup.vue'
 import { projectQuery } from '@/features/projects/queries'
+import TopBar from '@/layouts/TopBar.vue'
 import { readLastProject } from '@/lib/project'
 import { setMe, useSession } from '@/lib/session'
 import { inlineError } from './authError'
@@ -20,8 +21,7 @@ import PasskeysSection from './PasskeysSection.vue'
 import TwoFactorSection from './TwoFactorSection.vue'
 
 const toast = useToast()
-const { manifest, me } = useSession()
-const product = computed(() => manifest.value?.branding.product_name || 'Nebla')
+const { me } = useSession()
 
 const lastId = readLastProject()
 const { data: lastProject } = useQuery(
@@ -85,18 +85,15 @@ async function changePassword() {
 
 <template>
   <div class="min-h-dvh">
-    <header
-      class="flex h-14 items-center justify-between gap-3 border-b border-default px-4 sm:px-8"
-    >
-      <div class="flex items-center gap-2.5">
-        <BrandMark :size="22" />
-        <span class="font-extrabold tracking-tight text-highlighted">{{ product }}</span>
-      </div>
-      <div class="flex items-center gap-1">
+    <TopBar>
+      <template #leading>
+        <span class="flex min-w-0 px-2 lg:px-0"><Lockup :height="22" /></span>
+      </template>
+      <template #actions>
         <UButton v-if="me?.is_admin" to="/admin" color="neutral" variant="ghost">Admin</UButton>
         <div class="w-44 sm:w-56"><AccountMenu /></div>
-      </div>
-    </header>
+      </template>
+    </TopBar>
 
     <main class="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-8">
       <RouterLink

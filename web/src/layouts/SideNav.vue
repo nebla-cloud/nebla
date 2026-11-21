@@ -2,17 +2,13 @@
 import { computed } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import UIcon from '@nuxt/ui/components/Icon.vue'
-import type { NavItem } from '@/router/nav'
+import { isActive, type NavItem } from '@/router/nav'
 
 const props = defineProps<{ items: NavItem[]; ink?: boolean }>()
 const route = useRoute()
 const router = useRouter()
 
-function active(item: NavItem): boolean {
-  if (item.name === null) return false
-  const href = router.resolve({ name: item.name, params: route.params }).path
-  return route.path === href || route.path.startsWith(`${href}/`)
-}
+const active = (item: NavItem) => isActive(router, route, item)
 
 const groups = computed(() => {
   const out: { title: string | null; items: NavItem[] }[] = []

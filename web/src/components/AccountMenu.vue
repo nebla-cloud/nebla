@@ -29,10 +29,10 @@ async function logOut() {
   <UPopover :content="{ side: 'top', align: 'start' }">
     <button
       type="button"
-      class="flex w-full min-w-0 items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
+      class="flex w-full min-w-0 items-center gap-2.5 rounded-lg p-2 text-left text-sm hover:bg-elevated/70 focus-visible:outline-2 focus-visible:outline-primary"
     >
       <span
-        class="grid size-7 shrink-0 place-items-center rounded-full bg-inverted text-xs font-bold text-inverted"
+        class="grid size-7 shrink-0 place-items-center rounded-t-full rounded-b-md bg-(image:--nb-gradient) text-xs font-bold text-(--nb-on-gradient)"
         aria-hidden="true"
       >
         {{ (me?.name || me?.email || '?').charAt(0).toUpperCase() }}
@@ -40,7 +40,7 @@ async function logOut() {
       <span class="min-w-0 truncate text-toned">{{ me?.email }}</span>
     </button>
     <template #content>
-      <div class="flex w-64 flex-col gap-3 p-3">
+      <div class="flex w-64 max-w-[calc(100vw-2rem)] flex-col gap-3 p-3">
         <div class="min-w-0">
           <p class="truncate text-sm font-semibold text-highlighted">{{ me?.name || me?.email }}</p>
           <p v-if="me?.name" class="truncate text-sm text-muted">{{ me?.email }}</p>
