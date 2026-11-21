@@ -391,12 +391,27 @@ func (b *builder) firewallCurrent(ctx context.Context, vmid int) error {
 	return b.applyFirewalls(ctx, vmid)
 }
 
-// settle waits for Proxmox to load the rules before a protected VM's first start.
-func (b *builder) settle(ctx context.Context) error {
-	if !b.anyFW {
-		return nil
+// protect renders the current rules onto vmid and waits for Proxmox to load them, again if they change during the wait.
+func (b *builder) protect(ctx context.Context, vmid int) error {
+	for range maxRenders {
+		if err := b.firewallCurrent(ctx, vmid); err != nil {
+			return err
+		}
+		if !b.anyFW {
+			return nil
+		}
+		if err := settleWait(ctx, FirewallSettle); err != nil {
+			return err
+		}
+		cur, err := b.o.Ent.Server.Get(ctx, b.row.ID)
+		if err != nil {
+			return err
+		}
+		if cur.FirewallGenDesired <= b.fwGen {
+			return nil
+		}
 	}
-	return settleWait(ctx, FirewallSettle)
+	return transient("firewall kept changing during %d waits", maxRenders)
 }
 
 // raiseApplied records fwGen as applied without lowering it.

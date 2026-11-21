@@ -154,13 +154,10 @@ func (c *createRun) run(ctx context.Context) error {
 }
 
 func (c *createRun) start(ctx context.Context) error {
-	if err := c.b.firewallCurrent(ctx, c.b.vmid()); err != nil {
+	if err := c.b.protect(ctx, c.b.vmid()); err != nil {
 		return err
 	}
 	if c.args.StartAfter {
-		if err := c.b.settle(ctx); err != nil {
-			return err
-		}
 		if err := c.w.o.Ent.Server.UpdateOneID(c.row.ID).SetStatus(StatusStarting).Exec(ctx); err != nil {
 			return err
 		}

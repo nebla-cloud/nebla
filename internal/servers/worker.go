@@ -77,8 +77,9 @@ func (k contract) work(ctx context.Context) error {
 		return k.finish(ctx, f, errors.New(f.detail))
 	}
 	err := k.run(ctx)
-	if err == nil {
-		return nil
+	var snooze *rivertype.JobSnoozeError
+	if err == nil || errors.As(err, &snooze) {
+		return err
 	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return err

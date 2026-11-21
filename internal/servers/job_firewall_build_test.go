@@ -280,3 +280,119 @@ func TestV1ProtectionUnchanged(t *testing.T) {
 	require.Equal(t, map[string][]string{"ipfilter-net0": {"10.0.0.10"}}, vm.IPSets)
 	require.Empty(t, vm.Rules)
 }
+
+func TestStoppedCreateWaitsWithFirewall(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	rec := recordSettles(t, e)
+	s := createWithFirewall(t, e, "web", newFirewall(t, e, "fw", tcpIn("22")))
+	j := job(s, 1)
+	j.Args.StartAfter = false
+	require.NoError(t, w.Work(ctx, j))
+	waitOK(t, e, s.ActionID)
+	vmid := vmidOf(t, e, s.ServerID)
+	require.Equal(t, -1, startCall(e, vmid))
+	require.Equal(t, []string{"22"}, dports(t, e, vmid))
+	waits, _ := rec.get()
+	require.Equal(t, []time.Duration{servers.FirewallSettle}, waits, "a later power-on finds the rules loaded")
+}
+
+func TestFirewallChangeDuringWaitLandsBeforeStart(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	fw := fwService(e)
+	id := newFirewall(t, e, "fw", tcpIn("22"))
+	s := createWithFirewall(t, e, "web", id)
+	var waits, at []int
+	servers.SetSettleWait(t, func(context.Context, time.Duration) error {
+		at = append(at, len(e.App.PVE.Calls()))
+		waits = append(waits, len(waits))
+		if len(waits) == 1 {
+			_, err := fw.SetRules(ctx, e.Project, id, []firewalls.RuleInput{tcpIn("80")})
+			require.NoError(t, err)
+		}
+		return nil
+	})
+	require.NoError(t, w.Work(ctx, job(s, 1)))
+	waitOK(t, e, s.ActionID)
+	vmid := vmidOf(t, e, s.ServerID)
+	requireProtectedBeforeStart(t, e, vmid, "80")
+	require.Len(t, waits, 2, "the new rules got their own wait")
+	require.Greater(t, at[1], lastFWWrite(e, vmid), "the second wait came after the new rules")
+	desired, applied := gens(t, e, s.ServerID)
+	require.Equal(t, desired, applied)
+}
+
+func TestFirewallKeepsChangingDuringWaitRetries(t *testing.T) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	fw := fwService(e)
+	id := newFirewall(t, e, "fw", tcpIn("22"))
+	s := createWithFirewall(t, e, "web", id)
+	n := 0
+	servers.SetSettleWait(t, func(context.Context, time.Duration) error {
+		n++
+		_, err := fw.SetRules(ctx, e.Project, id, []firewalls.RuleInput{tcpIn(strconv.Itoa(1000 + n))})
+		require.NoError(t, err)
+		return nil
+	})
+	err := w.Work(ctx, job(s, 1))
+	require.Error(t, err)
+	var cancel *river.JobCancelError
+	require.False(t, errors.As(err, &cancel), "retried, not failed: %v", err)
+	require.Equal(t, -1, startCall(e, vmidOf(t, e, s.ServerID)), "never started on stale rules")
+}
+
+func TestApplyLoopSnoozesWhenRebuildStarts(t *testing.T) {
+	ctx := context.Background()
+	f := newFWEnv(t)
+	id, acts := f.create(t, "fw", []firewalls.RuleInput{tcpIn("22")}, onServer(f.srv))
+	var once sync.Once
+	f.App.PVE.OnFirewallWrite(func() {
+		once.Do(func() {
+			_, err := f.fw.SetRules(ctx, f.Project, id, []firewalls.RuleInput{tcpIn("80")})
+			require.NoError(t, err)
+			require.NoError(t, f.App.Ent.Server.UpdateOneID(f.srv).SetRebuildStep(servers.StepClone).Exec(ctx))
+		})
+	})
+	err := f.work(t, acts[0], 1)
+	f.App.PVE.OnFirewallWrite(nil)
+	require.True(t, snoozed(err), "%v", err)
+	require.Equal(t, []string{"22"}, dports(t, f.ServerEnv, f.vmid), "the rebuild's VM is left to the rebuild")
+	require.Equal(t, actions.StatusRunning, f.action(t, acts[0].ID).Status)
+}
+
+func TestRebuildFailsWhenClusterFirewallOff(t *testing.T) {
+	ctx := context.Background()
+	e, s, w := rebuildEnv(t)
+	recordSettles(t, e)
+	old := vmidOf(t, e, s.ServerID)
+	_, acts, err := fwService(e).Create(ctx, e.Project, firewalls.CreateInput{Name: "fw", Rules: []firewalls.RuleInput{tcpIn("22")},
+		ApplyTo: []firewalls.ResourceInput{onServer(s.ServerID)}})
+	require.NoError(t, err)
+	aw := servers.NewApplyFirewallsWorker(opts(e))
+	require.NoError(t, aw.Work(ctx, jobOf(queuedArgs[firewalls.ApplyArgs](t, e, acts[0].ID), 1)))
+	before, _ := e.App.PVE.VM(old)
+	writes := lastFWWrite(e, old)
+
+	e.App.PVE.SetClusterFirewall(false)
+	id := startAction(t, e, s.ServerID, "rebuild", map[string]any{"image": "debian"})
+	var cancel *river.JobCancelError
+	require.True(t, errors.As(w.Work(ctx, jobOf(queuedArgs[servers.RebuildServerArgs](t, e, id), 1)), &cancel))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
+	require.NoError(t, err)
+	require.Equal(t, actions.CodeFirewallUnenforced, a.Error.Code)
+
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, old, *row.Vmid, "never swapped")
+	require.Nil(t, row.RebuildVmid)
+	require.Equal(t, 1, vmCount(t, e), "the new VM was destroyed")
+	after, ok := e.App.PVE.VM(old)
+	require.True(t, ok)
+	require.Equal(t, before.Rules, after.Rules)
+	require.Equal(t, before.Firewall, after.Firewall)
+	require.Equal(t, "running", after.Status)
+	require.Equal(t, writes, lastFWWrite(e, old), "nothing written to the old VM")
+	require.Equal(t, servers.StatusRunning, string(row.Status))
+}

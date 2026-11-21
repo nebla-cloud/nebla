@@ -219,13 +219,10 @@ func (r *rebuildRun) retire(ctx context.Context) error {
 }
 
 func (r *rebuildRun) restart(ctx context.Context) error {
-	if err := r.b.firewallCurrent(ctx, *r.row.Vmid); err != nil {
+	if err := r.b.protect(ctx, *r.row.Vmid); err != nil {
 		return err
 	}
 	if r.args.StartAfter {
-		if err := r.b.settle(ctx); err != nil {
-			return err
-		}
 		if err := startVM(ctx, r.b.pc, *r.row.Vmid, r.w.o.PollInterval); err != nil {
 			return err
 		}
