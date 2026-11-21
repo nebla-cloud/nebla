@@ -9,6 +9,9 @@ import { errorMessage } from '@/api/errors'
 import type { ServerType } from '@/api/types'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import ListGroup from '@/components/ListGroup.vue'
+import ListRow from '@/components/ListRow.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
 import { typeSpec } from '@/lib/format'
 import ServerTypeForm from './ServerTypeForm.vue'
@@ -61,11 +64,12 @@ async function remove() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">Server types</h1>
-      <UButton icon="i-lucide-plus" @click="openForm()">New server type</UButton>
-    </div>
+  <div class="flex flex-col gap-4">
+    <PageHeader title="Server types">
+      <template #actions>
+        <UButton icon="i-lucide-plus" @click="openForm()">New server type</UButton>
+      </template>
+    </PageHeader>
 
     <UAlert
       v-if="loadError"
@@ -81,40 +85,38 @@ async function remove() {
     >
       <UButton @click="openForm()">New server type</UButton>
     </EmptyState>
-    <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
-      <li
-        v-for="t in types"
-        :key="t.id"
-        class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
-      >
-        <div class="flex min-w-0 flex-col gap-0.5">
-          <div class="flex items-center gap-2">
-            <span class="truncate font-semibold text-highlighted">{{ t.name }}</span>
+    <ListGroup v-else>
+      <ListRow v-for="t in types" :key="t.id">
+        <span class="flex min-w-0 flex-col gap-0.5">
+          <span class="flex items-center gap-2">
+            <span class="truncate">{{ t.name }}</span>
             <UBadge v-if="t.deprecated" color="neutral" variant="subtle">Deprecated</UBadge>
+          </span>
+          <span class="whitespace-normal text-sm font-normal text-muted">{{ typeSpec(t) }}</span>
+          <span class="whitespace-normal text-sm font-normal text-muted">{{ scope(t) }}</span>
+        </span>
+        <template #trailing>
+          <div class="flex gap-1">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              :aria-label="`Edit ${t.name}`"
+              @click="openForm(t)"
+            >
+              Edit
+            </UButton>
+            <UButton
+              color="error"
+              variant="ghost"
+              :aria-label="`Delete ${t.name}`"
+              @click="removing = t"
+            >
+              Delete
+            </UButton>
           </div>
-          <span class="text-sm text-muted">{{ typeSpec(t) }}</span>
-          <span class="text-sm text-muted">{{ scope(t) }}</span>
-        </div>
-        <div class="flex gap-1">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :aria-label="`Edit ${t.name}`"
-            @click="openForm(t)"
-          >
-            Edit
-          </UButton>
-          <UButton
-            color="error"
-            variant="ghost"
-            :aria-label="`Delete ${t.name}`"
-            @click="removing = t"
-          >
-            Delete
-          </UButton>
-        </div>
-      </li>
-    </ul>
+        </template>
+      </ListRow>
+    </ListGroup>
 
     <UModal
       v-model:open="formOpen"

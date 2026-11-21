@@ -7,6 +7,9 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import ListGroup from '@/components/ListGroup.vue'
+import ListRow from '@/components/ListRow.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
 import { rangeSize } from './cidr'
 import IpPoolForm from './IpPoolForm.vue'
@@ -58,11 +61,12 @@ async function remove() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-2xl font-extrabold tracking-tight text-highlighted">IP pools</h1>
-      <UButton icon="i-lucide-plus" @click="openForm()">New IP pool</UButton>
-    </div>
+  <div class="flex flex-col gap-4">
+    <PageHeader title="IP pools">
+      <template #actions>
+        <UButton icon="i-lucide-plus" @click="openForm()">New IP pool</UButton>
+      </template>
+    </PageHeader>
 
     <UAlert
       v-if="loadError"
@@ -78,43 +82,41 @@ async function remove() {
     >
       <UButton @click="openForm()">New IP pool</UButton>
     </EmptyState>
-    <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
-      <li
-        v-for="p in pools"
-        :key="p.id"
-        class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
-      >
-        <div class="flex min-w-0 flex-col gap-0.5">
-          <span class="truncate font-semibold text-highlighted">{{ p.cidr }}</span>
-          <span class="text-sm text-muted">
+    <ListGroup v-else>
+      <ListRow v-for="p in pools" :key="p.id">
+        <span class="flex min-w-0 flex-col gap-0.5">
+          <span class="truncate">{{ p.cidr }}</span>
+          <span class="whitespace-normal text-sm font-normal text-muted">
             {{ locationName(p.location_id) }}, {{ p.family === 'ipv4' ? 'IPv4' : 'IPv6' }}, bridge
             {{ p.bridge }}<template v-if="p.vlan_tag">, VLAN {{ p.vlan_tag }}</template>
           </span>
-          <span class="text-sm text-muted">
+          <span class="whitespace-normal text-sm font-normal text-muted">
             {{ p.range_start }} to {{ p.range_end }}, gateway {{ p.gateway }}
           </span>
-          <span class="text-sm text-default">{{ usage(p) }}</span>
-        </div>
-        <div class="flex gap-1">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :aria-label="`Edit ${p.cidr}`"
-            @click="openForm(p)"
-          >
-            Edit
-          </UButton>
-          <UButton
-            color="error"
-            variant="ghost"
-            :aria-label="`Delete ${p.cidr}`"
-            @click="removing = p"
-          >
-            Delete
-          </UButton>
-        </div>
-      </li>
-    </ul>
+          <span class="text-sm font-normal text-default">{{ usage(p) }}</span>
+        </span>
+        <template #trailing>
+          <div class="flex gap-1">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              :aria-label="`Edit ${p.cidr}`"
+              @click="openForm(p)"
+            >
+              Edit
+            </UButton>
+            <UButton
+              color="error"
+              variant="ghost"
+              :aria-label="`Delete ${p.cidr}`"
+              @click="removing = p"
+            >
+              Delete
+            </UButton>
+          </div>
+        </template>
+      </ListRow>
+    </ListGroup>
 
     <UModal
       v-model:open="formOpen"

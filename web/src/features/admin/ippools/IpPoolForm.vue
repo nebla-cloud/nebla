@@ -6,6 +6,7 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import { useAdminLocations } from '@/lib/adminQueries'
+import { selectClass as baseSelectClass } from '@/lib/ui'
 import { addrFamily, inCidr, rangeSize } from './cidr'
 import { useSaveIpPool, type IpPool, type IpPoolInput } from './queries'
 
@@ -27,8 +28,7 @@ const rangeEnd = ref(props.item?.range_end ?? '')
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
 
-const selectClass =
-  'w-full rounded-md border border-accented bg-default px-2.5 py-1.5 text-sm text-highlighted focus-visible:outline-2 focus-visible:outline-primary'
+const selectClass = `${baseSelectClass} sm:w-full`
 
 async function submit() {
   formError.value = null

@@ -7,6 +7,7 @@ import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import type { ServerType } from '@/api/types'
 import { useAdminLocations } from '@/lib/adminQueries'
+import { checkboxClass } from '@/lib/ui'
 import { useSaveServerType, type ServerTypeInput } from './queries'
 
 const props = defineProps<{ item?: ServerType }>()
@@ -26,7 +27,6 @@ const deprecated = ref(props.item?.deprecated ?? false)
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
 
-const checkboxClass = 'size-4 accent-[var(--ui-primary)]'
 const hasLocations = computed(() => (locations.value?.length ?? 0) > 0)
 
 function positive(v: string): number | null {
