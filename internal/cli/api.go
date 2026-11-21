@@ -407,3 +407,38 @@ func (a *API) Firewall(ctx context.Context, ref string) (apiclient.Firewall, err
 		return named(list, func(f apiclient.Firewall) string { return f.Name }, name), nil
 	})
 }
+
+// Volumes lists every volume matching params.
+func (a *API) Volumes(ctx context.Context, params apiclient.GetVolumesParams) ([]apiclient.Volume, error) {
+	pp := perPage
+	params.PerPage = &pp
+	return pageAll(func(page *int) ([]apiclient.Volume, apiclient.Meta, error) {
+		params.Page = page
+		res, err := a.C.GetVolumesWithResponse(ctx, &params)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		v, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		return v.Volumes, v.Meta, nil
+	})
+}
+
+// Volume finds a volume by id or name.
+func (a *API) Volume(ctx context.Context, ref string) (apiclient.Volume, error) {
+	return resolve(ref, "volume", func(id int64) (*apiclient.Volume, *http.Response, []byte, error) {
+		res, err := a.C.GetVolumeWithResponse(ctx, id)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return res.JSON200, res.HTTPResponse, res.Body, nil
+	}, func(name string) (*apiclient.Volume, error) {
+		list, err := a.Volumes(ctx, apiclient.GetVolumesParams{Name: &name})
+		if err != nil {
+			return nil, err
+		}
+		return named(list, func(v apiclient.Volume) string { return v.Name }, name), nil
+	})
+}

@@ -158,7 +158,7 @@ func newRoot(env Env) (*cobra.Command, *app) {
 	f.StringVarP(&g.output, "output", "o", "table", "output format: table, json or yaml")
 
 	root.AddCommand(newContextCmd(a))
-	root.AddCommand(newSSHKeyCmd(a), newImageCmd(a), newServerTypeCmd(a), newLocationCmd(a), newServerCmd(a), newFirewallCmd(a))
+	root.AddCommand(newSSHKeyCmd(a), newImageCmd(a), newServerTypeCmd(a), newLocationCmd(a), newServerCmd(a), newFirewallCmd(a), newVolumeCmd(a))
 	root.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print the nebla version",
