@@ -160,6 +160,13 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
 
       <UAlert
+        v-if="location.firewall_enabled === false"
+        color="warning"
+        variant="subtle"
+        description="The Proxmox datacenter firewall is off at this location. Server firewalls and anti-spoofing filters aren't enforced."
+      />
+
+      <UAlert
         v-if="cleanup.length"
         color="warning"
         variant="subtle"

@@ -295,4 +295,25 @@ describe('admin locations', () => {
       expect(body).toEqual({ location_id: 1 })
     })
   })
+
+  it.each([
+    [false, true],
+    [null, false],
+    [true, false],
+  ])('detail warns about the datacenter firewall when it is %s', async (enabled, warned) => {
+    server.use(list([{ ...loc(), firewall_enabled: enabled }]))
+    const router = testRouter([
+      { path: '/admin/locations', name: 'admin-locations', component: LocationsPage },
+      {
+        path: '/admin/locations/:locationId',
+        name: 'admin-location',
+        component: LocationDetailPage,
+      },
+    ])
+    await router.push('/admin/locations/1')
+    const { wrapper } = mountApp(LocationDetailPage, { router })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.text()).not.toContain('Loading location'))
+    expect(wrapper.text().includes('datacenter firewall is off')).toBe(warned)
+  })
 })

@@ -29,8 +29,9 @@ export default defineConfig({
       testMatch: /server-depth\.spec\.ts/,
       dependencies: ['catalog'],
     },
+    { name: 'firewalls', testMatch: /firewalls\.spec\.ts/, dependencies: ['server-depth'] },
     // Needs the Home lab project that first-run creates; runs last so it can't disturb server specs.
-    { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['server-depth'] },
+    { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['firewalls'] },
     { name: 'enroll', testMatch: /enroll\.spec\.ts/, dependencies: ['people'] },
     { name: 'passkeys', testMatch: /passkeys\.spec\.ts/, dependencies: ['enroll'] },
     { name: 'admin', testMatch: /admin\.spec\.ts/, dependencies: ['passkeys'] },
