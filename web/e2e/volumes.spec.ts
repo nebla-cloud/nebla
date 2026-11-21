@@ -23,6 +23,7 @@ test('create, attach, detach and delete a volume', async ({ page }) => {
   await form.locator('input[name=name]').fill(vol)
   await form.locator('input[name=size]').fill('20')
   const pick = form.locator('select[name=server]')
+  // The first enabled option is the "Don't attach" placeholder, so take the first server after it.
   const target = pick.locator('option:not([disabled])').nth(1)
   const serverName = (await target.textContent())!.trim()
   await pick.selectOption({ label: serverName })

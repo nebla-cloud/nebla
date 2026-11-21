@@ -266,7 +266,14 @@ func TestVolumes(t *testing.T) {
 		waitAction(t, app, c, a.Action.ID)
 	}
 	// The guest powers itself off once it sees /dev/disk/by-id/virtio-nb-vol-<id>.
-	if !waitVMStopped(t, pc, sid, 3*time.Minute) {
+	stopped := waitVMStopped(t, pc, sid, 3*time.Minute)
+	if !stopped {
+		// It may have stopped just after the last poll; a stopped VM is already the proof.
+		vms = taggedVMs(t, pc, sid)
+		require.Len(t, vms, 1)
+		stopped = vms[0].Status == "stopped"
+	}
+	if !stopped {
 		t.Log("no stop after a live attach; resetting so the guest boots with the volume")
 		call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/reset", sid), nil, http.StatusCreated, &a)
 		waitAction(t, app, c, a.Action.ID)
@@ -304,6 +311,8 @@ func TestVolumes(t *testing.T) {
 	waitAction(t, app, c, a.Action.ID)
 	require.Len(t, taggedVMs(t, pc, sid), 1)
 
+	// The rebuilt guest reapplies the watcher user data and may power itself off with the volume back; that is expected,
+	// and nothing below assumes it is running.
 	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/volumes/%d/actions/attach", vid), map[string]any{"server": fmt.Sprint(sid)},
 		http.StatusCreated, &a)
 	waitAction(t, app, c, a.Action.ID)
