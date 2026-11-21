@@ -90,7 +90,7 @@ nebla server ssh web2 -u admin -p 2222 -- -A
 nebla server delete web2
 
 # Firewalls
-nebla firewall create --name web --label tier=web
+nebla firewall create --name web --label env=prod
 nebla firewall list
 nebla firewall add-rule web --direction in --protocol tcp --port 22 --source-ips 0.0.0.0/0
 nebla firewall apply-to-resource web --type server --server web2
@@ -102,6 +102,8 @@ nebla completion zsh              # also: bash, fish, powershell
 ```
 
 Servers, keys and other objects can be named by id or by name. A number is tried as an id first, then as a name.
+
+Firewalls are allow-lists that filter the public network only.
 
 `server create` also takes `--user-data-from-file`, `--label key=value`, `--without-ipv4`, `--with-ipv6` and
 `--start-after-create=false`. `server list` takes `--selector key=value`.

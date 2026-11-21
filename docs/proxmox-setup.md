@@ -232,7 +232,8 @@ don't apply. Datacenter rules govern traffic to the Proxmox hosts, not to the VM
 rules still allow your own access to the hosts (SSH and the web UI on port 8006).
 
 User firewalls (the rules people manage on a project's Firewalls page) need the datacenter firewall on as well. Nebla
-writes them to each server's VM firewall as a security group, and the location page in the admin area warns when the
+writes each rule directly into the server's own VM firewall rules, on its public network interface. It doesn't use Proxmox
+security groups and needs no extra privileges. The location page in the admin area warns when the
 datacenter firewall is off. Proxmox loads rule changes on a cycle of about 10 seconds, so Nebla waits about 12 seconds
 before the first start of a server that has firewalls, so the rules are in place when it boots.
 
