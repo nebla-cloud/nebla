@@ -19,7 +19,7 @@ import { serverBusyKey } from '@/features/servers/shell'
 import { useCurrentProject } from '@/lib/project'
 import { volumeStatus } from '@/lib/status'
 import { useActionPoll } from '@/lib/useActionPoll'
-import { selectClass } from '@/lib/ui'
+import { selectFullClass } from '@/lib/ui'
 import CreateVolumeModal from './CreateVolumeModal.vue'
 import VolumeDevice from './VolumeDevice.vue'
 import { attachVolume, detachVolume, useRefreshVolumes, useVolumes, volumeDone } from './queries'
@@ -226,7 +226,7 @@ function created(v: Volume, a: Action) {
         <form id="attach-to-server" class="flex flex-col gap-3" novalidate @submit.prevent="attach">
           <UAlert v-if="pickError" color="error" variant="subtle" :description="pickError" />
           <UFormField label="Volume" name="volume">
-            <select v-model="pick" name="volume" :class="selectClass">
+            <select v-model="pick" name="volume" :class="selectFullClass">
               <option v-for="v in spare" :key="v.id" :value="v.id">
                 {{ v.name }} ({{ formatSize(v.size) }})
               </option>

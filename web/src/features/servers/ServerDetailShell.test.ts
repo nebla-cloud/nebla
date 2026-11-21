@@ -201,8 +201,8 @@ describe('ServerDetailShell', () => {
       ['Graphs', '/p/1/servers/5/graphs'],
       ['Console', '/p/1/servers/5/console'],
       ['Rebuild', '/p/1/servers/5/rebuild'],
-      ['Resize', '/p/1/servers/5/resize'],
       ['Firewalls', '/p/1/servers/5/firewalls'],
+      ['Resize', '/p/1/servers/5/resize'],
       ['Volumes', '/p/1/servers/5/volumes'],
       ['Activity', '/p/1/servers/5/activity'],
     ])

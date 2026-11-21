@@ -53,7 +53,7 @@ test('create a firewall with a rule', async () => {
 test('apply to a label selector', async () => {
   await page.getByRole('button', { name: 'Add', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByText('Servers by label').click()
+  await dialog.getByRole('radio', { name: /^Servers by label/ }).check()
   await dialog.locator('input[name=selector]').fill('role=web')
   await expect(dialog.getByText('Matches 1 server right now')).toBeVisible()
   await expect(dialog.getByRole('list', { name: 'Matching servers' })).toContainText(serverName)

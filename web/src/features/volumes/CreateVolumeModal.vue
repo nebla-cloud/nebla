@@ -9,7 +9,7 @@ import { errorMessage } from '@/api/errors'
 import type { Action, Server, Volume } from '@/api/types'
 import { useLocations } from '@/features/servers-create/queries'
 import { useServers } from '@/features/servers/queries'
-import { selectClass } from '@/lib/ui'
+import { selectFullClass } from '@/lib/ui'
 import { createVolume, type VolumeInput } from './queries'
 import { MAX_SIZE_GB, MIN_SIZE_GB, serverChoices } from './serverPicker'
 
@@ -134,7 +134,7 @@ async function submit() {
         </p>
         <template v-else>
           <UFormField label="Location" name="location">
-            <select v-model="locationId" name="location" :class="selectClass">
+            <select v-model="locationId" name="location" :class="selectFullClass">
               <option v-for="l in usable" :key="l.id" :value="l.id">{{ l.name }}</option>
             </select>
           </UFormField>
@@ -144,7 +144,7 @@ async function submit() {
             hint="Optional"
             help="You can attach it later. It must be in the same location."
           >
-            <select v-model="serverId" name="server" :class="selectClass">
+            <select v-model="serverId" name="server" :class="selectFullClass">
               <option :value="null">Don't attach</option>
               <option
                 v-for="c in choices"

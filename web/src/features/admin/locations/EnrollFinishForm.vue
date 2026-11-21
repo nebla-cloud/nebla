@@ -132,7 +132,7 @@ async function submit() {
       name="volume_storage"
       help="Where project volumes live. Same as server disks uses each node's disk storage."
     >
-      <select v-model="form.vol" name="volume_storage" :class="selectClass">
+      <select v-model="form.vol" name="volume_storage" :class="selectFullClass">
         <option value="">Same as server disks</option>
         <option v-for="s in disks" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>

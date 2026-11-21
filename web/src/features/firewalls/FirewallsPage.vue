@@ -48,16 +48,16 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
         :to="{ name: 'firewall', params: { projectId, firewallId: f.id } }"
       >
         <template #leading><UIcon name="i-lucide-shield" class="size-4 text-muted" /></template>
-        {{ f.name }}
-        <template #meta>
-          {{ ruleCounts(f).inbound }} inbound · {{ ruleCounts(f).outbound }} outbound ·
-          Applied to {{ plural(appliedServerCount(f), 'server') }}
-        </template>
-        <template v-if="Object.keys(f.labels).length" #trailing>
-          <span class="hidden gap-1 sm:flex">
+        <span class="flex min-w-0 flex-col gap-1">
+          <span class="truncate">{{ f.name }}</span>
+          <span class="whitespace-normal text-sm font-normal text-muted">
+            {{ ruleCounts(f).inbound }} inbound · {{ ruleCounts(f).outbound }} outbound ·
+            Applied to {{ plural(appliedServerCount(f), 'server') }}
+          </span>
+          <span v-if="Object.keys(f.labels).length" class="hidden flex-wrap gap-1 sm:flex">
             <LabelChip v-for="(v, k) in f.labels" :key="k" :k="String(k)" :v="v" />
           </span>
-        </template>
+        </span>
       </ListRow>
     </ListGroup>
 

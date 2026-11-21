@@ -289,8 +289,9 @@ describe('CreateServerPage', () => {
       http.get('*/v1/servers/42', () => json(200, makeServer({ id: 42 }))),
       http.get('*/v1/actions/7', () => json(200, action())),
     )
-    const { router } = await mountCreate()
+    const { router, wrapper } = await mountCreate()
     expect($('input[name="firewall"]')).toBeNull()
+    expect(wrapper.findAll('[data-step] h2').map((heading) => heading.text())).not.toContain('Firewalls')
     createButton().click()
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
     expect(bodies[0]).not.toHaveProperty('firewalls')

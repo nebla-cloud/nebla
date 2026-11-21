@@ -142,7 +142,7 @@ function remove() {
     <p v-else-if="!volume" class="text-muted">Loading volume…</p>
 
     <template v-else>
-      <PageHeader :title="volume.name">
+      <PageHeader :title="volume.name" class="max-sm:flex-col max-sm:items-stretch">
         <template #meta>
           <span class="inline-flex items-center gap-1.5 font-medium">
             <StatusDot kind="volume" :status="volume.status" />{{ status?.label }}
@@ -194,13 +194,13 @@ function remove() {
       <UAlert v-if="actionError" color="error" variant="subtle" :description="actionError" />
 
       <Panel title="Details">
-        <dl class="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
+        <dl class="grid grid-cols-[minmax(4.5rem,8rem)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           <dt class="text-muted">Size</dt>
           <dd class="tabular-nums">{{ formatSize(volume.size) }}</dd>
           <dt class="text-muted">Location</dt>
-          <dd>{{ volume.location.name }}</dd>
+          <dd class="wrap-anywhere">{{ volume.location.name }}</dd>
           <dt class="text-muted">Server</dt>
-          <dd>
+          <dd class="wrap-anywhere">
             <RouterLink
               v-if="volume.server !== null"
               :to="{ name: 'server', params: { projectId, serverId: volume.server } }"

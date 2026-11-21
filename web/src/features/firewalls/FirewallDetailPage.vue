@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
@@ -11,6 +11,7 @@ import { ApiError, errorMessage } from '@/api/errors'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import LabelChip from '@/components/LabelChip.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import { useCrumbs } from '@/lib/crumbs'
 import { parseProjectId, useCurrentProject } from '@/lib/project'
 import { canWrite } from '@/lib/roles'
 import AppliedToPanel from './AppliedToPanel.vue'
@@ -24,6 +25,10 @@ const { projectId, project } = useCurrentProject()
 const writable = computed(() => canWrite(project.value?.role))
 const id = computed(() => parseProjectId(route.params.firewallId) ?? 0)
 const { data: firewall, error } = useFirewall(id)
+useCrumbs(() => [
+  { label: 'Firewalls', to: { name: 'firewalls', params: { projectId: projectId.value } } },
+  { label: firewall.value?.name ?? 'Firewall' },
+])
 const notFound = computed(() => error.value instanceof ApiError && error.value.status === 404)
 
 const rename = useRenameFirewall()
@@ -66,19 +71,6 @@ async function confirmDelete() {
 
 <template>
   <div class="flex max-w-4xl flex-col gap-5">
-    <nav aria-label="Breadcrumb" class="text-sm text-muted">
-      <RouterLink
-        :to="{ name: 'firewalls', params: { projectId } }"
-        class="hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
-      >
-        Firewalls
-      </RouterLink>
-      <template v-if="firewall">
-        <span aria-hidden="true"> / </span>
-        <span aria-current="page" class="text-default">{{ firewall.name }}</span>
-      </template>
-    </nav>
-
     <UAlert v-if="notFound" color="error" variant="subtle" description="This firewall doesn't exist." />
     <UAlert
       v-else-if="error && !firewall"
@@ -89,7 +81,7 @@ async function confirmDelete() {
     <p v-else-if="!firewall" class="text-muted">Loading firewall…</p>
 
     <template v-else>
-      <PageHeader :title="firewall.name">
+      <PageHeader :title="firewall.name" class="max-sm:flex-col max-sm:items-stretch">
         <template v-if="Object.keys(firewall.labels).length" #meta>
           <span class="flex flex-wrap gap-1">
             <LabelChip v-for="(v, k) in firewall.labels" :key="k" :k="String(k)" :v="v" />

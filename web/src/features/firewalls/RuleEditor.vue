@@ -86,96 +86,100 @@ async function save() {
           :aria-label="`Add ${s.title.toLowerCase()} rule`"
           @click="add(s.dir)"
         >
-          Add rule
+          Add {{ s.title.toLowerCase() }} rule
         </UButton>
       </template>
       <p v-if="!rows[s.dir].length" class="text-sm text-muted">
         {{ s.dir === 'in' ? 'No inbound traffic is allowed.' : 'No outbound traffic is allowed.' }}
       </p>
       <div v-else :class="ui.tableWrap">
-        <table :class="ui.table">
-          <thead :class="ui.thead">
-            <tr>
-              <th :class="ui.th">Protocol</th>
-              <th :class="ui.th">Port</th>
-              <th :class="ui.th">{{ s.ips }}</th>
-              <th :class="ui.th">Description</th>
-              <th v-if="writable" :class="ui.th"><span class="sr-only">Remove</span></th>
-            </tr>
-          </thead>
-          <tbody :class="ui.tbody">
-            <tr v-for="(r, i) in rows[s.dir]" :key="i" :class="ui.tr">
-              <template v-if="writable">
-                <td :class="ui.td">
-                  <select
-                    v-model="r.protocol"
-                    :name="`${s.dir}-${i}-protocol`"
-                    :aria-label="`Protocol, ${s.title} rule ${i + 1}`"
-                    :class="ui.selectClass"
-                  >
-                    <option v-for="p in PROTOCOLS" :key="p" :value="p">{{ p }}</option>
-                  </select>
-                </td>
-                <td :class="ui.td">
-                  <UInput
-                    v-if="hasPort(r.protocol)"
-                    v-model="r.port"
-                    :name="`${s.dir}-${i}-port`"
-                    :aria-label="`Port, ${s.title} rule ${i + 1}`"
-                    :color="err(s.dir, i).port ? 'error' : undefined"
-                    :highlight="!!err(s.dir, i).port"
-                    placeholder="22"
-                    class="w-28 font-mono"
-                  />
-                  <span v-else class="text-muted">Any</span>
-                  <p v-if="err(s.dir, i).port" class="mt-1 text-xs text-error">
-                    {{ err(s.dir, i).port }}
-                  </p>
-                </td>
-                <td :class="ui.td">
-                  <UInput
-                    v-model="r.ips"
-                    :name="`${s.dir}-${i}-ips`"
-                    :aria-label="`${s.ips}, ${s.title} rule ${i + 1}`"
-                    :highlight="!!err(s.dir, i).ips"
-                    :color="err(s.dir, i).ips ? 'error' : undefined"
-                    class="w-full min-w-48 font-mono"
-                  />
-                  <p v-if="err(s.dir, i).ips" class="mt-1 text-xs text-error">
-                    {{ err(s.dir, i).ips }}
-                  </p>
-                </td>
-                <td :class="ui.td">
-                  <UInput
-                    v-model="r.description"
-                    :name="`${s.dir}-${i}-description`"
-                    :aria-label="`Description, ${s.title} rule ${i + 1}`"
-                    class="w-full"
-                  />
-                  <p v-if="err(s.dir, i).description" class="mt-1 text-xs text-error">
-                    {{ err(s.dir, i).description }}
-                  </p>
-                </td>
-                <td :class="ui.td">
-                  <UButton
-                    color="neutral"
-                    variant="ghost"
-                    size="sm"
-                    icon="i-lucide-x"
-                    :aria-label="`Remove ${s.title.toLowerCase()} rule ${i + 1}`"
-                    @click="remove(s.dir, i)"
-                  />
-                </td>
-              </template>
-              <template v-else>
-                <td :class="ui.td" class="font-mono">{{ r.protocol }}</td>
-                <td :class="ui.td" class="font-mono">{{ hasPort(r.protocol) ? r.port : 'Any' }}</td>
-                <td :class="ui.td" class="font-mono">{{ r.ips }}</td>
-                <td :class="ui.td" class="text-muted">{{ r.description }}</td>
-              </template>
-            </tr>
-          </tbody>
-        </table>
+        <div class="overflow-x-auto">
+          <table :class="ui.table">
+            <thead :class="ui.thead">
+              <tr>
+                <th :class="ui.th">Protocol</th>
+                <th :class="ui.th">Port</th>
+                <th :class="ui.th">{{ s.ips }}</th>
+                <th :class="ui.th">Description</th>
+                <th v-if="writable" :class="ui.th"><span class="sr-only">Remove</span></th>
+              </tr>
+            </thead>
+            <tbody :class="ui.tbody">
+              <tr v-for="(r, i) in rows[s.dir]" :key="i" :class="ui.tr">
+                <template v-if="writable">
+                  <td :class="ui.td">
+                    <select
+                      v-model="r.protocol"
+                      :name="`${s.dir}-${i}-protocol`"
+                      :aria-label="`Protocol, ${s.title} rule ${i + 1}`"
+                      :class="ui.selectClass"
+                    >
+                      <option v-for="p in PROTOCOLS" :key="p" :value="p">{{ p }}</option>
+                    </select>
+                  </td>
+                  <td :class="ui.td">
+                    <UInput
+                      v-if="hasPort(r.protocol)"
+                      v-model="r.port"
+                      :name="`${s.dir}-${i}-port`"
+                      :aria-label="`Port, ${s.title} rule ${i + 1}`"
+                      :color="err(s.dir, i).port ? 'error' : undefined"
+                      :highlight="!!err(s.dir, i).port"
+                      placeholder="22"
+                      class="w-28 font-mono"
+                    />
+                    <span v-else class="text-muted">Any</span>
+                    <p v-if="err(s.dir, i).port" class="mt-1 text-xs text-error">
+                      {{ err(s.dir, i).port }}
+                    </p>
+                  </td>
+                  <td :class="ui.td">
+                    <UInput
+                      v-model="r.ips"
+                      :name="`${s.dir}-${i}-ips`"
+                      :aria-label="`${s.ips}, ${s.title} rule ${i + 1}`"
+                      :highlight="!!err(s.dir, i).ips"
+                      :color="err(s.dir, i).ips ? 'error' : undefined"
+                      class="w-full min-w-40 font-mono"
+                    />
+                    <p v-if="err(s.dir, i).ips" class="mt-1 text-xs text-error">
+                      {{ err(s.dir, i).ips }}
+                    </p>
+                  </td>
+                  <td :class="ui.td">
+                    <UInput
+                      v-model="r.description"
+                      :name="`${s.dir}-${i}-description`"
+                      :aria-label="`Description, ${s.title} rule ${i + 1}`"
+                      class="w-full"
+                    />
+                    <p v-if="err(s.dir, i).description" class="mt-1 text-xs text-error">
+                      {{ err(s.dir, i).description }}
+                    </p>
+                  </td>
+                  <td :class="ui.td">
+                    <UButton
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      icon="i-lucide-x"
+                      :aria-label="`Remove ${s.title.toLowerCase()} rule ${i + 1}`"
+                      @click="remove(s.dir, i)"
+                    />
+                  </td>
+                </template>
+                <template v-else>
+                  <td :class="ui.td" class="font-mono">{{ r.protocol }}</td>
+                  <td :class="ui.td" class="font-mono">
+                    {{ hasPort(r.protocol) ? r.port : 'Any' }}
+                  </td>
+                  <td :class="ui.td" class="wrap-anywhere font-mono">{{ r.ips }}</td>
+                  <td :class="ui.td" class="wrap-anywhere text-muted">{{ r.description }}</td>
+                </template>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </Panel>
 

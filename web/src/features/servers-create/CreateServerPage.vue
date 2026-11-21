@@ -405,9 +405,7 @@ const cards = 'flex flex-wrap gap-2.5'
 
           <!-- New sections: add a <Step> here; numbers follow position. -->
 
-          <Step title="Firewalls" :done="firewallIds.length > 0">
-            <FirewallPicker v-model="firewallIds" />
-          </Step>
+          <FirewallPicker v-model="firewallIds" />
 
           <Step title="Cloud-init" :done="form.userData.trim() !== ''">
             <UCollapsible :unmount-on-hide="false">

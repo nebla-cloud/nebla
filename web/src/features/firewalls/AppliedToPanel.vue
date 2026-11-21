@@ -17,7 +17,7 @@ import Panel from '@/components/Panel.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import { useServers } from '@/features/servers/queries'
 import { useCurrentProject } from '@/lib/project'
-import { selectClass } from '@/lib/ui'
+import { selectFullClass } from '@/lib/ui'
 import ActionsProgress from './ActionsProgress.vue'
 import { useApplyTo, useRemoveFrom, type Firewall, type FirewallResource } from './queries'
 
@@ -166,7 +166,7 @@ function remove(r: FirewallResource) {
             name="server"
             :error="formError ?? undefined"
           >
-            <select v-model="serverId" name="server" :class="selectClass">
+            <select v-model="serverId" name="server" :class="selectFullClass">
               <option value="" disabled>Pick a server</option>
               <option v-for="s in candidates" :key="s.id" :value="String(s.id)">{{ s.name }}</option>
             </select>

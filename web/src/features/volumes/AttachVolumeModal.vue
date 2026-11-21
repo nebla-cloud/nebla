@@ -7,7 +7,7 @@ import UModal from '@nuxt/ui/components/Modal.vue'
 import { errorMessage } from '@/api/errors'
 import type { Action, Volume } from '@/api/types'
 import { useServers } from '@/features/servers/queries'
-import { selectClass } from '@/lib/ui'
+import { selectFullClass } from '@/lib/ui'
 import { attachVolume } from './queries'
 import { serverChoices } from './serverPicker'
 
@@ -58,7 +58,7 @@ async function submit() {
         <p v-if="isPending" class="text-muted">Loading servers…</p>
         <p v-else-if="!choices.length" class="text-muted">This project has no servers yet.</p>
         <UFormField v-else label="Server" name="server">
-          <select v-model="serverId" name="server" :class="selectClass">
+          <select v-model="serverId" name="server" :class="selectFullClass">
             <option :value="null" disabled>Pick a server</option>
             <option
               v-for="c in choices"

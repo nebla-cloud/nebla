@@ -22,6 +22,7 @@ import { osLabel } from './osLabel'
 import { useServers } from './queries'
 import RowSparkline from './RowSparkline.vue'
 import { availableImages, availableTypes, type Image } from '../servers-create/createServer'
+import { locationsKey } from '../servers-create/queries'
 import { filterServers, parseStatusFilter, type StatusFilter } from './statusFilter'
 
 const { projectId, project } = useCurrentProject()
@@ -40,7 +41,7 @@ function shellArg(name: string | undefined, placeholder: string): string {
 
 const cliLine = computed(() => {
   const id = projectId.value
-  const location = queryClient.getQueryData<Location[]>(['locations', id])?.[0]
+  const location = queryClient.getQueryData<Location[]>(locationsKey(id))?.[0]
   const types = queryClient.getQueryData<ServerType[]>(['server-types', id]) ?? []
   const images = queryClient.getQueryData<Image[]>(['images', id]) ?? []
   const type = location

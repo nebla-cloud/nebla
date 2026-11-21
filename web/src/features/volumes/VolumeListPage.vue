@@ -74,14 +74,14 @@ function created(v: Volume, a: Action) {
         :to="{ name: 'volume', params: { projectId, volumeId: v.id } }"
       >
         <template #leading><StatusDot kind="volume" :status="v.status" /></template>
-        {{ v.name }}
-        <template #meta>
-          <span class="flex flex-wrap justify-end gap-x-4">
+        <span class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <span class="min-w-0 truncate">{{ v.name }}</span>
+          <span class="flex min-w-0 flex-wrap gap-x-4 text-sm font-normal whitespace-normal text-muted">
             <span class="tabular-nums">{{ formatSize(v.size) }}</span>
             <span class="hidden sm:inline">{{ v.location.name }}</span>
-            <span>{{ state(v) }}</span>
+            <span class="wrap-anywhere">{{ state(v) }}</span>
           </span>
-        </template>
+        </span>
       </ListRow>
     </ListGroup>
     <EmptyState
