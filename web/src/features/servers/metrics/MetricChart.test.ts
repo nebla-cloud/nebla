@@ -195,6 +195,18 @@ describe('MetricChart', () => {
     expect(header(n)).toBe('2.0 KB/s')
   })
 
+  it('hovering does not hand Unovis new accessors', async () => {
+    const c = mount(MetricChart, { props: network })
+    await flushPromises()
+    const before = lastOf('VisArea', 2).map((a) => a.y)
+    crosshairOf(c).onCrosshairMove(0)
+    await flushPromises()
+    const after = lastOf('VisArea', 2).map((a) => a.y)
+    expect(header(c)).toBe('100 B/s')
+    expect(after[0]).toBe(before[0])
+    expect(after[1]).toBe(before[1])
+  })
+
   it('mouseleave clears hover', async () => {
     const c = mount(MetricChart, { props: cpu })
     await flushPromises()

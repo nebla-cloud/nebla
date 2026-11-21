@@ -164,6 +164,18 @@ describe('timeTicks', () => {
     const t0 = Date.UTC(2026, 10, 20, 15, 0) / 1000
     expect(timeTicks(t0, t0 + 3600, 'UTC')[0]).toBe(t0 + 900)
   })
+  it('day ticks stay on local midnight across a clock change', () => {
+    const t0 = Date.UTC(2026, 9, 21, 12) / 1000 // a week ending after the 25 Oct change
+    const ticks = timeTicks(t0, t0 + 7 * 86400, 'Europe/London')
+    const time = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+    expect(ticks.length).toBeGreaterThan(0)
+    for (const t of ticks) expect(time.format(t * 1000)).toBe('00:00')
+  })
   it('no span gives no ticks', () => expect(timeTicks(5, 5)).toEqual([]))
 })
 

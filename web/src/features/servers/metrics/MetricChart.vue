@@ -83,7 +83,8 @@ const span = computed(() => (props.rows.length ? props.rows.at(-1)!.t - props.ro
 
 const x = (r: MetricRow) => r.t
 const areaY = (i: number) => (r: MetricRow) => r.v[i] ?? undefined
-const lineY = computed(() => props.series.map((_, i) => areaY(i)))
+// Built once per series list: Unovis compares accessors by reference and redraws on a new one.
+const ys = computed(() => props.series.map((_, i) => areaY(i)))
 const lineColor = (_: unknown, i: number) => color(i)
 // The crosshair counts every accessor: the areas first, then the line's series.
 const dotColor = (_: unknown, i: number) => color(i % props.series.length)
@@ -167,13 +168,13 @@ const noLabel = () => ''
           v-for="(s, i) in series"
           :key="s.label"
           :x="x"
-          :y="areaY(i)"
+          :y="ys[i]"
           :color="`url(#${fillId(i)})`"
           :curveType="CurveType.MonotoneX"
         />
         <VisLine
           :x="x"
-          :y="lineY"
+          :y="ys"
           :color="lineColor"
           :lineWidth="2"
           :curveType="CurveType.MonotoneX"

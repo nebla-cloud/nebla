@@ -112,12 +112,17 @@ export function timeTicks(t0: number, t1: number, timeZone?: string): number[] {
   const span = t1 - t0
   if (span <= 0) return []
   const step = TIME_STEPS.find((s) => span / s <= 5) ?? TIME_STEPS.at(-1)!
-  const off = tzOffset(t0, timeZone)
   const out: number[] = []
   // A tick within a quarter step of either end would have its label cut off at the edge.
   const pad = step / 4
-  for (let t = Math.ceil((t0 + off) / step) * step - off; t <= t1; t += step)
+  // Step through wall-clock time and convert each tick back, so a clock change mid-range
+  // doesn't shift later ticks off the hour or midnight.
+  for (let wall = Math.ceil((t0 + tzOffset(t0, timeZone)) / step) * step; ; wall += step) {
+    let t = wall - tzOffset(wall - tzOffset(t0, timeZone), timeZone)
+    t = wall - tzOffset(t, timeZone)
+    if (t > t1) break
     if (t - t0 >= pad && t1 - t >= pad) out.push(t)
+  }
   return out
 }
 
