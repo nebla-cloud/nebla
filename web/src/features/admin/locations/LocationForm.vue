@@ -28,6 +28,7 @@ const form = reactive({
   disk_storage: props.location?.disk_storage ?? '',
   iso_storage: props.location?.iso_storage ?? '',
   import_storage: props.location?.import_storage ?? '',
+  volume_storage: props.location?.volume_storage ?? '',
 })
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
@@ -63,6 +64,7 @@ function body(): LocationInput {
   if (edit || fingerprint) out.pve.ca_fingerprint = fingerprint
   if (edit || form.description.trim()) out.description = form.description.trim()
   if (edit || form.import_storage.trim()) out.import_storage = form.import_storage.trim()
+  if (edit || form.volume_storage.trim()) out.volume_storage = form.volume_storage.trim()
   return out
 }
 
@@ -191,6 +193,19 @@ async function submit() {
         <UInput
           v-model="form.import_storage"
           name="import_storage"
+          autocomplete="off"
+          class="w-full"
+        />
+      </UFormField>
+      <UFormField
+        label="Volume storage"
+        name="volume_storage"
+        help="Storage with the images content type for project volumes. Leave blank to use the same storage as server disks."
+      >
+        <UInput
+          v-model="form.volume_storage"
+          name="volume_storage"
+          placeholder="Same as server disks"
           autocomplete="off"
           class="w-full"
         />

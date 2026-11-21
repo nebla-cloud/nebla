@@ -1,4 +1,4 @@
-import type { Server } from '@/api/types'
+import type { Server, Volume } from '@/api/types'
 
 export type StatusTone = 'success' | 'busy' | 'neutral' | 'error'
 
@@ -24,4 +24,28 @@ export function serverStatus(s: Server['status']): {
 
 export function isTransitional(s: Server['status']): boolean {
   return serverStatus(s).pulse
+}
+
+const volumeStatuses: Record<
+  Volume['status'],
+  { label: string; tone: StatusTone; pulse: boolean }
+> = {
+  creating: { label: 'Creating', tone: 'busy', pulse: true },
+  available: { label: 'Not attached', tone: 'neutral', pulse: false },
+  attached: { label: 'Attached', tone: 'success', pulse: false },
+  deleting: { label: 'Deleting', tone: 'busy', pulse: true },
+  missing: { label: 'Missing', tone: 'error', pulse: false },
+  error: { label: 'Error', tone: 'error', pulse: false },
+}
+
+export function volumeStatus(s: Volume['status']): {
+  label: string
+  tone: StatusTone
+  pulse: boolean
+} {
+  return { ...(volumeStatuses[s] ?? { label: s, tone: 'neutral', pulse: false }) }
+}
+
+export function isVolumeTransitional(s: Volume['status']): boolean {
+  return volumeStatus(s).pulse
 }

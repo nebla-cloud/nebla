@@ -44,6 +44,22 @@ async function fillCreate(w: ReturnType<typeof mountApp>['wrapper'], name = 'hom
 }
 
 describe('LocationForm', () => {
+  it('sends a volume storage only when one is set', async () => {
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post('*/v1/admin/locations', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return json(201, existing)
+      }),
+    )
+    const { wrapper } = mountApp(LocationForm)
+    await fillCreate(wrapper)
+    await wrapper.find('input[name="volume_storage"]').setValue('ceph')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(body.volume_storage).toBe('ceph')
+  })
+
   it('create sends the location input', async () => {
     let body: unknown
     server.use(

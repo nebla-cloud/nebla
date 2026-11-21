@@ -29,7 +29,7 @@ const imports = computed(() =>
   report.value.storages.filter((s) => s.nebla_iso && s.content.includes('import')),
 )
 
-const form = reactive({ url: '', disk: '', iso: '', imp: '' })
+const form = reactive({ url: '', disk: '', iso: '', imp: '', vol: '' })
 const initialUrl = ref('')
 const ready = ref(false)
 // Offline members may have no ip; the start URL is already in the input.
@@ -49,6 +49,7 @@ watch(
     form.disk = pick(disks.value, loc?.disk_storage, disks.value[0]?.id ?? '')
     form.iso = pick(isos.value, loc?.iso_storage, isos.value[0]?.id ?? '')
     form.imp = pick(imports.value, loc?.import_storage, '')
+    form.vol = pick(disks.value, loc?.volume_storage, '')
     initialUrl.value = form.url
     ready.value = true
   },
@@ -67,6 +68,7 @@ async function submit() {
     iso_storage: form.iso,
   }
   if (form.imp) body.import_storage = form.imp
+  if (rerun.value || form.vol) body.volume_storage = form.vol
   try {
     emit('finished', await finish.mutateAsync(body))
   } catch (e) {
@@ -124,6 +126,16 @@ async function submit() {
       <select v-model="form.imp" name="import_storage" :class="selectClass">
         <option value="">None</option>
         <option v-for="s in imports" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
+      </select>
+    </UFormField>
+    <UFormField
+      label="Volume storage"
+      name="volume_storage"
+      help="Where project volumes live. Same as server disks uses each node's disk storage."
+    >
+      <select v-model="form.vol" name="volume_storage" :class="selectClass">
+        <option value="">Same as server disks</option>
+        <option v-for="s in disks" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>
     </UFormField>
 

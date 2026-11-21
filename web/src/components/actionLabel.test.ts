@@ -29,5 +29,6 @@ describe('actionLabel', () => {
     expect(actionLabel('reboot_server')).toBe('Rebooting')
     expect(actionLabel('change_server_type')).toBe('Resizing')
     expect(actionLabel('attach_iso')).toBe('Attach iso')
+    expect(actionLabel('attach_volume')).toBe('Attaching volume')
   })
 })

@@ -95,10 +95,9 @@ describe('nav flag', () => {
   beforeEach(() => queryClient.clear())
 
   const hidden = () => {
-    const r = createAppRouter(createMemoryHistory())
-      .getRoutes()
-      .find((x) => x.name === 'admin-get-ready')!
-    return r.meta.nav!.hidden!()
+    const router = createAppRouter(createMemoryHistory())
+    const r = router.getRoutes().find((x) => x.name === 'admin-get-ready')!
+    return r.meta.nav!.hidden!(router.currentRoute.value)
   }
 
   it('follows the cache without visiting the root', async () => {

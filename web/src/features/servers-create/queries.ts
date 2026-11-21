@@ -8,11 +8,15 @@ import type { Image } from './createServer'
 
 const PAGE = { params: { query: { per_page: 50 } } }
 
+export const locationsKey = (projectId: number) => ['locations', projectId]
+export const fetchLocations = async (): Promise<Location[]> =>
+  unwrap(await api.GET('/locations', PAGE)).locations
+
 export function useLocations() {
   const { projectId } = useCurrentProject()
   return useQuery({
-    queryKey: computed(() => ['locations', projectId.value]),
-    queryFn: async (): Promise<Location[]> => unwrap(await api.GET('/locations', PAGE)).locations,
+    queryKey: computed(() => locationsKey(projectId.value)),
+    queryFn: fetchLocations,
     enabled: computed(() => projectId.value > 0),
   })
 }

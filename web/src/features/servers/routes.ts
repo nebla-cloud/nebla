@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
+import volumeTabs from '@/features/volumes/serverTabs'
 
 export const side = 'project'
 
@@ -44,6 +45,7 @@ export default [
         component: () => import('./tabs/ResizeTab.vue'),
         meta: { side: 'project' },
       },
+      ...volumeTabs, // redesign: remove, serverTabs.ts glob covers it
       {
         path: 'activity',
         name: 'server-activity',

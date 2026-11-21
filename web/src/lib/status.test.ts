@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isTransitional, serverStatus } from './status'
+import { isTransitional, isVolumeTransitional, serverStatus, volumeStatus } from './status'
 
 describe('serverStatus', () => {
   it('maps every status', () => {
@@ -25,5 +25,19 @@ describe('serverStatus', () => {
     }
     expect(isTransitional('running')).toBe(false)
     expect(isTransitional('error')).toBe(false)
+  })
+})
+
+describe('volumeStatus', () => {
+  it('maps volume statuses', () => {
+    expect(volumeStatus('attached')).toEqual({ label: 'Attached', tone: 'success', pulse: false })
+    expect(volumeStatus('available')).toEqual({ label: 'Not attached', tone: 'neutral', pulse: false })
+    expect(volumeStatus('creating').tone).toBe('busy')
+    expect(volumeStatus('error').tone).toBe('error')
+  })
+  it('polls only while creating or deleting', () => {
+    expect(isVolumeTransitional('creating')).toBe(true)
+    expect(isVolumeTransitional('deleting')).toBe(true)
+    expect(isVolumeTransitional('attached')).toBe(false)
   })
 })

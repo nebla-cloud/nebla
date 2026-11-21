@@ -25,6 +25,7 @@ const tabs = [
   { name: 'server-rebuild', label: 'Rebuild' },
   { name: 'server-resize', label: 'Resize' },
   { name: 'server-firewalls', label: 'Firewalls' }, // redesign: remove, serverTab meta covers it
+  { name: 'server-volumes', label: 'Volumes' }, // redesign: remove, serverTab meta covers it
   { name: 'server-activity', label: 'Activity' },
 ]
 

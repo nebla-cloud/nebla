@@ -13,7 +13,13 @@ export type Side = 'project' | 'admin' | 'root'
 declare module 'vue-router' {
   interface RouteMeta {
     side?: Side
-    nav?: { label: string; order: number; icon?: string; group?: string; hidden?: () => boolean }
+    nav?: {
+      label: string
+      order: number
+      icon?: string
+      group?: string
+      hidden?: (route: RouteLocationNormalizedLoaded) => boolean
+    }
     public?: boolean
     roles?: Role[]
     guestOnly?: boolean
@@ -41,14 +47,12 @@ const SOON: NavItem[] = [
 ]
 
 export function navItems(router: Router, side: Exclude<Side, 'root'>, role?: Role): NavItem[] {
-  const real: NavItem[] = router
-    .getRoutes()
+  const route = router.currentRoute.value
+  const onSide = router.getRoutes().filter((r) => r.meta.side === side && r.meta.nav && r.name)
+  const real: NavItem[] = onSide
     .filter(
       (r) =>
-        r.meta.side === side &&
-        r.meta.nav &&
-        r.name &&
-        !r.meta.nav.hidden?.() &&
+        !r.meta.nav!.hidden?.(route) &&
         (!r.meta.roles || (role !== undefined && r.meta.roles.includes(role))),
     )
     .map((r) => ({
@@ -58,7 +62,9 @@ export function navItems(router: Router, side: Exclude<Side, 'root'>, role?: Rol
       icon: r.meta.nav!.icon ?? 'i-lucide-circle-dot',
       group: r.meta.nav!.group ?? null,
     }))
-  const soon = side === 'project' ? SOON.filter((s) => !real.some((r) => r.label === s.label)) : []
+  // A real route replaces its soon entry, even while the route itself is hidden.
+  const soon =
+    side === 'project' ? SOON.filter((s) => !onSide.some((r) => r.meta.nav!.label === s.label)) : []
   return [...real, ...soon].sort(
     (a, b) => groupRank(a.group) - groupRank(b.group) || a.order - b.order,
   )

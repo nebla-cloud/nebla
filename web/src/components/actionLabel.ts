@@ -9,6 +9,11 @@ const labels: Record<string, string> = {
   rebuild_server: 'Rebuilding',
   change_server_type: 'Resizing',
   apply_firewalls: 'Applying firewalls',
+  create_volume: 'Creating volume',
+  attach_volume: 'Attaching volume',
+  detach_volume: 'Detaching volume',
+  resize_volume: 'Resizing volume',
+  delete_volume: 'Deleting volume',
 }
 
 const done: Record<string, string> = {

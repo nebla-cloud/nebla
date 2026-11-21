@@ -186,6 +186,8 @@ describe('EnrollPage', () => {
     expect(opts('disk_storage')).toEqual(['local-lvm'])
     expect(opts('iso_storage')).toEqual(['nebla-iso'])
     expect(opts('import_storage')).toEqual(['', 'nebla-iso', 'nebla-imp'])
+    expect(opts('volume_storage')).toEqual(['', 'local-lvm'])
+    expect(wrapper.find('select[name=volume_storage] option').text()).toBe('Same as server disks')
     expect((wrapper.find('input[name=url]').element as HTMLInputElement).value).toBe(
       'https://10.0.0.1:8006',
     )
@@ -247,6 +249,7 @@ describe('EnrollPage', () => {
       expect(val(wrapper, 'select[name=disk_storage]')).toBe('ceph')
       expect(val(wrapper, 'select[name=iso_storage]')).toBe('nebla-iso2')
       expect(val(wrapper, 'select[name=import_storage]')).toBe('nebla-imp')
+      expect(val(wrapper, 'select[name=volume_storage]')).toBe('')
       expect(urlOpts(wrapper)).toEqual(['', 'https://10.0.0.1:8006', 'https://10.0.0.2:8006'])
       expect(button(wrapper, 'Save')).toBeTruthy()
     })
