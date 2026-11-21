@@ -24,6 +24,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/volumes/vref"
@@ -149,11 +150,7 @@ type ListFilter struct {
 	Name, LabelSelector, Status, Server, Location string
 }
 
-var (
-	nameRE       = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-	labelKeyRE   = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._/-]{0,61}[a-zA-Z0-9])?$`)
-	labelValueRE = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9._-]{0,61}[a-zA-Z0-9])?)?$`)
-)
+var nameRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func validName(n string) error {
 	if !nameRE.MatchString(n) {
@@ -167,11 +164,11 @@ func validLabels(l map[string]string) error {
 		return invalid("at most %d labels", MaxLabels)
 	}
 	for k, v := range l {
-		if !labelKeyRE.MatchString(k) {
-			return invalid("label key %q must match %s", k, labelKeyRE)
+		if !labels.KeyRE.MatchString(k) {
+			return invalid("label key %q must match %s", k, labels.KeyRE)
 		}
-		if !labelValueRE.MatchString(v) {
-			return invalid("label value %q must match %s", v, labelValueRE)
+		if !labels.ValueRE.MatchString(v) {
+			return invalid("label value %q must match %s", v, labels.ValueRE)
 		}
 	}
 	return nil
@@ -730,41 +727,26 @@ func labelsHave(k string) predicate.Volume {
 	}
 }
 
-// LabelSelector parses comma-separated k=v, k!=v, k and !k terms, as servers.LabelSelector does.
+// LabelSelector converts the shared selector terms into volume predicates.
 func LabelSelector(sel string) ([]predicate.Volume, error) {
 	if strings.TrimSpace(sel) == "" {
 		return nil, nil
 	}
-	var out []predicate.Volume
-	for term := range strings.SplitSeq(sel, ",") {
-		term = strings.TrimSpace(term)
-		key, val, op := term, "", ""
-		switch {
-		case strings.HasPrefix(term, "!"):
-			key, op = term[1:], "!"
-		case strings.Contains(term, "!="):
-			key, val, _ = strings.Cut(term, "!=")
-			op = "!="
-		case strings.Contains(term, "="):
-			key, val, _ = strings.Cut(term, "=")
-			op = "="
-		}
-		key, val = strings.TrimSpace(key), strings.TrimSpace(val)
-		if !labelKeyRE.MatchString(key) {
-			return nil, invalid("label_selector: bad key in %q", term)
-		}
-		if (op == "=" || op == "!=") && !labelValueRE.MatchString(val) {
-			return nil, invalid("label_selector: bad value in %q", term)
-		}
-		switch op {
-		case "":
-			out = append(out, labelsHave(key))
-		case "!":
-			out = append(out, volume.Not(labelsHave(key)))
-		case "=":
-			out = append(out, labelsContain(key, val))
-		case "!=":
-			out = append(out, volume.Not(labelsContain(key, val)))
+	terms, err := labels.Parse(sel)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]predicate.Volume, 0, len(terms))
+	for _, term := range terms {
+		switch term.Op {
+		case labels.Has:
+			out = append(out, labelsHave(term.Key))
+		case labels.Lacks:
+			out = append(out, volume.Not(labelsHave(term.Key)))
+		case labels.Eq:
+			out = append(out, labelsContain(term.Key, term.Value))
+		case labels.Ne:
+			out = append(out, volume.Not(labelsContain(term.Key, term.Value)))
 		}
 	}
 	return out, nil
