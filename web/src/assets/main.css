@@ -58,6 +58,10 @@
   /* White is 2.2:1 on the gradient's mint end; ink is 6:1 or better along it, in both modes. */
   --nb-on-gradient: #15181D;
   --nb-radius-panel: 0.875rem;
+  /* Terminal blocks stay dark in both modes; #98A2AE is 6.4:1 on both backgrounds. */
+  --nb-term-bg: #15181D;
+  --nb-term-fg: #DCE1E6;
+  --nb-term-muted: #98A2AE;
 }
 
 .dark {
@@ -82,6 +86,7 @@
   --nb-busy-fg: #78B4F0;
   --nb-ring: #3A414B;
   --nb-focus: #EDF0F3;
+  --nb-term-bg: #0F1216;
 }
 
 /* Unlayered so it beats Nuxt UI's translucent focus utilities. */
