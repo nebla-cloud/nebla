@@ -17,7 +17,7 @@ const last = computed(() => projects.value?.find((p) => p.id === lastId))
 </script>
 
 <template>
-  <ShellFrame ink label="Admin menu" :nav="nav">
+  <ShellFrame ink side="admin" label="Admin menu" :nav="nav">
     <template #sidebar>
       <div class="flex min-w-0 flex-1 flex-col gap-3.5 px-3 py-4">
         <!-- The ink sidebar is dark in both modes, so the lockup is drawn in white. -->

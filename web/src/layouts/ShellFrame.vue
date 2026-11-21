@@ -2,10 +2,16 @@
 import { computed, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import USlideover from '@nuxt/ui/components/Slideover.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 import { isActive, type NavItem } from '@/router/nav'
 import TopBar from './TopBar.vue'
 
-const props = defineProps<{ ink?: boolean; label: string; nav?: NavItem[] }>()
+const props = defineProps<{
+  ink?: boolean
+  label: string
+  nav?: NavItem[]
+  side: 'project' | 'admin'
+}>()
 const route = useRoute()
 const router = useRouter()
 const open = ref(false)
@@ -61,6 +67,7 @@ const sidebar = computed(() =>
           <span v-if="title" class="text-muted lg:hidden" aria-hidden="true">/</span>
         </template>
         <template #actions>
+          <CommandPalette :side="side" />
           <slot name="actions" />
         </template>
       </TopBar>

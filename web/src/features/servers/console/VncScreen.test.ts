@@ -59,6 +59,11 @@ afterEach(() => {
 })
 
 describe('VncScreen', () => {
+  it('marks its root as the console so the page shortcuts leave keys to the VM', () => {
+    const { w } = mountScreen()
+    expect(w.element.hasAttribute('data-console')).toBe(true)
+  })
+
   it('passes the password as the VNC credential', () => {
     const { rfb } = mountScreen()
     expect(rfb.options).toEqual({ credentials: { password: 'pw' } })

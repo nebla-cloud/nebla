@@ -26,9 +26,9 @@ function serverListQuery(selector: Ref<string> | undefined, enabled: Ref<boolean
   }
 }
 
-export function useServers(selector?: Ref<string>) {
+export function useServers(selector?: Ref<string>, enabled?: Ref<boolean>) {
   return useQuery({
-    ...serverListQuery(selector, undefined),
+    ...serverListQuery(selector, enabled),
     select: (d: ServerPage) => d.servers,
   })
 }

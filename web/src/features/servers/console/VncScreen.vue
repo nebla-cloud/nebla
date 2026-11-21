@@ -81,5 +81,5 @@ defineExpose({ sendCtrlAltDel, typeText, focus })
 </script>
 
 <template>
-  <div ref="target" class="h-full w-full" />
+  <div ref="target" data-console class="h-full w-full" />
 </template>

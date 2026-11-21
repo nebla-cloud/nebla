@@ -17,7 +17,7 @@ const nav = useNav('project')
 </script>
 
 <template>
-  <ShellFrame label="Project menu" :nav="nav">
+  <ShellFrame side="project" label="Project menu" :nav="nav">
     <template #sidebar>
       <div class="flex min-w-0 flex-1 flex-col gap-3.5 px-3 py-4">
         <RouterLink

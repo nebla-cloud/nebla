@@ -80,6 +80,12 @@ describe('ShellFrame', () => {
     expect(topBar().querySelector('h1')).toBeNull()
   })
 
+  it('puts the Search button in the top bar, with no palette in the DOM until opened', async () => {
+    await mountAt('/p/1/servers')
+    expect(topBar().querySelector('button[aria-label="Search"]')).not.toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
   it('shows the crumbs a page sets, with the last one as the current page', async () => {
     crumbs = [{ label: 'Servers', to: '/x' }, { label: 'web-1' }]
     await mountAt('/p/1/servers/web-1')

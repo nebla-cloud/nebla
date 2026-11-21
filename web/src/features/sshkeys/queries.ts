@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, type Ref } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { api } from '@/api/client'
 import { unwrap } from '@/api/errors'
@@ -7,13 +7,13 @@ import { useCurrentProject } from '@/lib/project'
 
 export type SshKey = components['schemas']['SshKey']
 
-export function useSshKeys() {
+export function useSshKeys(enabled?: Ref<boolean>) {
   const { projectId } = useCurrentProject()
   return useQuery({
     queryKey: computed(() => ['ssh-keys', projectId.value]),
     queryFn: async (): Promise<SshKey[]> =>
       unwrap(await api.GET('/ssh_keys', { params: { query: { per_page: 50 } } })).ssh_keys,
-    enabled: computed(() => projectId.value > 0),
+    enabled: computed(() => projectId.value > 0 && (enabled?.value ?? true)),
   })
 }
 
