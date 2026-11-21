@@ -57,7 +57,7 @@ describe('ServerListPage', () => {
       ),
     )
     const { wrapper } = await mountList()
-    const head = wrapper.find('[aria-hidden="true"].sm\\:flex')
+    const head = wrapper.find('[aria-hidden="true"].md\\:flex')
     expect(head.findAll('span').map((s) => s.text())).toEqual(
       expect.arrayContaining(['Name', 'Image', 'Type', 'Public IPv4', 'Location']),
     )
@@ -135,13 +135,14 @@ describe('ServerListPage', () => {
     let catalog = 0
     server.use(
       http.get('*/v1/servers', () => json(200, { servers: [], meta })),
+      http.get('*/v1/locations', () => (catalog++, json(200, { locations: [] }))),
       http.get('*/v1/images', () => (catalog++, json(200, { images: [] }))),
       http.get('*/v1/server_types', () => (catalog++, json(200, { server_types: [] }))),
     )
     const { wrapper } = await mountList()
     expect(wrapper.text()).toContain('Or from your terminal')
     expect(wrapper.text()).toContain(
-      'nebla server create --name web1 --type <type> --image <image>',
+      'nebla server create --name web1 --type <type> --image <image> --location <location>',
     )
     await flushPromises()
     expect(catalog).toBe(0)
@@ -150,19 +151,20 @@ describe('ServerListPage', () => {
   it('empty state fills the CLI line from the cached create-form catalog', async () => {
     server.use(http.get('*/v1/servers', () => json(200, { servers: [], meta })))
     const queryClient = testQueryClient()
+    queryClient.setQueryData(['locations', 1], [{ id: 5, name: 'Home lab' }])
     queryClient.setQueryData(
       ['server-types', 1],
       [
-        { id: 9, name: 'old-1', deprecated: true },
-        { id: 2, name: 'small-2', deprecated: false },
-        { id: 3, name: 'medium-4', deprecated: false },
+        { id: 9, name: 'old-1', locations: [], deprecated: true },
+        { id: 2, name: 'small-2', locations: [], deprecated: false },
+        { id: 3, name: 'medium-4', locations: [], deprecated: false },
       ],
     )
     queryClient.setQueryData(
       ['images', 1],
       [
-        { id: 1, name: 'debian-13' },
-        { id: 2, name: 'ubuntu-24.04' },
+        { id: 1, name: 'debian-13', locations: [5] },
+        { id: 2, name: 'ubuntu-24.04', locations: [] },
       ],
     )
     const router = testRouter(routes)
@@ -170,18 +172,18 @@ describe('ServerListPage', () => {
     const { wrapper } = mountApp(ServerListPage, { router, queryClient })
     await vi.waitFor(() => expect(wrapper.text()).toContain('Or from your terminal'))
     expect(wrapper.text()).toContain(
-      'nebla server create --name web1 --type small-2 --image debian-13',
+      "nebla server create --name web1 --type small-2 --image debian-13 --location 'Home lab'",
     )
   })
 
-  it('the column head has a CPU, 1h column from lg up', async () => {
+  it('the column head has a CPU, 1h column from xl up', async () => {
     server.use(http.get('*/v1/servers', () => json(200, { servers: [makeServer()], meta })))
     const { wrapper } = await mountList()
-    const head = wrapper.find('[aria-hidden="true"].sm\\:flex')
+    const head = wrapper.find('[aria-hidden="true"].md\\:flex')
     const cpu = head.findAll('span').find((s) => s.text() === 'CPU, 1h')
-    expect(cpu?.classes()).toEqual(expect.arrayContaining(['hidden', 'lg:block']))
+    expect(cpu?.classes()).toEqual(expect.arrayContaining(['hidden', 'xl:block']))
     const cell = wrapper.find('li [data-col="cpu"]')
-    expect(cell.classes()).toEqual(expect.arrayContaining(['hidden', 'lg:block']))
+    expect(cell.classes()).toEqual(expect.arrayContaining(['hidden', 'xl:block']))
     // Head and rows share the column template.
     expect(cpu!.element.parentElement!.className).toBe(
       cell.element.parentElement!.className.replace(/ flex flex-wrap.*$/, ''),

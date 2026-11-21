@@ -13,7 +13,7 @@ import ListRow from '@/components/ListRow.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusArch from '@/components/StatusArch.vue'
 import TerminalBlock from '@/components/TerminalBlock.vue'
-import type { ServerType } from '@/api/types'
+import type { Location, ServerType } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
 import { serverStatus } from '@/lib/status'
 import LabelChips from './LabelChips.vue'
@@ -21,26 +21,35 @@ import OsBadge from './OsBadge.vue'
 import { osLabel } from './osLabel'
 import { useServers } from './queries'
 import RowSparkline from './RowSparkline.vue'
-import type { Image } from '../servers-create/createServer'
+import { availableImages, availableTypes, type Image } from '../servers-create/createServer'
 import { filterServers, parseStatusFilter, type StatusFilter } from './statusFilter'
 
 const { projectId, project } = useCurrentProject()
 // Shared by the head row and each server row so the columns line up.
 const cols =
-  'sm:grid sm:w-[30rem] sm:shrink-0 sm:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr] sm:gap-x-3 lg:w-[38rem] lg:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr_120px] xl:w-[48rem] [&>*]:min-w-0 [&>*]:truncate'
+  'md:grid md:w-[30rem] md:shrink-0 md:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr] md:gap-x-3 xl:w-[43rem] xl:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr_120px] 2xl:w-[48rem] [&>*]:min-w-0 [&>*]:truncate'
 const newRoute = computed(() => ({ name: 'server-new', params: { projectId: projectId.value } }))
 const keysRoute = computed(() => ({ name: 'ssh-keys', params: { projectId: projectId.value } }))
 
 // Read from the create form's cache only, so an empty list never fetches the catalog.
 const queryClient = useQueryClient()
+function shellArg(name: string | undefined, placeholder: string): string {
+  if (!name) return placeholder
+  return /^[\w.-]+$/.test(name) ? name : `'${name.replaceAll("'", "'\\''")}'`
+}
+
 const cliLine = computed(() => {
-  const type =
-    queryClient
-      .getQueryData<ServerType[]>(['server-types', projectId.value])
-      ?.find((t) => !t.deprecated)?.name ?? '<type>'
-  const image =
-    queryClient.getQueryData<Image[]>(['images', projectId.value])?.[0]?.name ?? '<image>'
-  return `nebla server create --name web1 --type ${type} --image ${image}`
+  const id = projectId.value
+  const location = queryClient.getQueryData<Location[]>(['locations', id])?.[0]
+  const types = queryClient.getQueryData<ServerType[]>(['server-types', id]) ?? []
+  const images = queryClient.getQueryData<Image[]>(['images', id]) ?? []
+  const type = location
+    ? availableTypes(types, location.id).find((o) => !o.disabledReason)?.type
+    : types.find((t) => !t.deprecated)
+  const image = location
+    ? availableImages(images, location.id).find((o) => !o.disabledReason)?.image
+    : images[0]
+  return `nebla server create --name web1 --type ${shellArg(type?.name, '<type>')} --image ${shellArg(image?.name, '<image>')} --location ${shellArg(location?.name, '<location>')}`
 })
 const route = useRoute()
 const router = useRouter()
@@ -225,7 +234,7 @@ onBeforeUnmount(() => clearTimeout(timer))
       <template #head>
         <div
           aria-hidden="true"
-          class="hidden items-center gap-3 border-b border-default bg-(--nb-soft) px-4 py-2.5 text-[12.5px] font-medium text-muted sm:flex"
+          class="hidden items-center gap-3 border-b border-default bg-(--nb-soft) px-4 py-2.5 text-[12.5px] font-medium text-muted md:flex"
         >
           <!-- Indented by the status arch (22px) plus the row gap (12px). -->
           <span class="min-w-0 flex-1 pl-[34px]">Name</span>
@@ -234,7 +243,7 @@ onBeforeUnmount(() => clearTimeout(timer))
             <span>Type</span>
             <span>Public IPv4</span>
             <span>Location</span>
-            <span class="hidden lg:block">CPU, 1h</span>
+            <span class="hidden xl:block">CPU, 1h</span>
           </span>
         </div>
       </template>
@@ -245,7 +254,7 @@ onBeforeUnmount(() => clearTimeout(timer))
       >
         <template #leading><StatusArch :status="s.status" /></template>
         <span
-          class="flex min-w-0 flex-col gap-1 whitespace-normal sm:flex-row sm:items-center sm:gap-3"
+          class="flex min-w-0 flex-col gap-1 whitespace-normal md:flex-row md:items-center md:gap-3"
         >
           <span class="flex min-w-0 flex-1 items-center gap-x-2">
             <span class="truncate">{{ s.name }}</span>
@@ -265,7 +274,7 @@ onBeforeUnmount(() => clearTimeout(timer))
             }}</span>
             <span v-else class="text-muted">{{ serverStatus(s.status).label }}</span>
             <span>{{ s.location.name }}</span>
-            <span data-col="cpu" class="hidden lg:block">
+            <span data-col="cpu" class="hidden xl:block">
               <RowSparkline :server-id="s.id" :running="s.status === 'running'" />
             </span>
           </span>

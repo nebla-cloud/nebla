@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h, ref } from 'vue'
+import { defineComponent, h, ref, toValue, type MaybeRef } from 'vue'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import { http } from 'msw'
 import { json, server } from '@/test/server'
@@ -46,14 +46,14 @@ function serve(status = 200) {
   )
 }
 
-async function mountRows(rows: { serverId: number; running: boolean }[]) {
+async function mountRows(rows: MaybeRef<{ serverId: number; running: boolean }[]>) {
   const router = testRouter([{ path: '/p/:projectId', component: { render: () => null } }])
   await router.push('/p/1')
   const C = defineComponent({
     render: () =>
       h(
         'div',
-        rows.map((r) => h(RowSparkline, { key: r.serverId, ...r })),
+        toValue(rows).map((r) => h(RowSparkline, { key: r.serverId, ...r })),
       ),
   })
   return mount(C, {
@@ -127,6 +127,25 @@ describe('RowSparkline', () => {
     open()
     await vi.waitFor(() => expect(urls).toHaveLength(25))
     await vi.waitFor(() => expect(w.findAll('polyline')).toHaveLength(25))
+  })
+
+  it('drops queued requests for rows that are removed or stop running', async () => {
+    let release!: () => void
+    gate = new Promise<void>((resolve) => (release = resolve))
+    serve()
+    const rows = ref(Array.from({ length: 23 }, (_, i) => ({ serverId: i + 1, running: true })))
+    const w = await mountRows(rows)
+    try {
+      await vi.waitFor(() => expect(urls).toHaveLength(20))
+      rows.value.splice(20, 1)
+      rows.value.find((row) => row.serverId === 22)!.running = false
+      await flushPromises()
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(w.findAll('polyline')).toHaveLength(21))
+    expect(urls).toHaveLength(21)
+    expect(urls.at(-1)!.pathname).toMatch(/\/servers\/23\/metrics$/)
   })
 
   it('refreshes every 2 minutes, only on the timer', async () => {

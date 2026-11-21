@@ -23,9 +23,11 @@ export async function fetchMetrics(
   serverId: number,
   timeframe: Range,
   type: MetricType[] = ['cpu', 'disk', 'network'],
+  signal?: AbortSignal,
 ) {
   return unwrap(
     await api.GET('/servers/{id}/metrics', {
+      signal,
       params: {
         path: { id: serverId },
         query: { type, timeframe },

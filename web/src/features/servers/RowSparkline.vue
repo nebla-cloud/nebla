@@ -18,9 +18,9 @@ async function limited<T>(fn: () => Promise<T>): Promise<T> {
 </script>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue'
-import { useQuery } from '@tanstack/vue-query'
-import { useElementVisibility } from '@vueuse/core'
+import { computed, useTemplateRef, watch } from 'vue'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useDocumentVisibility, useElementVisibility } from '@vueuse/core'
 import Sparkline from '@/components/Sparkline.vue'
 import { useCurrentProject } from '@/lib/project'
 import { fetchMetrics } from './metrics/metrics'
@@ -29,13 +29,27 @@ const props = defineProps<{ serverId: number; running: boolean }>()
 
 const el = useTemplateRef<HTMLElement>('el')
 const visible = useElementVisibility(el)
+const documentVisibility = useDocumentVisibility()
 const { projectId } = useCurrentProject()
+const qc = useQueryClient()
+const queryKey = computed(() => ['server-metrics', projectId.value, props.serverId, 'hour', 'row'] as const)
+const enabled = computed(
+  () => visible.value && documentVisibility.value === 'visible' && props.running && projectId.value > 0,
+)
+
+watch(enabled, (active) => {
+  if (!active) void qc.cancelQueries({ queryKey: queryKey.value, exact: true })
+})
 
 const query = useQuery({
   // 'row' keeps this apart from the Overview's live cache.
-  queryKey: computed(() => ['server-metrics', projectId.value, props.serverId, 'hour', 'row']),
-  queryFn: () => limited(() => fetchMetrics(props.serverId, 'hour', ['cpu'])),
-  enabled: computed(() => visible.value && props.running && projectId.value > 0),
+  queryKey,
+  queryFn: ({ queryKey: [, , serverId], signal }) =>
+    limited(() => {
+      signal.throwIfAborted()
+      return fetchMetrics(serverId, 'hour', ['cpu'], signal)
+    }),
+  enabled,
   retry: false,
   refetchInterval: 120_000,
   refetchIntervalInBackground: false,
