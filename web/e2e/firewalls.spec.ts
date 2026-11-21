@@ -45,7 +45,7 @@ test('create a firewall with a rule', async () => {
   await page.getByLabel('Port, Inbound rule 1').fill('22')
   await page.getByLabel('Sources, Inbound rule 1').fill('0.0.0.0/0')
   await page.getByRole('button', { name: 'Save rules' }).click()
-  await expect(page.getByText('Rules saved')).toBeVisible()
+  await expect(page.getByText('Rules saved', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save rules' })).toBeDisabled()
   await expectNoLeaks(page)
 })
