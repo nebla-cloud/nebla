@@ -26,6 +26,11 @@ const typeRow = (over: Record<string, unknown>) => ({
   ...over,
 })
 
+function checked(wrapper: ReturnType<typeof mountApp>['wrapper'], key: string): boolean {
+  return (wrapper.find(`input[name="template"][value="${key}"]`).element as HTMLInputElement)
+    .checked
+}
+
 function value(wrapper: ReturnType<typeof mountApp>['wrapper'], name: string): string {
   return (wrapper.find(`input[name="${name}"]`).element as HTMLInputElement).value
 }
@@ -82,35 +87,37 @@ describe('ServerTypeForm', () => {
   it('picking a template fills the fields', async () => {
     const { wrapper } = mountApp(ServerTypeForm)
     await flushPromises()
-    await wrapper.find('button[data-template="nano"]').trigger('click')
-    expect(value(wrapper, 'name')).toBe('Nano')
+    await wrapper.find('input[name="template"][value="nano"]').setValue(true)
+    expect(value(wrapper, 'name')).toBe('nano')
     expect(value(wrapper, 'cores')).toBe('1')
     expect(value(wrapper, 'memory_gb')).toBe('0.5')
     expect(value(wrapper, 'disk_gb')).toBe('10')
-    expect(wrapper.find('button[data-template="nano"]').attributes('aria-pressed')).toBe('true')
+    expect(checked(wrapper, 'nano')).toBe(true)
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(bodies[0]).toMatchObject({ name: 'Nano', cores: 1, memory_mb: 512, disk_gb: 10 })
+    expect(bodies[0]).toMatchObject({ name: 'nano', cores: 1, memory_mb: 512, disk_gb: 10 })
   })
 
   it('a template whose name exists is disabled', async () => {
     existing = [typeRow({ name: 'small', disk_gb: 25 })]
     const { wrapper } = mountApp(ServerTypeForm)
     await vi.waitFor(() =>
-      expect(wrapper.find('button[data-template="small"]').attributes('disabled')).toBeDefined(),
+      expect(
+        wrapper.find('input[name="template"][value="small"]').attributes('disabled'),
+      ).toBeDefined(),
     )
-    expect(wrapper.find('button[data-template="small"]').text()).toContain('Already added')
+    expect(wrapper.text()).toContain('Already added')
   })
 
   it('edited template values are what gets submitted', async () => {
     const { wrapper } = mountApp(ServerTypeForm)
     await flushPromises()
-    await wrapper.find('button[data-template="medium"]').trigger('click')
+    await wrapper.find('input[name="template"][value="medium"]').setValue(true)
     await wrapper.find('input[name="cores"]').setValue('3')
-    expect(wrapper.find('button[data-template="medium"]').attributes('aria-pressed')).toBe('false')
+    expect(checked(wrapper, 'medium')).toBe(false)
     await wrapper.find('form').trigger('submit')
     await flushPromises()
-    expect(bodies[0]).toMatchObject({ name: 'Medium', cores: 3, memory_mb: 4096, disk_gb: 50 })
+    expect(bodies[0]).toMatchObject({ name: 'medium', cores: 3, memory_mb: 4096, disk_gb: 50 })
   })
 
   it('picking a template clears earlier field errors', async () => {
@@ -119,14 +126,14 @@ describe('ServerTypeForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.text()).toContain('Give the server type a name.')
-    await wrapper.find('button[data-template="large"]').trigger('click')
+    await wrapper.find('input[name="template"][value="large"]').setValue(true)
     expect(wrapper.text()).not.toContain('Give the server type a name.')
   })
 
   it('no template grid when editing', async () => {
     const { wrapper } = mountApp(ServerTypeForm, { props: { item: typeRow({}) } })
     await flushPromises()
-    expect(wrapper.find('[data-template]').exists()).toBe(false)
+    expect(wrapper.find('input[name="template"]').exists()).toBe(false)
   })
 
   it('grid still works when existing types fail to load', async () => {
@@ -140,8 +147,10 @@ describe('ServerTypeForm', () => {
       expect(queryClient.getQueryState(['admin', 'server-types'])?.status).toBe('error'),
     )
     await flushPromises()
-    expect(wrapper.find('button[data-template="small"]').exists()).toBe(true)
-    expect(wrapper.find('button[data-template="small"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('input[name="template"][value="small"]').exists()).toBe(true)
+    expect(
+      wrapper.find('input[name="template"][value="small"]').attributes('disabled'),
+    ).toBeUndefined()
   })
 
   it('picking a template clears an earlier server error', async () => {
@@ -154,7 +163,22 @@ describe('ServerTypeForm', () => {
     await fill(wrapper)
     await wrapper.find('form').trigger('submit')
     await vi.waitFor(() => expect(wrapper.text()).toContain('A server type with that name exists.'))
-    await wrapper.find('button[data-template="medium"]').trigger('click')
+    await wrapper.find('input[name="template"][value="medium"]').setValue(true)
     expect(wrapper.text()).not.toContain('A server type with that name exists.')
+  })
+
+  it('rejects a name the API would refuse', async () => {
+    const { wrapper } = mountApp(ServerTypeForm)
+    await fill(wrapper)
+    await wrapper.find('input[name="name"]').setValue('Small Box')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Use 1 to 32 lowercase letters, numbers or hyphens.')
+    expect(bodies).toHaveLength(0)
+  })
+
+  it('every template name passes the API name rule', async () => {
+    const { SERVER_TYPE_TEMPLATES } = await import('./templates')
+    for (const t of SERVER_TYPE_TEMPLATES) expect(t.name).toMatch(/^[a-z0-9-]{1,32}$/)
   })
 })

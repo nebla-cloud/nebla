@@ -10,7 +10,7 @@ export interface ServerTypeTemplate {
 export const SERVER_TYPE_TEMPLATES: readonly ServerTypeTemplate[] = [
   {
     key: 'nano',
-    name: 'Nano',
+    name: 'nano',
     description: 'Tiny services, bastions and experiments',
     cores: 1,
     memory_mb: 512,
@@ -18,7 +18,7 @@ export const SERVER_TYPE_TEMPLATES: readonly ServerTypeTemplate[] = [
   },
   {
     key: 'small',
-    name: 'Small',
+    name: 'small',
     description: 'Small sites, bots and dev boxes',
     cores: 1,
     memory_mb: 1024,
@@ -26,7 +26,7 @@ export const SERVER_TYPE_TEMPLATES: readonly ServerTypeTemplate[] = [
   },
   {
     key: 'medium',
-    name: 'Medium',
+    name: 'medium',
     description: 'Typical web apps and small databases',
     cores: 2,
     memory_mb: 4096,
@@ -34,7 +34,7 @@ export const SERVER_TYPE_TEMPLATES: readonly ServerTypeTemplate[] = [
   },
   {
     key: 'large',
-    name: 'Large',
+    name: 'large',
     description: 'Busier apps, CI runners and databases',
     cores: 4,
     memory_mb: 8192,
@@ -42,7 +42,7 @@ export const SERVER_TYPE_TEMPLATES: readonly ServerTypeTemplate[] = [
   },
   {
     key: 'xl',
-    name: 'XL',
+    name: 'xl',
     description: 'Heavy workloads and larger databases',
     cores: 8,
     memory_mb: 16384,
@@ -50,7 +50,7 @@ export const SERVER_TYPE_TEMPLATES: readonly ServerTypeTemplate[] = [
   },
   {
     key: 'xxl',
-    name: 'XXL',
+    name: 'xxl',
     description: 'Large databases and build servers',
     cores: 16,
     memory_mb: 32768,

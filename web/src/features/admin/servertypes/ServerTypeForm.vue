@@ -6,8 +6,9 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import type { ServerType } from '@/api/types'
+import ChoiceCard from '@/components/ChoiceCard.vue'
 import { useAdminLocations } from '@/lib/adminQueries'
-import { typeSpec } from '@/lib/format'
+import { formatMemory } from '@/lib/format'
 import { checkboxClass } from '@/lib/ui'
 import { useAdminServerTypes, useSaveServerType, type ServerTypeInput } from './queries'
 import { SERVER_TYPE_TEMPLATES, type ServerTypeTemplate } from './templates'
@@ -48,6 +49,14 @@ const selected = computed(() =>
   ),
 )
 
+const templateKey = computed({
+  get: () => selected.value?.key ?? '',
+  set: (key: string) => {
+    const t = SERVER_TYPE_TEMPLATES.find((x) => x.key === key)
+    if (t) applyTemplate(t)
+  },
+})
+
 function applyTemplate(t: ServerTypeTemplate) {
   name.value = t.name
   description.value = t.description
@@ -72,6 +81,9 @@ async function submit() {
   const m = positive(memoryGb.value)
   const d = positive(diskGb.value)
   if (!name.value.trim()) e.name = 'Give the server type a name.'
+  else if (!/^[a-z0-9-]{1,32}$/.test(name.value.trim())) {
+    e.name = 'Use 1 to 32 lowercase letters, numbers or hyphens.'
+  }
   if (c === null || !Number.isInteger(c)) e.cores = 'Enter a whole number of cores.'
   if (m === null) e.memory_gb = 'Enter the memory in GB.'
   if (d === null || !Number.isInteger(d)) e.disk_gb = 'Enter the disk size as a whole number of GB.'
@@ -105,27 +117,27 @@ async function submit() {
     <template v-if="!item">
       <fieldset class="flex flex-col gap-2">
         <legend class="mb-1 text-sm font-medium text-highlighted">Start from a template</legend>
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <button
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2.5">
+          <ChoiceCard
             v-for="t in SERVER_TYPE_TEMPLATES"
             :key="t.key"
-            type="button"
-            :data-template="t.key"
-            :aria-pressed="selected?.key === t.key"
+            v-model="templateKey"
+            type="radio"
+            name="template"
+            variant="arch"
+            :value="t.key"
             :disabled="taken(t)"
-            :class="[
-              'flex min-w-0 flex-col gap-0.5 rounded-md border px-3 py-2 text-left transition-colors',
-              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-              selected?.key === t.key
-                ? 'border-primary ring-1 ring-primary'
-                : 'border-default hover:bg-elevated',
-              taken(t) ? 'cursor-not-allowed opacity-50 hover:bg-transparent' : 'cursor-pointer',
-            ]"
-            @click="applyTemplate(t)"
           >
-            <span class="text-sm font-medium text-highlighted">{{ t.name }}</span>
-            <span class="text-xs text-muted">{{ taken(t) ? 'Already added' : typeSpec(t) }}</span>
-          </button>
+            <span class="text-[1.0625rem]">{{ t.name }}</span>
+            <template #meta>
+              <span v-if="taken(t)">Already added</span>
+              <span v-else class="flex flex-wrap gap-x-2.5">
+                <span>{{ t.cores }} vCPU</span>
+                <span>{{ formatMemory(t.memory_mb) }}</span>
+                <span>{{ t.disk_gb }} GB</span>
+              </span>
+            </template>
+          </ChoiceCard>
         </div>
       </fieldset>
       <div class="flex items-center gap-2 text-xs text-muted" aria-hidden="true">
