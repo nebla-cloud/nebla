@@ -403,7 +403,7 @@ func (b *build) createKV() map[string]string {
 func (b *build) create(ctx context.Context) error {
 	for range maxAllocations {
 		err := b.createOnce(ctx)
-		if !alreadyExists(err) {
+		if !alreadyExists(err) && !lostLock(err, *b.row.NewVmid) {
 			if err != nil {
 				return err
 			}
@@ -441,6 +441,13 @@ func alreadyExists(err error) bool {
 	var pe *pve.Error
 	var te *pve.TaskError
 	return (errors.As(err, &pe) || errors.As(err, &te)) && strings.Contains(err.Error(), "already exists")
+}
+
+// lostLock reports a create task that timed out on new_vmid's config lock: a concurrent create or clone
+// took the VMID (/cluster/nextid reserves nothing), so like "already exists" the VM there must be claimed.
+func lostLock(err error, vmid int) bool {
+	var te *pve.TaskError
+	return errors.As(err, &te) && strings.Contains(te.ExitStatus, fmt.Sprintf("lock-%d.conf", vmid))
 }
 
 // claim decides whether the VM at new_vmid is this build's: only its nonce tag proves it, read once no create holds it.

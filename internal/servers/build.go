@@ -181,14 +181,17 @@ func alreadyExists(err error) bool {
 }
 
 func (b *builder) clone(ctx context.Context) error {
-	if b.st.Upid != nil {
-		return b.awaitClone(ctx, *b.st.Upid)
-	}
-	tnode, err := b.templateNode(ctx)
-	if err != nil {
-		return err
-	}
 	for range maxVMIDTries {
+		if b.st.Upid != nil {
+			if moved, err := b.awaitOrMove(ctx, *b.st.Upid); err != nil || !moved {
+				return err
+			}
+			continue
+		}
+		tnode, err := b.templateNode(ctx)
+		if err != nil {
+			return err
+		}
 		vmid := b.vmid()
 		v, found, err := findVM(ctx, b.pc, vmid)
 		if err != nil {
@@ -245,9 +248,34 @@ func (b *builder) clone(ctx context.Context) error {
 		if err := b.update(ctx, func(s *buildState) { s.Upid = &upid }); err != nil {
 			return err
 		}
-		return b.awaitClone(ctx, upid)
+		if moved, err := b.awaitOrMove(ctx, upid); err != nil || !moved {
+			return err
+		}
 	}
 	return permanent("no free VMID after %d tries", maxVMIDTries)
+}
+
+// errVMIDTaken means our clone task lost its VMID to a concurrent create and made nothing.
+var errVMIDTaken = errors.New("vmid taken by another vm")
+
+// lostVMIDRace reports a clone task that failed because another VM took vmid: /cluster/nextid
+// does not reserve IDs, so two creates can clone to the same one. PVE then fails the loser
+// with a lock timeout on the new VM's config, or "already exists" once the winner is done.
+func lostVMIDRace(err error, vmid int) bool {
+	var te *pve.TaskError
+	if !errors.As(err, &te) {
+		return false
+	}
+	return strings.Contains(te.ExitStatus, fmt.Sprintf("lock-%d.conf", vmid)) || strings.Contains(te.ExitStatus, "already exists")
+}
+
+// awaitOrMove waits on our clone task; when it lost its VMID, it picks a new one and reports moved.
+func (b *builder) awaitOrMove(ctx context.Context, upid string) (moved bool, err error) {
+	err = b.awaitClone(ctx, upid)
+	if !errors.Is(err, errVMIDTaken) {
+		return false, err
+	}
+	return true, b.newVMID(ctx)
 }
 
 // awaitClone waits on our saved clone task; success proves the VM at vmid is ours.
@@ -255,6 +283,9 @@ func (b *builder) awaitClone(ctx context.Context, upid string) error {
 	if err := b.pc.WaitTask(ctx, upidNode(upid), pve.UPID(upid)); err != nil {
 		if ctx.Err() != nil || retryable(err) {
 			return err
+		}
+		if lostVMIDRace(err, b.vmid()) {
+			return errVMIDTaken
 		}
 		return permanent("clone task failed: %s", err)
 	}

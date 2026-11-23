@@ -645,6 +645,50 @@ func TestCreateGivesUpOnLongLockedUntaggedVM(t *testing.T) {
 	require.GreaterOrEqual(t, snoozes, 1)
 }
 
+// A concurrent clone takes new_vmid while our create task waits on it; the task fails with a lock timeout.
+func TestCreateTaskLosesVMIDToRunningClone(t *testing.T) {
+	defer osimages.SetWaitBudget(50 * time.Millisecond)()
+	defer osimages.SetSnooze(10 * time.Millisecond)()
+	defer osimages.SetLockedForeignLimit(200 * time.Millisecond)()
+	e := runEnv(t)
+	var once sync.Once
+	foreign := 0
+	stolen := make(chan struct{})
+	osimages.SetAfterStep(e.svc, func(id int64, step int) {
+		if step != osimages.StepAllocate {
+			return
+		}
+		once.Do(func() {
+			e.pve.SetTaskDelay(time.Hour)
+			go func() {
+				defer close(stolen)
+				for {
+					r, err := e.ent.CatalogBuild.Get(context.Background(), id)
+					if err == nil && r.Upid != nil {
+						foreign = *r.NewVmid
+						break
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+				e.pve.DeleteVM(foreign)
+				e.pve.AddVM("pve1", foreign, "someone-else")
+				e.pve.SetVMConfig(foreign, "lock", "clone")
+				e.pve.SetTaskDelay(0)
+				e.pve.FinishTasks()
+			}()
+		})
+	})
+	loc := e.location("eu-1", "ceph", "imp")
+	r := e.enable("debian-13", loc)[0]
+	requireReady(t, r)
+	<-stolen
+	require.NotEqual(t, foreign, *r.Vmid)
+	require.Equal(t, []int{*r.Vmid}, e.tplVMs())
+	vm, ok := e.pve.VM(foreign)
+	require.True(t, ok, "foreign VM kept")
+	require.Equal(t, "someone-else", vm.Name)
+}
+
 func TestBuildNodePersisted(t *testing.T) {
 	ctx := context.Background()
 	t.Run("set during the build and cleared after", func(t *testing.T) {

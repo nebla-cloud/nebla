@@ -357,6 +357,51 @@ func TestCreateServerLockedVMIDIsTransient(t *testing.T) {
 	require.Equal(t, 1, countCalls(e, "POST /nodes/pve1/qemu/9000/clone"))
 }
 
+// /cluster/nextid does not reserve the VMID, so a concurrent create can take it while our clone task waits.
+// The losing clone task fails, and the create moves on to a fresh VMID instead of failing the action.
+func TestCreateServerLosesVMIDRaceToRunningClone(t *testing.T) { testVMIDRace(t, true) }
+
+func TestCreateServerLosesVMIDRaceToFinishedVM(t *testing.T) { testVMIDRace(t, false) }
+
+func testVMIDRace(t *testing.T, otherLocked bool) {
+	ctx := context.Background()
+	e, w := directEnv(t)
+	s := e.CreateServer("web", nil)
+	e.App.PVE.SetTaskDelay(time.Hour)
+	stolen := 0
+	servers.SetAfterClonePost(w, func() {
+		if stolen != 0 {
+			return
+		}
+		row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+		require.NoError(t, err)
+		stolen = *row.Vmid
+		e.App.PVE.DeleteVM(stolen)
+		e.App.PVE.AddVM("pve1", stolen, "other")
+		if otherLocked {
+			e.App.PVE.SetVMConfig(stolen, "lock", "clone")
+		}
+		e.App.PVE.SetTaskDelay(0)
+		e.App.PVE.FinishTasks()
+	})
+
+	require.NoError(t, w.Work(ctx, job(s, 1)))
+
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.NotZero(t, stolen)
+	require.NotEqual(t, stolen, *row.Vmid, "moved to a fresh vmid")
+	other, ok := e.App.PVE.VM(stolen)
+	require.True(t, ok, "the other VM is left alone")
+	require.Equal(t, "other", other.Name)
+	require.Empty(t, other.Tags)
+	require.Len(t, taggedVMs(t, e, s.ServerID), 1)
+	require.Equal(t, 2, countCalls(e, "GET /cluster/nextid"))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, s.ActionID)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+}
+
 func TestCreateServerCloneTaskFails(t *testing.T) {
 	ctx := context.Background()
 	e, w := directEnv(t)

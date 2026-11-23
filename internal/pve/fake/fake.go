@@ -678,6 +678,15 @@ func (v *vm) setPending(k string, pc pendingChange) {
 	v.pending[k] = pc
 }
 
+// lostVMIDExit is the exitstatus PVE gives a create or clone task whose VMID another VM took meanwhile:
+// a lock timeout while that VM still holds its config lock, else already exists.
+func lostVMIDExit(cur *vm, vmid int) string {
+	if cur != nil && cur.config["lock"] != "" {
+		return fmt.Sprintf("can't lock file '/var/lock/qemu-server/lock-%d.conf' - got timeout", vmid)
+	}
+	return fmt.Sprintf("ERROR: unable to create VM %d: config file already exists", vmid)
+}
+
 // storageOf returns the storage on nodeName holding volid; caller holds s.mu.
 func (s *Server) storageOf(nodeName, volid string) (*storage, bool) {
 	n, ok := s.nodes[nodeName]
@@ -835,8 +844,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 		nv := &vm{node: n.name, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{}, config: cfg}
 		s.vms[id] = nv
 		return s.newTask(n.name, "qmcreate", id, nil, func() string {
-			if s.vms[id] != nv {
-				return fmt.Sprintf("ERROR: unable to create VM %d: config file already exists", id)
+			if cur := s.vms[id]; cur != nv {
+				return lostVMIDExit(cur, id)
 			}
 			full := map[string]string{}
 			for k, val := range f {
@@ -989,8 +998,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 		nv := &vm{node: target, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{}, config: map[string]string{"lock": "clone"}}
 		s.vms[newID] = nv
 		return s.newTask(src.node, "qmclone", id, nil, func() string {
-			if s.vms[newID] != nv {
-				return fmt.Sprintf("ERROR: unable to create VM %d: config file already exists", newID)
+			if cur := s.vms[newID]; cur != nv {
+				return lostVMIDExit(cur, newID)
 			}
 			nv.config = full
 			return "OK"
