@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
+	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
@@ -161,7 +163,7 @@ func (w *NetworkWorker) attach(ctx context.Context, ids netIDs) error {
 	if err != nil {
 		return err
 	}
-	if srv.Status == StatusDeleting {
+	if srv.Status == StatusDeleting || Building(srv) {
 		return river.JobSnooze(buildSnooze)
 	}
 	l, ok, err := claimLease(ctx, w.o.SQL, srv.ID)
@@ -225,6 +227,10 @@ func (w *NetworkWorker) detach(ctx context.Context, ids netIDs) error {
 		}
 		return actions.Succeed(ctx, w.o.Ent, ids.actionID)
 	}
+	// A build that began meanwhile owns the VMs until it finishes.
+	if Building(srv) {
+		return river.JobSnooze(buildSnooze)
+	}
 	l, ok, err := claimLease(ctx, w.o.SQL, srv.ID)
 	if err != nil {
 		return err
@@ -275,14 +281,20 @@ func (w *NetworkWorker) unplugAll(ctx context.Context, pc pve.Client, vms []pve.
 			return err
 		}
 		if held {
+			if v.Status == "running" {
+				if cfg, err := pc.Config(ctx, v.Node, v.VMID); err == nil && !netHotplug(cfg) {
+					return PermanentCode(actions.CodePowerOffRequired, "vm %d is running and hotplug %q excludes network", v.VMID, cfg["hotplug"])
+				}
+			}
 			return transient("vm %d still holds the NIC; the unplug is pending", v.VMID)
 		}
 	}
 	return nil
 }
 
-// failAttach drops the row and what it wrote, then the set; the action fails last.
+// failAttach drops the row and what it wrote, queues an apply that drops the set, then fails the action.
 func (w *NetworkWorker) failAttach(ctx context.Context, ids netIDs, f failure) error {
+	log := w.o.Logger.With("server_id", ids.serverID, "action_id", ids.actionID)
 	row, err := w.attachment(ctx, ids)
 	if err != nil {
 		return err
@@ -294,50 +306,65 @@ func (w *NetworkWorker) failAttach(ctx context.Context, ids netIDs, f failure) e
 		}
 	}
 	if srv != nil && row.State == servernetwork.StateAttaching {
-		w.removeStrayNIC(ctx, srv, row)
+		w.removeStrayNIC(ctx, log, srv, row)
 	}
-	err = db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
-		_, err := etx.ServerNetwork.Delete().Where(servernetwork.ServerID(ids.serverID), servernetwork.NetworkID(ids.networkID),
+	err = db.WithTx(ctx, w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		n, err := etx.ServerNetwork.Delete().Where(servernetwork.ServerID(ids.serverID), servernetwork.NetworkID(ids.networkID),
 			servernetwork.StateEQ(servernetwork.StateAttaching)).Exec(ctx)
+		if err != nil || n == 0 || srv == nil {
+			return err
+		}
+		// A queued apply drops the set even when the best-effort one below is skipped.
+		_, err = firewalls.Bump(ctx, tx, etx, w.o.jobs(), srv.ProjectID, []int64{srv.ID}, nil)
 		return err
 	})
 	if err != nil {
 		return err
 	}
 	if srv != nil {
-		w.dropSet(ctx, srv)
+		w.dropSet(ctx, log, srv)
 	}
 	return failAction(ctx, w.o.Ent, ids.actionID, f)
 }
 
 // removeStrayNIC unplugs the NIC a half-done attach left on the server's VMs; best effort.
-func (w *NetworkWorker) removeStrayNIC(ctx context.Context, srv *ent.Server, row *ent.ServerNetwork) {
+func (w *NetworkWorker) removeStrayNIC(ctx context.Context, log *slog.Logger, srv *ent.Server, row *ent.ServerNetwork) {
 	pc, vms, err := w.vms(ctx, srv)
 	if err != nil {
+		log.Warn("attach cleanup: find vms", "err", err)
 		return
 	}
 	key := "net" + strconv.Itoa(row.Nic)
 	for _, v := range vms {
 		cfg, err := pc.Config(ctx, v.Node, v.VMID)
-		if err != nil || !strings.Contains(strings.ToLower(cfg[key]), strings.ToLower(row.MAC)) {
+		if err != nil {
+			log.Warn("attach cleanup: read vm config", "vmid", v.VMID, "err", err)
 			continue
 		}
-		_ = w.o.unplugNIC(ctx, pc, v.Node, v.VMID, row.Nic)
+		if !strings.Contains(strings.ToLower(cfg[key]), strings.ToLower(row.MAC)) {
+			continue
+		}
+		if err := w.o.unplugNIC(ctx, pc, v.Node, v.VMID, row.Nic); err != nil {
+			log.Warn("attach cleanup: unplug", "vmid", v.VMID, "err", err)
+		}
 	}
 }
 
 // dropSet applies the server's firewalls so the set of a dropped row goes; best effort under the lease.
-func (w *NetworkWorker) dropSet(ctx context.Context, srv *ent.Server) {
+func (w *NetworkWorker) dropSet(ctx context.Context, log *slog.Logger, srv *ent.Server) {
 	l, ok, err := claimLease(ctx, w.o.SQL, srv.ID)
 	if err != nil || !ok {
+		log.Warn("attach cleanup: apply skipped, the queued apply follows", "err", err)
 		return
 	}
 	defer l.release(ctx)
 	pc, vms, err := w.vms(ctx, srv)
-	if err != nil {
-		return
+	if err == nil {
+		_, err = w.applyAll(ctx, pc, srv.ID, vms)
 	}
-	_, _ = w.applyAll(ctx, pc, srv.ID, vms)
+	if err != nil {
+		log.Warn("attach cleanup: apply failed, the queued apply follows", "err", err)
+	}
 }
 
 // failDetach leaves the row detaching for the reconciler to resume.

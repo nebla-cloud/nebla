@@ -27,11 +27,13 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
+	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +55,9 @@ func newNetEnv(t *testing.T) *netEnv {
 	e, cw := directEnv(t)
 	s := builtServer(t, e, cw, "web")
 	n := &netEnv{ServerEnv: e, srv: s.ServerID, vmid: vmidOf(t, e, s.ServerID), nextIP: 2}
-	n.w = servers.NewNetworkWorker(opts(e))
+	o := opts(e)
+	o.Jobs = func() *jobs.Jobs { return e.App.Jobs }
+	n.w = servers.NewNetworkWorker(o)
 	n.netID = n.network(t, "nb0001", "vxlan", 1450)
 	return n
 }
@@ -315,8 +319,8 @@ func TestDetachDuringRebuildWritesBothVMs(t *testing.T) {
 	n.App.PVE.SetVMConfig(rb, "tags", servers.TagNebla+";"+servers.ServerTag(n.srv))
 	n.App.PVE.SetVMConfig(rb, "net1", "virtio="+netMAC+",bridge=nb0001,firewall=1,mtu=1450")
 	n.App.PVE.SetVMIPSet(rb, "ipfilter-net1", []string{"10.9.0.2"})
-	require.NoError(t, n.App.Ent.Server.UpdateOneID(n.srv).SetStatus(servers.StatusRebuilding).SetRebuildVmid(rb).
-		SetRebuildStep(servers.StepSwap).Exec(ctx))
+	// A finished rebuild can leave its VMID set until cleanup; the server is no longer building.
+	require.NoError(t, n.App.Ent.Server.UpdateOneID(n.srv).SetRebuildVmid(rb).Exec(ctx))
 	id := n.start(t, networks.KindDetach, n.netID)
 	require.NoError(t, n.detachJob(t, id, 1))
 	for _, v := range []int{n.vmid, rb} {
@@ -335,4 +339,81 @@ func TestDetachRowGoneStillApplies(t *testing.T) {
 	vm, _ := n.App.PVE.VM(n.vmid)
 	require.NotContains(t, vm.IPSets, "ipfilter-net1")
 	require.Equal(t, action.StatusSuccess, n.act(t, id).Status)
+}
+
+func TestNetworkJobsSnoozeWhileBuilding(t *testing.T) {
+	n := newNetEnv(t)
+	n.detachSetup(t)
+	require.NoError(t, n.App.Ent.Server.UpdateOneID(n.srv).SetStatus(servers.StatusRebuilding).SetRebuildStep(servers.StepClone).Exec(context.Background()))
+	id := n.start(t, networks.KindDetach, n.netID)
+	var snooze *rivertype.JobSnoozeError
+	require.ErrorAs(t, n.detachJob(t, id, 1), &snooze)
+	vm, _ := n.App.PVE.VM(n.vmid)
+	require.Contains(t, vm.Config, "net1")
+	n.App.Ent.ServerNetwork.Update().SetState(servernetwork.StateAttaching).ExecX(context.Background())
+	_, err := n.attach(t, n.netID, 1)
+	require.ErrorAs(t, err, &snooze)
+}
+
+func TestDetachHotplugOffNeedsPowerOff(t *testing.T) {
+	n := newNetEnv(t)
+	n.App.PVE.SetVMStatus(n.vmid, "running")
+	n.detachSetup(t)
+	n.App.PVE.SetVMConfig(n.vmid, "hotplug", "disk")
+	id := n.start(t, networks.KindDetach, n.netID)
+	require.Error(t, n.detachJob(t, id, 1))
+	a := n.act(t, id)
+	require.Equal(t, action.StatusError, a.Status)
+	require.Equal(t, actions.CodePowerOffRequired, *a.ErrorCode)
+	st, ok := n.rowState(t, n.netID)
+	require.True(t, ok)
+	require.Equal(t, servernetwork.StateDetaching, st)
+}
+
+// strayAttach leaves the VM holding net1 and its set, as an attempt that failed after the write would.
+func (n *netEnv) strayAttach(t *testing.T) int64 {
+	t.Helper()
+	n.attachRow(t, n.netID, 1, servernetwork.StateAttaching)
+	_, err := n.attach(t, n.netID, 1)
+	require.NoError(t, err)
+	n.App.Ent.ServerNetwork.Update().SetState(servernetwork.StateAttaching).ExecX(context.Background())
+	return n.start(t, networks.KindAttach, n.netID)
+}
+
+func TestAttachFinalFailureAfterWriteRemovesNICAndSet(t *testing.T) {
+	n := newNetEnv(t)
+	n.App.PVE.SetVMStatus(n.vmid, "running")
+	id := n.strayAttach(t)
+	vm, _ := n.App.PVE.VM(n.vmid)
+	require.Contains(t, vm.Config, "net1")
+	require.Contains(t, vm.IPSets, "ipfilter-net1")
+	args := queuedArgs[networks.AttachArgs](t, n.ServerEnv, id)
+	require.Error(t, n.w.Attach().Work(context.Background(), jobOf(args, servers.MaxAttempts+1)))
+	vm, _ = n.App.PVE.VM(n.vmid)
+	require.NotContains(t, vm.Config, "net1")
+	require.NotContains(t, vm.IPSets, "ipfilter-net1")
+	_, ok := n.rowState(t, n.netID)
+	require.False(t, ok)
+	require.Equal(t, action.StatusError, n.act(t, id).Status)
+}
+
+func TestAttachFinalFailureUnplugFailsQueuesApply(t *testing.T) {
+	n := newNetEnv(t)
+	ctx := context.Background()
+	n.App.PVE.SetVMStatus(n.vmid, "running")
+	id := n.strayAttach(t)
+	before := n.App.Ent.Server.GetX(ctx, n.srv).FirewallGenDesired
+	n.App.PVE.SetPendingUnplug(n.vmid, "net1", 100)
+	// Another apply holds the lease, so the inline apply is skipped.
+	_, err := n.App.SQL.ExecContext(ctx, `update servers set firewall_lease_until = now() + interval '1 hour' where id = $1`, n.srv)
+	require.NoError(t, err)
+	args := queuedArgs[networks.AttachArgs](t, n.ServerEnv, id)
+	require.Error(t, n.w.Attach().Work(ctx, jobOf(args, servers.MaxAttempts+1)))
+	_, ok := n.rowState(t, n.netID)
+	require.False(t, ok)
+	require.Equal(t, before+1, n.App.Ent.Server.GetX(ctx, n.srv).FirewallGenDesired)
+	queued, err := n.App.Ent.Action.Query().Where(servers.ActionsOf(n.Project, n.srv), action.Command(firewalls.KindApply),
+		action.StatusEQ(action.StatusRunning)).Count(ctx)
+	require.NoError(t, err)
+	require.Positive(t, queued)
 }
