@@ -20,18 +20,26 @@ import (
 	"strings"
 
 	"github.com/nebla-cloud/nebla/internal/apigen"
+	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 )
 
-// apiServer maps s; vols are its attached volume ids, nil for none.
-func apiServer(s servers.Server, vols []int64) apigen.Server {
+// apiServer maps s; vols are its attached volume ids and fips its floating IPs, nil for none.
+func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref) apigen.Server {
 	if vols == nil {
 		vols = []int64{}
 	}
 	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apigen.LocationRef{Id: s.Location.ID, Name: s.Location.Name, Description: s.Location.Description},
 		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, Created: s.CreatedAt,
 		Firewalls: make([]apigen.ServerFirewall, len(s.Firewalls))}
+	out.PublicNet.FloatingIps = make([]struct {
+		Id int64  `json:"id"`
+		Ip string `json:"ip"`
+	}, len(fips))
+	for i, f := range fips {
+		out.PublicNet.FloatingIps[i].Id, out.PublicNet.FloatingIps[i].Ip = f.ID, f.IP
+	}
 	for i, f := range s.Firewalls {
 		out.Firewalls[i] = apigen.ServerFirewall{Id: f.FirewallID, Name: f.Name, Via: f.Via}
 	}
@@ -44,10 +52,14 @@ func apiServer(s servers.Server, vols []int64) apigen.Server {
 	return out
 }
 
-// serverVolumes returns srv's attached volume ids.
-func (s *server) serverVolumes(ctx context.Context, srv servers.Server) ([]int64, error) {
+// serverExtras returns srv's attached volume ids and floating IPs.
+func (s *server) serverExtras(ctx context.Context, srv servers.Server) ([]int64, []floatingips.Ref, error) {
 	m, err := s.volumes.ServerVolumes(ctx, []int64{srv.ID})
-	return m[srv.ID], err
+	if err != nil {
+		return nil, nil, err
+	}
+	f, err := s.floatingIPs.ServerRefs(ctx, []int64{srv.ID})
+	return m[srv.ID], f[srv.ID], err
 }
 
 func splitList(vs *[]string) []string {
@@ -81,9 +93,13 @@ func (s *server) GetServers(ctx context.Context, req apigen.GetServersRequestObj
 	if err != nil {
 		return nil, err
 	}
+	fips, err := s.floatingIPs.ServerRefs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	out := apigen.GetServers200JSONResponse{Servers: make([]apigen.Server, len(ss)), Meta: meta(page, perPage, total)}
 	for i, v := range ss {
-		out.Servers[i] = apiServer(v, vols[v.ID])
+		out.Servers[i] = apiServer(v, vols[v.ID], fips[v.ID])
 	}
 	return out, nil
 }
@@ -115,7 +131,7 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PostServers201JSONResponse{Server: apiServer(srv, nil), Action: apiAction(a), NextActions: []apigen.Action{}}, nil
+	return apigen.PostServers201JSONResponse{Server: apiServer(srv, nil, nil), Action: apiAction(a), NextActions: []apigen.Action{}}, nil
 }
 
 func (s *server) GetServer(ctx context.Context, req apigen.GetServerRequestObject) (apigen.GetServerResponseObject, error) {
@@ -127,11 +143,11 @@ func (s *server) GetServer(ctx context.Context, req apigen.GetServerRequestObjec
 	if err != nil {
 		return nil, err
 	}
-	vols, err := s.serverVolumes(ctx, srv)
+	vols, fips, err := s.serverExtras(ctx, srv)
 	if err != nil {
 		return nil, err
 	}
-	return apigen.GetServer200JSONResponse(apiServer(srv, vols)), nil
+	return apigen.GetServer200JSONResponse(apiServer(srv, vols, fips)), nil
 }
 
 func (s *server) PutServer(ctx context.Context, req apigen.PutServerRequestObject) (apigen.PutServerResponseObject, error) {
@@ -148,11 +164,11 @@ func (s *server) PutServer(ctx context.Context, req apigen.PutServerRequestObjec
 	if err != nil {
 		return nil, err
 	}
-	vols, err := s.serverVolumes(ctx, srv)
+	vols, fips, err := s.serverExtras(ctx, srv)
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PutServer200JSONResponse(apiServer(srv, vols)), nil
+	return apigen.PutServer200JSONResponse(apiServer(srv, vols, fips)), nil
 }
 
 func (s *server) DeleteServer(ctx context.Context, req apigen.DeleteServerRequestObject) (apigen.DeleteServerResponseObject, error) {

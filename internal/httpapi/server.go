@@ -100,6 +100,7 @@ type server struct {
 	servers     *servers.Service
 	firewalls   *firewalls.Service
 	volumes     *volumes.Service
+	floatingIPs *floatingips.Service
 	console     *console.Service
 	enroll      *enroll.Service
 	loginLimit  *ratelimit.Limiter
@@ -173,6 +174,7 @@ func New(deps Deps) http.Handler {
 		servers:     servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
 		firewalls:   firewalls.New(firewalls.Options{Ent: deps.Ent, SQL: deps.SQL, Jobs: deps.Jobs}),
 		volumes:     volumes.New(volumes.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
+		floatingIPs: newFloatingIPs(deps, proj, log),
 		enroll:      deps.Enroll,
 		loginLimit:  ratelimit.New(rate.Every(90*time.Second), 10),
 		apiLimit:    newAPILimiter(deps.APILimiter),
@@ -295,4 +297,12 @@ func spaHandler(dist fs.FS, placeholder []byte) http.Handler {
 		r2.URL.Path = "/"
 		files.ServeHTTP(w, r2)
 	})
+}
+
+func newFloatingIPs(deps Deps, proj *projects.Service, log *slog.Logger) *floatingips.Service {
+	o := floatingips.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}
+	if deps.Bus != nil {
+		o.Bus = deps.Bus
+	}
+	return floatingips.New(o)
 }

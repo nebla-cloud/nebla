@@ -877,3 +877,29 @@ func LabelSelector(sel string) ([]predicate.IPAddress, error) {
 	}
 	return out, nil
 }
+
+// Ref is a floating IP as listed on a server.
+type Ref struct {
+	ID int64
+	IP string
+}
+
+// ServerRefs maps each given server to the floating IPs assigned to it, including ones still releasing to it, in id order.
+func (s *Service) ServerRefs(ctx context.Context, serverIDs []int64) (map[int64][]Ref, error) {
+	out := map[int64][]Ref{}
+	if len(serverIDs) == 0 {
+		return out, nil
+	}
+	rows, err := s.o.Ent.IPAddress.Query().Where(ipaddress.ServerIDIn(serverIDs...)).Order(ipaddress.ByID()).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		ip, err := netip.ParseAddr(r.IP)
+		if err != nil {
+			return nil, fmt.Errorf("floating IP %d: %w", r.ID, err)
+		}
+		out[*r.ServerID] = append(out[*r.ServerID], Ref{ID: r.ID, IP: ip.String()})
+	}
+	return out, nil
+}

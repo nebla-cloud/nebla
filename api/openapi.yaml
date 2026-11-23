@@ -2713,6 +2713,210 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /floating_ips:
+    get:
+      operationId: getFloatingIps
+      x-nebla-scope: project
+      summary: List the project's floating IPs
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: label_selector
+          in: query
+          description: "Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)"
+          schema: { type: string }
+        - name: name
+          in: query
+          description: Exact floating IP name
+          schema: { type: string }
+        - name: server
+          in: query
+          description: Only floating IPs assigned to this server id or name
+          schema: { type: string }
+        - name: location
+          in: query
+          description: Only floating IPs in this location id or name
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [floating_ips, meta]
+                properties:
+                  floating_ips:
+                    type: array
+                    items: { $ref: "#/components/schemas/FloatingIp" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postFloatingIps
+      x-nebla-scope: project
+      summary: Create a floating IP in a location, or assigned to a server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FloatingIpInput" }
+      responses:
+        "201":
+          description: Created; the action is set only when the floating IP was assigned to a server
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [floating_ip, action]
+                properties:
+                  floating_ip: { $ref: "#/components/schemas/FloatingIp" }
+                  action:
+                    nullable: true
+                    allOf:
+                      - $ref: "#/components/schemas/Action"
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /floating_ips/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getFloatingIp
+      x-nebla-scope: project
+      summary: Get a floating IP
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FloatingIp" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putFloatingIp
+      x-nebla-scope: project
+      summary: Rename a floating IP, change its description or replace its labels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FloatingIpUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FloatingIp" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteFloatingIp
+      x-nebla-scope: project
+      summary: Delete a floating IP, unassigning it first if needed
+      responses:
+        "200":
+          description: The delete_floating_ip action
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action]
+                properties:
+                  action: { $ref: "#/components/schemas/Action" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /floating_ips/{id}/actions:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getFloatingIpActions
+      x-nebla-scope: project
+      summary: List a floating IP's actions
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          description: Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: sort
+          in: query
+          description: "id, id:asc or id:desc (default)"
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, meta]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /floating_ips/{id}/actions/assign:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: assignFloatingIp
+      x-nebla-scope: project
+      summary: Assign a floating IP to a server, moving it from its current server if needed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FloatingIpAssignInput" }
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /floating_ips/{id}/actions/unassign:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: unassignFloatingIp
+      x-nebla-scope: project
+      summary: Unassign a floating IP from its server
+      responses:
+        "201": { $ref: "#/components/responses/ActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
 components:
   responses:
     ActionCreated:
@@ -3062,7 +3266,7 @@ components:
           properties:
             code:
               type: string
-              description: "Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced or power_off_required"
+              description: "Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required or release_pending"
             message: { type: string, description: Plain text safe to show members }
         started: { type: string, format: date-time }
         finished: { type: string, format: date-time, nullable: true }
@@ -3630,10 +3834,19 @@ components:
         image: { $ref: "#/components/schemas/Image" }
         public_net:
           type: object
-          required: [ipv4, ipv6]
+          required: [ipv4, ipv6, floating_ips]
           properties:
             ipv4: { $ref: "#/components/schemas/ServerIp" }
             ipv6: { $ref: "#/components/schemas/ServerIp" }
+            floating_ips:
+              type: array
+              description: Floating IPs assigned to the server
+              items:
+                type: object
+                required: [id, ip]
+                properties:
+                  id: { type: integer, format: int64 }
+                  ip: { type: string }
         labels: { $ref: "#/components/schemas/Labels" }
         disk_gb: { type: integer }
         firewalls:
@@ -3683,4 +3896,55 @@ components:
           type: string
           enum: [creating, available, attached, deleting, missing, error]
         linux_device: { type: string, description: "Stable path inside the server, e.g. /dev/disk/by-id/virtio-nb-vol-1" }
+        created: { type: string, format: date-time }
+    FloatingIpInput:
+      type: object
+      required: [type]
+      properties:
+        name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", description: Generated from the address when omitted }
+        description: { type: string, maxLength: 255 }
+        labels: { $ref: "#/components/schemas/Labels" }
+        type: { type: string, enum: [ipv4, ipv6] }
+        location: { type: string, description: "Location id or name; set exactly one of location and server" }
+        server: { type: string, description: "Server id or name to assign to after creating; set exactly one of location and server" }
+    FloatingIpUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string, maxLength: 255 }
+        labels: { $ref: "#/components/schemas/Labels" }
+    FloatingIpAssignInput:
+      type: object
+      required: [server]
+      properties:
+        server: { type: string, description: Server id or name }
+    GuestConfig:
+      type: object
+      description: Commands to run inside the servers so they use the address; new and rebuilt servers set this up automatically
+      required: [server, apply, persist, previous_server, remove]
+      properties:
+        server: { type: string, nullable: true, description: Where the commands run, in words }
+        apply: { type: string, nullable: true, description: Commands that make a running server use the address now }
+        persist: { type: string, nullable: true, description: Commands that keep the address across reboots }
+        previous_server: { type: string, nullable: true, description: The server the address moved away from }
+        remove: { type: string, nullable: true, description: Commands that stop the previous server using the address }
+    FloatingIp:
+      type: object
+      required: [id, name, description, labels, type, ip, location, server, status, guest_config, created]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+        type: { type: string, enum: [ipv4, ipv6] }
+        ip: { type: string, description: The single address, as /32 (IPv4) or /128 (IPv6) }
+        location: { $ref: "#/components/schemas/LocationRef" }
+        server: { type: integer, format: int64, nullable: true, description: The assigned server's id }
+        status:
+          type: string
+          enum: [active, releasing, deleting]
+        guest_config:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/GuestConfig"
         created: { type: string, format: date-time }

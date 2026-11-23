@@ -139,6 +139,63 @@ func (e FirewallRuleProtocol) Valid() bool {
 	}
 }
 
+// Defines values for FloatingIpStatus.
+const (
+	FloatingIpStatusActive    FloatingIpStatus = "active"
+	FloatingIpStatusDeleting  FloatingIpStatus = "deleting"
+	FloatingIpStatusReleasing FloatingIpStatus = "releasing"
+)
+
+// Valid indicates whether the value is a known member of the FloatingIpStatus enum.
+func (e FloatingIpStatus) Valid() bool {
+	switch e {
+	case FloatingIpStatusActive:
+		return true
+	case FloatingIpStatusDeleting:
+		return true
+	case FloatingIpStatusReleasing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FloatingIpType.
+const (
+	FloatingIpTypeIpv4 FloatingIpType = "ipv4"
+	FloatingIpTypeIpv6 FloatingIpType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the FloatingIpType enum.
+func (e FloatingIpType) Valid() bool {
+	switch e {
+	case FloatingIpTypeIpv4:
+		return true
+	case FloatingIpTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FloatingIpInputType.
+const (
+	FloatingIpInputTypeIpv4 FloatingIpInputType = "ipv4"
+	FloatingIpInputTypeIpv6 FloatingIpInputType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the FloatingIpInputType enum.
+func (e FloatingIpInputType) Valid() bool {
+	switch e {
+	case FloatingIpInputTypeIpv4:
+		return true
+	case FloatingIpInputTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IpPoolFamily.
 const (
 	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
@@ -338,7 +395,7 @@ func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced or power_off_required
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required or release_pending
 		Code string `json:"code"`
 
 		// Message Plain text safe to show members
@@ -659,6 +716,87 @@ type FirewallUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+}
+
+// FloatingIp defines model for FloatingIp.
+type FloatingIp struct {
+	Created     time.Time    `json:"created"`
+	Description string       `json:"description"`
+	GuestConfig *GuestConfig `json:"guest_config"`
+	Id          int64        `json:"id"`
+
+	// Ip The single address
+	Ip string `json:"ip"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+
+	// Server The assigned server's id
+	Server *int64           `json:"server"`
+	Status FloatingIpStatus `json:"status"`
+	Type   FloatingIpType   `json:"type"`
+}
+
+// FloatingIpStatus defines model for FloatingIp.Status.
+type FloatingIpStatus string
+
+// FloatingIpType defines model for FloatingIp.Type.
+type FloatingIpType string
+
+// FloatingIpAssignInput defines model for FloatingIpAssignInput.
+type FloatingIpAssignInput struct {
+	// Server Server id or name
+	Server string `json:"server"`
+}
+
+// FloatingIpInput defines model for FloatingIpInput.
+type FloatingIpInput struct {
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name; set exactly one of location and server
+	Location *string `json:"location,omitempty"`
+
+	// Name Generated from the address when omitted
+	Name *string `json:"name,omitempty"`
+
+	// Server Server id or name to assign to after creating; set exactly one of location and server
+	Server *string             `json:"server,omitempty"`
+	Type   FloatingIpInputType `json:"type"`
+}
+
+// FloatingIpInputType defines model for FloatingIpInput.Type.
+type FloatingIpInputType string
+
+// FloatingIpUpdate defines model for FloatingIpUpdate.
+type FloatingIpUpdate struct {
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
+}
+
+// GuestConfig Commands to run inside the servers so they use the address; new and rebuilt servers set this up automatically
+type GuestConfig struct {
+	// Apply Commands that make a running server use the address now
+	Apply *string `json:"apply"`
+
+	// Persist Commands that keep the address across reboots
+	Persist *string `json:"persist"`
+
+	// PreviousServer The server the address moved away from
+	PreviousServer *string `json:"previous_server"`
+
+	// Remove Commands that stop the previous server using the address
+	Remove *string `json:"remove"`
+
+	// Server Where the commands run
+	Server *string `json:"server"`
 }
 
 // Image defines model for Image.
@@ -1036,6 +1174,11 @@ type Server struct {
 	Location  LocationRef `json:"location"`
 	Name      string      `json:"name"`
 	PublicNet struct {
+		// FloatingIps Floating IPs assigned to the server
+		FloatingIps []struct {
+			Id int64  `json:"id"`
+			Ip string `json:"ip"`
+		} `json:"floating_ips"`
 		Ipv4 *ServerIp `json:"ipv4"`
 		Ipv6 *ServerIp `json:"ipv6"`
 	} `json:"public_net"`
@@ -1414,6 +1557,36 @@ type SetFirewallRulesJSONBody struct {
 	Rules []FirewallRule `json:"rules"`
 }
 
+// GetFloatingIpsParams defines parameters for GetFloatingIps.
+type GetFloatingIpsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact floating IP name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Server Only floating IPs assigned to this server id or name
+	Server *string `form:"server,omitempty" json:"server,omitempty"`
+
+	// Location Only floating IPs in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
+// GetFloatingIpActionsParams defines parameters for GetFloatingIpActions.
+type GetFloatingIpActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
 
@@ -1633,6 +1806,15 @@ type RemoveFirewallFromResourcesJSONRequestBody RemoveFirewallFromResourcesJSONB
 
 // SetFirewallRulesJSONRequestBody defines body for SetFirewallRules for application/json ContentType.
 type SetFirewallRulesJSONRequestBody SetFirewallRulesJSONBody
+
+// PostFloatingIpsJSONRequestBody defines body for PostFloatingIps for application/json ContentType.
+type PostFloatingIpsJSONRequestBody = FloatingIpInput
+
+// PutFloatingIpJSONRequestBody defines body for PutFloatingIp for application/json ContentType.
+type PutFloatingIpJSONRequestBody = FloatingIpUpdate
+
+// AssignFloatingIpJSONRequestBody defines body for AssignFloatingIp for application/json ContentType.
+type AssignFloatingIpJSONRequestBody = FloatingIpAssignInput
 
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
@@ -2379,6 +2561,73 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
 	SetFirewallRules(ctx context.Context, id ID, body SetFirewallRulesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFloatingIps List the project's floating IPs
+	//
+	// Corresponds with GET /floating_ips (the `GetFloatingIps` operationId).
+	GetFloatingIps(ctx context.Context, params *GetFloatingIpsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostFloatingIpsWithBody Create a floating IP in a location, or assigned to a server
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+	PostFloatingIpsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostFloatingIps Create a floating IP in a location, or assigned to a server
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+	PostFloatingIps(ctx context.Context, body PostFloatingIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteFloatingIp Delete a floating IP, unassigning it first if needed
+	//
+	// Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
+	DeleteFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFloatingIp Get a floating IP
+	//
+	// Corresponds with GET /floating_ips/{id} (the `GetFloatingIp` operationId).
+	GetFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutFloatingIpWithBody Rename a floating IP, change its description or replace its labels
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+	PutFloatingIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutFloatingIp Rename a floating IP, change its description or replace its labels
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+	PutFloatingIp(ctx context.Context, id ID, body PutFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFloatingIpActions List a floating IP's actions
+	//
+	// Corresponds with GET /floating_ips/{id}/actions (the `GetFloatingIpActions` operationId).
+	GetFloatingIpActions(ctx context.Context, id ID, params *GetFloatingIpActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AssignFloatingIpWithBody Assign a floating IP to a server, moving it from its current server if needed
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+	AssignFloatingIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AssignFloatingIp Assign a floating IP to a server, moving it from its current server if needed
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+	AssignFloatingIp(ctx context.Context, id ID, body AssignFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnassignFloatingIp Unassign a floating IP from its server
+	//
+	// Corresponds with POST /floating_ips/{id}/actions/unassign (the `UnassignFloatingIp` operationId).
+	UnassignFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealthz Liveness check; pings the database
 	//
@@ -4477,6 +4726,183 @@ func (c *Client) SetFirewallRulesWithBody(ctx context.Context, id ID, contentTyp
 // Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
 func (c *Client) SetFirewallRules(ctx context.Context, id ID, body SetFirewallRulesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetFirewallRulesRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFloatingIps List the project's floating IPs
+//
+// Corresponds with GET /floating_ips (the `GetFloatingIps` operationId).
+func (c *Client) GetFloatingIps(ctx context.Context, params *GetFloatingIpsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFloatingIpsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostFloatingIpsWithBody Create a floating IP in a location, or assigned to a server
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+func (c *Client) PostFloatingIpsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostFloatingIpsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostFloatingIps Create a floating IP in a location, or assigned to a server
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+func (c *Client) PostFloatingIps(ctx context.Context, body PostFloatingIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostFloatingIpsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteFloatingIp Delete a floating IP, unassigning it first if needed
+//
+// Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
+func (c *Client) DeleteFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteFloatingIpRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFloatingIp Get a floating IP
+//
+// Corresponds with GET /floating_ips/{id} (the `GetFloatingIp` operationId).
+func (c *Client) GetFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFloatingIpRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutFloatingIpWithBody Rename a floating IP, change its description or replace its labels
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+func (c *Client) PutFloatingIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutFloatingIpRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutFloatingIp Rename a floating IP, change its description or replace its labels
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+func (c *Client) PutFloatingIp(ctx context.Context, id ID, body PutFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutFloatingIpRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFloatingIpActions List a floating IP's actions
+//
+// Corresponds with GET /floating_ips/{id}/actions (the `GetFloatingIpActions` operationId).
+func (c *Client) GetFloatingIpActions(ctx context.Context, id ID, params *GetFloatingIpActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFloatingIpActionsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AssignFloatingIpWithBody Assign a floating IP to a server, moving it from its current server if needed
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+func (c *Client) AssignFloatingIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssignFloatingIpRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AssignFloatingIp Assign a floating IP to a server, moving it from its current server if needed
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+func (c *Client) AssignFloatingIp(ctx context.Context, id ID, body AssignFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssignFloatingIpRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UnassignFloatingIp Unassign a floating IP from its server
+//
+// Corresponds with POST /floating_ips/{id}/actions/unassign (the `UnassignFloatingIp` operationId).
+func (c *Client) UnassignFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnassignFloatingIpRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -8955,6 +9381,453 @@ func NewSetFirewallRulesRequestWithBody(server string, id ID, contentType string
 	return req, nil
 }
 
+// NewGetFloatingIpsRequest constructs an http.Request for the GetFloatingIps method
+func NewGetFloatingIpsRequest(server string, params *GetFloatingIpsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "label_selector", *params.LabelSelector, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Server != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "server", *params.Server, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "location", *params.Location, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostFloatingIpsRequest calls the generic PostFloatingIps builder with application/json body
+func NewPostFloatingIpsRequest(server string, body PostFloatingIpsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostFloatingIpsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostFloatingIpsRequestWithBody constructs an http.Request for the PostFloatingIps method, with any body, and a specified content type
+func NewPostFloatingIpsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteFloatingIpRequest constructs an http.Request for the DeleteFloatingIp method
+func NewDeleteFloatingIpRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetFloatingIpRequest constructs an http.Request for the GetFloatingIp method
+func NewGetFloatingIpRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutFloatingIpRequest calls the generic PutFloatingIp builder with application/json body
+func NewPutFloatingIpRequest(server string, id ID, body PutFloatingIpJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutFloatingIpRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutFloatingIpRequestWithBody constructs an http.Request for the PutFloatingIp method, with any body, and a specified content type
+func NewPutFloatingIpRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetFloatingIpActionsRequest constructs an http.Request for the GetFloatingIpActions method
+func NewGetFloatingIpActionsRequest(server string, id ID, params *GetFloatingIpActionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips/%s/actions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAssignFloatingIpRequest calls the generic AssignFloatingIp builder with application/json body
+func NewAssignFloatingIpRequest(server string, id ID, body AssignFloatingIpJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAssignFloatingIpRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAssignFloatingIpRequestWithBody constructs an http.Request for the AssignFloatingIp method, with any body, and a specified content type
+func NewAssignFloatingIpRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips/%s/actions/assign", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUnassignFloatingIpRequest constructs an http.Request for the UnassignFloatingIp method
+func NewUnassignFloatingIpRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/floating_ips/%s/actions/unassign", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetHealthzRequest constructs an http.Request for the GetHealthz method
 func NewGetHealthzRequest(server string) (*http.Request, error) {
 	var err error
@@ -12553,6 +13426,83 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /firewalls/{id}/actions/set_rules (the `SetFirewallRules` operationId).
 	SetFirewallRulesWithResponse(ctx context.Context, id ID, body SetFirewallRulesJSONRequestBody, reqEditors ...RequestEditorFn) (*SetFirewallRulesResponse, error)
+
+	// GetFloatingIpsWithResponse List the project's floating IPs
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /floating_ips (the `GetFloatingIps` operationId).
+	GetFloatingIpsWithResponse(ctx context.Context, params *GetFloatingIpsParams, reqEditors ...RequestEditorFn) (*GetFloatingIpsResponse, error)
+
+	// PostFloatingIpsWithBodyWithResponse Create a floating IP in a location, or assigned to a server
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+	PostFloatingIpsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostFloatingIpsResponse, error)
+
+	// PostFloatingIpsWithResponse Create a floating IP in a location, or assigned to a server
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+	PostFloatingIpsWithResponse(ctx context.Context, body PostFloatingIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostFloatingIpsResponse, error)
+
+	// DeleteFloatingIpWithResponse Delete a floating IP, unassigning it first if needed
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
+	DeleteFloatingIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteFloatingIpResponse, error)
+
+	// GetFloatingIpWithResponse Get a floating IP
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /floating_ips/{id} (the `GetFloatingIp` operationId).
+	GetFloatingIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetFloatingIpResponse, error)
+
+	// PutFloatingIpWithBodyWithResponse Rename a floating IP, change its description or replace its labels
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+	PutFloatingIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFloatingIpResponse, error)
+
+	// PutFloatingIpWithResponse Rename a floating IP, change its description or replace its labels
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+	PutFloatingIpWithResponse(ctx context.Context, id ID, body PutFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*PutFloatingIpResponse, error)
+
+	// GetFloatingIpActionsWithResponse List a floating IP's actions
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /floating_ips/{id}/actions (the `GetFloatingIpActions` operationId).
+	GetFloatingIpActionsWithResponse(ctx context.Context, id ID, params *GetFloatingIpActionsParams, reqEditors ...RequestEditorFn) (*GetFloatingIpActionsResponse, error)
+
+	// AssignFloatingIpWithBodyWithResponse Assign a floating IP to a server, moving it from its current server if needed
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+	AssignFloatingIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssignFloatingIpResponse, error)
+
+	// AssignFloatingIpWithResponse Assign a floating IP to a server, moving it from its current server if needed
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+	AssignFloatingIpWithResponse(ctx context.Context, id ID, body AssignFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*AssignFloatingIpResponse, error)
+
+	// UnassignFloatingIpWithResponse Unassign a floating IP from its server
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /floating_ips/{id}/actions/unassign (the `UnassignFloatingIp` operationId).
+	UnassignFloatingIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*UnassignFloatingIpResponse, error)
 
 	// GetHealthzWithResponse Liveness check; pings the database
 	//
@@ -18202,6 +19152,664 @@ func (r SetFirewallRulesResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetFirewallRulesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFloatingIpsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		FloatingIps []FloatingIp `json:"floating_ips"`
+		Meta        Meta         `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFloatingIpsResponse) GetJSON200() *struct {
+	FloatingIps []FloatingIp `json:"floating_ips"`
+	Meta        Meta         `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetFloatingIpsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetFloatingIpsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetFloatingIpsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetFloatingIpsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFloatingIpsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFloatingIpsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFloatingIpsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFloatingIpsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostFloatingIpsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *struct {
+		Action     *Action    `json:"action"`
+		FloatingIp FloatingIp `json:"floating_ip"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostFloatingIpsResponse) GetJSON201() *struct {
+	Action     *Action    `json:"action"`
+	FloatingIp FloatingIp `json:"floating_ip"`
+} {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostFloatingIpsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostFloatingIpsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostFloatingIpsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostFloatingIpsResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostFloatingIpsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PostFloatingIpsResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostFloatingIpsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostFloatingIpsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostFloatingIpsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostFloatingIpsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostFloatingIpsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteFloatingIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Action Action `json:"action"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteFloatingIpResponse) GetJSON200() *struct {
+	Action Action `json:"action"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteFloatingIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteFloatingIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteFloatingIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteFloatingIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteFloatingIpResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteFloatingIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteFloatingIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteFloatingIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteFloatingIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteFloatingIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFloatingIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FloatingIp
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFloatingIpResponse) GetJSON200() *FloatingIp {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetFloatingIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetFloatingIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetFloatingIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFloatingIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFloatingIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFloatingIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFloatingIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutFloatingIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FloatingIp
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutFloatingIpResponse) GetJSON200() *FloatingIp {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutFloatingIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PutFloatingIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PutFloatingIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PutFloatingIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutFloatingIpResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutFloatingIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutFloatingIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutFloatingIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutFloatingIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutFloatingIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetFloatingIpActionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Actions []Action `json:"actions"`
+		Meta    Meta     `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFloatingIpActionsResponse) GetJSON200() *struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetFloatingIpActionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetFloatingIpActionsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetFloatingIpActionsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetFloatingIpActionsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFloatingIpActionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFloatingIpActionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFloatingIpActionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFloatingIpActionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AssignFloatingIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ActionCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AssignFloatingIpResponse) GetJSON201() *ActionCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r AssignFloatingIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r AssignFloatingIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r AssignFloatingIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r AssignFloatingIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r AssignFloatingIpResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r AssignFloatingIpResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r AssignFloatingIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AssignFloatingIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AssignFloatingIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AssignFloatingIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AssignFloatingIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UnassignFloatingIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ActionCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r UnassignFloatingIpResponse) GetJSON201() *ActionCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UnassignFloatingIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UnassignFloatingIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UnassignFloatingIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UnassignFloatingIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r UnassignFloatingIpResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r UnassignFloatingIpResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r UnassignFloatingIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UnassignFloatingIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UnassignFloatingIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UnassignFloatingIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UnassignFloatingIpResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -24168,6 +25776,149 @@ func (c *ClientWithResponses) SetFirewallRulesWithResponse(ctx context.Context, 
 	return ParseSetFirewallRulesResponse(rsp)
 }
 
+// GetFloatingIpsWithResponse List the project's floating IPs
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /floating_ips (the `GetFloatingIps` operationId).
+func (c *ClientWithResponses) GetFloatingIpsWithResponse(ctx context.Context, params *GetFloatingIpsParams, reqEditors ...RequestEditorFn) (*GetFloatingIpsResponse, error) {
+	rsp, err := c.GetFloatingIps(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFloatingIpsResponse(rsp)
+}
+
+// PostFloatingIpsWithBodyWithResponse Create a floating IP in a location, or assigned to a server
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+func (c *ClientWithResponses) PostFloatingIpsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostFloatingIpsResponse, error) {
+	rsp, err := c.PostFloatingIpsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostFloatingIpsResponse(rsp)
+}
+
+// PostFloatingIpsWithResponse Create a floating IP in a location, or assigned to a server
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /floating_ips (the `PostFloatingIps` operationId).
+func (c *ClientWithResponses) PostFloatingIpsWithResponse(ctx context.Context, body PostFloatingIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostFloatingIpsResponse, error) {
+	rsp, err := c.PostFloatingIps(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostFloatingIpsResponse(rsp)
+}
+
+// DeleteFloatingIpWithResponse Delete a floating IP, unassigning it first if needed
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
+func (c *ClientWithResponses) DeleteFloatingIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteFloatingIpResponse, error) {
+	rsp, err := c.DeleteFloatingIp(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteFloatingIpResponse(rsp)
+}
+
+// GetFloatingIpWithResponse Get a floating IP
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /floating_ips/{id} (the `GetFloatingIp` operationId).
+func (c *ClientWithResponses) GetFloatingIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetFloatingIpResponse, error) {
+	rsp, err := c.GetFloatingIp(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFloatingIpResponse(rsp)
+}
+
+// PutFloatingIpWithBodyWithResponse Rename a floating IP, change its description or replace its labels
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+func (c *ClientWithResponses) PutFloatingIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFloatingIpResponse, error) {
+	rsp, err := c.PutFloatingIpWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutFloatingIpResponse(rsp)
+}
+
+// PutFloatingIpWithResponse Rename a floating IP, change its description or replace its labels
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /floating_ips/{id} (the `PutFloatingIp` operationId).
+func (c *ClientWithResponses) PutFloatingIpWithResponse(ctx context.Context, id ID, body PutFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*PutFloatingIpResponse, error) {
+	rsp, err := c.PutFloatingIp(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutFloatingIpResponse(rsp)
+}
+
+// GetFloatingIpActionsWithResponse List a floating IP's actions
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /floating_ips/{id}/actions (the `GetFloatingIpActions` operationId).
+func (c *ClientWithResponses) GetFloatingIpActionsWithResponse(ctx context.Context, id ID, params *GetFloatingIpActionsParams, reqEditors ...RequestEditorFn) (*GetFloatingIpActionsResponse, error) {
+	rsp, err := c.GetFloatingIpActions(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFloatingIpActionsResponse(rsp)
+}
+
+// AssignFloatingIpWithBodyWithResponse Assign a floating IP to a server, moving it from its current server if needed
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+func (c *ClientWithResponses) AssignFloatingIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssignFloatingIpResponse, error) {
+	rsp, err := c.AssignFloatingIpWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssignFloatingIpResponse(rsp)
+}
+
+// AssignFloatingIpWithResponse Assign a floating IP to a server, moving it from its current server if needed
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /floating_ips/{id}/actions/assign (the `AssignFloatingIp` operationId).
+func (c *ClientWithResponses) AssignFloatingIpWithResponse(ctx context.Context, id ID, body AssignFloatingIpJSONRequestBody, reqEditors ...RequestEditorFn) (*AssignFloatingIpResponse, error) {
+	rsp, err := c.AssignFloatingIp(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssignFloatingIpResponse(rsp)
+}
+
+// UnassignFloatingIpWithResponse Unassign a floating IP from its server
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /floating_ips/{id}/actions/unassign (the `UnassignFloatingIp` operationId).
+func (c *ClientWithResponses) UnassignFloatingIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*UnassignFloatingIpResponse, error) {
+	rsp, err := c.UnassignFloatingIp(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnassignFloatingIpResponse(rsp)
+}
+
 // GetHealthzWithResponse Liveness check; pings the database
 //
 // Returns a wrapper object for the known response body format(s).
@@ -29304,6 +31055,533 @@ func ParseSetFirewallRulesResponse(rsp *http.Response) (*SetFirewallRulesRespons
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFloatingIpsResponse parses an HTTP response from a GetFloatingIpsWithResponse call
+func ParseGetFloatingIpsResponse(rsp *http.Response) (*GetFloatingIpsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFloatingIpsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			FloatingIps []FloatingIp `json:"floating_ips"`
+			Meta        Meta         `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostFloatingIpsResponse parses an HTTP response from a PostFloatingIpsWithResponse call
+func ParsePostFloatingIpsResponse(rsp *http.Response) (*PostFloatingIpsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostFloatingIpsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Action     *Action    `json:"action"`
+			FloatingIp FloatingIp `json:"floating_ip"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteFloatingIpResponse parses an HTTP response from a DeleteFloatingIpWithResponse call
+func ParseDeleteFloatingIpResponse(rsp *http.Response) (*DeleteFloatingIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteFloatingIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Action Action `json:"action"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFloatingIpResponse parses an HTTP response from a GetFloatingIpWithResponse call
+func ParseGetFloatingIpResponse(rsp *http.Response) (*GetFloatingIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFloatingIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FloatingIp
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutFloatingIpResponse parses an HTTP response from a PutFloatingIpWithResponse call
+func ParsePutFloatingIpResponse(rsp *http.Response) (*PutFloatingIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutFloatingIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FloatingIp
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFloatingIpActionsResponse parses an HTTP response from a GetFloatingIpActionsWithResponse call
+func ParseGetFloatingIpActionsResponse(rsp *http.Response) (*GetFloatingIpActionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFloatingIpActionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Actions []Action `json:"actions"`
+			Meta    Meta     `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAssignFloatingIpResponse parses an HTTP response from a AssignFloatingIpWithResponse call
+func ParseAssignFloatingIpResponse(rsp *http.Response) (*AssignFloatingIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AssignFloatingIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ActionCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUnassignFloatingIpResponse parses an HTTP response from a UnassignFloatingIpWithResponse call
+func ParseUnassignFloatingIpResponse(rsp *http.Response) (*UnassignFloatingIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UnassignFloatingIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ActionCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error

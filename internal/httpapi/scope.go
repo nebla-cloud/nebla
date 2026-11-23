@@ -64,6 +64,15 @@ var projectScopedOps = map[string]bool{
 	"DetachVolume":     true,
 	"ResizeVolume":     true,
 
+	"GetFloatingIps":       true,
+	"PostFloatingIps":      true,
+	"GetFloatingIp":        true,
+	"PutFloatingIp":        true,
+	"DeleteFloatingIp":     true,
+	"GetFloatingIpActions": true,
+	"AssignFloatingIp":     true,
+	"UnassignFloatingIp":   true,
+
 	"GetFirewalls":                true,
 	"PostFirewalls":               true,
 	"GetFirewall":                 true,

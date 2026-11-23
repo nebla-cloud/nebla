@@ -1766,6 +1766,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/floating_ips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the project's floating IPs */
+        get: operations["getFloatingIps"];
+        put?: never;
+        /** Create a floating IP in a location, or assigned to a server */
+        post: operations["postFloatingIps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/floating_ips/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get a floating IP */
+        get: operations["getFloatingIp"];
+        /** Rename a floating IP, change its description or replace its labels */
+        put: operations["putFloatingIp"];
+        post?: never;
+        /** Delete a floating IP, unassigning it first if needed */
+        delete: operations["deleteFloatingIp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/floating_ips/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** List a floating IP's actions */
+        get: operations["getFloatingIpActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/floating_ips/{id}/actions/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign a floating IP to a server, moving it from its current server if needed */
+        post: operations["assignFloatingIp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/floating_ips/{id}/actions/unassign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unassign a floating IP from its server */
+        post: operations["unassignFloatingIp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1992,7 +2088,7 @@ export interface components {
                 type: string;
             }[];
             error: {
-                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced or power_off_required */
+                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required or release_pending */
                 code: string;
                 /** @description Plain text safe to show members */
                 message: string;
@@ -2481,6 +2577,12 @@ export interface components {
             public_net: {
                 ipv4: components["schemas"]["ServerIp"];
                 ipv6: components["schemas"]["ServerIp"];
+                /** @description Floating IPs assigned to the server */
+                floating_ips: {
+                    /** Format: int64 */
+                    id: number;
+                    ip: string;
+                }[];
             };
             labels: components["schemas"]["Labels"];
             disk_gb: number;
@@ -2530,6 +2632,62 @@ export interface components {
             status: "creating" | "available" | "attached" | "deleting" | "missing" | "error";
             /** @description Stable path inside the server, e.g. /dev/disk/by-id/virtio-nb-vol-1 */
             linux_device: string;
+            /** Format: date-time */
+            created: string;
+        };
+        FloatingIpInput: {
+            /** @description Generated from the address when omitted */
+            name?: string;
+            description?: string;
+            labels?: components["schemas"]["Labels"];
+            /** @enum {string} */
+            type: "ipv4" | "ipv6";
+            /** @description Location id or name; set exactly one of location and server */
+            location?: string;
+            /** @description Server id or name to assign to after creating; set exactly one of location and server */
+            server?: string;
+        };
+        FloatingIpUpdate: {
+            name?: string;
+            description?: string;
+            labels?: components["schemas"]["Labels"];
+        };
+        FloatingIpAssignInput: {
+            /** @description Server id or name */
+            server: string;
+        };
+        /** @description Commands to run inside the servers so they use the address; new and rebuilt servers set this up automatically */
+        GuestConfig: {
+            /** @description Where the commands run */
+            server: string | null;
+            /** @description Commands that make a running server use the address now */
+            apply: string | null;
+            /** @description Commands that keep the address across reboots */
+            persist: string | null;
+            /** @description The server the address moved away from */
+            previous_server: string | null;
+            /** @description Commands that stop the previous server using the address */
+            remove: string | null;
+        };
+        FloatingIp: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            description: string;
+            labels: components["schemas"]["Labels"];
+            /** @enum {string} */
+            type: "ipv4" | "ipv6";
+            /** @description The single address */
+            ip: string;
+            location: components["schemas"]["LocationRef"];
+            /**
+             * Format: int64
+             * @description The assigned server's id
+             */
+            server: number | null;
+            /** @enum {string} */
+            status: "active" | "releasing" | "deleting";
+            guest_config: components["schemas"]["GuestConfig"] | null;
             /** Format: date-time */
             created: string;
         };
@@ -6301,6 +6459,247 @@ export interface operations {
                 "application/json": components["schemas"]["VolumeResizeInput"];
             };
         };
+        responses: {
+            201: components["responses"]["ActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFloatingIps: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key) */
+                label_selector?: string;
+                /** @description Exact floating IP name */
+                name?: string;
+                /** @description Only floating IPs assigned to this server id or name */
+                server?: string;
+                /** @description Only floating IPs in this location id or name */
+                location?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        floating_ips: components["schemas"]["FloatingIp"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postFloatingIps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FloatingIpInput"];
+            };
+        };
+        responses: {
+            /** @description Created; the action is set only when the floating IP was assigned to a server */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        floating_ip: components["schemas"]["FloatingIp"];
+                        action: components["schemas"]["Action"] | null;
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFloatingIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FloatingIp"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    putFloatingIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FloatingIpUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FloatingIp"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteFloatingIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The delete_floating_ip action */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        action: components["schemas"]["Action"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getFloatingIpActions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Only actions in these statuses (running, success, error); repeat the parameter or separate with commas */
+                status?: string[];
+                /** @description id, id:asc or id:desc (default) */
+                sort?: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        actions: components["schemas"]["Action"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    assignFloatingIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FloatingIpAssignInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["ActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    unassignFloatingIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             201: components["responses"]["ActionCreated"];
             401: components["responses"]["Error"];

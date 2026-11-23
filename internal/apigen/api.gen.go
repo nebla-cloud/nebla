@@ -139,6 +139,63 @@ func (e FirewallRuleProtocol) Valid() bool {
 	}
 }
 
+// Defines values for FloatingIpStatus.
+const (
+	FloatingIpStatusActive    FloatingIpStatus = "active"
+	FloatingIpStatusDeleting  FloatingIpStatus = "deleting"
+	FloatingIpStatusReleasing FloatingIpStatus = "releasing"
+)
+
+// Valid indicates whether the value is a known member of the FloatingIpStatus enum.
+func (e FloatingIpStatus) Valid() bool {
+	switch e {
+	case FloatingIpStatusActive:
+		return true
+	case FloatingIpStatusDeleting:
+		return true
+	case FloatingIpStatusReleasing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FloatingIpType.
+const (
+	FloatingIpTypeIpv4 FloatingIpType = "ipv4"
+	FloatingIpTypeIpv6 FloatingIpType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the FloatingIpType enum.
+func (e FloatingIpType) Valid() bool {
+	switch e {
+	case FloatingIpTypeIpv4:
+		return true
+	case FloatingIpTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FloatingIpInputType.
+const (
+	FloatingIpInputTypeIpv4 FloatingIpInputType = "ipv4"
+	FloatingIpInputTypeIpv6 FloatingIpInputType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the FloatingIpInputType enum.
+func (e FloatingIpInputType) Valid() bool {
+	switch e {
+	case FloatingIpInputTypeIpv4:
+		return true
+	case FloatingIpInputTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IpPoolFamily.
 const (
 	IpPoolFamilyIpv4 IpPoolFamily = "ipv4"
@@ -338,7 +395,7 @@ func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced or power_off_required
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required or release_pending
 		Code string `json:"code"`
 
 		// Message Plain text safe to show members
@@ -659,6 +716,87 @@ type FirewallUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+}
+
+// FloatingIp defines model for FloatingIp.
+type FloatingIp struct {
+	Created     time.Time    `json:"created"`
+	Description string       `json:"description"`
+	GuestConfig *GuestConfig `json:"guest_config"`
+	Id          int64        `json:"id"`
+
+	// Ip The single address
+	Ip string `json:"ip"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+
+	// Server The assigned server's id
+	Server *int64           `json:"server"`
+	Status FloatingIpStatus `json:"status"`
+	Type   FloatingIpType   `json:"type"`
+}
+
+// FloatingIpStatus defines model for FloatingIp.Status.
+type FloatingIpStatus string
+
+// FloatingIpType defines model for FloatingIp.Type.
+type FloatingIpType string
+
+// FloatingIpAssignInput defines model for FloatingIpAssignInput.
+type FloatingIpAssignInput struct {
+	// Server Server id or name
+	Server string `json:"server"`
+}
+
+// FloatingIpInput defines model for FloatingIpInput.
+type FloatingIpInput struct {
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name; set exactly one of location and server
+	Location *string `json:"location,omitempty"`
+
+	// Name Generated from the address when omitted
+	Name *string `json:"name,omitempty"`
+
+	// Server Server id or name to assign to after creating; set exactly one of location and server
+	Server *string             `json:"server,omitempty"`
+	Type   FloatingIpInputType `json:"type"`
+}
+
+// FloatingIpInputType defines model for FloatingIpInput.Type.
+type FloatingIpInputType string
+
+// FloatingIpUpdate defines model for FloatingIpUpdate.
+type FloatingIpUpdate struct {
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
+}
+
+// GuestConfig Commands to run inside the servers so they use the address; new and rebuilt servers set this up automatically
+type GuestConfig struct {
+	// Apply Commands that make a running server use the address now
+	Apply *string `json:"apply"`
+
+	// Persist Commands that keep the address across reboots
+	Persist *string `json:"persist"`
+
+	// PreviousServer The server the address moved away from
+	PreviousServer *string `json:"previous_server"`
+
+	// Remove Commands that stop the previous server using the address
+	Remove *string `json:"remove"`
+
+	// Server Where the commands run
+	Server *string `json:"server"`
 }
 
 // Image defines model for Image.
@@ -1036,6 +1174,11 @@ type Server struct {
 	Location  LocationRef `json:"location"`
 	Name      string      `json:"name"`
 	PublicNet struct {
+		// FloatingIps Floating IPs assigned to the server
+		FloatingIps []struct {
+			Id int64  `json:"id"`
+			Ip string `json:"ip"`
+		} `json:"floating_ips"`
 		Ipv4 *ServerIp `json:"ipv4"`
 		Ipv6 *ServerIp `json:"ipv6"`
 	} `json:"public_net"`
@@ -1414,6 +1557,36 @@ type SetFirewallRulesJSONBody struct {
 	Rules []FirewallRule `json:"rules"`
 }
 
+// GetFloatingIpsParams defines parameters for GetFloatingIps.
+type GetFloatingIpsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact floating IP name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Server Only floating IPs assigned to this server id or name
+	Server *string `form:"server,omitempty" json:"server,omitempty"`
+
+	// Location Only floating IPs in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
+// GetFloatingIpActionsParams defines parameters for GetFloatingIpActions.
+type GetFloatingIpActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetHealthz200JSONResponseBodyStatus defines parameters for GetHealthz.
 type GetHealthz200JSONResponseBodyStatus string
 
@@ -1633,6 +1806,15 @@ type RemoveFirewallFromResourcesJSONRequestBody RemoveFirewallFromResourcesJSONB
 
 // SetFirewallRulesJSONRequestBody defines body for SetFirewallRules for application/json ContentType.
 type SetFirewallRulesJSONRequestBody SetFirewallRulesJSONBody
+
+// PostFloatingIpsJSONRequestBody defines body for PostFloatingIps for application/json ContentType.
+type PostFloatingIpsJSONRequestBody = FloatingIpInput
+
+// PutFloatingIpJSONRequestBody defines body for PutFloatingIp for application/json ContentType.
+type PutFloatingIpJSONRequestBody = FloatingIpUpdate
+
+// AssignFloatingIpJSONRequestBody defines body for AssignFloatingIp for application/json ContentType.
+type AssignFloatingIpJSONRequestBody = FloatingIpAssignInput
 
 // PostInviteAcceptJSONRequestBody defines body for PostInviteAccept for application/json ContentType.
 type PostInviteAcceptJSONRequestBody PostInviteAcceptJSONBody
@@ -1912,6 +2094,30 @@ type ServerInterface interface {
 	// SetFirewallRules Replace a firewall's rules
 	// (POST /firewalls/{id}/actions/set_rules)
 	SetFirewallRules(w http.ResponseWriter, r *http.Request, id ID)
+	// GetFloatingIps List the project's floating IPs
+	// (GET /floating_ips)
+	GetFloatingIps(w http.ResponseWriter, r *http.Request, params GetFloatingIpsParams)
+	// PostFloatingIps Create a floating IP in a location, or assigned to a server
+	// (POST /floating_ips)
+	PostFloatingIps(w http.ResponseWriter, r *http.Request)
+	// DeleteFloatingIp Delete a floating IP, unassigning it first if needed
+	// (DELETE /floating_ips/{id})
+	DeleteFloatingIp(w http.ResponseWriter, r *http.Request, id ID)
+	// GetFloatingIp Get a floating IP
+	// (GET /floating_ips/{id})
+	GetFloatingIp(w http.ResponseWriter, r *http.Request, id ID)
+	// PutFloatingIp Rename a floating IP, change its description or replace its labels
+	// (PUT /floating_ips/{id})
+	PutFloatingIp(w http.ResponseWriter, r *http.Request, id ID)
+	// GetFloatingIpActions List a floating IP's actions
+	// (GET /floating_ips/{id}/actions)
+	GetFloatingIpActions(w http.ResponseWriter, r *http.Request, id ID, params GetFloatingIpActionsParams)
+	// AssignFloatingIp Assign a floating IP to a server, moving it from its current server if needed
+	// (POST /floating_ips/{id}/actions/assign)
+	AssignFloatingIp(w http.ResponseWriter, r *http.Request, id ID)
+	// UnassignFloatingIp Unassign a floating IP from its server
+	// (POST /floating_ips/{id}/actions/unassign)
+	UnassignFloatingIp(w http.ResponseWriter, r *http.Request, id ID)
 	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
@@ -2521,6 +2727,54 @@ func (_ Unimplemented) RemoveFirewallFromResources(w http.ResponseWriter, r *htt
 // SetFirewallRules Replace a firewall's rules
 // (POST /firewalls/{id}/actions/set_rules)
 func (_ Unimplemented) SetFirewallRules(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetFloatingIps List the project's floating IPs
+// (GET /floating_ips)
+func (_ Unimplemented) GetFloatingIps(w http.ResponseWriter, r *http.Request, params GetFloatingIpsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostFloatingIps Create a floating IP in a location, or assigned to a server
+// (POST /floating_ips)
+func (_ Unimplemented) PostFloatingIps(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteFloatingIp Delete a floating IP, unassigning it first if needed
+// (DELETE /floating_ips/{id})
+func (_ Unimplemented) DeleteFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetFloatingIp Get a floating IP
+// (GET /floating_ips/{id})
+func (_ Unimplemented) GetFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutFloatingIp Rename a floating IP, change its description or replace its labels
+// (PUT /floating_ips/{id})
+func (_ Unimplemented) PutFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetFloatingIpActions List a floating IP's actions
+// (GET /floating_ips/{id}/actions)
+func (_ Unimplemented) GetFloatingIpActions(w http.ResponseWriter, r *http.Request, id ID, params GetFloatingIpActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AssignFloatingIp Assign a floating IP to a server, moving it from its current server if needed
+// (POST /floating_ips/{id}/actions/assign)
+func (_ Unimplemented) AssignFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UnassignFloatingIp Unassign a floating IP from its server
+// (POST /floating_ips/{id}/actions/unassign)
+func (_ Unimplemented) UnassignFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4841,6 +5095,329 @@ func (siw *ServerInterfaceWrapper) SetFirewallRules(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetFirewallRules(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFloatingIps operation middleware
+func (siw *ServerInterfaceWrapper) GetFloatingIps(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFloatingIpsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "label_selector" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label_selector", r.URL.Query(), &params.LabelSelector, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label_selector"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label_selector", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "server" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "server", r.URL.Query(), &params.Server, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "server"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "server", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location", r.URL.Query(), &params.Location, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "location"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFloatingIps(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostFloatingIps operation middleware
+func (siw *ServerInterfaceWrapper) PostFloatingIps(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostFloatingIps(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFloatingIp operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFloatingIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFloatingIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFloatingIp operation middleware
+func (siw *ServerInterfaceWrapper) GetFloatingIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFloatingIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutFloatingIp operation middleware
+func (siw *ServerInterfaceWrapper) PutFloatingIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutFloatingIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFloatingIpActions operation middleware
+func (siw *ServerInterfaceWrapper) GetFloatingIpActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFloatingIpActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFloatingIpActions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AssignFloatingIp operation middleware
+func (siw *ServerInterfaceWrapper) AssignFloatingIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AssignFloatingIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnassignFloatingIp operation middleware
+func (siw *ServerInterfaceWrapper) UnassignFloatingIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnassignFloatingIp(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7266,6 +7843,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/volumes/{id}/actions/resize", wrapper.ResizeVolume)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/floating_ips", wrapper.GetFloatingIps)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/floating_ips", wrapper.PostFloatingIps)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/floating_ips/{id}", wrapper.DeleteFloatingIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/floating_ips/{id}", wrapper.GetFloatingIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/floating_ips/{id}", wrapper.PutFloatingIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/floating_ips/{id}/actions", wrapper.GetFloatingIpActions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/floating_ips/{id}/actions/assign", wrapper.AssignFloatingIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/floating_ips/{id}/actions/unassign", wrapper.UnassignFloatingIp)
 	})
 
 	return r
@@ -13444,6 +14045,836 @@ func (response SetFirewallRulesdefaultJSONResponse) VisitSetFirewallRulesRespons
 	return err
 }
 
+type GetFloatingIpsRequestObject struct {
+	Params GetFloatingIpsParams
+}
+
+type GetFloatingIpsResponseObject interface {
+	VisitGetFloatingIpsResponse(w http.ResponseWriter) error
+}
+
+type GetFloatingIps200JSONResponse struct {
+	FloatingIps []FloatingIp `json:"floating_ips"`
+	Meta        Meta         `json:"meta"`
+}
+
+func (response GetFloatingIps200JSONResponse) VisitGetFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIps401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetFloatingIps401JSONResponse) VisitGetFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIps404JSONResponse Error
+
+func (response GetFloatingIps404JSONResponse) VisitGetFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIps422JSONResponse Error
+
+func (response GetFloatingIps422JSONResponse) VisitGetFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetFloatingIpsdefaultJSONResponse) VisitGetFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIpsRequestObject struct {
+	Body *PostFloatingIpsJSONRequestBody
+}
+
+type PostFloatingIpsResponseObject interface {
+	VisitPostFloatingIpsResponse(w http.ResponseWriter) error
+}
+
+type PostFloatingIps201JSONResponse struct {
+	Action     *Action    `json:"action"`
+	FloatingIp FloatingIp `json:"floating_ip"`
+}
+
+func (response PostFloatingIps201JSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIps401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostFloatingIps401JSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIps403JSONResponse Error
+
+func (response PostFloatingIps403JSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIps404JSONResponse Error
+
+func (response PostFloatingIps404JSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIps409JSONResponse Error
+
+func (response PostFloatingIps409JSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIps422JSONResponse Error
+
+func (response PostFloatingIps422JSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIps503JSONResponse Error
+
+func (response PostFloatingIps503JSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFloatingIpsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostFloatingIpsdefaultJSONResponse) VisitPostFloatingIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFloatingIpRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteFloatingIpResponseObject interface {
+	VisitDeleteFloatingIpResponse(w http.ResponseWriter) error
+}
+
+type DeleteFloatingIp200JSONResponse struct {
+	Action Action `json:"action"`
+}
+
+func (response DeleteFloatingIp200JSONResponse) VisitDeleteFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFloatingIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteFloatingIp401JSONResponse) VisitDeleteFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFloatingIp403JSONResponse Error
+
+func (response DeleteFloatingIp403JSONResponse) VisitDeleteFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFloatingIp404JSONResponse Error
+
+func (response DeleteFloatingIp404JSONResponse) VisitDeleteFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFloatingIp409JSONResponse Error
+
+func (response DeleteFloatingIp409JSONResponse) VisitDeleteFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFloatingIp503JSONResponse Error
+
+func (response DeleteFloatingIp503JSONResponse) VisitDeleteFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFloatingIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteFloatingIpdefaultJSONResponse) VisitDeleteFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetFloatingIpResponseObject interface {
+	VisitGetFloatingIpResponse(w http.ResponseWriter) error
+}
+
+type GetFloatingIp200JSONResponse FloatingIp
+
+func (response GetFloatingIp200JSONResponse) VisitGetFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetFloatingIp401JSONResponse) VisitGetFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIp404JSONResponse Error
+
+func (response GetFloatingIp404JSONResponse) VisitGetFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetFloatingIpdefaultJSONResponse) VisitGetFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFloatingIpRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutFloatingIpJSONRequestBody
+}
+
+type PutFloatingIpResponseObject interface {
+	VisitPutFloatingIpResponse(w http.ResponseWriter) error
+}
+
+type PutFloatingIp200JSONResponse FloatingIp
+
+func (response PutFloatingIp200JSONResponse) VisitPutFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFloatingIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutFloatingIp401JSONResponse) VisitPutFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFloatingIp403JSONResponse Error
+
+func (response PutFloatingIp403JSONResponse) VisitPutFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFloatingIp404JSONResponse Error
+
+func (response PutFloatingIp404JSONResponse) VisitPutFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFloatingIp409JSONResponse Error
+
+func (response PutFloatingIp409JSONResponse) VisitPutFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFloatingIp422JSONResponse Error
+
+func (response PutFloatingIp422JSONResponse) VisitPutFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFloatingIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutFloatingIpdefaultJSONResponse) VisitPutFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpActionsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetFloatingIpActionsParams
+}
+
+type GetFloatingIpActionsResponseObject interface {
+	VisitGetFloatingIpActionsResponse(w http.ResponseWriter) error
+}
+
+type GetFloatingIpActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetFloatingIpActions200JSONResponse) VisitGetFloatingIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetFloatingIpActions401JSONResponse) VisitGetFloatingIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpActions404JSONResponse Error
+
+func (response GetFloatingIpActions404JSONResponse) VisitGetFloatingIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpActions422JSONResponse Error
+
+func (response GetFloatingIpActions422JSONResponse) VisitGetFloatingIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFloatingIpActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetFloatingIpActionsdefaultJSONResponse) VisitGetFloatingIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIpRequestObject struct {
+	Id   ID `json:"id"`
+	Body *AssignFloatingIpJSONRequestBody
+}
+
+type AssignFloatingIpResponseObject interface {
+	VisitAssignFloatingIpResponse(w http.ResponseWriter) error
+}
+
+type AssignFloatingIp201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response AssignFloatingIp201JSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response AssignFloatingIp401JSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIp403JSONResponse Error
+
+func (response AssignFloatingIp403JSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIp404JSONResponse Error
+
+func (response AssignFloatingIp404JSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIp409JSONResponse Error
+
+func (response AssignFloatingIp409JSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIp422JSONResponse Error
+
+func (response AssignFloatingIp422JSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIp503JSONResponse Error
+
+func (response AssignFloatingIp503JSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignFloatingIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response AssignFloatingIpdefaultJSONResponse) VisitAssignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIpRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type UnassignFloatingIpResponseObject interface {
+	VisitUnassignFloatingIpResponse(w http.ResponseWriter) error
+}
+
+type UnassignFloatingIp201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response UnassignFloatingIp201JSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response UnassignFloatingIp401JSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIp403JSONResponse Error
+
+func (response UnassignFloatingIp403JSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIp404JSONResponse Error
+
+func (response UnassignFloatingIp404JSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIp409JSONResponse Error
+
+func (response UnassignFloatingIp409JSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIp422JSONResponse Error
+
+func (response UnassignFloatingIp422JSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIp503JSONResponse Error
+
+func (response UnassignFloatingIp503JSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignFloatingIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UnassignFloatingIpdefaultJSONResponse) VisitUnassignFloatingIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthzRequestObject struct {
 }
 
@@ -19281,6 +20712,30 @@ type StrictServerInterface interface {
 	// SetFirewallRules Replace a firewall's rules
 	// (POST /firewalls/{id}/actions/set_rules)
 	SetFirewallRules(ctx context.Context, request SetFirewallRulesRequestObject) (SetFirewallRulesResponseObject, error)
+	// GetFloatingIps List the project's floating IPs
+	// (GET /floating_ips)
+	GetFloatingIps(ctx context.Context, request GetFloatingIpsRequestObject) (GetFloatingIpsResponseObject, error)
+	// PostFloatingIps Create a floating IP in a location, or assigned to a server
+	// (POST /floating_ips)
+	PostFloatingIps(ctx context.Context, request PostFloatingIpsRequestObject) (PostFloatingIpsResponseObject, error)
+	// DeleteFloatingIp Delete a floating IP, unassigning it first if needed
+	// (DELETE /floating_ips/{id})
+	DeleteFloatingIp(ctx context.Context, request DeleteFloatingIpRequestObject) (DeleteFloatingIpResponseObject, error)
+	// GetFloatingIp Get a floating IP
+	// (GET /floating_ips/{id})
+	GetFloatingIp(ctx context.Context, request GetFloatingIpRequestObject) (GetFloatingIpResponseObject, error)
+	// PutFloatingIp Rename a floating IP, change its description or replace its labels
+	// (PUT /floating_ips/{id})
+	PutFloatingIp(ctx context.Context, request PutFloatingIpRequestObject) (PutFloatingIpResponseObject, error)
+	// GetFloatingIpActions List a floating IP's actions
+	// (GET /floating_ips/{id}/actions)
+	GetFloatingIpActions(ctx context.Context, request GetFloatingIpActionsRequestObject) (GetFloatingIpActionsResponseObject, error)
+	// AssignFloatingIp Assign a floating IP to a server, moving it from its current server if needed
+	// (POST /floating_ips/{id}/actions/assign)
+	AssignFloatingIp(ctx context.Context, request AssignFloatingIpRequestObject) (AssignFloatingIpResponseObject, error)
+	// UnassignFloatingIp Unassign a floating IP from its server
+	// (POST /floating_ips/{id}/actions/unassign)
+	UnassignFloatingIp(ctx context.Context, request UnassignFloatingIpRequestObject) (UnassignFloatingIpResponseObject, error)
 	// GetHealthz Liveness check; pings the database
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
@@ -21461,6 +22916,234 @@ func (sh *strictHandler) SetFirewallRules(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetFirewallRulesResponseObject); ok {
 		if err := validResponse.VisitSetFirewallRulesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFloatingIps operation middleware
+func (sh *strictHandler) GetFloatingIps(w http.ResponseWriter, r *http.Request, params GetFloatingIpsParams) {
+	var request GetFloatingIpsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFloatingIps(ctx, request.(GetFloatingIpsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFloatingIps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFloatingIpsResponseObject); ok {
+		if err := validResponse.VisitGetFloatingIpsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostFloatingIps operation middleware
+func (sh *strictHandler) PostFloatingIps(w http.ResponseWriter, r *http.Request) {
+	var request PostFloatingIpsRequestObject
+
+	var body PostFloatingIpsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostFloatingIps(ctx, request.(PostFloatingIpsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostFloatingIps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostFloatingIpsResponseObject); ok {
+		if err := validResponse.VisitPostFloatingIpsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFloatingIp operation middleware
+func (sh *strictHandler) DeleteFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteFloatingIpRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFloatingIp(ctx, request.(DeleteFloatingIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFloatingIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFloatingIpResponseObject); ok {
+		if err := validResponse.VisitDeleteFloatingIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFloatingIp operation middleware
+func (sh *strictHandler) GetFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetFloatingIpRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFloatingIp(ctx, request.(GetFloatingIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFloatingIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFloatingIpResponseObject); ok {
+		if err := validResponse.VisitGetFloatingIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutFloatingIp operation middleware
+func (sh *strictHandler) PutFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutFloatingIpRequestObject
+
+	request.Id = id
+
+	var body PutFloatingIpJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutFloatingIp(ctx, request.(PutFloatingIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutFloatingIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutFloatingIpResponseObject); ok {
+		if err := validResponse.VisitPutFloatingIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFloatingIpActions operation middleware
+func (sh *strictHandler) GetFloatingIpActions(w http.ResponseWriter, r *http.Request, id ID, params GetFloatingIpActionsParams) {
+	var request GetFloatingIpActionsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFloatingIpActions(ctx, request.(GetFloatingIpActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFloatingIpActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFloatingIpActionsResponseObject); ok {
+		if err := validResponse.VisitGetFloatingIpActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AssignFloatingIp operation middleware
+func (sh *strictHandler) AssignFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request AssignFloatingIpRequestObject
+
+	request.Id = id
+
+	var body AssignFloatingIpJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AssignFloatingIp(ctx, request.(AssignFloatingIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AssignFloatingIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AssignFloatingIpResponseObject); ok {
+		if err := validResponse.VisitAssignFloatingIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnassignFloatingIp operation middleware
+func (sh *strictHandler) UnassignFloatingIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request UnassignFloatingIpRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnassignFloatingIp(ctx, request.(UnassignFloatingIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnassignFloatingIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnassignFloatingIpResponseObject); ok {
+		if err := validResponse.VisitUnassignFloatingIpResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

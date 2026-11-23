@@ -130,6 +130,62 @@ func TestVolumesIsolation(t *testing.T) {
 	require.Equal(t, "data", got.Name)
 }
 
+// TestFloatingIPsIsolation: a project-A token never sees or acts on project B's floating IPs or assigns to B's servers.
+func TestFloatingIPsIsolation(t *testing.T) {
+	ctx := context.Background()
+	e := newFIPEnv(t)
+	web := e.RunningServer("web")
+	created := decodeJSON[struct {
+		FloatingIP apiFIP `json:"floating_ip"`
+	}](t, e.App, e.C.Send(http.MethodPost, "/v1/floating_ips", map[string]any{"type": "ipv4", "location": "eu-1"}), http.StatusCreated)
+	projA := e.Admin.CreateProject("a")
+	tokA := e.App.TokenClient(e.Admin.CreateToken(projA, "read_write"))
+	mine := decodeJSON[struct {
+		FloatingIP apiFIP `json:"floating_ip"`
+	}](t, e.App, tokA.Send(http.MethodPost, "/v1/floating_ips", map[string]any{"type": "ipv4", "location": "eu-1"}), http.StatusCreated).FloatingIP
+	before, err := e.App.Ent.Action.Query().Count(ctx)
+	require.NoError(t, err)
+
+	fp := "/v1/floating_ips/" + strconv.FormatInt(created.FloatingIP.ID, 10)
+	for _, r := range []struct {
+		method, path string
+		body         any
+	}{
+		{http.MethodGet, fp, nil},
+		{http.MethodPut, fp, map[string]any{"name": "x"}},
+		{http.MethodDelete, fp, nil},
+		{http.MethodGet, fp + "/actions", nil},
+		{http.MethodPost, fp + "/actions/assign", map[string]string{"server": "web"}},
+		{http.MethodPost, fp + "/actions/unassign", nil},
+	} {
+		res := tokA.Send(r.method, r.path, r.body)
+		body := e.App.Body(res)
+		require.Equal(t, http.StatusNotFound, res.StatusCode, "%s %s: %s", r.method, r.path, body)
+		require.Equal(t, "not_found", errCode2(t, body))
+	}
+	// A's own floating IP cannot reach B's server, by name or id.
+	for _, ref := range []string{"web", strconv.FormatInt(web.ServerID, 10)} {
+		res := tokA.Send(http.MethodPost, "/v1/floating_ips/"+strconv.FormatInt(mine.ID, 10)+"/actions/assign", map[string]string{"server": ref})
+		require.Equal(t, http.StatusNotFound, res.StatusCode, e.App.Body(res))
+		res.Body.Close()
+		res = tokA.Send(http.MethodPost, "/v1/floating_ips", map[string]any{"type": "ipv4", "server": ref})
+		require.Equal(t, http.StatusNotFound, res.StatusCode, e.App.Body(res))
+		res.Body.Close()
+	}
+	listed := decodeJSON[struct {
+		FloatingIPs []apiFIP `json:"floating_ips"`
+	}](t, e.App, tokA.Get("/v1/floating_ips"), http.StatusOK)
+	require.Len(t, listed.FloatingIPs, 1)
+	require.Equal(t, mine.ID, listed.FloatingIPs[0].ID)
+	after, err := e.App.Ent.Action.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, before, after, "no action started")
+	row, err := e.App.Ent.IPAddress.Get(ctx, created.FloatingIP.ID)
+	require.NoError(t, err)
+	require.Equal(t, created.FloatingIP.Name, row.Name)
+	require.Nil(t, row.ServerID)
+}
+
 func errCode2(t *testing.T, body string) string {
 	t.Helper()
 	var e struct{ Error struct{ Code string } }

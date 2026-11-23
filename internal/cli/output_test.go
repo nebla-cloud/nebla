@@ -59,7 +59,7 @@ func TestObjectJSONAndYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 	y := b.String()
-	if !strings.Contains(y, "public_net:\n  ipv4:\n    ip: 10.0.0.10\n") || strings.Contains(y, "PublicNet") || !strings.Contains(y, "id: 7\n") {
+	if !strings.Contains(y, "public_net:\n  floating_ips: null\n  ipv4:\n    ip: 10.0.0.10\n") || strings.Contains(y, "PublicNet") || !strings.Contains(y, "id: 7\n") {
 		t.Fatalf("yaml=%s", y)
 	}
 }
