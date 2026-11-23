@@ -400,6 +400,20 @@ func TestAllocateFloatingSegment(t *testing.T) {
 	vlan := 5
 	_, _, err = e.allocateFloating(ctx, "ipv4", &ipam.Segment{Bridge: "vmbr1", VLAN: &vlan})
 	requireCode(t, err, 409, "ip_pool_exhausted")
+
+	tagged := v4(e.loc, "10.3.0.10", "10.3.0.12")
+	tagged.Bridge, tagged.VLANTag, tagged.CIDR, tagged.Gateway = "vmbr3", &vlan, "10.3.0.0/24", "10.3.0.1"
+	_, err = e.svc.Create(ctx, tagged)
+	require.NoError(t, err)
+	a, _, err = e.allocateFloating(ctx, "ipv4", &ipam.Segment{Bridge: "vmbr3", VLAN: &vlan})
+	require.NoError(t, err)
+	require.Equal(t, netip.MustParseAddr("10.3.0.10"), a.IP)
+	require.Equal(t, &vlan, a.VLAN)
+	_, _, err = e.allocateFloating(ctx, "ipv4", &ipam.Segment{Bridge: "vmbr3"})
+	requireCode(t, err, 409, "ip_pool_exhausted")
+	other := 6
+	_, _, err = e.allocateFloating(ctx, "ipv4", &ipam.Segment{Bridge: "vmbr3", VLAN: &other})
+	requireCode(t, err, 409, "ip_pool_exhausted")
 }
 
 func TestReleaseKeepsFloating(t *testing.T) {

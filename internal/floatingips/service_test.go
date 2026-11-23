@@ -246,6 +246,14 @@ func TestAssignRefusals(t *testing.T) {
 		e.rawFIP(t, e.Project, e.Pool4, fmt.Sprintf("10.0.0.%d", 100+i), &full, nil)
 	}
 	gone := e.rawServer(t, e.Project, e.Location, e.Pool4, "gone", "10.0.0.42", server.StatusDeleting)
+	newPool := func(bridge, cidr string, vlan *int) int64 {
+		prefix := strings.TrimSuffix(cidr, "0/24")
+		return e.App.Ent.IPPool.Create().SetLocationID(e.Location).SetFamily("ipv4").SetBridge(bridge).SetNillableVlanTag(vlan).
+			SetCidr(cidr).SetGateway(prefix+"1").SetDNS([]string{prefix + "1"}).SetRangeStart(prefix+"10").SetRangeEnd(prefix+"20").SaveX(ctx).ID
+	}
+	vlan := 7
+	e.rawServer(t, e.Project, e.Location, newPool("vmbr1", "10.1.0.0/24", nil), "otherbridge", "10.1.0.10", server.StatusRunning)
+	e.rawServer(t, e.Project, e.Location, newPool("vmbr0", "10.2.0.0/24", &vlan), "tagged", "10.2.0.10", server.StatusRunning)
 
 	fip := func(ip string, srv, releasing *int64) int64 {
 		return e.rawFIP(t, e.Project, e.Pool4, ip, srv, releasing)
@@ -275,6 +283,8 @@ func TestAssignRefusals(t *testing.T) {
 		{"other project's server", assign(free, ref(otherServer)), 404, "not_found", ""},
 		{"other location", assign(free, "far"), 422, "invalid_input", msgSegment},
 		{"no primary of the family", assign(free, ref(v6)), 422, "invalid_input", msgSegment},
+		{"other bridge", assign(free, "otherbridge"), 422, "invalid_input", msgSegment},
+		{"other vlan", assign(free, "tagged"), 422, "invalid_input", msgSegment},
 		{"same server", assign(onWeb, "web"), 422, "invalid_input", msgSame},
 		{"eleventh on a server", assign(free, "full"), 422, "limit_exceeded", msgLimit},
 		{"still releasing", assign(releasing, "web"), 409, "locked", msgReleasing},
