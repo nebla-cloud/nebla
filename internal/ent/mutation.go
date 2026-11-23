@@ -29,17 +29,20 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
+	"github.com/nebla-cloud/nebla/internal/ent/network"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 	"github.com/nebla-cloud/nebla/internal/ent/schema"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
@@ -71,15 +74,18 @@ const (
 	TypeInvite             = "Invite"
 	TypeLocation           = "Location"
 	TypeLocationEnrollment = "LocationEnrollment"
+	TypeNetwork            = "Network"
 	TypeNode               = "Node"
 	TypeProject            = "Project"
 	TypeProjectMember      = "ProjectMember"
 	TypeSSHKey             = "SSHKey"
 	TypeServer             = "Server"
+	TypeServerNetwork      = "ServerNetwork"
 	TypeServerType         = "ServerType"
 	TypeSession            = "Session"
 	TypeSetting            = "Setting"
 	TypeUser               = "User"
+	TypeVNetSlot           = "VNetSlot"
 	TypeVolume             = "Volume"
 	TypeWebauthnChallenge  = "WebauthnChallenge"
 	TypeWebauthnCredential = "WebauthnCredential"
@@ -14378,6 +14384,9 @@ type LocationMutation struct {
 	addbackup_window_start *int
 	backup_window_end      *int
 	addbackup_window_end   *int
+	sdn_zone               *string
+	vnet_prefix            *string
+	sdn_audit_ok           *bool
 	created_at             *time.Time
 	updated_at             *time.Time
 	clearedFields          map[string]struct{}
@@ -15167,6 +15176,127 @@ func (m *LocationMutation) ResetBackupWindowEnd() {
 	m.addbackup_window_end = nil
 }
 
+// SetSdnZone sets the "sdn_zone" field.
+func (m *LocationMutation) SetSdnZone(s string) {
+	m.sdn_zone = &s
+}
+
+// SdnZone returns the value of the "sdn_zone" field in the mutation.
+func (m *LocationMutation) SdnZone() (r string, exists bool) {
+	v := m.sdn_zone
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSdnZone returns the old "sdn_zone" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldSdnZone(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSdnZone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSdnZone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSdnZone: %w", err)
+	}
+	return oldValue.SdnZone, nil
+}
+
+// ClearSdnZone clears the value of the "sdn_zone" field.
+func (m *LocationMutation) ClearSdnZone() {
+	m.sdn_zone = nil
+	m.clearedFields[location.FieldSdnZone] = struct{}{}
+}
+
+// SdnZoneCleared returns if the "sdn_zone" field was cleared in this mutation.
+func (m *LocationMutation) SdnZoneCleared() bool {
+	_, ok := m.clearedFields[location.FieldSdnZone]
+	return ok
+}
+
+// ResetSdnZone resets all changes to the "sdn_zone" field.
+func (m *LocationMutation) ResetSdnZone() {
+	m.sdn_zone = nil
+	delete(m.clearedFields, location.FieldSdnZone)
+}
+
+// SetVnetPrefix sets the "vnet_prefix" field.
+func (m *LocationMutation) SetVnetPrefix(s string) {
+	m.vnet_prefix = &s
+}
+
+// VnetPrefix returns the value of the "vnet_prefix" field in the mutation.
+func (m *LocationMutation) VnetPrefix() (r string, exists bool) {
+	v := m.vnet_prefix
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVnetPrefix returns the old "vnet_prefix" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldVnetPrefix(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVnetPrefix is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVnetPrefix requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVnetPrefix: %w", err)
+	}
+	return oldValue.VnetPrefix, nil
+}
+
+// ResetVnetPrefix resets all changes to the "vnet_prefix" field.
+func (m *LocationMutation) ResetVnetPrefix() {
+	m.vnet_prefix = nil
+}
+
+// SetSdnAuditOk sets the "sdn_audit_ok" field.
+func (m *LocationMutation) SetSdnAuditOk(b bool) {
+	m.sdn_audit_ok = &b
+}
+
+// SdnAuditOk returns the value of the "sdn_audit_ok" field in the mutation.
+func (m *LocationMutation) SdnAuditOk() (r bool, exists bool) {
+	v := m.sdn_audit_ok
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSdnAuditOk returns the old "sdn_audit_ok" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldSdnAuditOk(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSdnAuditOk is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSdnAuditOk requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSdnAuditOk: %w", err)
+	}
+	return oldValue.SdnAuditOk, nil
+}
+
+// ResetSdnAuditOk resets all changes to the "sdn_audit_ok" field.
+func (m *LocationMutation) ResetSdnAuditOk() {
+	m.sdn_audit_ok = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *LocationMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -15489,7 +15619,7 @@ func (m *LocationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *LocationMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 22)
 	if m.name != nil {
 		fields = append(fields, location.FieldName)
 	}
@@ -15541,6 +15671,15 @@ func (m *LocationMutation) Fields() []string {
 	if m.backup_window_end != nil {
 		fields = append(fields, location.FieldBackupWindowEnd)
 	}
+	if m.sdn_zone != nil {
+		fields = append(fields, location.FieldSdnZone)
+	}
+	if m.vnet_prefix != nil {
+		fields = append(fields, location.FieldVnetPrefix)
+	}
+	if m.sdn_audit_ok != nil {
+		fields = append(fields, location.FieldSdnAuditOk)
+	}
 	if m.created_at != nil {
 		fields = append(fields, location.FieldCreatedAt)
 	}
@@ -15589,6 +15728,12 @@ func (m *LocationMutation) Field(name string) (ent.Value, bool) {
 		return m.BackupWindowStart()
 	case location.FieldBackupWindowEnd:
 		return m.BackupWindowEnd()
+	case location.FieldSdnZone:
+		return m.SdnZone()
+	case location.FieldVnetPrefix:
+		return m.VnetPrefix()
+	case location.FieldSdnAuditOk:
+		return m.SdnAuditOk()
 	case location.FieldCreatedAt:
 		return m.CreatedAt()
 	case location.FieldUpdatedAt:
@@ -15636,6 +15781,12 @@ func (m *LocationMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldBackupWindowStart(ctx)
 	case location.FieldBackupWindowEnd:
 		return m.OldBackupWindowEnd(ctx)
+	case location.FieldSdnZone:
+		return m.OldSdnZone(ctx)
+	case location.FieldVnetPrefix:
+		return m.OldVnetPrefix(ctx)
+	case location.FieldSdnAuditOk:
+		return m.OldSdnAuditOk(ctx)
 	case location.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case location.FieldUpdatedAt:
@@ -15768,6 +15919,27 @@ func (m *LocationMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetBackupWindowEnd(v)
 		return nil
+	case location.FieldSdnZone:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSdnZone(v)
+		return nil
+	case location.FieldVnetPrefix:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVnetPrefix(v)
+		return nil
+	case location.FieldSdnAuditOk:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSdnAuditOk(v)
+		return nil
 	case location.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -15842,6 +16014,9 @@ func (m *LocationMutation) ClearedFields() []string {
 	if m.FieldCleared(location.FieldFirewallEnabled) {
 		fields = append(fields, location.FieldFirewallEnabled)
 	}
+	if m.FieldCleared(location.FieldSdnZone) {
+		fields = append(fields, location.FieldSdnZone)
+	}
 	return fields
 }
 
@@ -15858,6 +16033,9 @@ func (m *LocationMutation) ClearField(name string) error {
 	switch name {
 	case location.FieldFirewallEnabled:
 		m.ClearFirewallEnabled()
+		return nil
+	case location.FieldSdnZone:
+		m.ClearSdnZone()
 		return nil
 	}
 	return fmt.Errorf("unknown Location nullable field %s", name)
@@ -15917,6 +16095,15 @@ func (m *LocationMutation) ResetField(name string) error {
 		return nil
 	case location.FieldBackupWindowEnd:
 		m.ResetBackupWindowEnd()
+		return nil
+	case location.FieldSdnZone:
+		m.ResetSdnZone()
+		return nil
+	case location.FieldVnetPrefix:
+		m.ResetVnetPrefix()
+		return nil
+	case location.FieldSdnAuditOk:
+		m.ResetSdnAuditOk()
 		return nil
 	case location.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -17192,6 +17379,711 @@ func (m *LocationEnrollmentMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown LocationEnrollment edge %s", name)
 }
 
+// NetworkMutation represents an operation that mutates the Network nodes in the graph.
+type NetworkMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	name            *string
+	labels          *map[string]string
+	ip_range        *string
+	created_at      *time.Time
+	clearedFields   map[string]struct{}
+	project         *int64
+	clearedproject  bool
+	location        *int64
+	clearedlocation bool
+	done            bool
+	oldValue        func(context.Context) (*Network, error)
+	predicates      []predicate.Network
+}
+
+var _ ent.Mutation = (*NetworkMutation)(nil)
+
+// networkOption allows management of the mutation configuration using functional options.
+type networkOption func(*NetworkMutation)
+
+// newNetworkMutation creates new mutation for the Network entity.
+func newNetworkMutation(c config, op Op, opts ...networkOption) *NetworkMutation {
+	m := &NetworkMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeNetwork,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withNetworkID sets the ID field of the mutation.
+func withNetworkID(id int64) networkOption {
+	return func(m *NetworkMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Network
+		)
+		m.oldValue = func(ctx context.Context) (*Network, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Network.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withNetwork sets the old Network of the mutation.
+func withNetwork(node *Network) networkOption {
+	return func(m *NetworkMutation) {
+		m.oldValue = func(context.Context) (*Network, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m NetworkMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m NetworkMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Network entities.
+func (m *NetworkMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *NetworkMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *NetworkMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Network.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *NetworkMutation) SetProjectID(i int64) {
+	m.project = &i
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *NetworkMutation) ProjectID() (r int64, exists bool) {
+	v := m.project
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Network entity.
+// If the Network object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NetworkMutation) OldProjectID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *NetworkMutation) ResetProjectID() {
+	m.project = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *NetworkMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *NetworkMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the Network entity.
+// If the Network object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NetworkMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *NetworkMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetName sets the "name" field.
+func (m *NetworkMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *NetworkMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Network entity.
+// If the Network object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NetworkMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *NetworkMutation) ResetName() {
+	m.name = nil
+}
+
+// SetLabels sets the "labels" field.
+func (m *NetworkMutation) SetLabels(value map[string]string) {
+	m.labels = &value
+}
+
+// Labels returns the value of the "labels" field in the mutation.
+func (m *NetworkMutation) Labels() (r map[string]string, exists bool) {
+	v := m.labels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabels returns the old "labels" field's value of the Network entity.
+// If the Network object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NetworkMutation) OldLabels(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabels is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabels requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabels: %w", err)
+	}
+	return oldValue.Labels, nil
+}
+
+// ResetLabels resets all changes to the "labels" field.
+func (m *NetworkMutation) ResetLabels() {
+	m.labels = nil
+}
+
+// SetIPRange sets the "ip_range" field.
+func (m *NetworkMutation) SetIPRange(s string) {
+	m.ip_range = &s
+}
+
+// IPRange returns the value of the "ip_range" field in the mutation.
+func (m *NetworkMutation) IPRange() (r string, exists bool) {
+	v := m.ip_range
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIPRange returns the old "ip_range" field's value of the Network entity.
+// If the Network object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NetworkMutation) OldIPRange(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIPRange is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIPRange requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIPRange: %w", err)
+	}
+	return oldValue.IPRange, nil
+}
+
+// ResetIPRange resets all changes to the "ip_range" field.
+func (m *NetworkMutation) ResetIPRange() {
+	m.ip_range = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *NetworkMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *NetworkMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Network entity.
+// If the Network object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *NetworkMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *NetworkMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (m *NetworkMutation) ClearProject() {
+	m.clearedproject = true
+	m.clearedFields[network.FieldProjectID] = struct{}{}
+}
+
+// ProjectCleared reports if the "project" edge to the Project entity was cleared.
+func (m *NetworkMutation) ProjectCleared() bool {
+	return m.clearedproject
+}
+
+// ProjectIDs returns the "project" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ProjectID instead. It exists only for internal usage by the builders.
+func (m *NetworkMutation) ProjectIDs() (ids []int64) {
+	if id := m.project; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetProject resets all changes to the "project" edge.
+func (m *NetworkMutation) ResetProject() {
+	m.project = nil
+	m.clearedproject = false
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *NetworkMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[network.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *NetworkMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *NetworkMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *NetworkMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// Where appends a list predicates to the NetworkMutation builder.
+func (m *NetworkMutation) Where(ps ...predicate.Network) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the NetworkMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *NetworkMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Network, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *NetworkMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *NetworkMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Network).
+func (m *NetworkMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *NetworkMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.project != nil {
+		fields = append(fields, network.FieldProjectID)
+	}
+	if m.location != nil {
+		fields = append(fields, network.FieldLocationID)
+	}
+	if m.name != nil {
+		fields = append(fields, network.FieldName)
+	}
+	if m.labels != nil {
+		fields = append(fields, network.FieldLabels)
+	}
+	if m.ip_range != nil {
+		fields = append(fields, network.FieldIPRange)
+	}
+	if m.created_at != nil {
+		fields = append(fields, network.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *NetworkMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case network.FieldProjectID:
+		return m.ProjectID()
+	case network.FieldLocationID:
+		return m.LocationID()
+	case network.FieldName:
+		return m.Name()
+	case network.FieldLabels:
+		return m.Labels()
+	case network.FieldIPRange:
+		return m.IPRange()
+	case network.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *NetworkMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case network.FieldProjectID:
+		return m.OldProjectID(ctx)
+	case network.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case network.FieldName:
+		return m.OldName(ctx)
+	case network.FieldLabels:
+		return m.OldLabels(ctx)
+	case network.FieldIPRange:
+		return m.OldIPRange(ctx)
+	case network.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Network field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *NetworkMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case network.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
+		return nil
+	case network.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case network.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case network.FieldLabels:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabels(v)
+		return nil
+	case network.FieldIPRange:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIPRange(v)
+		return nil
+	case network.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Network field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *NetworkMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *NetworkMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *NetworkMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Network numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *NetworkMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *NetworkMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *NetworkMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Network nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *NetworkMutation) ResetField(name string) error {
+	switch name {
+	case network.FieldProjectID:
+		m.ResetProjectID()
+		return nil
+	case network.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case network.FieldName:
+		m.ResetName()
+		return nil
+	case network.FieldLabels:
+		m.ResetLabels()
+		return nil
+	case network.FieldIPRange:
+		m.ResetIPRange()
+		return nil
+	case network.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Network field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *NetworkMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.project != nil {
+		edges = append(edges, network.EdgeProject)
+	}
+	if m.location != nil {
+		edges = append(edges, network.EdgeLocation)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *NetworkMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case network.EdgeProject:
+		if id := m.project; id != nil {
+			return []ent.Value{*id}
+		}
+	case network.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *NetworkMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *NetworkMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *NetworkMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedproject {
+		edges = append(edges, network.EdgeProject)
+	}
+	if m.clearedlocation {
+		edges = append(edges, network.EdgeLocation)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *NetworkMutation) EdgeCleared(name string) bool {
+	switch name {
+	case network.EdgeProject:
+		return m.clearedproject
+	case network.EdgeLocation:
+		return m.clearedlocation
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *NetworkMutation) ClearEdge(name string) error {
+	switch name {
+	case network.EdgeProject:
+		m.ClearProject()
+		return nil
+	case network.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	}
+	return fmt.Errorf("unknown Network unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *NetworkMutation) ResetEdge(name string) error {
+	switch name {
+	case network.EdgeProject:
+		m.ResetProject()
+		return nil
+	case network.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	}
+	return fmt.Errorf("unknown Network edge %s", name)
+}
+
 // NodeMutation represents an operation that mutates the Node nodes in the graph.
 type NodeMutation struct {
 	config
@@ -18276,6 +19168,8 @@ type ProjectMutation struct {
 	addmax_volume_gb *int
 	max_backups      *int
 	addmax_backups   *int
+	max_networks     *int
+	addmax_networks  *int
 	created_at       *time.Time
 	clearedFields    map[string]struct{}
 	creator          *int64
@@ -18876,6 +19770,62 @@ func (m *ProjectMutation) ResetMaxBackups() {
 	m.addmax_backups = nil
 }
 
+// SetMaxNetworks sets the "max_networks" field.
+func (m *ProjectMutation) SetMaxNetworks(i int) {
+	m.max_networks = &i
+	m.addmax_networks = nil
+}
+
+// MaxNetworks returns the value of the "max_networks" field in the mutation.
+func (m *ProjectMutation) MaxNetworks() (r int, exists bool) {
+	v := m.max_networks
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxNetworks returns the old "max_networks" field's value of the Project entity.
+// If the Project object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProjectMutation) OldMaxNetworks(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxNetworks is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxNetworks requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxNetworks: %w", err)
+	}
+	return oldValue.MaxNetworks, nil
+}
+
+// AddMaxNetworks adds i to the "max_networks" field.
+func (m *ProjectMutation) AddMaxNetworks(i int) {
+	if m.addmax_networks != nil {
+		*m.addmax_networks += i
+	} else {
+		m.addmax_networks = &i
+	}
+}
+
+// AddedMaxNetworks returns the value that was added to the "max_networks" field in this mutation.
+func (m *ProjectMutation) AddedMaxNetworks() (r int, exists bool) {
+	v := m.addmax_networks
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxNetworks resets all changes to the "max_networks" field.
+func (m *ProjectMutation) ResetMaxNetworks() {
+	m.max_networks = nil
+	m.addmax_networks = nil
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (m *ProjectMutation) SetCreatedBy(i int64) {
 	m.creator = &i
@@ -19089,7 +20039,7 @@ func (m *ProjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProjectMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.name != nil {
 		fields = append(fields, project.FieldName)
 	}
@@ -19116,6 +20066,9 @@ func (m *ProjectMutation) Fields() []string {
 	}
 	if m.max_backups != nil {
 		fields = append(fields, project.FieldMaxBackups)
+	}
+	if m.max_networks != nil {
+		fields = append(fields, project.FieldMaxNetworks)
 	}
 	if m.creator != nil {
 		fields = append(fields, project.FieldCreatedBy)
@@ -19149,6 +20102,8 @@ func (m *ProjectMutation) Field(name string) (ent.Value, bool) {
 		return m.MaxVolumeGB()
 	case project.FieldMaxBackups:
 		return m.MaxBackups()
+	case project.FieldMaxNetworks:
+		return m.MaxNetworks()
 	case project.FieldCreatedBy:
 		return m.CreatedBy()
 	case project.FieldCreatedAt:
@@ -19180,6 +20135,8 @@ func (m *ProjectMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldMaxVolumeGB(ctx)
 	case project.FieldMaxBackups:
 		return m.OldMaxBackups(ctx)
+	case project.FieldMaxNetworks:
+		return m.OldMaxNetworks(ctx)
 	case project.FieldCreatedBy:
 		return m.OldCreatedBy(ctx)
 	case project.FieldCreatedAt:
@@ -19256,6 +20213,13 @@ func (m *ProjectMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetMaxBackups(v)
 		return nil
+	case project.FieldMaxNetworks:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxNetworks(v)
+		return nil
 	case project.FieldCreatedBy:
 		v, ok := value.(int64)
 		if !ok {
@@ -19302,6 +20266,9 @@ func (m *ProjectMutation) AddedFields() []string {
 	if m.addmax_backups != nil {
 		fields = append(fields, project.FieldMaxBackups)
 	}
+	if m.addmax_networks != nil {
+		fields = append(fields, project.FieldMaxNetworks)
+	}
 	return fields
 }
 
@@ -19326,6 +20293,8 @@ func (m *ProjectMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedMaxVolumeGB()
 	case project.FieldMaxBackups:
 		return m.AddedMaxBackups()
+	case project.FieldMaxNetworks:
+		return m.AddedMaxNetworks()
 	}
 	return nil, false
 }
@@ -19391,6 +20360,13 @@ func (m *ProjectMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddMaxBackups(v)
 		return nil
+	case project.FieldMaxNetworks:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxNetworks(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Project numeric field %s", name)
 }
@@ -19453,6 +20429,9 @@ func (m *ProjectMutation) ResetField(name string) error {
 		return nil
 	case project.FieldMaxBackups:
 		m.ResetMaxBackups()
+		return nil
+	case project.FieldMaxNetworks:
+		m.ResetMaxNetworks()
 		return nil
 	case project.FieldCreatedBy:
 		m.ResetCreatedBy()
@@ -23731,6 +24710,798 @@ func (m *ServerMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Server edge %s", name)
 }
 
+// ServerNetworkMutation represents an operation that mutates the ServerNetwork nodes in the graph.
+type ServerNetworkMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int64
+	ip             *string
+	mac            *string
+	nic            *int
+	addnic         *int
+	state          *servernetwork.State
+	created_at     *time.Time
+	clearedFields  map[string]struct{}
+	server         *int64
+	clearedserver  bool
+	network        *int64
+	clearednetwork bool
+	done           bool
+	oldValue       func(context.Context) (*ServerNetwork, error)
+	predicates     []predicate.ServerNetwork
+}
+
+var _ ent.Mutation = (*ServerNetworkMutation)(nil)
+
+// servernetworkOption allows management of the mutation configuration using functional options.
+type servernetworkOption func(*ServerNetworkMutation)
+
+// newServerNetworkMutation creates new mutation for the ServerNetwork entity.
+func newServerNetworkMutation(c config, op Op, opts ...servernetworkOption) *ServerNetworkMutation {
+	m := &ServerNetworkMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeServerNetwork,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withServerNetworkID sets the ID field of the mutation.
+func withServerNetworkID(id int64) servernetworkOption {
+	return func(m *ServerNetworkMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ServerNetwork
+		)
+		m.oldValue = func(ctx context.Context) (*ServerNetwork, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ServerNetwork.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withServerNetwork sets the old ServerNetwork of the mutation.
+func withServerNetwork(node *ServerNetwork) servernetworkOption {
+	return func(m *ServerNetworkMutation) {
+		m.oldValue = func(context.Context) (*ServerNetwork, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ServerNetworkMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ServerNetworkMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of ServerNetwork entities.
+func (m *ServerNetworkMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ServerNetworkMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ServerNetworkMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ServerNetwork.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetServerID sets the "server_id" field.
+func (m *ServerNetworkMutation) SetServerID(i int64) {
+	m.server = &i
+}
+
+// ServerID returns the value of the "server_id" field in the mutation.
+func (m *ServerNetworkMutation) ServerID() (r int64, exists bool) {
+	v := m.server
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerID returns the old "server_id" field's value of the ServerNetwork entity.
+// If the ServerNetwork object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerNetworkMutation) OldServerID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerID: %w", err)
+	}
+	return oldValue.ServerID, nil
+}
+
+// ResetServerID resets all changes to the "server_id" field.
+func (m *ServerNetworkMutation) ResetServerID() {
+	m.server = nil
+}
+
+// SetNetworkID sets the "network_id" field.
+func (m *ServerNetworkMutation) SetNetworkID(i int64) {
+	m.network = &i
+}
+
+// NetworkID returns the value of the "network_id" field in the mutation.
+func (m *ServerNetworkMutation) NetworkID() (r int64, exists bool) {
+	v := m.network
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNetworkID returns the old "network_id" field's value of the ServerNetwork entity.
+// If the ServerNetwork object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerNetworkMutation) OldNetworkID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNetworkID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNetworkID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNetworkID: %w", err)
+	}
+	return oldValue.NetworkID, nil
+}
+
+// ResetNetworkID resets all changes to the "network_id" field.
+func (m *ServerNetworkMutation) ResetNetworkID() {
+	m.network = nil
+}
+
+// SetIP sets the "ip" field.
+func (m *ServerNetworkMutation) SetIP(s string) {
+	m.ip = &s
+}
+
+// IP returns the value of the "ip" field in the mutation.
+func (m *ServerNetworkMutation) IP() (r string, exists bool) {
+	v := m.ip
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIP returns the old "ip" field's value of the ServerNetwork entity.
+// If the ServerNetwork object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerNetworkMutation) OldIP(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIP is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIP requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIP: %w", err)
+	}
+	return oldValue.IP, nil
+}
+
+// ResetIP resets all changes to the "ip" field.
+func (m *ServerNetworkMutation) ResetIP() {
+	m.ip = nil
+}
+
+// SetMAC sets the "mac" field.
+func (m *ServerNetworkMutation) SetMAC(s string) {
+	m.mac = &s
+}
+
+// MAC returns the value of the "mac" field in the mutation.
+func (m *ServerNetworkMutation) MAC() (r string, exists bool) {
+	v := m.mac
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMAC returns the old "mac" field's value of the ServerNetwork entity.
+// If the ServerNetwork object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerNetworkMutation) OldMAC(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMAC is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMAC requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMAC: %w", err)
+	}
+	return oldValue.MAC, nil
+}
+
+// ResetMAC resets all changes to the "mac" field.
+func (m *ServerNetworkMutation) ResetMAC() {
+	m.mac = nil
+}
+
+// SetNic sets the "nic" field.
+func (m *ServerNetworkMutation) SetNic(i int) {
+	m.nic = &i
+	m.addnic = nil
+}
+
+// Nic returns the value of the "nic" field in the mutation.
+func (m *ServerNetworkMutation) Nic() (r int, exists bool) {
+	v := m.nic
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNic returns the old "nic" field's value of the ServerNetwork entity.
+// If the ServerNetwork object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerNetworkMutation) OldNic(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNic is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNic requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNic: %w", err)
+	}
+	return oldValue.Nic, nil
+}
+
+// AddNic adds i to the "nic" field.
+func (m *ServerNetworkMutation) AddNic(i int) {
+	if m.addnic != nil {
+		*m.addnic += i
+	} else {
+		m.addnic = &i
+	}
+}
+
+// AddedNic returns the value that was added to the "nic" field in this mutation.
+func (m *ServerNetworkMutation) AddedNic() (r int, exists bool) {
+	v := m.addnic
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetNic resets all changes to the "nic" field.
+func (m *ServerNetworkMutation) ResetNic() {
+	m.nic = nil
+	m.addnic = nil
+}
+
+// SetState sets the "state" field.
+func (m *ServerNetworkMutation) SetState(s servernetwork.State) {
+	m.state = &s
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *ServerNetworkMutation) State() (r servernetwork.State, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the ServerNetwork entity.
+// If the ServerNetwork object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerNetworkMutation) OldState(ctx context.Context) (v servernetwork.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *ServerNetworkMutation) ResetState() {
+	m.state = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ServerNetworkMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ServerNetworkMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ServerNetwork entity.
+// If the ServerNetwork object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerNetworkMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ServerNetworkMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearServer clears the "server" edge to the Server entity.
+func (m *ServerNetworkMutation) ClearServer() {
+	m.clearedserver = true
+	m.clearedFields[servernetwork.FieldServerID] = struct{}{}
+}
+
+// ServerCleared reports if the "server" edge to the Server entity was cleared.
+func (m *ServerNetworkMutation) ServerCleared() bool {
+	return m.clearedserver
+}
+
+// ServerIDs returns the "server" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServerID instead. It exists only for internal usage by the builders.
+func (m *ServerNetworkMutation) ServerIDs() (ids []int64) {
+	if id := m.server; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetServer resets all changes to the "server" edge.
+func (m *ServerNetworkMutation) ResetServer() {
+	m.server = nil
+	m.clearedserver = false
+}
+
+// ClearNetwork clears the "network" edge to the Network entity.
+func (m *ServerNetworkMutation) ClearNetwork() {
+	m.clearednetwork = true
+	m.clearedFields[servernetwork.FieldNetworkID] = struct{}{}
+}
+
+// NetworkCleared reports if the "network" edge to the Network entity was cleared.
+func (m *ServerNetworkMutation) NetworkCleared() bool {
+	return m.clearednetwork
+}
+
+// NetworkIDs returns the "network" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// NetworkID instead. It exists only for internal usage by the builders.
+func (m *ServerNetworkMutation) NetworkIDs() (ids []int64) {
+	if id := m.network; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetNetwork resets all changes to the "network" edge.
+func (m *ServerNetworkMutation) ResetNetwork() {
+	m.network = nil
+	m.clearednetwork = false
+}
+
+// Where appends a list predicates to the ServerNetworkMutation builder.
+func (m *ServerNetworkMutation) Where(ps ...predicate.ServerNetwork) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ServerNetworkMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ServerNetworkMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ServerNetwork, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ServerNetworkMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ServerNetworkMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ServerNetwork).
+func (m *ServerNetworkMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ServerNetworkMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.server != nil {
+		fields = append(fields, servernetwork.FieldServerID)
+	}
+	if m.network != nil {
+		fields = append(fields, servernetwork.FieldNetworkID)
+	}
+	if m.ip != nil {
+		fields = append(fields, servernetwork.FieldIP)
+	}
+	if m.mac != nil {
+		fields = append(fields, servernetwork.FieldMAC)
+	}
+	if m.nic != nil {
+		fields = append(fields, servernetwork.FieldNic)
+	}
+	if m.state != nil {
+		fields = append(fields, servernetwork.FieldState)
+	}
+	if m.created_at != nil {
+		fields = append(fields, servernetwork.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ServerNetworkMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case servernetwork.FieldServerID:
+		return m.ServerID()
+	case servernetwork.FieldNetworkID:
+		return m.NetworkID()
+	case servernetwork.FieldIP:
+		return m.IP()
+	case servernetwork.FieldMAC:
+		return m.MAC()
+	case servernetwork.FieldNic:
+		return m.Nic()
+	case servernetwork.FieldState:
+		return m.State()
+	case servernetwork.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ServerNetworkMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case servernetwork.FieldServerID:
+		return m.OldServerID(ctx)
+	case servernetwork.FieldNetworkID:
+		return m.OldNetworkID(ctx)
+	case servernetwork.FieldIP:
+		return m.OldIP(ctx)
+	case servernetwork.FieldMAC:
+		return m.OldMAC(ctx)
+	case servernetwork.FieldNic:
+		return m.OldNic(ctx)
+	case servernetwork.FieldState:
+		return m.OldState(ctx)
+	case servernetwork.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ServerNetwork field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ServerNetworkMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case servernetwork.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerID(v)
+		return nil
+	case servernetwork.FieldNetworkID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNetworkID(v)
+		return nil
+	case servernetwork.FieldIP:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIP(v)
+		return nil
+	case servernetwork.FieldMAC:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMAC(v)
+		return nil
+	case servernetwork.FieldNic:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNic(v)
+		return nil
+	case servernetwork.FieldState:
+		v, ok := value.(servernetwork.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case servernetwork.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ServerNetwork field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ServerNetworkMutation) AddedFields() []string {
+	var fields []string
+	if m.addnic != nil {
+		fields = append(fields, servernetwork.FieldNic)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ServerNetworkMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case servernetwork.FieldNic:
+		return m.AddedNic()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ServerNetworkMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case servernetwork.FieldNic:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddNic(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ServerNetwork numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ServerNetworkMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ServerNetworkMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ServerNetworkMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown ServerNetwork nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ServerNetworkMutation) ResetField(name string) error {
+	switch name {
+	case servernetwork.FieldServerID:
+		m.ResetServerID()
+		return nil
+	case servernetwork.FieldNetworkID:
+		m.ResetNetworkID()
+		return nil
+	case servernetwork.FieldIP:
+		m.ResetIP()
+		return nil
+	case servernetwork.FieldMAC:
+		m.ResetMAC()
+		return nil
+	case servernetwork.FieldNic:
+		m.ResetNic()
+		return nil
+	case servernetwork.FieldState:
+		m.ResetState()
+		return nil
+	case servernetwork.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ServerNetwork field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ServerNetworkMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.server != nil {
+		edges = append(edges, servernetwork.EdgeServer)
+	}
+	if m.network != nil {
+		edges = append(edges, servernetwork.EdgeNetwork)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ServerNetworkMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case servernetwork.EdgeServer:
+		if id := m.server; id != nil {
+			return []ent.Value{*id}
+		}
+	case servernetwork.EdgeNetwork:
+		if id := m.network; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ServerNetworkMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ServerNetworkMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ServerNetworkMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedserver {
+		edges = append(edges, servernetwork.EdgeServer)
+	}
+	if m.clearednetwork {
+		edges = append(edges, servernetwork.EdgeNetwork)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ServerNetworkMutation) EdgeCleared(name string) bool {
+	switch name {
+	case servernetwork.EdgeServer:
+		return m.clearedserver
+	case servernetwork.EdgeNetwork:
+		return m.clearednetwork
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ServerNetworkMutation) ClearEdge(name string) error {
+	switch name {
+	case servernetwork.EdgeServer:
+		m.ClearServer()
+		return nil
+	case servernetwork.EdgeNetwork:
+		m.ClearNetwork()
+		return nil
+	}
+	return fmt.Errorf("unknown ServerNetwork unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ServerNetworkMutation) ResetEdge(name string) error {
+	switch name {
+	case servernetwork.EdgeServer:
+		m.ResetServer()
+		return nil
+	case servernetwork.EdgeNetwork:
+		m.ResetNetwork()
+		return nil
+	}
+	return fmt.Errorf("unknown ServerNetwork edge %s", name)
+}
+
 // ServerTypeMutation represents an operation that mutates the ServerType nodes in the graph.
 type ServerTypeMutation struct {
 	config
@@ -26233,6 +28004,982 @@ func (m *UserMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *UserMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown User edge %s", name)
+}
+
+// VNetSlotMutation represents an operation that mutates the VNetSlot nodes in the graph.
+type VNetSlotMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int64
+	vnet            *string
+	zone            *string
+	zone_type       *string
+	mtu             *int
+	addmtu          *int
+	state           *vnetslot.State
+	health          *vnetslot.Health
+	reason          *string
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	location        *int64
+	clearedlocation bool
+	network         *int64
+	clearednetwork  bool
+	done            bool
+	oldValue        func(context.Context) (*VNetSlot, error)
+	predicates      []predicate.VNetSlot
+}
+
+var _ ent.Mutation = (*VNetSlotMutation)(nil)
+
+// vnetslotOption allows management of the mutation configuration using functional options.
+type vnetslotOption func(*VNetSlotMutation)
+
+// newVNetSlotMutation creates new mutation for the VNetSlot entity.
+func newVNetSlotMutation(c config, op Op, opts ...vnetslotOption) *VNetSlotMutation {
+	m := &VNetSlotMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeVNetSlot,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withVNetSlotID sets the ID field of the mutation.
+func withVNetSlotID(id int64) vnetslotOption {
+	return func(m *VNetSlotMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *VNetSlot
+		)
+		m.oldValue = func(ctx context.Context) (*VNetSlot, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().VNetSlot.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withVNetSlot sets the old VNetSlot of the mutation.
+func withVNetSlot(node *VNetSlot) vnetslotOption {
+	return func(m *VNetSlotMutation) {
+		m.oldValue = func(context.Context) (*VNetSlot, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m VNetSlotMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m VNetSlotMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of VNetSlot entities.
+func (m *VNetSlotMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *VNetSlotMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *VNetSlotMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().VNetSlot.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *VNetSlotMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *VNetSlotMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *VNetSlotMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetVnet sets the "vnet" field.
+func (m *VNetSlotMutation) SetVnet(s string) {
+	m.vnet = &s
+}
+
+// Vnet returns the value of the "vnet" field in the mutation.
+func (m *VNetSlotMutation) Vnet() (r string, exists bool) {
+	v := m.vnet
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVnet returns the old "vnet" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldVnet(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVnet is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVnet requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVnet: %w", err)
+	}
+	return oldValue.Vnet, nil
+}
+
+// ResetVnet resets all changes to the "vnet" field.
+func (m *VNetSlotMutation) ResetVnet() {
+	m.vnet = nil
+}
+
+// SetZone sets the "zone" field.
+func (m *VNetSlotMutation) SetZone(s string) {
+	m.zone = &s
+}
+
+// Zone returns the value of the "zone" field in the mutation.
+func (m *VNetSlotMutation) Zone() (r string, exists bool) {
+	v := m.zone
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldZone returns the old "zone" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldZone(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldZone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldZone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldZone: %w", err)
+	}
+	return oldValue.Zone, nil
+}
+
+// ResetZone resets all changes to the "zone" field.
+func (m *VNetSlotMutation) ResetZone() {
+	m.zone = nil
+}
+
+// SetZoneType sets the "zone_type" field.
+func (m *VNetSlotMutation) SetZoneType(s string) {
+	m.zone_type = &s
+}
+
+// ZoneType returns the value of the "zone_type" field in the mutation.
+func (m *VNetSlotMutation) ZoneType() (r string, exists bool) {
+	v := m.zone_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldZoneType returns the old "zone_type" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldZoneType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldZoneType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldZoneType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldZoneType: %w", err)
+	}
+	return oldValue.ZoneType, nil
+}
+
+// ResetZoneType resets all changes to the "zone_type" field.
+func (m *VNetSlotMutation) ResetZoneType() {
+	m.zone_type = nil
+}
+
+// SetMtu sets the "mtu" field.
+func (m *VNetSlotMutation) SetMtu(i int) {
+	m.mtu = &i
+	m.addmtu = nil
+}
+
+// Mtu returns the value of the "mtu" field in the mutation.
+func (m *VNetSlotMutation) Mtu() (r int, exists bool) {
+	v := m.mtu
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMtu returns the old "mtu" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldMtu(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMtu is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMtu requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMtu: %w", err)
+	}
+	return oldValue.Mtu, nil
+}
+
+// AddMtu adds i to the "mtu" field.
+func (m *VNetSlotMutation) AddMtu(i int) {
+	if m.addmtu != nil {
+		*m.addmtu += i
+	} else {
+		m.addmtu = &i
+	}
+}
+
+// AddedMtu returns the value that was added to the "mtu" field in this mutation.
+func (m *VNetSlotMutation) AddedMtu() (r int, exists bool) {
+	v := m.addmtu
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMtu resets all changes to the "mtu" field.
+func (m *VNetSlotMutation) ResetMtu() {
+	m.mtu = nil
+	m.addmtu = nil
+}
+
+// SetState sets the "state" field.
+func (m *VNetSlotMutation) SetState(v vnetslot.State) {
+	m.state = &v
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *VNetSlotMutation) State() (r vnetslot.State, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldState(ctx context.Context) (v vnetslot.State, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *VNetSlotMutation) ResetState() {
+	m.state = nil
+}
+
+// SetHealth sets the "health" field.
+func (m *VNetSlotMutation) SetHealth(v vnetslot.Health) {
+	m.health = &v
+}
+
+// Health returns the value of the "health" field in the mutation.
+func (m *VNetSlotMutation) Health() (r vnetslot.Health, exists bool) {
+	v := m.health
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHealth returns the old "health" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldHealth(ctx context.Context) (v vnetslot.Health, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHealth is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHealth requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHealth: %w", err)
+	}
+	return oldValue.Health, nil
+}
+
+// ResetHealth resets all changes to the "health" field.
+func (m *VNetSlotMutation) ResetHealth() {
+	m.health = nil
+}
+
+// SetReason sets the "reason" field.
+func (m *VNetSlotMutation) SetReason(s string) {
+	m.reason = &s
+}
+
+// Reason returns the value of the "reason" field in the mutation.
+func (m *VNetSlotMutation) Reason() (r string, exists bool) {
+	v := m.reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReason returns the old "reason" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldReason(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReason: %w", err)
+	}
+	return oldValue.Reason, nil
+}
+
+// ResetReason resets all changes to the "reason" field.
+func (m *VNetSlotMutation) ResetReason() {
+	m.reason = nil
+}
+
+// SetNetworkID sets the "network_id" field.
+func (m *VNetSlotMutation) SetNetworkID(i int64) {
+	m.network = &i
+}
+
+// NetworkID returns the value of the "network_id" field in the mutation.
+func (m *VNetSlotMutation) NetworkID() (r int64, exists bool) {
+	v := m.network
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNetworkID returns the old "network_id" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldNetworkID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNetworkID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNetworkID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNetworkID: %w", err)
+	}
+	return oldValue.NetworkID, nil
+}
+
+// ClearNetworkID clears the value of the "network_id" field.
+func (m *VNetSlotMutation) ClearNetworkID() {
+	m.network = nil
+	m.clearedFields[vnetslot.FieldNetworkID] = struct{}{}
+}
+
+// NetworkIDCleared returns if the "network_id" field was cleared in this mutation.
+func (m *VNetSlotMutation) NetworkIDCleared() bool {
+	_, ok := m.clearedFields[vnetslot.FieldNetworkID]
+	return ok
+}
+
+// ResetNetworkID resets all changes to the "network_id" field.
+func (m *VNetSlotMutation) ResetNetworkID() {
+	m.network = nil
+	delete(m.clearedFields, vnetslot.FieldNetworkID)
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *VNetSlotMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *VNetSlotMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the VNetSlot entity.
+// If the VNetSlot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VNetSlotMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *VNetSlotMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *VNetSlotMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[vnetslot.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *VNetSlotMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *VNetSlotMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *VNetSlotMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// ClearNetwork clears the "network" edge to the Network entity.
+func (m *VNetSlotMutation) ClearNetwork() {
+	m.clearednetwork = true
+	m.clearedFields[vnetslot.FieldNetworkID] = struct{}{}
+}
+
+// NetworkCleared reports if the "network" edge to the Network entity was cleared.
+func (m *VNetSlotMutation) NetworkCleared() bool {
+	return m.NetworkIDCleared() || m.clearednetwork
+}
+
+// NetworkIDs returns the "network" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// NetworkID instead. It exists only for internal usage by the builders.
+func (m *VNetSlotMutation) NetworkIDs() (ids []int64) {
+	if id := m.network; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetNetwork resets all changes to the "network" edge.
+func (m *VNetSlotMutation) ResetNetwork() {
+	m.network = nil
+	m.clearednetwork = false
+}
+
+// Where appends a list predicates to the VNetSlotMutation builder.
+func (m *VNetSlotMutation) Where(ps ...predicate.VNetSlot) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the VNetSlotMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *VNetSlotMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.VNetSlot, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *VNetSlotMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *VNetSlotMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (VNetSlot).
+func (m *VNetSlotMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *VNetSlotMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.location != nil {
+		fields = append(fields, vnetslot.FieldLocationID)
+	}
+	if m.vnet != nil {
+		fields = append(fields, vnetslot.FieldVnet)
+	}
+	if m.zone != nil {
+		fields = append(fields, vnetslot.FieldZone)
+	}
+	if m.zone_type != nil {
+		fields = append(fields, vnetslot.FieldZoneType)
+	}
+	if m.mtu != nil {
+		fields = append(fields, vnetslot.FieldMtu)
+	}
+	if m.state != nil {
+		fields = append(fields, vnetslot.FieldState)
+	}
+	if m.health != nil {
+		fields = append(fields, vnetslot.FieldHealth)
+	}
+	if m.reason != nil {
+		fields = append(fields, vnetslot.FieldReason)
+	}
+	if m.network != nil {
+		fields = append(fields, vnetslot.FieldNetworkID)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, vnetslot.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *VNetSlotMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case vnetslot.FieldLocationID:
+		return m.LocationID()
+	case vnetslot.FieldVnet:
+		return m.Vnet()
+	case vnetslot.FieldZone:
+		return m.Zone()
+	case vnetslot.FieldZoneType:
+		return m.ZoneType()
+	case vnetslot.FieldMtu:
+		return m.Mtu()
+	case vnetslot.FieldState:
+		return m.State()
+	case vnetslot.FieldHealth:
+		return m.Health()
+	case vnetslot.FieldReason:
+		return m.Reason()
+	case vnetslot.FieldNetworkID:
+		return m.NetworkID()
+	case vnetslot.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *VNetSlotMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case vnetslot.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case vnetslot.FieldVnet:
+		return m.OldVnet(ctx)
+	case vnetslot.FieldZone:
+		return m.OldZone(ctx)
+	case vnetslot.FieldZoneType:
+		return m.OldZoneType(ctx)
+	case vnetslot.FieldMtu:
+		return m.OldMtu(ctx)
+	case vnetslot.FieldState:
+		return m.OldState(ctx)
+	case vnetslot.FieldHealth:
+		return m.OldHealth(ctx)
+	case vnetslot.FieldReason:
+		return m.OldReason(ctx)
+	case vnetslot.FieldNetworkID:
+		return m.OldNetworkID(ctx)
+	case vnetslot.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown VNetSlot field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VNetSlotMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case vnetslot.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case vnetslot.FieldVnet:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVnet(v)
+		return nil
+	case vnetslot.FieldZone:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetZone(v)
+		return nil
+	case vnetslot.FieldZoneType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetZoneType(v)
+		return nil
+	case vnetslot.FieldMtu:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMtu(v)
+		return nil
+	case vnetslot.FieldState:
+		v, ok := value.(vnetslot.State)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
+	case vnetslot.FieldHealth:
+		v, ok := value.(vnetslot.Health)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHealth(v)
+		return nil
+	case vnetslot.FieldReason:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReason(v)
+		return nil
+	case vnetslot.FieldNetworkID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNetworkID(v)
+		return nil
+	case vnetslot.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown VNetSlot field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *VNetSlotMutation) AddedFields() []string {
+	var fields []string
+	if m.addmtu != nil {
+		fields = append(fields, vnetslot.FieldMtu)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *VNetSlotMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case vnetslot.FieldMtu:
+		return m.AddedMtu()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *VNetSlotMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case vnetslot.FieldMtu:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMtu(v)
+		return nil
+	}
+	return fmt.Errorf("unknown VNetSlot numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *VNetSlotMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(vnetslot.FieldNetworkID) {
+		fields = append(fields, vnetslot.FieldNetworkID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *VNetSlotMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *VNetSlotMutation) ClearField(name string) error {
+	switch name {
+	case vnetslot.FieldNetworkID:
+		m.ClearNetworkID()
+		return nil
+	}
+	return fmt.Errorf("unknown VNetSlot nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *VNetSlotMutation) ResetField(name string) error {
+	switch name {
+	case vnetslot.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case vnetslot.FieldVnet:
+		m.ResetVnet()
+		return nil
+	case vnetslot.FieldZone:
+		m.ResetZone()
+		return nil
+	case vnetslot.FieldZoneType:
+		m.ResetZoneType()
+		return nil
+	case vnetslot.FieldMtu:
+		m.ResetMtu()
+		return nil
+	case vnetslot.FieldState:
+		m.ResetState()
+		return nil
+	case vnetslot.FieldHealth:
+		m.ResetHealth()
+		return nil
+	case vnetslot.FieldReason:
+		m.ResetReason()
+		return nil
+	case vnetslot.FieldNetworkID:
+		m.ResetNetworkID()
+		return nil
+	case vnetslot.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown VNetSlot field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *VNetSlotMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.location != nil {
+		edges = append(edges, vnetslot.EdgeLocation)
+	}
+	if m.network != nil {
+		edges = append(edges, vnetslot.EdgeNetwork)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *VNetSlotMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case vnetslot.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	case vnetslot.EdgeNetwork:
+		if id := m.network; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *VNetSlotMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *VNetSlotMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *VNetSlotMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedlocation {
+		edges = append(edges, vnetslot.EdgeLocation)
+	}
+	if m.clearednetwork {
+		edges = append(edges, vnetslot.EdgeNetwork)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *VNetSlotMutation) EdgeCleared(name string) bool {
+	switch name {
+	case vnetslot.EdgeLocation:
+		return m.clearedlocation
+	case vnetslot.EdgeNetwork:
+		return m.clearednetwork
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *VNetSlotMutation) ClearEdge(name string) error {
+	switch name {
+	case vnetslot.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	case vnetslot.EdgeNetwork:
+		m.ClearNetwork()
+		return nil
+	}
+	return fmt.Errorf("unknown VNetSlot unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *VNetSlotMutation) ResetEdge(name string) error {
+	switch name {
+	case vnetslot.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	case vnetslot.EdgeNetwork:
+		m.ResetNetwork()
+		return nil
+	}
+	return fmt.Errorf("unknown VNetSlot edge %s", name)
 }
 
 // VolumeMutation represents an operation that mutates the Volume nodes in the graph.

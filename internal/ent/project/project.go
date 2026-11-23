@@ -32,6 +32,8 @@ const (
 	FieldMaxVolumeGB = "max_volume_gb"
 	// FieldMaxBackups holds the string denoting the max_backups field in the database.
 	FieldMaxBackups = "max_backups"
+	// FieldMaxNetworks holds the string denoting the max_networks field in the database.
+	FieldMaxNetworks = "max_networks"
 	// FieldCreatedBy holds the string denoting the created_by field in the database.
 	FieldCreatedBy = "created_by"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -70,6 +72,7 @@ var Columns = []string{
 	FieldMaxVolumes,
 	FieldMaxVolumeGB,
 	FieldMaxBackups,
+	FieldMaxNetworks,
 	FieldCreatedBy,
 	FieldCreatedAt,
 }
@@ -101,6 +104,8 @@ var (
 	DefaultMaxVolumeGB int
 	// DefaultMaxBackups holds the default value on creation for the "max_backups" field.
 	DefaultMaxBackups int
+	// DefaultMaxNetworks holds the default value on creation for the "max_networks" field.
+	DefaultMaxNetworks int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -156,6 +161,11 @@ func ByMaxVolumeGB(opts ...sql.OrderTermOption) OrderOption {
 // ByMaxBackups orders the results by the max_backups field.
 func ByMaxBackups(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMaxBackups, opts...).ToFunc()
+}
+
+// ByMaxNetworks orders the results by the max_networks field.
+func ByMaxNetworks(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxNetworks, opts...).ToFunc()
 }
 
 // ByCreatedBy orders the results by the created_by field.

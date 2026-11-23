@@ -51,6 +51,11 @@ func (Location) Fields() []ent.Field {
 		// The window is minutes from 00:00 UTC and may cross midnight.
 		field.Int("backup_window_start").Default(120),
 		field.Int("backup_window_end").Default(360),
+		// sdn_zone is the Proxmox SDN zone for private networks; nil disables them.
+		field.Text("sdn_zone").Optional().Nillable(),
+		field.Text("vnet_prefix").Default("nb"),
+		// sdn_audit_ok is the last discovery's SDN permission result.
+		field.Bool("sdn_audit_ok").Default(false),
 		createdAt(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now).
 			Annotations(entsql.DefaultExpr("now()")),

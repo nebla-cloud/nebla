@@ -32,15 +32,18 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
+	"github.com/nebla-cloud/nebla/internal/ent/network"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
@@ -87,6 +90,8 @@ type Client struct {
 	Location *LocationClient
 	// LocationEnrollment is the client for interacting with the LocationEnrollment builders.
 	LocationEnrollment *LocationEnrollmentClient
+	// Network is the client for interacting with the Network builders.
+	Network *NetworkClient
 	// Node is the client for interacting with the Node builders.
 	Node *NodeClient
 	// Project is the client for interacting with the Project builders.
@@ -97,6 +102,8 @@ type Client struct {
 	SSHKey *SSHKeyClient
 	// Server is the client for interacting with the Server builders.
 	Server *ServerClient
+	// ServerNetwork is the client for interacting with the ServerNetwork builders.
+	ServerNetwork *ServerNetworkClient
 	// ServerType is the client for interacting with the ServerType builders.
 	ServerType *ServerTypeClient
 	// Session is the client for interacting with the Session builders.
@@ -105,6 +112,8 @@ type Client struct {
 	Setting *SettingClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// VNetSlot is the client for interacting with the VNetSlot builders.
+	VNetSlot *VNetSlotClient
 	// Volume is the client for interacting with the Volume builders.
 	Volume *VolumeClient
 	// WebauthnChallenge is the client for interacting with the WebauthnChallenge builders.
@@ -139,15 +148,18 @@ func (c *Client) init() {
 	c.Invite = NewInviteClient(c.config)
 	c.Location = NewLocationClient(c.config)
 	c.LocationEnrollment = NewLocationEnrollmentClient(c.config)
+	c.Network = NewNetworkClient(c.config)
 	c.Node = NewNodeClient(c.config)
 	c.Project = NewProjectClient(c.config)
 	c.ProjectMember = NewProjectMemberClient(c.config)
 	c.SSHKey = NewSSHKeyClient(c.config)
 	c.Server = NewServerClient(c.config)
+	c.ServerNetwork = NewServerNetworkClient(c.config)
 	c.ServerType = NewServerTypeClient(c.config)
 	c.Session = NewSessionClient(c.config)
 	c.Setting = NewSettingClient(c.config)
 	c.User = NewUserClient(c.config)
+	c.VNetSlot = NewVNetSlotClient(c.config)
 	c.Volume = NewVolumeClient(c.config)
 	c.WebauthnChallenge = NewWebauthnChallengeClient(c.config)
 	c.WebauthnCredential = NewWebauthnCredentialClient(c.config)
@@ -260,15 +272,18 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Invite:             NewInviteClient(cfg),
 		Location:           NewLocationClient(cfg),
 		LocationEnrollment: NewLocationEnrollmentClient(cfg),
+		Network:            NewNetworkClient(cfg),
 		Node:               NewNodeClient(cfg),
 		Project:            NewProjectClient(cfg),
 		ProjectMember:      NewProjectMemberClient(cfg),
 		SSHKey:             NewSSHKeyClient(cfg),
 		Server:             NewServerClient(cfg),
+		ServerNetwork:      NewServerNetworkClient(cfg),
 		ServerType:         NewServerTypeClient(cfg),
 		Session:            NewSessionClient(cfg),
 		Setting:            NewSettingClient(cfg),
 		User:               NewUserClient(cfg),
+		VNetSlot:           NewVNetSlotClient(cfg),
 		Volume:             NewVolumeClient(cfg),
 		WebauthnChallenge:  NewWebauthnChallengeClient(cfg),
 		WebauthnCredential: NewWebauthnCredentialClient(cfg),
@@ -308,15 +323,18 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Invite:             NewInviteClient(cfg),
 		Location:           NewLocationClient(cfg),
 		LocationEnrollment: NewLocationEnrollmentClient(cfg),
+		Network:            NewNetworkClient(cfg),
 		Node:               NewNodeClient(cfg),
 		Project:            NewProjectClient(cfg),
 		ProjectMember:      NewProjectMemberClient(cfg),
 		SSHKey:             NewSSHKeyClient(cfg),
 		Server:             NewServerClient(cfg),
+		ServerNetwork:      NewServerNetworkClient(cfg),
 		ServerType:         NewServerTypeClient(cfg),
 		Session:            NewSessionClient(cfg),
 		Setting:            NewSettingClient(cfg),
 		User:               NewUserClient(cfg),
+		VNetSlot:           NewVNetSlotClient(cfg),
 		Volume:             NewVolumeClient(cfg),
 		WebauthnChallenge:  NewWebauthnChallengeClient(cfg),
 		WebauthnCredential: NewWebauthnCredentialClient(cfg),
@@ -352,9 +370,9 @@ func (c *Client) Use(hooks ...Hook) {
 		c.APIToken, c.Action, c.Backup, c.BackupTombstone, c.CatalogBuild,
 		c.ConsoleToken, c.Firewall, c.FirewallResource, c.FirewallRule, c.IPAddress,
 		c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite, c.Location,
-		c.LocationEnrollment, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
-		c.ServerType, c.Session, c.Setting, c.User, c.Volume, c.WebauthnChallenge,
-		c.WebauthnCredential,
+		c.LocationEnrollment, c.Network, c.Node, c.Project, c.ProjectMember, c.SSHKey,
+		c.Server, c.ServerNetwork, c.ServerType, c.Session, c.Setting, c.User,
+		c.VNetSlot, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
 	} {
 		n.Use(hooks...)
 	}
@@ -367,9 +385,9 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.APIToken, c.Action, c.Backup, c.BackupTombstone, c.CatalogBuild,
 		c.ConsoleToken, c.Firewall, c.FirewallResource, c.FirewallRule, c.IPAddress,
 		c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite, c.Location,
-		c.LocationEnrollment, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
-		c.ServerType, c.Session, c.Setting, c.User, c.Volume, c.WebauthnChallenge,
-		c.WebauthnCredential,
+		c.LocationEnrollment, c.Network, c.Node, c.Project, c.ProjectMember, c.SSHKey,
+		c.Server, c.ServerNetwork, c.ServerType, c.Session, c.Setting, c.User,
+		c.VNetSlot, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -412,6 +430,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Location.mutate(ctx, m)
 	case *LocationEnrollmentMutation:
 		return c.LocationEnrollment.mutate(ctx, m)
+	case *NetworkMutation:
+		return c.Network.mutate(ctx, m)
 	case *NodeMutation:
 		return c.Node.mutate(ctx, m)
 	case *ProjectMutation:
@@ -422,6 +442,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.SSHKey.mutate(ctx, m)
 	case *ServerMutation:
 		return c.Server.mutate(ctx, m)
+	case *ServerNetworkMutation:
+		return c.ServerNetwork.mutate(ctx, m)
 	case *ServerTypeMutation:
 		return c.ServerType.mutate(ctx, m)
 	case *SessionMutation:
@@ -430,6 +452,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Setting.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
+	case *VNetSlotMutation:
+		return c.VNetSlot.mutate(ctx, m)
 	case *VolumeMutation:
 		return c.Volume.mutate(ctx, m)
 	case *WebauthnChallengeMutation:
@@ -3246,6 +3270,171 @@ func (c *LocationEnrollmentClient) mutate(ctx context.Context, m *LocationEnroll
 	}
 }
 
+// NetworkClient is a client for the Network schema.
+type NetworkClient struct {
+	config
+}
+
+// NewNetworkClient returns a client for the Network from the given config.
+func NewNetworkClient(c config) *NetworkClient {
+	return &NetworkClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `network.Hooks(f(g(h())))`.
+func (c *NetworkClient) Use(hooks ...Hook) {
+	c.hooks.Network = append(c.hooks.Network, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `network.Intercept(f(g(h())))`.
+func (c *NetworkClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Network = append(c.inters.Network, interceptors...)
+}
+
+// Create returns a builder for creating a Network entity.
+func (c *NetworkClient) Create() *NetworkCreate {
+	mutation := newNetworkMutation(c.config, OpCreate)
+	return &NetworkCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Network entities.
+func (c *NetworkClient) CreateBulk(builders ...*NetworkCreate) *NetworkCreateBulk {
+	return &NetworkCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *NetworkClient) MapCreateBulk(slice any, setFunc func(*NetworkCreate, int)) *NetworkCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &NetworkCreateBulk{err: fmt.Errorf("calling to NetworkClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*NetworkCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &NetworkCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Network.
+func (c *NetworkClient) Update() *NetworkUpdate {
+	mutation := newNetworkMutation(c.config, OpUpdate)
+	return &NetworkUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *NetworkClient) UpdateOne(_m *Network) *NetworkUpdateOne {
+	mutation := newNetworkMutation(c.config, OpUpdateOne, withNetwork(_m))
+	return &NetworkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *NetworkClient) UpdateOneID(id int64) *NetworkUpdateOne {
+	mutation := newNetworkMutation(c.config, OpUpdateOne, withNetworkID(id))
+	return &NetworkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Network.
+func (c *NetworkClient) Delete() *NetworkDelete {
+	mutation := newNetworkMutation(c.config, OpDelete)
+	return &NetworkDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *NetworkClient) DeleteOne(_m *Network) *NetworkDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *NetworkClient) DeleteOneID(id int64) *NetworkDeleteOne {
+	builder := c.Delete().Where(network.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &NetworkDeleteOne{builder}
+}
+
+// Query returns a query builder for Network.
+func (c *NetworkClient) Query() *NetworkQuery {
+	return &NetworkQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeNetwork},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Network entity by its id.
+func (c *NetworkClient) Get(ctx context.Context, id int64) (*Network, error) {
+	return c.Query().Where(network.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *NetworkClient) GetX(ctx context.Context, id int64) *Network {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a Network.
+func (c *NetworkClient) QueryProject(_m *Network) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(network.Table, network.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, network.ProjectTable, network.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryLocation queries the location edge of a Network.
+func (c *NetworkClient) QueryLocation(_m *Network) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(network.Table, network.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, network.LocationTable, network.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *NetworkClient) Hooks() []Hook {
+	return c.hooks.Network
+}
+
+// Interceptors returns the client interceptors.
+func (c *NetworkClient) Interceptors() []Interceptor {
+	return c.inters.Network
+}
+
+func (c *NetworkClient) mutate(ctx context.Context, m *NetworkMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&NetworkCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&NetworkUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&NetworkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&NetworkDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Network mutation op: %q", m.Op())
+	}
+}
+
 // NodeClient is a client for the Node schema.
 type NodeClient struct {
 	config
@@ -4071,6 +4260,171 @@ func (c *ServerClient) mutate(ctx context.Context, m *ServerMutation) (Value, er
 	}
 }
 
+// ServerNetworkClient is a client for the ServerNetwork schema.
+type ServerNetworkClient struct {
+	config
+}
+
+// NewServerNetworkClient returns a client for the ServerNetwork from the given config.
+func NewServerNetworkClient(c config) *ServerNetworkClient {
+	return &ServerNetworkClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `servernetwork.Hooks(f(g(h())))`.
+func (c *ServerNetworkClient) Use(hooks ...Hook) {
+	c.hooks.ServerNetwork = append(c.hooks.ServerNetwork, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `servernetwork.Intercept(f(g(h())))`.
+func (c *ServerNetworkClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ServerNetwork = append(c.inters.ServerNetwork, interceptors...)
+}
+
+// Create returns a builder for creating a ServerNetwork entity.
+func (c *ServerNetworkClient) Create() *ServerNetworkCreate {
+	mutation := newServerNetworkMutation(c.config, OpCreate)
+	return &ServerNetworkCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ServerNetwork entities.
+func (c *ServerNetworkClient) CreateBulk(builders ...*ServerNetworkCreate) *ServerNetworkCreateBulk {
+	return &ServerNetworkCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ServerNetworkClient) MapCreateBulk(slice any, setFunc func(*ServerNetworkCreate, int)) *ServerNetworkCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ServerNetworkCreateBulk{err: fmt.Errorf("calling to ServerNetworkClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ServerNetworkCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ServerNetworkCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ServerNetwork.
+func (c *ServerNetworkClient) Update() *ServerNetworkUpdate {
+	mutation := newServerNetworkMutation(c.config, OpUpdate)
+	return &ServerNetworkUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ServerNetworkClient) UpdateOne(_m *ServerNetwork) *ServerNetworkUpdateOne {
+	mutation := newServerNetworkMutation(c.config, OpUpdateOne, withServerNetwork(_m))
+	return &ServerNetworkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ServerNetworkClient) UpdateOneID(id int64) *ServerNetworkUpdateOne {
+	mutation := newServerNetworkMutation(c.config, OpUpdateOne, withServerNetworkID(id))
+	return &ServerNetworkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ServerNetwork.
+func (c *ServerNetworkClient) Delete() *ServerNetworkDelete {
+	mutation := newServerNetworkMutation(c.config, OpDelete)
+	return &ServerNetworkDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ServerNetworkClient) DeleteOne(_m *ServerNetwork) *ServerNetworkDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ServerNetworkClient) DeleteOneID(id int64) *ServerNetworkDeleteOne {
+	builder := c.Delete().Where(servernetwork.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ServerNetworkDeleteOne{builder}
+}
+
+// Query returns a query builder for ServerNetwork.
+func (c *ServerNetworkClient) Query() *ServerNetworkQuery {
+	return &ServerNetworkQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeServerNetwork},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ServerNetwork entity by its id.
+func (c *ServerNetworkClient) Get(ctx context.Context, id int64) (*ServerNetwork, error) {
+	return c.Query().Where(servernetwork.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ServerNetworkClient) GetX(ctx context.Context, id int64) *ServerNetwork {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryServer queries the server edge of a ServerNetwork.
+func (c *ServerNetworkClient) QueryServer(_m *ServerNetwork) *ServerQuery {
+	query := (&ServerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(servernetwork.Table, servernetwork.FieldID, id),
+			sqlgraph.To(server.Table, server.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, servernetwork.ServerTable, servernetwork.ServerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryNetwork queries the network edge of a ServerNetwork.
+func (c *ServerNetworkClient) QueryNetwork(_m *ServerNetwork) *NetworkQuery {
+	query := (&NetworkClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(servernetwork.Table, servernetwork.FieldID, id),
+			sqlgraph.To(network.Table, network.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, servernetwork.NetworkTable, servernetwork.NetworkColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ServerNetworkClient) Hooks() []Hook {
+	return c.hooks.ServerNetwork
+}
+
+// Interceptors returns the client interceptors.
+func (c *ServerNetworkClient) Interceptors() []Interceptor {
+	return c.inters.ServerNetwork
+}
+
+func (c *ServerNetworkClient) mutate(ctx context.Context, m *ServerNetworkMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ServerNetworkCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ServerNetworkUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ServerNetworkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ServerNetworkDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ServerNetwork mutation op: %q", m.Op())
+	}
+}
+
 // ServerTypeClient is a client for the ServerType schema.
 type ServerTypeClient struct {
 	config
@@ -4635,6 +4989,171 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 	}
 }
 
+// VNetSlotClient is a client for the VNetSlot schema.
+type VNetSlotClient struct {
+	config
+}
+
+// NewVNetSlotClient returns a client for the VNetSlot from the given config.
+func NewVNetSlotClient(c config) *VNetSlotClient {
+	return &VNetSlotClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `vnetslot.Hooks(f(g(h())))`.
+func (c *VNetSlotClient) Use(hooks ...Hook) {
+	c.hooks.VNetSlot = append(c.hooks.VNetSlot, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `vnetslot.Intercept(f(g(h())))`.
+func (c *VNetSlotClient) Intercept(interceptors ...Interceptor) {
+	c.inters.VNetSlot = append(c.inters.VNetSlot, interceptors...)
+}
+
+// Create returns a builder for creating a VNetSlot entity.
+func (c *VNetSlotClient) Create() *VNetSlotCreate {
+	mutation := newVNetSlotMutation(c.config, OpCreate)
+	return &VNetSlotCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of VNetSlot entities.
+func (c *VNetSlotClient) CreateBulk(builders ...*VNetSlotCreate) *VNetSlotCreateBulk {
+	return &VNetSlotCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *VNetSlotClient) MapCreateBulk(slice any, setFunc func(*VNetSlotCreate, int)) *VNetSlotCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &VNetSlotCreateBulk{err: fmt.Errorf("calling to VNetSlotClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*VNetSlotCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &VNetSlotCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for VNetSlot.
+func (c *VNetSlotClient) Update() *VNetSlotUpdate {
+	mutation := newVNetSlotMutation(c.config, OpUpdate)
+	return &VNetSlotUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *VNetSlotClient) UpdateOne(_m *VNetSlot) *VNetSlotUpdateOne {
+	mutation := newVNetSlotMutation(c.config, OpUpdateOne, withVNetSlot(_m))
+	return &VNetSlotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *VNetSlotClient) UpdateOneID(id int64) *VNetSlotUpdateOne {
+	mutation := newVNetSlotMutation(c.config, OpUpdateOne, withVNetSlotID(id))
+	return &VNetSlotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for VNetSlot.
+func (c *VNetSlotClient) Delete() *VNetSlotDelete {
+	mutation := newVNetSlotMutation(c.config, OpDelete)
+	return &VNetSlotDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *VNetSlotClient) DeleteOne(_m *VNetSlot) *VNetSlotDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *VNetSlotClient) DeleteOneID(id int64) *VNetSlotDeleteOne {
+	builder := c.Delete().Where(vnetslot.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &VNetSlotDeleteOne{builder}
+}
+
+// Query returns a query builder for VNetSlot.
+func (c *VNetSlotClient) Query() *VNetSlotQuery {
+	return &VNetSlotQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeVNetSlot},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a VNetSlot entity by its id.
+func (c *VNetSlotClient) Get(ctx context.Context, id int64) (*VNetSlot, error) {
+	return c.Query().Where(vnetslot.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *VNetSlotClient) GetX(ctx context.Context, id int64) *VNetSlot {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryLocation queries the location edge of a VNetSlot.
+func (c *VNetSlotClient) QueryLocation(_m *VNetSlot) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(vnetslot.Table, vnetslot.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, vnetslot.LocationTable, vnetslot.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryNetwork queries the network edge of a VNetSlot.
+func (c *VNetSlotClient) QueryNetwork(_m *VNetSlot) *NetworkQuery {
+	query := (&NetworkClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(vnetslot.Table, vnetslot.FieldID, id),
+			sqlgraph.To(network.Table, network.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, vnetslot.NetworkTable, vnetslot.NetworkColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *VNetSlotClient) Hooks() []Hook {
+	return c.hooks.VNetSlot
+}
+
+// Interceptors returns the client interceptors.
+func (c *VNetSlotClient) Interceptors() []Interceptor {
+	return c.inters.VNetSlot
+}
+
+func (c *VNetSlotClient) mutate(ctx context.Context, m *VNetSlotMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&VNetSlotCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&VNetSlotUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&VNetSlotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&VNetSlotDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown VNetSlot mutation op: %q", m.Op())
+	}
+}
+
 // VolumeClient is a client for the Volume schema.
 type VolumeClient struct {
 	config
@@ -5119,16 +5638,16 @@ type (
 	hooks struct {
 		APIToken, Action, Backup, BackupTombstone, CatalogBuild, ConsoleToken, Firewall,
 		FirewallResource, FirewallRule, IPAddress, IPAllocation, IPPool, Image,
-		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
-		ProjectMember, SSHKey, Server, ServerType, Session, Setting, User, Volume,
-		WebauthnChallenge, WebauthnCredential []ent.Hook
+		ImageTemplate, Invite, Location, LocationEnrollment, Network, Node, Project,
+		ProjectMember, SSHKey, Server, ServerNetwork, ServerType, Session, Setting,
+		User, VNetSlot, Volume, WebauthnChallenge, WebauthnCredential []ent.Hook
 	}
 	inters struct {
 		APIToken, Action, Backup, BackupTombstone, CatalogBuild, ConsoleToken, Firewall,
 		FirewallResource, FirewallRule, IPAddress, IPAllocation, IPPool, Image,
-		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
-		ProjectMember, SSHKey, Server, ServerType, Session, Setting, User, Volume,
-		WebauthnChallenge, WebauthnCredential []ent.Interceptor
+		ImageTemplate, Invite, Location, LocationEnrollment, Network, Node, Project,
+		ProjectMember, SSHKey, Server, ServerNetwork, ServerType, Session, Setting,
+		User, VNetSlot, Volume, WebauthnChallenge, WebauthnCredential []ent.Interceptor
 	}
 )
 

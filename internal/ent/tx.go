@@ -48,6 +48,8 @@ type Tx struct {
 	Location *LocationClient
 	// LocationEnrollment is the client for interacting with the LocationEnrollment builders.
 	LocationEnrollment *LocationEnrollmentClient
+	// Network is the client for interacting with the Network builders.
+	Network *NetworkClient
 	// Node is the client for interacting with the Node builders.
 	Node *NodeClient
 	// Project is the client for interacting with the Project builders.
@@ -58,6 +60,8 @@ type Tx struct {
 	SSHKey *SSHKeyClient
 	// Server is the client for interacting with the Server builders.
 	Server *ServerClient
+	// ServerNetwork is the client for interacting with the ServerNetwork builders.
+	ServerNetwork *ServerNetworkClient
 	// ServerType is the client for interacting with the ServerType builders.
 	ServerType *ServerTypeClient
 	// Session is the client for interacting with the Session builders.
@@ -66,6 +70,8 @@ type Tx struct {
 	Setting *SettingClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
+	// VNetSlot is the client for interacting with the VNetSlot builders.
+	VNetSlot *VNetSlotClient
 	// Volume is the client for interacting with the Volume builders.
 	Volume *VolumeClient
 	// WebauthnChallenge is the client for interacting with the WebauthnChallenge builders.
@@ -220,15 +226,18 @@ func (tx *Tx) init() {
 	tx.Invite = NewInviteClient(tx.config)
 	tx.Location = NewLocationClient(tx.config)
 	tx.LocationEnrollment = NewLocationEnrollmentClient(tx.config)
+	tx.Network = NewNetworkClient(tx.config)
 	tx.Node = NewNodeClient(tx.config)
 	tx.Project = NewProjectClient(tx.config)
 	tx.ProjectMember = NewProjectMemberClient(tx.config)
 	tx.SSHKey = NewSSHKeyClient(tx.config)
 	tx.Server = NewServerClient(tx.config)
+	tx.ServerNetwork = NewServerNetworkClient(tx.config)
 	tx.ServerType = NewServerTypeClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
 	tx.User = NewUserClient(tx.config)
+	tx.VNetSlot = NewVNetSlotClient(tx.config)
 	tx.Volume = NewVolumeClient(tx.config)
 	tx.WebauthnChallenge = NewWebauthnChallengeClient(tx.config)
 	tx.WebauthnCredential = NewWebauthnCredentialClient(tx.config)

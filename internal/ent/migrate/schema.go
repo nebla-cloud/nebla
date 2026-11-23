@@ -663,6 +663,9 @@ var (
 		{Name: "backup_storage_ok", Type: field.TypeBool, Default: false},
 		{Name: "backup_window_start", Type: field.TypeInt, Default: 120},
 		{Name: "backup_window_end", Type: field.TypeInt, Default: 360},
+		{Name: "sdn_zone", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "vnet_prefix", Type: field.TypeString, Size: 2147483647, Default: "nb"},
+		{Name: "sdn_audit_ok", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
@@ -740,6 +743,43 @@ var (
 			},
 		},
 	}
+	// NetworksColumns holds the columns for the "networks" table.
+	NetworksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "labels", Type: field.TypeJSON},
+		{Name: "ip_range", Type: field.TypeString, Size: 2147483647},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+	}
+	// NetworksTable holds the schema information for the "networks" table.
+	NetworksTable = &schema.Table{
+		Name:       "networks",
+		Columns:    NetworksColumns,
+		PrimaryKey: []*schema.Column{NetworksColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "networks_projects_project",
+				Columns:    []*schema.Column{NetworksColumns[5]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "networks_locations_location",
+				Columns:    []*schema.Column{NetworksColumns[6]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "networks_project_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{NetworksColumns[5], NetworksColumns[1]},
+			},
+		},
+	}
 	// NodesColumns holds the columns for the "nodes" table.
 	NodesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -788,6 +828,7 @@ var (
 		{Name: "max_volumes", Type: field.TypeInt, Default: 0},
 		{Name: "max_volume_gb", Type: field.TypeInt, Default: 0},
 		{Name: "max_backups", Type: field.TypeInt, Default: 0},
+		{Name: "max_networks", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "created_by", Type: field.TypeInt64, Nullable: true},
 	}
@@ -799,7 +840,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "projects_users_creator",
-				Columns:    []*schema.Column{ProjectsColumns[11]},
+				Columns:    []*schema.Column{ProjectsColumns[12]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -808,7 +849,7 @@ var (
 			{
 				Name:    "projects_created_by_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ProjectsColumns[11]},
+				Columns: []*schema.Column{ProjectsColumns[12]},
 			},
 		},
 	}
@@ -984,6 +1025,54 @@ var (
 			},
 		},
 	}
+	// ServerNetworksColumns holds the columns for the "server_networks" table.
+	ServerNetworksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "ip", Type: field.TypeString, Size: 2147483647},
+		{Name: "mac", Type: field.TypeString, Size: 2147483647},
+		{Name: "nic", Type: field.TypeInt},
+		{Name: "state", Type: field.TypeEnum, Enums: []string{"attaching", "attached", "detaching"}, Default: "attaching"},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "server_id", Type: field.TypeInt64},
+		{Name: "network_id", Type: field.TypeInt64},
+	}
+	// ServerNetworksTable holds the schema information for the "server_networks" table.
+	ServerNetworksTable = &schema.Table{
+		Name:       "server_networks",
+		Columns:    ServerNetworksColumns,
+		PrimaryKey: []*schema.Column{ServerNetworksColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "server_networks_servers_server",
+				Columns:    []*schema.Column{ServerNetworksColumns[6]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "server_networks_networks_network",
+				Columns:    []*schema.Column{ServerNetworksColumns[7]},
+				RefColumns: []*schema.Column{NetworksColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "server_networks_server_network_key",
+				Unique:  true,
+				Columns: []*schema.Column{ServerNetworksColumns[6], ServerNetworksColumns[7]},
+			},
+			{
+				Name:    "server_networks_server_nic_key",
+				Unique:  true,
+				Columns: []*schema.Column{ServerNetworksColumns[6], ServerNetworksColumns[3]},
+			},
+			{
+				Name:    "server_networks_network_ip_key",
+				Unique:  true,
+				Columns: []*schema.Column{ServerNetworksColumns[7], ServerNetworksColumns[1]},
+			},
+		},
+	}
 	// ServerTypesColumns holds the columns for the "server_types" table.
 	ServerTypesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1065,6 +1154,52 @@ var (
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
+	}
+	// VnetSlotsColumns holds the columns for the "vnet_slots" table.
+	VnetSlotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "vnet", Type: field.TypeString, Size: 2147483647},
+		{Name: "zone", Type: field.TypeString, Size: 2147483647},
+		{Name: "zone_type", Type: field.TypeString, Size: 2147483647},
+		{Name: "mtu", Type: field.TypeInt},
+		{Name: "state", Type: field.TypeEnum, Enums: []string{"free", "in_use", "cooling", "unusable", "gone"}, Default: "free"},
+		{Name: "health", Type: field.TypeEnum, Enums: []string{"ok", "degraded"}, Default: "ok"},
+		{Name: "reason", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "location_id", Type: field.TypeInt64},
+		{Name: "network_id", Type: field.TypeInt64, Nullable: true},
+	}
+	// VnetSlotsTable holds the schema information for the "vnet_slots" table.
+	VnetSlotsTable = &schema.Table{
+		Name:       "vnet_slots",
+		Columns:    VnetSlotsColumns,
+		PrimaryKey: []*schema.Column{VnetSlotsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "vnet_slots_locations_location",
+				Columns:    []*schema.Column{VnetSlotsColumns[9]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "vnet_slots_networks_network",
+				Columns:    []*schema.Column{VnetSlotsColumns[10]},
+				RefColumns: []*schema.Column{NetworksColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "vnet_slots_location_vnet_key",
+				Unique:  true,
+				Columns: []*schema.Column{VnetSlotsColumns[9], VnetSlotsColumns[1]},
+			},
+			{
+				Name:    "vnet_slots_network_id_key",
+				Unique:  true,
+				Columns: []*schema.Column{VnetSlotsColumns[10]},
+			},
+		},
 	}
 	// VolumesColumns holds the columns for the "volumes" table.
 	VolumesColumns = []*schema.Column{
@@ -1239,15 +1374,18 @@ var (
 		InvitesTable,
 		LocationsTable,
 		LocationEnrollmentsTable,
+		NetworksTable,
 		NodesTable,
 		ProjectsTable,
 		ProjectMembersTable,
 		SSHKeysTable,
 		ServersTable,
+		ServerNetworksTable,
 		ServerTypesTable,
 		SessionsTable,
 		SettingsTable,
 		UsersTable,
+		VnetSlotsTable,
 		VolumesTable,
 		WebauthnChallengesTable,
 		WebauthnCredentialsTable,
@@ -1289,6 +1427,8 @@ func init() {
 	InvitesTable.ForeignKeys[1].RefTable = UsersTable
 	LocationEnrollmentsTable.ForeignKeys[0].RefTable = LocationsTable
 	LocationEnrollmentsTable.ForeignKeys[1].RefTable = UsersTable
+	NetworksTable.ForeignKeys[0].RefTable = ProjectsTable
+	NetworksTable.ForeignKeys[1].RefTable = LocationsTable
 	NodesTable.ForeignKeys[0].RefTable = LocationsTable
 	ProjectsTable.ForeignKeys[0].RefTable = UsersTable
 	ProjectMembersTable.ForeignKeys[0].RefTable = ProjectsTable
@@ -1301,7 +1441,11 @@ func init() {
 	ServersTable.ForeignKeys[1].RefTable = LocationsTable
 	ServersTable.ForeignKeys[2].RefTable = ServerTypesTable
 	ServersTable.ForeignKeys[3].RefTable = ImagesTable
+	ServerNetworksTable.ForeignKeys[0].RefTable = ServersTable
+	ServerNetworksTable.ForeignKeys[1].RefTable = NetworksTable
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable
+	VnetSlotsTable.ForeignKeys[0].RefTable = LocationsTable
+	VnetSlotsTable.ForeignKeys[1].RefTable = NetworksTable
 	VolumesTable.ForeignKeys[0].RefTable = ProjectsTable
 	VolumesTable.ForeignKeys[1].RefTable = LocationsTable
 	VolumesTable.ForeignKeys[2].RefTable = ServersTable

@@ -25,16 +25,19 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
+	"github.com/nebla-cloud/nebla/internal/ent/network"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
@@ -555,6 +558,33 @@ func (f TraverseLocationEnrollment) Traverse(ctx context.Context, q ent.Query) e
 	return fmt.Errorf("unexpected query type %T. expect *ent.LocationEnrollmentQuery", q)
 }
 
+// The NetworkFunc type is an adapter to allow the use of ordinary function as a Querier.
+type NetworkFunc func(context.Context, *ent.NetworkQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f NetworkFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.NetworkQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.NetworkQuery", q)
+}
+
+// The TraverseNetwork type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseNetwork func(context.Context, *ent.NetworkQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseNetwork) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseNetwork) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.NetworkQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.NetworkQuery", q)
+}
+
 // The NodeFunc type is an adapter to allow the use of ordinary function as a Querier.
 type NodeFunc func(context.Context, *ent.NodeQuery) (ent.Value, error)
 
@@ -690,6 +720,33 @@ func (f TraverseServer) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.ServerQuery", q)
 }
 
+// The ServerNetworkFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ServerNetworkFunc func(context.Context, *ent.ServerNetworkQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ServerNetworkFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ServerNetworkQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ServerNetworkQuery", q)
+}
+
+// The TraverseServerNetwork type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseServerNetwork func(context.Context, *ent.ServerNetworkQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseServerNetwork) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseServerNetwork) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ServerNetworkQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ServerNetworkQuery", q)
+}
+
 // The ServerTypeFunc type is an adapter to allow the use of ordinary function as a Querier.
 type ServerTypeFunc func(context.Context, *ent.ServerTypeQuery) (ent.Value, error)
 
@@ -796,6 +853,33 @@ func (f TraverseUser) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserQuery", q)
+}
+
+// The VNetSlotFunc type is an adapter to allow the use of ordinary function as a Querier.
+type VNetSlotFunc func(context.Context, *ent.VNetSlotQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f VNetSlotFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.VNetSlotQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.VNetSlotQuery", q)
+}
+
+// The TraverseVNetSlot type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseVNetSlot func(context.Context, *ent.VNetSlotQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseVNetSlot) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseVNetSlot) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.VNetSlotQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.VNetSlotQuery", q)
 }
 
 // The VolumeFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -916,6 +1000,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.LocationQuery, predicate.Location, location.OrderOption]{typ: ent.TypeLocation, tq: q}, nil
 	case *ent.LocationEnrollmentQuery:
 		return &query[*ent.LocationEnrollmentQuery, predicate.LocationEnrollment, locationenrollment.OrderOption]{typ: ent.TypeLocationEnrollment, tq: q}, nil
+	case *ent.NetworkQuery:
+		return &query[*ent.NetworkQuery, predicate.Network, network.OrderOption]{typ: ent.TypeNetwork, tq: q}, nil
 	case *ent.NodeQuery:
 		return &query[*ent.NodeQuery, predicate.Node, node.OrderOption]{typ: ent.TypeNode, tq: q}, nil
 	case *ent.ProjectQuery:
@@ -926,6 +1012,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.SSHKeyQuery, predicate.SSHKey, sshkey.OrderOption]{typ: ent.TypeSSHKey, tq: q}, nil
 	case *ent.ServerQuery:
 		return &query[*ent.ServerQuery, predicate.Server, server.OrderOption]{typ: ent.TypeServer, tq: q}, nil
+	case *ent.ServerNetworkQuery:
+		return &query[*ent.ServerNetworkQuery, predicate.ServerNetwork, servernetwork.OrderOption]{typ: ent.TypeServerNetwork, tq: q}, nil
 	case *ent.ServerTypeQuery:
 		return &query[*ent.ServerTypeQuery, predicate.ServerType, servertype.OrderOption]{typ: ent.TypeServerType, tq: q}, nil
 	case *ent.SessionQuery:
@@ -934,6 +1022,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.SettingQuery, predicate.Setting, setting.OrderOption]{typ: ent.TypeSetting, tq: q}, nil
 	case *ent.UserQuery:
 		return &query[*ent.UserQuery, predicate.User, user.OrderOption]{typ: ent.TypeUser, tq: q}, nil
+	case *ent.VNetSlotQuery:
+		return &query[*ent.VNetSlotQuery, predicate.VNetSlot, vnetslot.OrderOption]{typ: ent.TypeVNetSlot, tq: q}, nil
 	case *ent.VolumeQuery:
 		return &query[*ent.VolumeQuery, predicate.Volume, volume.OrderOption]{typ: ent.TypeVolume, tq: q}, nil
 	case *ent.WebauthnChallengeQuery:

@@ -29,15 +29,18 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
+	"github.com/nebla-cloud/nebla/internal/ent/network"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthnchallenge"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
@@ -118,15 +121,18 @@ func checkColumn(t, c string) error {
 			invite.Table:             invite.ValidColumn,
 			location.Table:           location.ValidColumn,
 			locationenrollment.Table: locationenrollment.ValidColumn,
+			network.Table:            network.ValidColumn,
 			node.Table:               node.ValidColumn,
 			project.Table:            project.ValidColumn,
 			projectmember.Table:      projectmember.ValidColumn,
 			sshkey.Table:             sshkey.ValidColumn,
 			server.Table:             server.ValidColumn,
+			servernetwork.Table:      servernetwork.ValidColumn,
 			servertype.Table:         servertype.ValidColumn,
 			session.Table:            session.ValidColumn,
 			setting.Table:            setting.ValidColumn,
 			user.Table:               user.ValidColumn,
+			vnetslot.Table:           vnetslot.ValidColumn,
 			volume.Table:             volume.ValidColumn,
 			webauthnchallenge.Table:  webauthnchallenge.ValidColumn,
 			webauthncredential.Table: webauthncredential.ValidColumn,

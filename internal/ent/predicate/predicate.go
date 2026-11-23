@@ -57,6 +57,9 @@ type Location func(*sql.Selector)
 // LocationEnrollment is the predicate function for locationenrollment builders.
 type LocationEnrollment func(*sql.Selector)
 
+// Network is the predicate function for network builders.
+type Network func(*sql.Selector)
+
 // Node is the predicate function for node builders.
 type Node func(*sql.Selector)
 
@@ -72,6 +75,9 @@ type SSHKey func(*sql.Selector)
 // Server is the predicate function for server builders.
 type Server func(*sql.Selector)
 
+// ServerNetwork is the predicate function for servernetwork builders.
+type ServerNetwork func(*sql.Selector)
+
 // ServerType is the predicate function for servertype builders.
 type ServerType func(*sql.Selector)
 
@@ -83,6 +89,9 @@ type Setting func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)
+
+// VNetSlot is the predicate function for vnetslot builders.
+type VNetSlot func(*sql.Selector)
 
 // Volume is the predicate function for volume builders.
 type Volume func(*sql.Selector)

@@ -216,6 +216,48 @@ func (_c *LocationCreate) SetNillableBackupWindowEnd(v *int) *LocationCreate {
 	return _c
 }
 
+// SetSdnZone sets the "sdn_zone" field.
+func (_c *LocationCreate) SetSdnZone(v string) *LocationCreate {
+	_c.mutation.SetSdnZone(v)
+	return _c
+}
+
+// SetNillableSdnZone sets the "sdn_zone" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableSdnZone(v *string) *LocationCreate {
+	if v != nil {
+		_c.SetSdnZone(*v)
+	}
+	return _c
+}
+
+// SetVnetPrefix sets the "vnet_prefix" field.
+func (_c *LocationCreate) SetVnetPrefix(v string) *LocationCreate {
+	_c.mutation.SetVnetPrefix(v)
+	return _c
+}
+
+// SetNillableVnetPrefix sets the "vnet_prefix" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableVnetPrefix(v *string) *LocationCreate {
+	if v != nil {
+		_c.SetVnetPrefix(*v)
+	}
+	return _c
+}
+
+// SetSdnAuditOk sets the "sdn_audit_ok" field.
+func (_c *LocationCreate) SetSdnAuditOk(v bool) *LocationCreate {
+	_c.mutation.SetSdnAuditOk(v)
+	return _c
+}
+
+// SetNillableSdnAuditOk sets the "sdn_audit_ok" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableSdnAuditOk(v *bool) *LocationCreate {
+	if v != nil {
+		_c.SetSdnAuditOk(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *LocationCreate) SetCreatedAt(v time.Time) *LocationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -385,6 +427,14 @@ func (_c *LocationCreate) defaults() {
 		v := location.DefaultBackupWindowEnd
 		_c.mutation.SetBackupWindowEnd(v)
 	}
+	if _, ok := _c.mutation.VnetPrefix(); !ok {
+		v := location.DefaultVnetPrefix
+		_c.mutation.SetVnetPrefix(v)
+	}
+	if _, ok := _c.mutation.SdnAuditOk(); !ok {
+		v := location.DefaultSdnAuditOk
+		_c.mutation.SetSdnAuditOk(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := location.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -444,6 +494,12 @@ func (_c *LocationCreate) check() error {
 	}
 	if _, ok := _c.mutation.BackupWindowEnd(); !ok {
 		return &ValidationError{Name: "backup_window_end", err: errors.New(`ent: missing required field "Location.backup_window_end"`)}
+	}
+	if _, ok := _c.mutation.VnetPrefix(); !ok {
+		return &ValidationError{Name: "vnet_prefix", err: errors.New(`ent: missing required field "Location.vnet_prefix"`)}
+	}
+	if _, ok := _c.mutation.SdnAuditOk(); !ok {
+		return &ValidationError{Name: "sdn_audit_ok", err: errors.New(`ent: missing required field "Location.sdn_audit_ok"`)}
 	}
 	return nil
 }
@@ -545,6 +601,18 @@ func (_c *LocationCreate) createSpec() (*Location, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.BackupWindowEnd(); ok {
 		_spec.SetField(location.FieldBackupWindowEnd, field.TypeInt, value)
 		_node.BackupWindowEnd = value
+	}
+	if value, ok := _c.mutation.SdnZone(); ok {
+		_spec.SetField(location.FieldSdnZone, field.TypeString, value)
+		_node.SdnZone = &value
+	}
+	if value, ok := _c.mutation.VnetPrefix(); ok {
+		_spec.SetField(location.FieldVnetPrefix, field.TypeString, value)
+		_node.VnetPrefix = value
+	}
+	if value, ok := _c.mutation.SdnAuditOk(); ok {
+		_spec.SetField(location.FieldSdnAuditOk, field.TypeBool, value)
+		_node.SdnAuditOk = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(location.FieldCreatedAt, field.TypeTime, value)
@@ -892,6 +960,48 @@ func (u *LocationUpsert) AddBackupWindowEnd(v int) *LocationUpsert {
 	return u
 }
 
+// SetSdnZone sets the "sdn_zone" field.
+func (u *LocationUpsert) SetSdnZone(v string) *LocationUpsert {
+	u.Set(location.FieldSdnZone, v)
+	return u
+}
+
+// UpdateSdnZone sets the "sdn_zone" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateSdnZone() *LocationUpsert {
+	u.SetExcluded(location.FieldSdnZone)
+	return u
+}
+
+// ClearSdnZone clears the value of the "sdn_zone" field.
+func (u *LocationUpsert) ClearSdnZone() *LocationUpsert {
+	u.SetNull(location.FieldSdnZone)
+	return u
+}
+
+// SetVnetPrefix sets the "vnet_prefix" field.
+func (u *LocationUpsert) SetVnetPrefix(v string) *LocationUpsert {
+	u.Set(location.FieldVnetPrefix, v)
+	return u
+}
+
+// UpdateVnetPrefix sets the "vnet_prefix" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateVnetPrefix() *LocationUpsert {
+	u.SetExcluded(location.FieldVnetPrefix)
+	return u
+}
+
+// SetSdnAuditOk sets the "sdn_audit_ok" field.
+func (u *LocationUpsert) SetSdnAuditOk(v bool) *LocationUpsert {
+	u.Set(location.FieldSdnAuditOk, v)
+	return u
+}
+
+// UpdateSdnAuditOk sets the "sdn_audit_ok" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateSdnAuditOk() *LocationUpsert {
+	u.SetExcluded(location.FieldSdnAuditOk)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *LocationUpsert) SetUpdatedAt(v time.Time) *LocationUpsert {
 	u.Set(location.FieldUpdatedAt, v)
@@ -1211,6 +1321,55 @@ func (u *LocationUpsertOne) AddBackupWindowEnd(v int) *LocationUpsertOne {
 func (u *LocationUpsertOne) UpdateBackupWindowEnd() *LocationUpsertOne {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateBackupWindowEnd()
+	})
+}
+
+// SetSdnZone sets the "sdn_zone" field.
+func (u *LocationUpsertOne) SetSdnZone(v string) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetSdnZone(v)
+	})
+}
+
+// UpdateSdnZone sets the "sdn_zone" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateSdnZone() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateSdnZone()
+	})
+}
+
+// ClearSdnZone clears the value of the "sdn_zone" field.
+func (u *LocationUpsertOne) ClearSdnZone() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.ClearSdnZone()
+	})
+}
+
+// SetVnetPrefix sets the "vnet_prefix" field.
+func (u *LocationUpsertOne) SetVnetPrefix(v string) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetVnetPrefix(v)
+	})
+}
+
+// UpdateVnetPrefix sets the "vnet_prefix" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateVnetPrefix() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateVnetPrefix()
+	})
+}
+
+// SetSdnAuditOk sets the "sdn_audit_ok" field.
+func (u *LocationUpsertOne) SetSdnAuditOk(v bool) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetSdnAuditOk(v)
+	})
+}
+
+// UpdateSdnAuditOk sets the "sdn_audit_ok" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateSdnAuditOk() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateSdnAuditOk()
 	})
 }
 
@@ -1701,6 +1860,55 @@ func (u *LocationUpsertBulk) AddBackupWindowEnd(v int) *LocationUpsertBulk {
 func (u *LocationUpsertBulk) UpdateBackupWindowEnd() *LocationUpsertBulk {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateBackupWindowEnd()
+	})
+}
+
+// SetSdnZone sets the "sdn_zone" field.
+func (u *LocationUpsertBulk) SetSdnZone(v string) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetSdnZone(v)
+	})
+}
+
+// UpdateSdnZone sets the "sdn_zone" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateSdnZone() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateSdnZone()
+	})
+}
+
+// ClearSdnZone clears the value of the "sdn_zone" field.
+func (u *LocationUpsertBulk) ClearSdnZone() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.ClearSdnZone()
+	})
+}
+
+// SetVnetPrefix sets the "vnet_prefix" field.
+func (u *LocationUpsertBulk) SetVnetPrefix(v string) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetVnetPrefix(v)
+	})
+}
+
+// UpdateVnetPrefix sets the "vnet_prefix" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateVnetPrefix() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateVnetPrefix()
+	})
+}
+
+// SetSdnAuditOk sets the "sdn_audit_ok" field.
+func (u *LocationUpsertBulk) SetSdnAuditOk(v bool) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetSdnAuditOk(v)
+	})
+}
+
+// UpdateSdnAuditOk sets the "sdn_audit_ok" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateSdnAuditOk() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateSdnAuditOk()
 	})
 }
 

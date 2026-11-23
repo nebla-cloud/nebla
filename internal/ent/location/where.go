@@ -140,6 +140,21 @@ func BackupWindowEnd(v int) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldBackupWindowEnd, v))
 }
 
+// SdnZone applies equality check predicate on the "sdn_zone" field. It's identical to SdnZoneEQ.
+func SdnZone(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldSdnZone, v))
+}
+
+// VnetPrefix applies equality check predicate on the "vnet_prefix" field. It's identical to VnetPrefixEQ.
+func VnetPrefix(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldVnetPrefix, v))
+}
+
+// SdnAuditOk applies equality check predicate on the "sdn_audit_ok" field. It's identical to SdnAuditOkEQ.
+func SdnAuditOk(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldSdnAuditOk, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldCreatedAt, v))
@@ -968,6 +983,156 @@ func BackupWindowEndLT(v int) predicate.Location {
 // BackupWindowEndLTE applies the LTE predicate on the "backup_window_end" field.
 func BackupWindowEndLTE(v int) predicate.Location {
 	return predicate.Location(sql.FieldLTE(FieldBackupWindowEnd, v))
+}
+
+// SdnZoneEQ applies the EQ predicate on the "sdn_zone" field.
+func SdnZoneEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldSdnZone, v))
+}
+
+// SdnZoneNEQ applies the NEQ predicate on the "sdn_zone" field.
+func SdnZoneNEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldSdnZone, v))
+}
+
+// SdnZoneIn applies the In predicate on the "sdn_zone" field.
+func SdnZoneIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldSdnZone, vs...))
+}
+
+// SdnZoneNotIn applies the NotIn predicate on the "sdn_zone" field.
+func SdnZoneNotIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldSdnZone, vs...))
+}
+
+// SdnZoneGT applies the GT predicate on the "sdn_zone" field.
+func SdnZoneGT(v string) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldSdnZone, v))
+}
+
+// SdnZoneGTE applies the GTE predicate on the "sdn_zone" field.
+func SdnZoneGTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldSdnZone, v))
+}
+
+// SdnZoneLT applies the LT predicate on the "sdn_zone" field.
+func SdnZoneLT(v string) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldSdnZone, v))
+}
+
+// SdnZoneLTE applies the LTE predicate on the "sdn_zone" field.
+func SdnZoneLTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldSdnZone, v))
+}
+
+// SdnZoneContains applies the Contains predicate on the "sdn_zone" field.
+func SdnZoneContains(v string) predicate.Location {
+	return predicate.Location(sql.FieldContains(FieldSdnZone, v))
+}
+
+// SdnZoneHasPrefix applies the HasPrefix predicate on the "sdn_zone" field.
+func SdnZoneHasPrefix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasPrefix(FieldSdnZone, v))
+}
+
+// SdnZoneHasSuffix applies the HasSuffix predicate on the "sdn_zone" field.
+func SdnZoneHasSuffix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasSuffix(FieldSdnZone, v))
+}
+
+// SdnZoneIsNil applies the IsNil predicate on the "sdn_zone" field.
+func SdnZoneIsNil() predicate.Location {
+	return predicate.Location(sql.FieldIsNull(FieldSdnZone))
+}
+
+// SdnZoneNotNil applies the NotNil predicate on the "sdn_zone" field.
+func SdnZoneNotNil() predicate.Location {
+	return predicate.Location(sql.FieldNotNull(FieldSdnZone))
+}
+
+// SdnZoneEqualFold applies the EqualFold predicate on the "sdn_zone" field.
+func SdnZoneEqualFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldEqualFold(FieldSdnZone, v))
+}
+
+// SdnZoneContainsFold applies the ContainsFold predicate on the "sdn_zone" field.
+func SdnZoneContainsFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldContainsFold(FieldSdnZone, v))
+}
+
+// VnetPrefixEQ applies the EQ predicate on the "vnet_prefix" field.
+func VnetPrefixEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldVnetPrefix, v))
+}
+
+// VnetPrefixNEQ applies the NEQ predicate on the "vnet_prefix" field.
+func VnetPrefixNEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldVnetPrefix, v))
+}
+
+// VnetPrefixIn applies the In predicate on the "vnet_prefix" field.
+func VnetPrefixIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldVnetPrefix, vs...))
+}
+
+// VnetPrefixNotIn applies the NotIn predicate on the "vnet_prefix" field.
+func VnetPrefixNotIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldVnetPrefix, vs...))
+}
+
+// VnetPrefixGT applies the GT predicate on the "vnet_prefix" field.
+func VnetPrefixGT(v string) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldVnetPrefix, v))
+}
+
+// VnetPrefixGTE applies the GTE predicate on the "vnet_prefix" field.
+func VnetPrefixGTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldVnetPrefix, v))
+}
+
+// VnetPrefixLT applies the LT predicate on the "vnet_prefix" field.
+func VnetPrefixLT(v string) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldVnetPrefix, v))
+}
+
+// VnetPrefixLTE applies the LTE predicate on the "vnet_prefix" field.
+func VnetPrefixLTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldVnetPrefix, v))
+}
+
+// VnetPrefixContains applies the Contains predicate on the "vnet_prefix" field.
+func VnetPrefixContains(v string) predicate.Location {
+	return predicate.Location(sql.FieldContains(FieldVnetPrefix, v))
+}
+
+// VnetPrefixHasPrefix applies the HasPrefix predicate on the "vnet_prefix" field.
+func VnetPrefixHasPrefix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasPrefix(FieldVnetPrefix, v))
+}
+
+// VnetPrefixHasSuffix applies the HasSuffix predicate on the "vnet_prefix" field.
+func VnetPrefixHasSuffix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasSuffix(FieldVnetPrefix, v))
+}
+
+// VnetPrefixEqualFold applies the EqualFold predicate on the "vnet_prefix" field.
+func VnetPrefixEqualFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldEqualFold(FieldVnetPrefix, v))
+}
+
+// VnetPrefixContainsFold applies the ContainsFold predicate on the "vnet_prefix" field.
+func VnetPrefixContainsFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldContainsFold(FieldVnetPrefix, v))
+}
+
+// SdnAuditOkEQ applies the EQ predicate on the "sdn_audit_ok" field.
+func SdnAuditOkEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldSdnAuditOk, v))
+}
+
+// SdnAuditOkNEQ applies the NEQ predicate on the "sdn_audit_ok" field.
+func SdnAuditOkNEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldSdnAuditOk, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

@@ -51,6 +51,12 @@ type Location struct {
 	BackupWindowStart int `json:"backup_window_start,omitempty"`
 	// BackupWindowEnd holds the value of the "backup_window_end" field.
 	BackupWindowEnd int `json:"backup_window_end,omitempty"`
+	// SdnZone holds the value of the "sdn_zone" field.
+	SdnZone *string `json:"sdn_zone,omitempty"`
+	// VnetPrefix holds the value of the "vnet_prefix" field.
+	VnetPrefix string `json:"vnet_prefix,omitempty"`
+	// SdnAuditOk holds the value of the "sdn_audit_ok" field.
+	SdnAuditOk bool `json:"sdn_audit_ok,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -119,11 +125,11 @@ func (*Location) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case location.FieldTokenSecret:
 			values[i] = new([]byte)
-		case location.FieldInsecureTLS, location.FieldFirewallEnabled, location.FieldVolumeStorageOk, location.FieldBackupStorageOk:
+		case location.FieldInsecureTLS, location.FieldFirewallEnabled, location.FieldVolumeStorageOk, location.FieldBackupStorageOk, location.FieldSdnAuditOk:
 			values[i] = new(sql.NullBool)
 		case location.FieldID, location.FieldBackupWindowStart, location.FieldBackupWindowEnd:
 			values[i] = new(sql.NullInt64)
-		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage, location.FieldVolumeStorage, location.FieldBackupStorage:
+		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage, location.FieldVolumeStorage, location.FieldBackupStorage, location.FieldSdnZone, location.FieldVnetPrefix:
 			values[i] = new(sql.NullString)
 		case location.FieldCreatedAt, location.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -251,6 +257,25 @@ func (_m *Location) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.BackupWindowEnd = int(value.Int64)
 			}
+		case location.FieldSdnZone:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field sdn_zone", values[i])
+			} else if value.Valid {
+				_m.SdnZone = new(string)
+				*_m.SdnZone = value.String
+			}
+		case location.FieldVnetPrefix:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field vnet_prefix", values[i])
+			} else if value.Valid {
+				_m.VnetPrefix = value.String
+			}
+		case location.FieldSdnAuditOk:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field sdn_audit_ok", values[i])
+			} else if value.Valid {
+				_m.SdnAuditOk = value.Bool
+			}
 		case location.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -370,6 +395,17 @@ func (_m *Location) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("backup_window_end=")
 	builder.WriteString(fmt.Sprintf("%v", _m.BackupWindowEnd))
+	builder.WriteString(", ")
+	if v := _m.SdnZone; v != nil {
+		builder.WriteString("sdn_zone=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	builder.WriteString("vnet_prefix=")
+	builder.WriteString(_m.VnetPrefix)
+	builder.WriteString(", ")
+	builder.WriteString("sdn_audit_ok=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SdnAuditOk))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

@@ -283,6 +283,54 @@ func (_u *LocationUpdate) AddBackupWindowEnd(v int) *LocationUpdate {
 	return _u
 }
 
+// SetSdnZone sets the "sdn_zone" field.
+func (_u *LocationUpdate) SetSdnZone(v string) *LocationUpdate {
+	_u.mutation.SetSdnZone(v)
+	return _u
+}
+
+// SetNillableSdnZone sets the "sdn_zone" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableSdnZone(v *string) *LocationUpdate {
+	if v != nil {
+		_u.SetSdnZone(*v)
+	}
+	return _u
+}
+
+// ClearSdnZone clears the value of the "sdn_zone" field.
+func (_u *LocationUpdate) ClearSdnZone() *LocationUpdate {
+	_u.mutation.ClearSdnZone()
+	return _u
+}
+
+// SetVnetPrefix sets the "vnet_prefix" field.
+func (_u *LocationUpdate) SetVnetPrefix(v string) *LocationUpdate {
+	_u.mutation.SetVnetPrefix(v)
+	return _u
+}
+
+// SetNillableVnetPrefix sets the "vnet_prefix" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableVnetPrefix(v *string) *LocationUpdate {
+	if v != nil {
+		_u.SetVnetPrefix(*v)
+	}
+	return _u
+}
+
+// SetSdnAuditOk sets the "sdn_audit_ok" field.
+func (_u *LocationUpdate) SetSdnAuditOk(v bool) *LocationUpdate {
+	_u.mutation.SetSdnAuditOk(v)
+	return _u
+}
+
+// SetNillableSdnAuditOk sets the "sdn_audit_ok" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableSdnAuditOk(v *bool) *LocationUpdate {
+	if v != nil {
+		_u.SetSdnAuditOk(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdate) SetUpdatedAt(v time.Time) *LocationUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -548,6 +596,18 @@ func (_u *LocationUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedBackupWindowEnd(); ok {
 		_spec.AddField(location.FieldBackupWindowEnd, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.SdnZone(); ok {
+		_spec.SetField(location.FieldSdnZone, field.TypeString, value)
+	}
+	if _u.mutation.SdnZoneCleared() {
+		_spec.ClearField(location.FieldSdnZone, field.TypeString)
+	}
+	if value, ok := _u.mutation.VnetPrefix(); ok {
+		_spec.SetField(location.FieldVnetPrefix, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SdnAuditOk(); ok {
+		_spec.SetField(location.FieldSdnAuditOk, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)
@@ -1004,6 +1064,54 @@ func (_u *LocationUpdateOne) AddBackupWindowEnd(v int) *LocationUpdateOne {
 	return _u
 }
 
+// SetSdnZone sets the "sdn_zone" field.
+func (_u *LocationUpdateOne) SetSdnZone(v string) *LocationUpdateOne {
+	_u.mutation.SetSdnZone(v)
+	return _u
+}
+
+// SetNillableSdnZone sets the "sdn_zone" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableSdnZone(v *string) *LocationUpdateOne {
+	if v != nil {
+		_u.SetSdnZone(*v)
+	}
+	return _u
+}
+
+// ClearSdnZone clears the value of the "sdn_zone" field.
+func (_u *LocationUpdateOne) ClearSdnZone() *LocationUpdateOne {
+	_u.mutation.ClearSdnZone()
+	return _u
+}
+
+// SetVnetPrefix sets the "vnet_prefix" field.
+func (_u *LocationUpdateOne) SetVnetPrefix(v string) *LocationUpdateOne {
+	_u.mutation.SetVnetPrefix(v)
+	return _u
+}
+
+// SetNillableVnetPrefix sets the "vnet_prefix" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableVnetPrefix(v *string) *LocationUpdateOne {
+	if v != nil {
+		_u.SetVnetPrefix(*v)
+	}
+	return _u
+}
+
+// SetSdnAuditOk sets the "sdn_audit_ok" field.
+func (_u *LocationUpdateOne) SetSdnAuditOk(v bool) *LocationUpdateOne {
+	_u.mutation.SetSdnAuditOk(v)
+	return _u
+}
+
+// SetNillableSdnAuditOk sets the "sdn_audit_ok" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableSdnAuditOk(v *bool) *LocationUpdateOne {
+	if v != nil {
+		_u.SetSdnAuditOk(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdateOne) SetUpdatedAt(v time.Time) *LocationUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1299,6 +1407,18 @@ func (_u *LocationUpdateOne) sqlSave(ctx context.Context) (_node *Location, err 
 	}
 	if value, ok := _u.mutation.AddedBackupWindowEnd(); ok {
 		_spec.AddField(location.FieldBackupWindowEnd, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.SdnZone(); ok {
+		_spec.SetField(location.FieldSdnZone, field.TypeString, value)
+	}
+	if _u.mutation.SdnZoneCleared() {
+		_spec.ClearField(location.FieldSdnZone, field.TypeString)
+	}
+	if value, ok := _u.mutation.VnetPrefix(); ok {
+		_spec.SetField(location.FieldVnetPrefix, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SdnAuditOk(); ok {
+		_spec.SetField(location.FieldSdnAuditOk, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)

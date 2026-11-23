@@ -212,6 +212,27 @@ func (_u *ProjectUpdate) AddMaxBackups(v int) *ProjectUpdate {
 	return _u
 }
 
+// SetMaxNetworks sets the "max_networks" field.
+func (_u *ProjectUpdate) SetMaxNetworks(v int) *ProjectUpdate {
+	_u.mutation.ResetMaxNetworks()
+	_u.mutation.SetMaxNetworks(v)
+	return _u
+}
+
+// SetNillableMaxNetworks sets the "max_networks" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableMaxNetworks(v *int) *ProjectUpdate {
+	if v != nil {
+		_u.SetMaxNetworks(*v)
+	}
+	return _u
+}
+
+// AddMaxNetworks adds value to the "max_networks" field.
+func (_u *ProjectUpdate) AddMaxNetworks(v int) *ProjectUpdate {
+	_u.mutation.AddMaxNetworks(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdate) SetCreatedBy(v int64) *ProjectUpdate {
 	_u.mutation.SetCreatedBy(v)
@@ -390,6 +411,12 @@ func (_u *ProjectUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedMaxBackups(); ok {
 		_spec.AddField(project.FieldMaxBackups, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxNetworks(); ok {
+		_spec.SetField(project.FieldMaxNetworks, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxNetworks(); ok {
+		_spec.AddField(project.FieldMaxNetworks, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -669,6 +696,27 @@ func (_u *ProjectUpdateOne) AddMaxBackups(v int) *ProjectUpdateOne {
 	return _u
 }
 
+// SetMaxNetworks sets the "max_networks" field.
+func (_u *ProjectUpdateOne) SetMaxNetworks(v int) *ProjectUpdateOne {
+	_u.mutation.ResetMaxNetworks()
+	_u.mutation.SetMaxNetworks(v)
+	return _u
+}
+
+// SetNillableMaxNetworks sets the "max_networks" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableMaxNetworks(v *int) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetMaxNetworks(*v)
+	}
+	return _u
+}
+
+// AddMaxNetworks adds value to the "max_networks" field.
+func (_u *ProjectUpdateOne) AddMaxNetworks(v int) *ProjectUpdateOne {
+	_u.mutation.AddMaxNetworks(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdateOne) SetCreatedBy(v int64) *ProjectUpdateOne {
 	_u.mutation.SetCreatedBy(v)
@@ -877,6 +925,12 @@ func (_u *ProjectUpdateOne) sqlSave(ctx context.Context) (_node *Project, err er
 	}
 	if value, ok := _u.mutation.AddedMaxBackups(); ok {
 		_spec.AddField(project.FieldMaxBackups, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxNetworks(); ok {
+		_spec.SetField(project.FieldMaxNetworks, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxNetworks(); ok {
+		_spec.AddField(project.FieldMaxNetworks, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{

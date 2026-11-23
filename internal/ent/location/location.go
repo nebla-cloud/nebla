@@ -48,6 +48,12 @@ const (
 	FieldBackupWindowStart = "backup_window_start"
 	// FieldBackupWindowEnd holds the string denoting the backup_window_end field in the database.
 	FieldBackupWindowEnd = "backup_window_end"
+	// FieldSdnZone holds the string denoting the sdn_zone field in the database.
+	FieldSdnZone = "sdn_zone"
+	// FieldVnetPrefix holds the string denoting the vnet_prefix field in the database.
+	FieldVnetPrefix = "vnet_prefix"
+	// FieldSdnAuditOk holds the string denoting the sdn_audit_ok field in the database.
+	FieldSdnAuditOk = "sdn_audit_ok"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -110,6 +116,9 @@ var Columns = []string{
 	FieldBackupStorageOk,
 	FieldBackupWindowStart,
 	FieldBackupWindowEnd,
+	FieldSdnZone,
+	FieldVnetPrefix,
+	FieldSdnAuditOk,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -151,6 +160,10 @@ var (
 	DefaultBackupWindowStart int
 	// DefaultBackupWindowEnd holds the default value on creation for the "backup_window_end" field.
 	DefaultBackupWindowEnd int
+	// DefaultVnetPrefix holds the default value on creation for the "vnet_prefix" field.
+	DefaultVnetPrefix string
+	// DefaultSdnAuditOk holds the default value on creation for the "sdn_audit_ok" field.
+	DefaultSdnAuditOk bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -245,6 +258,21 @@ func ByBackupWindowStart(opts ...sql.OrderTermOption) OrderOption {
 // ByBackupWindowEnd orders the results by the backup_window_end field.
 func ByBackupWindowEnd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBackupWindowEnd, opts...).ToFunc()
+}
+
+// BySdnZone orders the results by the sdn_zone field.
+func BySdnZone(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSdnZone, opts...).ToFunc()
+}
+
+// ByVnetPrefix orders the results by the vnet_prefix field.
+func ByVnetPrefix(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVnetPrefix, opts...).ToFunc()
+}
+
+// BySdnAuditOk orders the results by the sdn_audit_ok field.
+func BySdnAuditOk(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSdnAuditOk, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

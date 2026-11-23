@@ -21,15 +21,18 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/locationenrollment"
+	"github.com/nebla-cloud/nebla/internal/ent/network"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/projectmember"
 	"github.com/nebla-cloud/nebla/internal/ent/schema"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
+	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/ent/volume"
 	"github.com/nebla-cloud/nebla/internal/ent/webauthncredential"
 )
@@ -222,12 +225,20 @@ func init() {
 	locationDescBackupWindowEnd := locationFields[17].Descriptor()
 	// location.DefaultBackupWindowEnd holds the default value on creation for the backup_window_end field.
 	location.DefaultBackupWindowEnd = locationDescBackupWindowEnd.Default.(int)
+	// locationDescVnetPrefix is the schema descriptor for vnet_prefix field.
+	locationDescVnetPrefix := locationFields[19].Descriptor()
+	// location.DefaultVnetPrefix holds the default value on creation for the vnet_prefix field.
+	location.DefaultVnetPrefix = locationDescVnetPrefix.Default.(string)
+	// locationDescSdnAuditOk is the schema descriptor for sdn_audit_ok field.
+	locationDescSdnAuditOk := locationFields[20].Descriptor()
+	// location.DefaultSdnAuditOk holds the default value on creation for the sdn_audit_ok field.
+	location.DefaultSdnAuditOk = locationDescSdnAuditOk.Default.(bool)
 	// locationDescCreatedAt is the schema descriptor for created_at field.
-	locationDescCreatedAt := locationFields[18].Descriptor()
+	locationDescCreatedAt := locationFields[21].Descriptor()
 	// location.DefaultCreatedAt holds the default value on creation for the created_at field.
 	location.DefaultCreatedAt = locationDescCreatedAt.Default.(func() time.Time)
 	// locationDescUpdatedAt is the schema descriptor for updated_at field.
-	locationDescUpdatedAt := locationFields[19].Descriptor()
+	locationDescUpdatedAt := locationFields[22].Descriptor()
 	// location.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
 	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -246,6 +257,12 @@ func init() {
 	locationenrollmentDescCreatedAt := locationenrollmentFields[12].Descriptor()
 	// locationenrollment.DefaultCreatedAt holds the default value on creation for the created_at field.
 	locationenrollment.DefaultCreatedAt = locationenrollmentDescCreatedAt.Default.(func() time.Time)
+	networkFields := schema.Network{}.Fields()
+	_ = networkFields
+	// networkDescCreatedAt is the schema descriptor for created_at field.
+	networkDescCreatedAt := networkFields[6].Descriptor()
+	// network.DefaultCreatedAt holds the default value on creation for the created_at field.
+	network.DefaultCreatedAt = networkDescCreatedAt.Default.(func() time.Time)
 	nodeFields := schema.Node{}.Fields()
 	_ = nodeFields
 	// nodeDescEnabled is the schema descriptor for enabled field.
@@ -320,8 +337,12 @@ func init() {
 	projectDescMaxBackups := projectFields[9].Descriptor()
 	// project.DefaultMaxBackups holds the default value on creation for the max_backups field.
 	project.DefaultMaxBackups = projectDescMaxBackups.Default.(int)
+	// projectDescMaxNetworks is the schema descriptor for max_networks field.
+	projectDescMaxNetworks := projectFields[10].Descriptor()
+	// project.DefaultMaxNetworks holds the default value on creation for the max_networks field.
+	project.DefaultMaxNetworks = projectDescMaxNetworks.Default.(int)
 	// projectDescCreatedAt is the schema descriptor for created_at field.
-	projectDescCreatedAt := projectFields[11].Descriptor()
+	projectDescCreatedAt := projectFields[12].Descriptor()
 	// project.DefaultCreatedAt holds the default value on creation for the created_at field.
 	project.DefaultCreatedAt = projectDescCreatedAt.Default.(func() time.Time)
 	projectmemberFields := schema.ProjectMember{}.Fields()
@@ -386,6 +407,30 @@ func init() {
 	serverDescCreatedAt := serverFields[34].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
+	servernetworkFields := schema.ServerNetwork{}.Fields()
+	_ = servernetworkFields
+	// servernetworkDescNic is the schema descriptor for nic field.
+	servernetworkDescNic := servernetworkFields[5].Descriptor()
+	// servernetwork.NicValidator is a validator for the "nic" field. It is called by the builders before save.
+	servernetwork.NicValidator = func() func(int) error {
+		validators := servernetworkDescNic.Validators
+		fns := [...]func(int) error{
+			validators[0].(func(int) error),
+			validators[1].(func(int) error),
+		}
+		return func(nic int) error {
+			for _, fn := range fns {
+				if err := fn(nic); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// servernetworkDescCreatedAt is the schema descriptor for created_at field.
+	servernetworkDescCreatedAt := servernetworkFields[7].Descriptor()
+	// servernetwork.DefaultCreatedAt holds the default value on creation for the created_at field.
+	servernetwork.DefaultCreatedAt = servernetworkDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()
 	_ = servertypeFields
 	// servertypeDescDescription is the schema descriptor for description field.
@@ -420,6 +465,18 @@ func init() {
 	userDescCreatedAt := userFields[9].Descriptor()
 	// user.DefaultCreatedAt holds the default value on creation for the created_at field.
 	user.DefaultCreatedAt = userDescCreatedAt.Default.(func() time.Time)
+	vnetslotFields := schema.VNetSlot{}.Fields()
+	_ = vnetslotFields
+	// vnetslotDescReason is the schema descriptor for reason field.
+	vnetslotDescReason := vnetslotFields[8].Descriptor()
+	// vnetslot.DefaultReason holds the default value on creation for the reason field.
+	vnetslot.DefaultReason = vnetslotDescReason.Default.(string)
+	// vnetslotDescUpdatedAt is the schema descriptor for updated_at field.
+	vnetslotDescUpdatedAt := vnetslotFields[10].Descriptor()
+	// vnetslot.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	vnetslot.DefaultUpdatedAt = vnetslotDescUpdatedAt.Default.(func() time.Time)
+	// vnetslot.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	vnetslot.UpdateDefaultUpdatedAt = vnetslotDescUpdatedAt.UpdateDefault.(func() time.Time)
 	volumeFields := schema.Volume{}.Fields()
 	_ = volumeFields
 	// volumeDescAppliedGB is the schema descriptor for applied_gb field.

@@ -213,6 +213,18 @@ func (f LocationEnrollmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LocationEnrollmentMutation", m)
 }
 
+// The NetworkFunc type is an adapter to allow the use of ordinary
+// function as Network mutator.
+type NetworkFunc func(context.Context, *ent.NetworkMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f NetworkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.NetworkMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.NetworkMutation", m)
+}
+
 // The NodeFunc type is an adapter to allow the use of ordinary
 // function as Node mutator.
 type NodeFunc func(context.Context, *ent.NodeMutation) (ent.Value, error)
@@ -273,6 +285,18 @@ func (f ServerFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ServerMutation", m)
 }
 
+// The ServerNetworkFunc type is an adapter to allow the use of ordinary
+// function as ServerNetwork mutator.
+type ServerNetworkFunc func(context.Context, *ent.ServerNetworkMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ServerNetworkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ServerNetworkMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ServerNetworkMutation", m)
+}
+
 // The ServerTypeFunc type is an adapter to allow the use of ordinary
 // function as ServerType mutator.
 type ServerTypeFunc func(context.Context, *ent.ServerTypeMutation) (ent.Value, error)
@@ -319,6 +343,18 @@ func (f UserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserMutation", m)
+}
+
+// The VNetSlotFunc type is an adapter to allow the use of ordinary
+// function as VNetSlot mutator.
+type VNetSlotFunc func(context.Context, *ent.VNetSlotMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f VNetSlotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.VNetSlotMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.VNetSlotMutation", m)
 }
 
 // The VolumeFunc type is an adapter to allow the use of ordinary

@@ -142,6 +142,20 @@ func (_c *ProjectCreate) SetNillableMaxBackups(v *int) *ProjectCreate {
 	return _c
 }
 
+// SetMaxNetworks sets the "max_networks" field.
+func (_c *ProjectCreate) SetMaxNetworks(v int) *ProjectCreate {
+	_c.mutation.SetMaxNetworks(v)
+	return _c
+}
+
+// SetNillableMaxNetworks sets the "max_networks" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableMaxNetworks(v *int) *ProjectCreate {
+	if v != nil {
+		_c.SetMaxNetworks(*v)
+	}
+	return _c
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_c *ProjectCreate) SetCreatedBy(v int64) *ProjectCreate {
 	_c.mutation.SetCreatedBy(v)
@@ -277,6 +291,10 @@ func (_c *ProjectCreate) defaults() {
 		v := project.DefaultMaxBackups
 		_c.mutation.SetMaxBackups(v)
 	}
+	if _, ok := _c.mutation.MaxNetworks(); !ok {
+		v := project.DefaultMaxNetworks
+		_c.mutation.SetMaxNetworks(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := project.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -311,6 +329,9 @@ func (_c *ProjectCreate) check() error {
 	}
 	if _, ok := _c.mutation.MaxBackups(); !ok {
 		return &ValidationError{Name: "max_backups", err: errors.New(`ent: missing required field "Project.max_backups"`)}
+	}
+	if _, ok := _c.mutation.MaxNetworks(); !ok {
+		return &ValidationError{Name: "max_networks", err: errors.New(`ent: missing required field "Project.max_networks"`)}
 	}
 	return nil
 }
@@ -380,6 +401,10 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MaxBackups(); ok {
 		_spec.SetField(project.FieldMaxBackups, field.TypeInt, value)
 		_node.MaxBackups = value
+	}
+	if value, ok := _c.mutation.MaxNetworks(); ok {
+		_spec.SetField(project.FieldMaxNetworks, field.TypeInt, value)
+		_node.MaxNetworks = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(project.FieldCreatedAt, field.TypeTime, value)
@@ -623,6 +648,24 @@ func (u *ProjectUpsert) UpdateMaxBackups() *ProjectUpsert {
 // AddMaxBackups adds v to the "max_backups" field.
 func (u *ProjectUpsert) AddMaxBackups(v int) *ProjectUpsert {
 	u.Add(project.FieldMaxBackups, v)
+	return u
+}
+
+// SetMaxNetworks sets the "max_networks" field.
+func (u *ProjectUpsert) SetMaxNetworks(v int) *ProjectUpsert {
+	u.Set(project.FieldMaxNetworks, v)
+	return u
+}
+
+// UpdateMaxNetworks sets the "max_networks" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateMaxNetworks() *ProjectUpsert {
+	u.SetExcluded(project.FieldMaxNetworks)
+	return u
+}
+
+// AddMaxNetworks adds v to the "max_networks" field.
+func (u *ProjectUpsert) AddMaxNetworks(v int) *ProjectUpsert {
+	u.Add(project.FieldMaxNetworks, v)
 	return u
 }
 
@@ -874,6 +917,27 @@ func (u *ProjectUpsertOne) AddMaxBackups(v int) *ProjectUpsertOne {
 func (u *ProjectUpsertOne) UpdateMaxBackups() *ProjectUpsertOne {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxBackups()
+	})
+}
+
+// SetMaxNetworks sets the "max_networks" field.
+func (u *ProjectUpsertOne) SetMaxNetworks(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxNetworks(v)
+	})
+}
+
+// AddMaxNetworks adds v to the "max_networks" field.
+func (u *ProjectUpsertOne) AddMaxNetworks(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxNetworks(v)
+	})
+}
+
+// UpdateMaxNetworks sets the "max_networks" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateMaxNetworks() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxNetworks()
 	})
 }
 
@@ -1294,6 +1358,27 @@ func (u *ProjectUpsertBulk) AddMaxBackups(v int) *ProjectUpsertBulk {
 func (u *ProjectUpsertBulk) UpdateMaxBackups() *ProjectUpsertBulk {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxBackups()
+	})
+}
+
+// SetMaxNetworks sets the "max_networks" field.
+func (u *ProjectUpsertBulk) SetMaxNetworks(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxNetworks(v)
+	})
+}
+
+// AddMaxNetworks adds v to the "max_networks" field.
+func (u *ProjectUpsertBulk) AddMaxNetworks(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxNetworks(v)
+	})
+}
+
+// UpdateMaxNetworks sets the "max_networks" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateMaxNetworks() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxNetworks()
 	})
 }
 
