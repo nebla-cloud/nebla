@@ -16,14 +16,21 @@
 package servers_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"slices"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/kdomanski/iso9660"
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
@@ -445,4 +452,261 @@ func TestFloatingIPMoveUnderRiver(t *testing.T) {
 	require.NoError(t, err)
 	waitOK(t, e, moved.ID)
 	require.Equal(t, []int{vmidOf(t, e, b.ServerID)}, e.App.PVE.IPSetHolders(fip.IP))
+}
+
+// netConfig reads network-config from an uploaded seed ISO.
+func netConfig(t *testing.T, e *testutil.ServerEnv, volid string) string {
+	t.Helper()
+	raw, ok := e.App.PVE.Volume(volid)
+	require.True(t, ok, "iso %s uploaded", volid)
+	img, err := iso9660.OpenImage(bytes.NewReader(raw))
+	require.NoError(t, err)
+	root, err := img.RootDir()
+	require.NoError(t, err)
+	kids, err := root.GetChildren()
+	require.NoError(t, err)
+	for _, f := range kids {
+		if f.Name() == "network-config" {
+			b, err := io.ReadAll(f.Reader())
+			require.NoError(t, err)
+			return string(b)
+		}
+	}
+	t.Fatalf("iso %s has no network-config", volid)
+	return ""
+}
+
+// failRelease runs the action's job until it gives up with release_pending.
+func (f *fipEnv) failRelease(t *testing.T, actionID int64) {
+	t.Helper()
+	for attempt := 1; attempt < servers.MaxAttempts; attempt++ {
+		err := f.work(t, actionID, attempt)
+		require.Error(t, err)
+		require.False(t, cancelled(err), "%v", err)
+	}
+	require.True(t, cancelled(f.work(t, actionID, servers.MaxAttempts)))
+	a := f.action(t, actionID)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Equal(t, actions.CodeReleasePending, a.Error.Code)
+}
+
+// resumed runs ResumeStuck and returns the one running action it started for the floating IP.
+func (f *fipEnv) resumed(t *testing.T, id int64) actions.Action {
+	t.Helper()
+	require.NoError(t, f.svc.ResumeStuck(context.Background()))
+	acts, err := f.App.Ent.Action.Query().Where(floatingips.ActionsOf(f.Project, id), action.StatusEQ(action.StatusRunning)).All(context.Background())
+	require.NoError(t, err)
+	require.Len(t, acts, 1)
+	return f.action(t, acts[0].ID)
+}
+
+func TestAssignDuringCreate(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	fip, _, err := f.svc.Create(ctx, f.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	c := f.CreateServer("c", nil)
+	cw := servers.NewCreateServerWorker(f.o)
+	var act actions.Action
+	var held []int
+	vmStatus := ""
+	servers.SetAfterStep(cw, func(n int) {
+		switch n {
+		case servers.StepResize:
+			act = f.assign(t, fip.ID, c.ServerID)
+			err := f.work(t, act.ID, 1)
+			require.True(t, snoozed(err), "the assign waits for the build: %v", err)
+		case servers.StepFirewall:
+			held = f.holders(fip.IP)
+			vm, _ := f.App.PVE.VM(vmidOf(t, f.ServerEnv, c.ServerID))
+			vmStatus = vm.Status
+		}
+	})
+	require.NoError(t, cw.Work(ctx, job(c, 1)))
+	vc := vmidOf(t, f.ServerEnv, c.ServerID)
+	require.Equal(t, []int{vc}, held, "the address is allowed before first start")
+	require.Equal(t, "stopped", vmStatus)
+	require.Contains(t, netConfig(t, f.ServerEnv, isoVolid(c.ServerID)), "- "+fip.IP+"/32\n")
+
+	require.NoError(t, f.work(t, act.ID, 1))
+	require.Equal(t, actions.StatusSuccess, f.action(t, act.ID).Status)
+	require.Nil(t, f.row(t, fip.ID).PendingGen)
+	require.Equal(t, 1, f.runApplies(t, c.ServerID))
+	require.Equal(t, []int{vc}, f.holders(fip.IP))
+}
+
+func TestRebuildKeepsFloatingIPs(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	_, ip := f.settled(t)
+	f.App.PVE.AddTemplate("pve1", 9001, "ceph")
+	f.Admin.CreateImage("debian", f.Location, 9001)
+	id := startAction(t, f.ServerEnv, f.a, "rebuild", map[string]any{"image": "debian"})
+	w := servers.NewRebuildServerWorker(f.o)
+	nu, vmStatus := 0, ""
+	var held []int
+	servers.SetRebuildAfterStep(w, func(n int) {
+		if n == servers.StepFirewall {
+			row, err := f.App.Ent.Server.Get(ctx, f.a)
+			require.NoError(t, err)
+			nu = *row.RebuildVmid
+			held = f.holders(ip)
+			vm, _ := f.App.PVE.VM(nu)
+			vmStatus = vm.Status
+		}
+	})
+	require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.RebuildServerArgs](t, f.ServerEnv, id), 1)))
+	require.Equal(t, actions.StatusSuccess, f.action(t, id).Status)
+	require.ElementsMatch(t, []int{f.va, nu}, held, "the new VM is allowed the address before first boot")
+	require.Equal(t, "stopped", vmStatus)
+	require.Equal(t, nu, vmidOf(t, f.ServerEnv, f.a))
+	require.Equal(t, []int{nu}, f.holders(ip))
+	require.Contains(t, netConfig(t, f.ServerEnv, fmt.Sprintf("local:iso/nb-srv-%d-2.iso", f.a)), "- "+ip+"/32\n")
+}
+
+func TestServerDeleteKeepsFloatingIPs(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	f.Admin.SetQuota(f.Project, 10, 100, 100_000, 1000, 3)
+	id, ip := f.settled(t)
+	allocID := f.row(t, id).AllocationID
+
+	del, _ := expect[actionBody](t, f.C.Send(http.MethodDelete, spath(f.a), nil), http.StatusOK)
+	dw := servers.NewDeleteServerWorker(f.o)
+	require.NoError(t, dw.Work(ctx, jobOf(queuedArgs[servers.DeleteServerArgs](t, f.ServerEnv, del.Action.ID), 1)))
+	require.Equal(t, actions.StatusSuccess, f.action(t, del.Action.ID).Status)
+	_, err := f.App.Ent.Server.Get(ctx, f.a)
+	require.True(t, ent.IsNotFound(err), "%v", err)
+
+	r := f.row(t, id)
+	require.Nil(t, r.ServerID)
+	require.Nil(t, r.ReleasingFromID)
+	require.Equal(t, "active", floatingips.Status(r))
+	_, err = f.App.Ent.IPAllocation.Get(ctx, allocID)
+	require.NoError(t, err, "the address stays allocated")
+	require.Empty(t, f.holders(ip))
+
+	// b's primary and the floating IP use 2 of 3 addresses.
+	_, _, err = f.svc.Create(ctx, f.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	_, _, err = f.svc.Create(ctx, f.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	var ae apierr.E
+	require.True(t, errors.As(err, &ae), "%v", err)
+	require.Equal(t, "quota_exceeded", ae.Code)
+}
+
+func TestReleaseFailsThenReconcilerFinishes(t *testing.T) {
+	f := newFIPEnv(t)
+	id, ip := f.settled(t)
+	act := f.assign(t, id, f.b)
+	f.App.PVE.SetDown(true)
+	f.failRelease(t, act.ID)
+	require.Equal(t, "releasing", floatingips.Status(f.row(t, id)))
+
+	f.App.PVE.SetDown(false)
+	res := f.resumed(t, id)
+	require.Equal(t, floatingips.KindUnassign, res.Command)
+	require.NoError(t, f.work(t, res.ID, 1))
+	require.Equal(t, actions.StatusSuccess, f.action(t, res.ID).Status)
+	r := f.row(t, id)
+	require.Nil(t, r.ReleasingFromID)
+	require.Nil(t, r.ServerID)
+	require.Equal(t, "active", floatingips.Status(r))
+	require.Empty(t, f.holders(ip))
+	require.Empty(t, f.applies(t, f.b))
+}
+
+func TestDeleteWhileReleasing(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	id, ip := f.settled(t)
+	allocID := f.row(t, id).AllocationID
+	act := f.assign(t, id, f.b)
+	f.App.PVE.SetDown(true)
+	f.failRelease(t, act.ID)
+
+	del, err := f.svc.Delete(ctx, f.Project, id)
+	require.NoError(t, err)
+	f.failRelease(t, del.ID)
+	require.Equal(t, "deleting", floatingips.Status(f.row(t, id)))
+	_, err = f.App.Ent.IPAllocation.Get(ctx, allocID)
+	require.NoError(t, err, "the address stays allocated until the release finishes")
+	require.Empty(t, f.bus.of(ext.FloatingIPDeleted))
+
+	f.App.PVE.SetDown(false)
+	res := f.resumed(t, id)
+	require.Equal(t, floatingips.KindDelete, res.Command)
+	require.NoError(t, f.work(t, res.ID, 1))
+	require.Equal(t, actions.StatusSuccess, f.action(t, res.ID).Status)
+	_, err = f.App.Ent.IPAddress.Get(ctx, id)
+	require.True(t, ent.IsNotFound(err), "%v", err)
+	_, err = f.App.Ent.IPAllocation.Get(ctx, allocID)
+	require.True(t, ent.IsNotFound(err), "%v", err)
+	require.Empty(t, f.holders(ip))
+	require.Len(t, f.bus.of(ext.FloatingIPDeleted), 1)
+}
+
+func TestReleaseSkipsRebuildVMNotYetCloned(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	id, ip := f.settled(t)
+	f.App.PVE.AddTemplate("pve1", 9001, "ceph")
+	f.Admin.CreateImage("debian", f.Location, 9001)
+	rid := startAction(t, f.ServerEnv, f.a, "rebuild", map[string]any{"image": "debian"})
+	w := servers.NewRebuildServerWorker(f.o)
+	nu := 0
+	servers.SetRebuildAfterStep(w, func(n int) {
+		if n != servers.StepVMID {
+			return
+		}
+		row, err := f.App.Ent.Server.Get(ctx, f.a)
+		require.NoError(t, err)
+		nu = *row.RebuildVmid
+		_, exists := f.App.PVE.VM(nu)
+		require.False(t, exists, "the rebuild has not cloned yet")
+		act, err := f.svc.Unassign(ctx, f.Project, id)
+		require.NoError(t, err)
+		require.NoError(t, f.work(t, act.ID, 1), "a VM the rebuild has not created yet is skipped")
+		require.Equal(t, actions.StatusSuccess, f.action(t, act.ID).Status)
+	})
+	require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.RebuildServerArgs](t, f.ServerEnv, rid), 1)))
+	require.Equal(t, actions.StatusSuccess, f.action(t, rid).Status)
+	require.Equal(t, nu, vmidOf(t, f.ServerEnv, f.a))
+	require.Empty(t, f.holders(ip), "the rebuild wrote the allow-set without the address")
+	require.Nil(t, f.row(t, id).ReleasingFromID)
+}
+
+func TestReleaseWaitsForServerDelete(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	id, ip := f.settled(t)
+	act := f.assign(t, id, f.b)
+	// The move's job was lost: the row still points at b and releases from a.
+	require.NoError(t, actions.Fail(ctx, f.App.Ent, act.ID, actions.CodeFailed, "lost"))
+	del, _ := expect[actionBody](t, f.C.Send(http.MethodDelete, spath(f.a), nil), http.StatusOK)
+
+	res := f.resumed(t, id)
+	require.Equal(t, floatingips.KindAssign, res.Command)
+	for attempt := 1; attempt <= servers.MaxAttempts; attempt++ {
+		err := f.work(t, res.ID, attempt)
+		require.True(t, snoozed(err), "the release waits for the delete: %v", err)
+	}
+	require.Equal(t, actions.StatusRunning, f.action(t, res.ID).Status)
+	require.Equal(t, &f.a, f.row(t, id).ReleasingFromID)
+	require.Empty(t, f.applies(t, f.b), "b gets nothing while a may still hold the address")
+
+	dw := servers.NewDeleteServerWorker(f.o)
+	require.NoError(t, dw.Work(ctx, jobOf(queuedArgs[servers.DeleteServerArgs](t, f.ServerEnv, del.Action.ID), 1)))
+	require.Empty(t, f.holders(ip))
+	require.Nil(t, f.row(t, id).ReleasingFromID, "deleting a's row completes the release")
+
+	err := f.work(t, res.ID, 1)
+	require.True(t, snoozed(err), "%v", err)
+	require.Equal(t, 1, f.runApplies(t, f.b))
+	require.NoError(t, f.work(t, res.ID, 1))
+	require.Equal(t, actions.StatusSuccess, f.action(t, res.ID).Status)
+	require.Equal(t, []int{f.vb}, f.holders(ip))
+	r := f.row(t, id)
+	require.Equal(t, &f.b, r.ServerID)
+	require.Nil(t, r.PendingGen)
 }

@@ -188,3 +188,33 @@ func TestUserDataScriptBecomesMultipart(t *testing.T) {
 	require.Contains(t, bodies[0], keyA)
 	require.Equal(t, in.UserData, bodies[1])
 }
+
+func TestNetworkConfigFloating(t *testing.T) {
+	in := input()
+	in.Floating = []netip.Addr{netip.MustParseAddr("192.0.2.7"), netip.MustParseAddr("2001:db8:1::7")}
+	_, files := readISO(t, in)
+	const want = `ethernets:
+    eth0:
+        match:
+            macaddress: bc:24:11:0a:1b:2c
+        set-name: eth0
+        dhcp4: false
+        dhcp6: false
+        addresses:
+            - 10.0.0.10/24
+            - 2001:db8::10/64
+            - 192.0.2.7/32
+            - 2001:db8:1::7/128
+        routes:
+            - to: default
+              via: 10.0.0.1
+            - to: default
+              via: 2001:db8::1
+        nameservers:
+            addresses:
+                - 1.1.1.1
+                - 2606:4700:4700::1111
+version: 2
+`
+	require.Equal(t, want, files["network-config"])
+}

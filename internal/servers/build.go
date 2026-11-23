@@ -30,6 +30,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/cloudinit"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
@@ -380,9 +381,13 @@ func (b *builder) uploadISO(ctx context.Context) error {
 	if !slices.ContainsFunc(sts, func(s pve.Storage) bool { return s.ID == b.loc.ISOStorage && slices.Contains(s.Content, "iso") }) {
 		return permanent("ISO storage %q is not available on node %s", b.loc.ISOStorage, b.row.Node)
 	}
+	fips, err := floatingips.AllowedIPs(ctx, b.o.Ent, b.row.ID)
+	if err != nil {
+		return err
+	}
 	iso, err := cloudinit.Build(cloudinit.Input{
 		InstanceID: fmt.Sprintf("nb-srv-%d-%d", b.row.ID, b.isoGen),
-		Hostname:   b.row.Name, SSHKeys: b.row.SSHKeys, UserData: b.row.UserData, MAC: b.row.MAC, IPs: b.assign,
+		Hostname:   b.row.Name, SSHKeys: b.row.SSHKeys, UserData: b.row.UserData, MAC: b.row.MAC, IPs: b.assign, Floating: fips,
 	})
 	if err != nil {
 		return permanent("%s", err)

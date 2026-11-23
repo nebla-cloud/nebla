@@ -20,9 +20,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,14 +32,17 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
+	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/reconcile"
@@ -1231,4 +1236,39 @@ func TestReconcileDriftCheckCadence(t *testing.T) {
 	reconcile.ForceDriftCheck(r)
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Len(t, applies(t, e, row.ID), baseline+2)
+}
+
+func TestReconcilerSeesFloatingDrift(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	primary := vmFW(t, e, vmid).IPSets["ipfilter-net0"]
+	hooks, _ := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
+	fips := floatingips.New(floatingips.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog,
+		Projects: projects.New(e.App.Ent, projects.Options{Hooks: hooks}), Jobs: e.App.Jobs, Logger: quiet()})
+	fip, _, err := fips.Create(ctx, e.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	// Assigned with no apply: the VM's ipset lacks the address.
+	require.NoError(t, e.App.Ent.IPAddress.UpdateOneID(fip.ID).SetServerID(row.ID).Exec(ctx))
+	baseline := len(applies(t, e, row.ID))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1, "the missing floating IP is drift")
+	settle(t, e, row.ID)
+	require.ElementsMatch(t, append(slices.Clone(primary), fip.IP), vmFW(t, e, vmid).IPSets["ipfilter-net0"])
+
+	finishLast(t, e, row.ID, action.StatusSuccess, time.Hour)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1, "an assigned floating IP in the ipset is not drift")
+}
+
+func TestReconcileRunsFloatingIPResume(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	calls := 0
+	r := reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: quiet(),
+		FloatingIPResume: func(context.Context) error { calls++; return errors.New("boom") }})
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, 1, calls)
 }

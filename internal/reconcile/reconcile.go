@@ -41,6 +41,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
+	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/projects"
@@ -63,6 +64,8 @@ type Options struct {
 	Logger *slog.Logger
 	// VolumeRescue repairs orphaned volume actions; it runs at the end of every pass.
 	VolumeRescue func(ctx context.Context) error
+	// FloatingIPResume restarts floating IP changes left without an action; it runs at the end of every pass.
+	FloatingIPResume func(ctx context.Context) error
 }
 
 type Reconciler struct {
@@ -107,6 +110,11 @@ func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 	if r.o.VolumeRescue != nil {
 		if err := r.o.VolumeRescue(ctx); err != nil {
 			log.Error("reconcile: volume rescue", "err", err)
+		}
+	}
+	if r.o.FloatingIPResume != nil {
+		if err := r.o.FloatingIPResume(ctx); err != nil {
+			log.Error("reconcile: floating IP resume", "err", err)
 		}
 	}
 	return errors.Join(errs...)
@@ -297,8 +305,8 @@ func cooling(ctx context.Context, c *ent.Client, row *ent.Server) (cool, success
 	return time.Since(*last.Finished) < wait, success, nil
 }
 
-// ipsetDrift describes how the live ipfilter set differs from the server's assigned IPs; "" when it matches.
-func ipsetDrift(cidrs []string, exists bool, assign []ipam.Assignment) string {
+// ipsetDrift describes how the live ipfilter set differs from the server's primary and floating IPs; "" when it matches.
+func ipsetDrift(cidrs []string, exists bool, assign []ipam.Assignment, floating []netip.Addr) string {
 	if !exists {
 		return "ipset " + pve.IPFilterSet + " is missing"
 	}
@@ -313,10 +321,14 @@ func ipsetDrift(cidrs []string, exists bool, assign []ipam.Assignment) string {
 		}
 	}
 	want := map[netip.Addr]bool{}
+	ips := make([]netip.Addr, 0, len(assign)+len(floating))
 	for _, a := range assign {
-		want[a.IP] = true
-		if !have[a.IP] {
-			return "ipset " + pve.IPFilterSet + " lacks " + a.IP.String()
+		ips = append(ips, a.IP)
+	}
+	for _, a := range append(ips, floating...) {
+		want[a] = true
+		if !have[a] {
+			return "ipset " + pve.IPFilterSet + " lacks " + a.String()
 		}
 	}
 	for a := range have {
@@ -373,6 +385,10 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 	if err != nil {
 		return err
 	}
+	fips, err := floatingips.AllowedIPs(ctx, r.o.Ent, row.ID)
+	if err != nil {
+		return err
+	}
 	tctx, cancel := context.WithTimeout(ctx, pveTimeout)
 	defer cancel()
 	cfg, err := pc.Config(tctx, v.Node, v.VMID)
@@ -396,7 +412,7 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 	}
 	drift := firewalls.Drift(cur, opts, firewalls.Render(rules, anyFW))
 	if drift == "" {
-		drift = ipsetDrift(cidrs, exists, assign)
+		drift = ipsetDrift(cidrs, exists, assign, fips)
 	}
 	if drift == "" {
 		return nil

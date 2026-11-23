@@ -36,6 +36,8 @@ func SetAfterClonePost(w *CreateServerWorker, f func()) { w.afterClonePost = f }
 var CloneDescription = cloneDescription
 
 const (
+	StepVMID     = stepVMID
+	StepResize   = stepResize
 	StepClone    = stepClone
 	StepSwap     = stepSwap
 	StepFirewall = stepFirewall

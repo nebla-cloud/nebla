@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/netip"
 	"net/textproto"
 	"slices"
 	"strings"
@@ -39,6 +40,8 @@ type Input struct {
 	UserData             string
 	MAC                  string
 	IPs                  []ipam.Assignment
+	// Floating are extra single addresses on eth0, with no routes.
+	Floating []netip.Addr
 }
 
 // Build returns a NoCloud ISO (label cidata) with meta-data, network-config and user-data.
@@ -100,6 +103,9 @@ func networkConfig(in Input) ([]byte, error) {
 				dns = append(dns, s)
 			}
 		}
+	}
+	for _, a := range in.Floating {
+		eth.Addresses = append(eth.Addresses, netip.PrefixFrom(a, a.BitLen()).String())
 	}
 	if len(dns) > 0 {
 		eth.Nameservers = map[string][]string{"addresses": dns}

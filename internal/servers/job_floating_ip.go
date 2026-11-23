@@ -92,6 +92,15 @@ func (w *FloatingIPWorker) run(ctx context.Context, a floatingips.ChangeArgs) er
 			return transient("floating ip %d is still releasing from server %d", row.ID, *row.ReleasingFromID)
 		}
 	}
+	if row.ServerID != nil && row.PendingGen == nil && !row.Deleting {
+		// Deleting the old server's row ended the release without handing the address over.
+		if row, err = w.handOver(ctx, row.ID); ent.IsNotFound(err) {
+			return actions.Succeed(ctx, w.o.Ent, a.ActionID)
+		}
+		if err != nil {
+			return err
+		}
+	}
 	switch {
 	case row.Deleting:
 		return w.delete(ctx, a)
@@ -101,8 +110,46 @@ func (w *FloatingIPWorker) run(ctx context.Context, a floatingips.ChangeArgs) er
 	return actions.Succeed(ctx, w.o.Ent, a.ActionID)
 }
 
+// handOver bumps the server a released row is assigned to and records the generation to wait for.
+func (w *FloatingIPWorker) handOver(ctx context.Context, id int64) (*ent.IPAddress, error) {
+	err := db.WithTx(ctx, w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		cur, err := etx.IPAddress.Query().Where(ipaddress.ID(id)).ForUpdate().Only(ctx)
+		if err != nil {
+			return err
+		}
+		if cur.ReleasingFromID != nil || cur.ServerID == nil || cur.PendingGen != nil || cur.Deleting {
+			return nil
+		}
+		return bumpTarget(ctx, tx, etx, w.o.jobs(), cur, etx.IPAddress.UpdateOneID(id))
+	})
+	if err != nil {
+		return nil, err
+	}
+	return w.o.Ent.IPAddress.Get(ctx, id)
+}
+
+// bumpTarget bumps cur's server and has u record the generation the assign waits for.
+func bumpTarget(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, cur *ent.IPAddress, u *ent.IPAddressUpdateOne) error {
+	if _, err := firewalls.Bump(ctx, tx, etx, j, cur.ProjectID, []int64{*cur.ServerID}, nil); err != nil {
+		return err
+	}
+	srv, err := etx.Server.Get(ctx, *cur.ServerID)
+	if err != nil {
+		return err
+	}
+	return u.SetPendingGen(srv.FirewallGenDesired).Exec(ctx)
+}
+
 // release writes the old server's allow-set onto every VM it has, waits for the reload, then lets the new server have the address.
 func (w *FloatingIPWorker) release(ctx context.Context, id, oldID int64) error {
+	old, err := w.o.Ent.Server.Get(ctx, oldID)
+	if err != nil && !ent.IsNotFound(err) {
+		return err
+	}
+	// A delete destroys the old server's VMs; deleting its row then ends the release.
+	if old != nil && old.Status == StatusDeleting {
+		return river.JobSnooze(buildSnooze)
+	}
 	l, ok, err := claimLease(ctx, w.o.SQL, oldID)
 	if err != nil {
 		return err
@@ -111,10 +158,6 @@ func (w *FloatingIPWorker) release(ctx context.Context, id, oldID int64) error {
 		return river.JobSnooze(leaseSnooze)
 	}
 	defer l.release(ctx)
-	old, err := w.o.Ent.Server.Get(ctx, oldID)
-	if err != nil && !ent.IsNotFound(err) {
-		return err
-	}
 	if old != nil {
 		if err := w.writeVMs(ctx, old); err != nil {
 			return err
@@ -136,14 +179,7 @@ func (w *FloatingIPWorker) release(ctx context.Context, id, oldID int64) error {
 		}
 		u := etx.IPAddress.UpdateOneID(id).ClearReleasingFromID()
 		if cur.ServerID != nil && !cur.Deleting {
-			if _, err := firewalls.Bump(ctx, tx, etx, w.o.jobs(), cur.ProjectID, []int64{*cur.ServerID}, nil); err != nil {
-				return err
-			}
-			srv, err := etx.Server.Get(ctx, *cur.ServerID)
-			if err != nil {
-				return err
-			}
-			u.SetPendingGen(srv.FirewallGenDesired)
+			return bumpTarget(ctx, tx, etx, w.o.jobs(), cur, u)
 		}
 		return u.Exec(ctx)
 	})
@@ -158,8 +194,8 @@ func (w *FloatingIPWorker) writeVMs(ctx context.Context, old *ent.Server) error 
 	if err != nil {
 		return &stepError{"connect to proxmox", err}
 	}
-	for _, vmid := range []*int{old.Vmid, old.RebuildVmid} {
-		if vmid == nil {
+	for i, vmid := range []*int{old.Vmid, old.RebuildVmid} {
+		if vmid == nil || i == 1 && notCloned(old) {
 			continue
 		}
 		v, err := OwnedVM(ctx, pc, old.ID, *vmid)
@@ -178,6 +214,11 @@ func (w *FloatingIPWorker) writeVMs(ctx context.Context, old *ent.Server) error 
 		}
 	}
 	return nil
+}
+
+// notCloned reports a rebuild that has picked its VMID but not cloned; its own later ipset write reads the allow-set under the fence.
+func notCloned(row *ent.Server) bool {
+	return row.Status == StatusRebuilding && row.RebuildStep >= stepVMID && row.RebuildStep < stepClone
 }
 
 // delete removes the released row and frees its address.

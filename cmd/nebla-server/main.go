@@ -31,6 +31,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/enroll"
 	"github.com/nebla-cloud/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/mail"
@@ -86,11 +87,13 @@ func run() error {
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log,
 		Jobs: func() *jobs.Jobs { return runner }})
 	volumes.RegisterWorkers(workers, volumes.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
+	var fips *floatingips.Service
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
 		VolumeRescue: func(ctx context.Context) error {
 			_, err := volumes.RescueOrphaned(ctx, client, sqlDB, bus)
 			return err
-		}})
+		},
+		FloatingIPResume: func(ctx context.Context) error { return fips.ResumeStuck(ctx) }})
 	reconcile.Register(workers, rec)
 	enr := enroll.New(sqlDB, client, enroll.Options{SecretKey: cfg.SecretKey, BaseURL: cfg.BaseURL, Catalog: cat, Logger: log})
 	enroll.Register(workers, enr)
@@ -107,6 +110,7 @@ func run() error {
 	}
 	osi.SetJobs(runner)
 	rec.SetJobs(runner)
+	fips = floatingips.New(floatingips.Options{SQL: sqlDB, Ent: client, Catalog: cat, Jobs: runner, Logger: log, Bus: bus})
 	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
 	if err := rec.RescueAll(ctx); err != nil {
 		return err
@@ -141,6 +145,10 @@ func run() error {
 	}
 	if n > 0 {
 		log.Warn("failed orphaned actions", "count", n)
+	}
+	// After the orphan sweep, so floating IPs whose action was just failed resume too; the reconciler retries the rest.
+	if err := fips.ResumeStuck(ctx); err != nil {
+		log.Warn("resume floating IPs", "err", err)
 	}
 	// River gets its own context so a signal stops it via Stop, not by cancelling Start's context.
 	if err := runner.Start(context.WithoutCancel(ctx)); err != nil {
