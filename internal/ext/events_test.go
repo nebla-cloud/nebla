@@ -124,3 +124,8 @@ func TestBackupEventKinds(t *testing.T) {
 	require.Equal(t, []ext.EventKind{"backup.created", "backup.deleted", "backup.restored", "backup.usage"},
 		[]ext.EventKind{ext.BackupCreated, ext.BackupDeleted, ext.BackupRestored, ext.BackupUsage})
 }
+
+func TestSnapshotEventKinds(t *testing.T) {
+	require.Equal(t, []ext.EventKind{"snapshot.created", "snapshot.deleted", "snapshot.usage"},
+		[]ext.EventKind{ext.SnapshotCreated, ext.SnapshotDeleted, ext.SnapshotUsage})
+}

@@ -156,6 +156,34 @@ func (_c *ProjectCreate) SetNillableMaxNetworks(v *int) *ProjectCreate {
 	return _c
 }
 
+// SetMaxSnapshots sets the "max_snapshots" field.
+func (_c *ProjectCreate) SetMaxSnapshots(v int) *ProjectCreate {
+	_c.mutation.SetMaxSnapshots(v)
+	return _c
+}
+
+// SetNillableMaxSnapshots sets the "max_snapshots" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableMaxSnapshots(v *int) *ProjectCreate {
+	if v != nil {
+		_c.SetMaxSnapshots(*v)
+	}
+	return _c
+}
+
+// SetMaxSnapshotGB sets the "max_snapshot_gb" field.
+func (_c *ProjectCreate) SetMaxSnapshotGB(v int) *ProjectCreate {
+	_c.mutation.SetMaxSnapshotGB(v)
+	return _c
+}
+
+// SetNillableMaxSnapshotGB sets the "max_snapshot_gb" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableMaxSnapshotGB(v *int) *ProjectCreate {
+	if v != nil {
+		_c.SetMaxSnapshotGB(*v)
+	}
+	return _c
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_c *ProjectCreate) SetCreatedBy(v int64) *ProjectCreate {
 	_c.mutation.SetCreatedBy(v)
@@ -295,6 +323,14 @@ func (_c *ProjectCreate) defaults() {
 		v := project.DefaultMaxNetworks
 		_c.mutation.SetMaxNetworks(v)
 	}
+	if _, ok := _c.mutation.MaxSnapshots(); !ok {
+		v := project.DefaultMaxSnapshots
+		_c.mutation.SetMaxSnapshots(v)
+	}
+	if _, ok := _c.mutation.MaxSnapshotGB(); !ok {
+		v := project.DefaultMaxSnapshotGB
+		_c.mutation.SetMaxSnapshotGB(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := project.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -332,6 +368,12 @@ func (_c *ProjectCreate) check() error {
 	}
 	if _, ok := _c.mutation.MaxNetworks(); !ok {
 		return &ValidationError{Name: "max_networks", err: errors.New(`ent: missing required field "Project.max_networks"`)}
+	}
+	if _, ok := _c.mutation.MaxSnapshots(); !ok {
+		return &ValidationError{Name: "max_snapshots", err: errors.New(`ent: missing required field "Project.max_snapshots"`)}
+	}
+	if _, ok := _c.mutation.MaxSnapshotGB(); !ok {
+		return &ValidationError{Name: "max_snapshot_gb", err: errors.New(`ent: missing required field "Project.max_snapshot_gb"`)}
 	}
 	return nil
 }
@@ -405,6 +447,14 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MaxNetworks(); ok {
 		_spec.SetField(project.FieldMaxNetworks, field.TypeInt, value)
 		_node.MaxNetworks = value
+	}
+	if value, ok := _c.mutation.MaxSnapshots(); ok {
+		_spec.SetField(project.FieldMaxSnapshots, field.TypeInt, value)
+		_node.MaxSnapshots = value
+	}
+	if value, ok := _c.mutation.MaxSnapshotGB(); ok {
+		_spec.SetField(project.FieldMaxSnapshotGB, field.TypeInt, value)
+		_node.MaxSnapshotGB = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(project.FieldCreatedAt, field.TypeTime, value)
@@ -666,6 +716,42 @@ func (u *ProjectUpsert) UpdateMaxNetworks() *ProjectUpsert {
 // AddMaxNetworks adds v to the "max_networks" field.
 func (u *ProjectUpsert) AddMaxNetworks(v int) *ProjectUpsert {
 	u.Add(project.FieldMaxNetworks, v)
+	return u
+}
+
+// SetMaxSnapshots sets the "max_snapshots" field.
+func (u *ProjectUpsert) SetMaxSnapshots(v int) *ProjectUpsert {
+	u.Set(project.FieldMaxSnapshots, v)
+	return u
+}
+
+// UpdateMaxSnapshots sets the "max_snapshots" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateMaxSnapshots() *ProjectUpsert {
+	u.SetExcluded(project.FieldMaxSnapshots)
+	return u
+}
+
+// AddMaxSnapshots adds v to the "max_snapshots" field.
+func (u *ProjectUpsert) AddMaxSnapshots(v int) *ProjectUpsert {
+	u.Add(project.FieldMaxSnapshots, v)
+	return u
+}
+
+// SetMaxSnapshotGB sets the "max_snapshot_gb" field.
+func (u *ProjectUpsert) SetMaxSnapshotGB(v int) *ProjectUpsert {
+	u.Set(project.FieldMaxSnapshotGB, v)
+	return u
+}
+
+// UpdateMaxSnapshotGB sets the "max_snapshot_gb" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateMaxSnapshotGB() *ProjectUpsert {
+	u.SetExcluded(project.FieldMaxSnapshotGB)
+	return u
+}
+
+// AddMaxSnapshotGB adds v to the "max_snapshot_gb" field.
+func (u *ProjectUpsert) AddMaxSnapshotGB(v int) *ProjectUpsert {
+	u.Add(project.FieldMaxSnapshotGB, v)
 	return u
 }
 
@@ -938,6 +1024,48 @@ func (u *ProjectUpsertOne) AddMaxNetworks(v int) *ProjectUpsertOne {
 func (u *ProjectUpsertOne) UpdateMaxNetworks() *ProjectUpsertOne {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxNetworks()
+	})
+}
+
+// SetMaxSnapshots sets the "max_snapshots" field.
+func (u *ProjectUpsertOne) SetMaxSnapshots(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxSnapshots(v)
+	})
+}
+
+// AddMaxSnapshots adds v to the "max_snapshots" field.
+func (u *ProjectUpsertOne) AddMaxSnapshots(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxSnapshots(v)
+	})
+}
+
+// UpdateMaxSnapshots sets the "max_snapshots" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateMaxSnapshots() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxSnapshots()
+	})
+}
+
+// SetMaxSnapshotGB sets the "max_snapshot_gb" field.
+func (u *ProjectUpsertOne) SetMaxSnapshotGB(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxSnapshotGB(v)
+	})
+}
+
+// AddMaxSnapshotGB adds v to the "max_snapshot_gb" field.
+func (u *ProjectUpsertOne) AddMaxSnapshotGB(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxSnapshotGB(v)
+	})
+}
+
+// UpdateMaxSnapshotGB sets the "max_snapshot_gb" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateMaxSnapshotGB() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxSnapshotGB()
 	})
 }
 
@@ -1379,6 +1507,48 @@ func (u *ProjectUpsertBulk) AddMaxNetworks(v int) *ProjectUpsertBulk {
 func (u *ProjectUpsertBulk) UpdateMaxNetworks() *ProjectUpsertBulk {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxNetworks()
+	})
+}
+
+// SetMaxSnapshots sets the "max_snapshots" field.
+func (u *ProjectUpsertBulk) SetMaxSnapshots(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxSnapshots(v)
+	})
+}
+
+// AddMaxSnapshots adds v to the "max_snapshots" field.
+func (u *ProjectUpsertBulk) AddMaxSnapshots(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxSnapshots(v)
+	})
+}
+
+// UpdateMaxSnapshots sets the "max_snapshots" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateMaxSnapshots() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxSnapshots()
+	})
+}
+
+// SetMaxSnapshotGB sets the "max_snapshot_gb" field.
+func (u *ProjectUpsertBulk) SetMaxSnapshotGB(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxSnapshotGB(v)
+	})
+}
+
+// AddMaxSnapshotGB adds v to the "max_snapshot_gb" field.
+func (u *ProjectUpsertBulk) AddMaxSnapshotGB(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxSnapshotGB(v)
+	})
+}
+
+// UpdateMaxSnapshotGB sets the "max_snapshot_gb" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateMaxSnapshotGB() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxSnapshotGB()
 	})
 }
 

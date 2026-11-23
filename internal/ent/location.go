@@ -57,6 +57,8 @@ type Location struct {
 	VnetPrefix string `json:"vnet_prefix,omitempty"`
 	// SdnAuditOk holds the value of the "sdn_audit_ok" field.
 	SdnAuditOk bool `json:"sdn_audit_ok,omitempty"`
+	// SnapshotStorage holds the value of the "snapshot_storage" field.
+	SnapshotStorage string `json:"snapshot_storage,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -129,7 +131,7 @@ func (*Location) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case location.FieldID, location.FieldBackupWindowStart, location.FieldBackupWindowEnd:
 			values[i] = new(sql.NullInt64)
-		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage, location.FieldVolumeStorage, location.FieldBackupStorage, location.FieldSdnZone, location.FieldVnetPrefix:
+		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage, location.FieldVolumeStorage, location.FieldBackupStorage, location.FieldSdnZone, location.FieldVnetPrefix, location.FieldSnapshotStorage:
 			values[i] = new(sql.NullString)
 		case location.FieldCreatedAt, location.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -276,6 +278,12 @@ func (_m *Location) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SdnAuditOk = value.Bool
 			}
+		case location.FieldSnapshotStorage:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field snapshot_storage", values[i])
+			} else if value.Valid {
+				_m.SnapshotStorage = value.String
+			}
 		case location.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -406,6 +414,9 @@ func (_m *Location) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("sdn_audit_ok=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SdnAuditOk))
+	builder.WriteString(", ")
+	builder.WriteString("snapshot_storage=")
+	builder.WriteString(_m.SnapshotStorage)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

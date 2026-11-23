@@ -18,20 +18,23 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 )
 
 // ServerQuery is the builder for querying Server entities.
 type ServerQuery struct {
 	config
-	ctx            *QueryContext
-	order          []server.OrderOption
-	inters         []Interceptor
-	predicates     []predicate.Server
-	withProject    *ProjectQuery
-	withLocation   *LocationQuery
-	withServerType *ServerTypeQuery
-	withImage      *ImageQuery
-	modifiers      []func(*sql.Selector)
+	ctx                 *QueryContext
+	order               []server.OrderOption
+	inters              []Interceptor
+	predicates          []predicate.Server
+	withProject         *ProjectQuery
+	withLocation        *LocationQuery
+	withServerType      *ServerTypeQuery
+	withImage           *ImageQuery
+	withSnapshot        *SnapshotQuery
+	withRebuildSnapshot *SnapshotQuery
+	modifiers           []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -149,6 +152,50 @@ func (_q *ServerQuery) QueryImage() *ImageQuery {
 			sqlgraph.From(server.Table, server.FieldID, selector),
 			sqlgraph.To(image.Table, image.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, false, server.ImageTable, server.ImageColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySnapshot chains the current query on the "snapshot" edge.
+func (_q *ServerQuery) QuerySnapshot() *SnapshotQuery {
+	query := (&SnapshotClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(server.Table, server.FieldID, selector),
+			sqlgraph.To(snapshot.Table, snapshot.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, server.SnapshotTable, server.SnapshotColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryRebuildSnapshot chains the current query on the "rebuild_snapshot" edge.
+func (_q *ServerQuery) QueryRebuildSnapshot() *SnapshotQuery {
+	query := (&SnapshotClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(server.Table, server.FieldID, selector),
+			sqlgraph.To(snapshot.Table, snapshot.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, server.RebuildSnapshotTable, server.RebuildSnapshotColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -343,15 +390,17 @@ func (_q *ServerQuery) Clone() *ServerQuery {
 		return nil
 	}
 	return &ServerQuery{
-		config:         _q.config,
-		ctx:            _q.ctx.Clone(),
-		order:          append([]server.OrderOption{}, _q.order...),
-		inters:         append([]Interceptor{}, _q.inters...),
-		predicates:     append([]predicate.Server{}, _q.predicates...),
-		withProject:    _q.withProject.Clone(),
-		withLocation:   _q.withLocation.Clone(),
-		withServerType: _q.withServerType.Clone(),
-		withImage:      _q.withImage.Clone(),
+		config:              _q.config,
+		ctx:                 _q.ctx.Clone(),
+		order:               append([]server.OrderOption{}, _q.order...),
+		inters:              append([]Interceptor{}, _q.inters...),
+		predicates:          append([]predicate.Server{}, _q.predicates...),
+		withProject:         _q.withProject.Clone(),
+		withLocation:        _q.withLocation.Clone(),
+		withServerType:      _q.withServerType.Clone(),
+		withImage:           _q.withImage.Clone(),
+		withSnapshot:        _q.withSnapshot.Clone(),
+		withRebuildSnapshot: _q.withRebuildSnapshot.Clone(),
 		// clone intermediate query.
 		sql:       _q.sql.Clone(),
 		path:      _q.path,
@@ -400,6 +449,28 @@ func (_q *ServerQuery) WithImage(opts ...func(*ImageQuery)) *ServerQuery {
 		opt(query)
 	}
 	_q.withImage = query
+	return _q
+}
+
+// WithSnapshot tells the query-builder to eager-load the nodes that are connected to
+// the "snapshot" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ServerQuery) WithSnapshot(opts ...func(*SnapshotQuery)) *ServerQuery {
+	query := (&SnapshotClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSnapshot = query
+	return _q
+}
+
+// WithRebuildSnapshot tells the query-builder to eager-load the nodes that are connected to
+// the "rebuild_snapshot" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ServerQuery) WithRebuildSnapshot(opts ...func(*SnapshotQuery)) *ServerQuery {
+	query := (&SnapshotClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withRebuildSnapshot = query
 	return _q
 }
 
@@ -481,11 +552,13 @@ func (_q *ServerQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serve
 	var (
 		nodes       = []*Server{}
 		_spec       = _q.querySpec()
-		loadedTypes = [4]bool{
+		loadedTypes = [6]bool{
 			_q.withProject != nil,
 			_q.withLocation != nil,
 			_q.withServerType != nil,
 			_q.withImage != nil,
+			_q.withSnapshot != nil,
+			_q.withRebuildSnapshot != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -530,6 +603,18 @@ func (_q *ServerQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Serve
 	if query := _q.withImage; query != nil {
 		if err := _q.loadImage(ctx, query, nodes, nil,
 			func(n *Server, e *Image) { n.Edges.Image = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSnapshot; query != nil {
+		if err := _q.loadSnapshot(ctx, query, nodes, nil,
+			func(n *Server, e *Snapshot) { n.Edges.Snapshot = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withRebuildSnapshot; query != nil {
+		if err := _q.loadRebuildSnapshot(ctx, query, nodes, nil,
+			func(n *Server, e *Snapshot) { n.Edges.RebuildSnapshot = e }); err != nil {
 			return nil, err
 		}
 	}
@@ -627,7 +712,10 @@ func (_q *ServerQuery) loadImage(ctx context.Context, query *ImageQuery, nodes [
 	ids := make([]int64, 0, len(nodes))
 	nodeids := make(map[int64][]*Server)
 	for i := range nodes {
-		fk := nodes[i].ImageID
+		if nodes[i].ImageID == nil {
+			continue
+		}
+		fk := *nodes[i].ImageID
 		if _, ok := nodeids[fk]; !ok {
 			ids = append(ids, fk)
 		}
@@ -645,6 +733,70 @@ func (_q *ServerQuery) loadImage(ctx context.Context, query *ImageQuery, nodes [
 		nodes, ok := nodeids[n.ID]
 		if !ok {
 			return fmt.Errorf(`unexpected foreign-key "image_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (_q *ServerQuery) loadSnapshot(ctx context.Context, query *SnapshotQuery, nodes []*Server, init func(*Server), assign func(*Server, *Snapshot)) error {
+	ids := make([]int64, 0, len(nodes))
+	nodeids := make(map[int64][]*Server)
+	for i := range nodes {
+		if nodes[i].SnapshotID == nil {
+			continue
+		}
+		fk := *nodes[i].SnapshotID
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(snapshot.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "snapshot_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
+func (_q *ServerQuery) loadRebuildSnapshot(ctx context.Context, query *SnapshotQuery, nodes []*Server, init func(*Server), assign func(*Server, *Snapshot)) error {
+	ids := make([]int64, 0, len(nodes))
+	nodeids := make(map[int64][]*Server)
+	for i := range nodes {
+		if nodes[i].RebuildSnapshotID == nil {
+			continue
+		}
+		fk := *nodes[i].RebuildSnapshotID
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(snapshot.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "rebuild_snapshot_id" returned %v`, n.ID)
 		}
 		for i := range nodes {
 			assign(nodes[i], n)
@@ -692,6 +844,12 @@ func (_q *ServerQuery) querySpec() *sqlgraph.QuerySpec {
 		}
 		if _q.withImage != nil {
 			_spec.Node.AddColumnOnce(server.FieldImageID)
+		}
+		if _q.withSnapshot != nil {
+			_spec.Node.AddColumnOnce(server.FieldSnapshotID)
+		}
+		if _q.withRebuildSnapshot != nil {
+			_spec.Node.AddColumnOnce(server.FieldRebuildSnapshotID)
 		}
 	}
 	if ps := _q.predicates; len(ps) > 0 {

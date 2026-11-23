@@ -102,7 +102,7 @@ func TestLoadDefaultQuota(t *testing.T) {
 	t.Setenv("PANEL_SECRET_KEY", "0123456789abcdef0123456789abcdef")
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3}, cfg.DefaultQuota)
+	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3, MaxSnapshots: 10, MaxSnapshotGB: 200}, cfg.DefaultQuota)
 	require.Equal(t, 3, cfg.MaxProjectsPerUser)
 
 	t.Setenv("PANEL_DEFAULT_QUOTA", "backups=3")
@@ -114,28 +114,33 @@ func TestLoadDefaultQuota(t *testing.T) {
 	t.Setenv("PANEL_MAX_PROJECTS_PER_USER", "0")
 	cfg, err = config.Load()
 	require.NoError(t, err)
-	require.Equal(t, projects.Quota{MaxServers: 2, MaxMemoryMB: 1024, MaxDiskGB: 10, MaxIPs: 1, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3}, cfg.DefaultQuota)
+	require.Equal(t, projects.Quota{MaxServers: 2, MaxMemoryMB: 1024, MaxDiskGB: 10, MaxIPs: 1, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3, MaxSnapshots: 10, MaxSnapshotGB: 200}, cfg.DefaultQuota)
 	require.Zero(t, cfg.MaxProjectsPerUser)
 
 	t.Setenv("PANEL_DEFAULT_QUOTA", "servers=10")
 	cfg, err = config.Load()
 	require.NoError(t, err)
-	require.Equal(t, projects.Quota{MaxServers: 10, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3}, cfg.DefaultQuota, "unset keys keep the defaults")
+	require.Equal(t, projects.Quota{MaxServers: 10, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3, MaxSnapshots: 10, MaxSnapshotGB: 200}, cfg.DefaultQuota, "unset keys keep the defaults")
 
 	t.Setenv("PANEL_DEFAULT_QUOTA", "ips=0")
 	cfg, err = config.Load()
 	require.NoError(t, err)
-	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3}, cfg.DefaultQuota, "0 is unlimited")
+	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3, MaxSnapshots: 10, MaxSnapshotGB: 200}, cfg.DefaultQuota, "0 is unlimited")
 
 	t.Setenv("PANEL_DEFAULT_QUOTA", "volumes=2,volume_gb=20")
 	cfg, err = config.Load()
 	require.NoError(t, err)
-	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 2, MaxVolumeGB: 20, MaxBackups: 35, MaxNetworks: 3}, cfg.DefaultQuota)
+	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 2, MaxVolumeGB: 20, MaxBackups: 35, MaxNetworks: 3, MaxSnapshots: 10, MaxSnapshotGB: 200}, cfg.DefaultQuota)
 
 	t.Setenv("PANEL_DEFAULT_QUOTA", "networks=1")
 	cfg, err = config.Load()
 	require.NoError(t, err)
 	require.Equal(t, 1, cfg.DefaultQuota.MaxNetworks)
+
+	t.Setenv("PANEL_DEFAULT_QUOTA", "snapshots=2,snapshot_gb=20")
+	cfg, err = config.Load()
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35, MaxNetworks: 3, MaxSnapshots: 2, MaxSnapshotGB: 20}, cfg.DefaultQuota)
 
 	for _, bad := range []string{"servers", "servers=x", "servers=-1", "bogus=1", "servers=1,servers=2"} {
 		t.Setenv("PANEL_DEFAULT_QUOTA", bad)

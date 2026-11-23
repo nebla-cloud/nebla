@@ -36,7 +36,13 @@ func (Server) Fields() []ent.Field {
 		field.Int("vmid").Optional().Nillable(),
 		field.Int("template_vmid"),
 		field.Int64("server_type_id"),
-		field.Int64("image_id"),
+		field.Int64("image_id").Optional().Nillable(),
+		// snapshot_id is the snapshot the server was last built from; rebuild_snapshot_id is set while a rebuild from one is queued or running.
+		field.Int64("snapshot_id").Optional().Nillable(),
+		field.Int64("rebuild_snapshot_id").Optional().Nillable(),
+		// os_flavor and os_version are the server's own OS facts; "" means read them from the image.
+		field.Text("os_flavor").Default(""),
+		field.Text("os_version").Default(""),
 		field.Enum("status").
 			Values("initializing", "starting", "running", "stopping", "off", "rebuilding", "deleting", "missing", "error").
 			Default("initializing"),
@@ -95,8 +101,12 @@ func (Server) Edges() []ent.Edge {
 			Annotations(entsql.OnDelete(entsql.NoAction)),
 		edge.To("server_type", ServerType.Type).Field("server_type_id").Unique().Required().
 			Annotations(entsql.OnDelete(entsql.NoAction)),
-		edge.To("image", Image.Type).Field("image_id").Unique().Required().
-			Annotations(entsql.OnDelete(entsql.NoAction)),
+		edge.To("image", Image.Type).Field("image_id").Unique().
+			Annotations(entsql.OnDelete(entsql.SetNull)),
+		edge.To("snapshot", Snapshot.Type).Field("snapshot_id").Unique().
+			Annotations(entsql.OnDelete(entsql.SetNull)),
+		edge.To("rebuild_snapshot", Snapshot.Type).Field("rebuild_snapshot_id").Unique().
+			Annotations(entsql.OnDelete(entsql.SetNull)),
 	}
 }
 

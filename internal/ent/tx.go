@@ -68,6 +68,8 @@ type Tx struct {
 	Session *SessionClient
 	// Setting is the client for interacting with the Setting builders.
 	Setting *SettingClient
+	// Snapshot is the client for interacting with the Snapshot builders.
+	Snapshot *SnapshotClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 	// VNetSlot is the client for interacting with the VNetSlot builders.
@@ -236,6 +238,7 @@ func (tx *Tx) init() {
 	tx.ServerType = NewServerTypeClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
+	tx.Snapshot = NewSnapshotClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 	tx.VNetSlot = NewVNetSlotClient(tx.config)
 	tx.Volume = NewVolumeClient(tx.config)

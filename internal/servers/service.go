@@ -373,7 +373,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 				return err
 			}
 			create := etx.Server.Create().SetProjectID(projectID).SetName(in.Name).SetLocationID(loc.ID).SetNode(nodeName).
-				SetTemplateVmid(vmid).SetServerTypeID(typ.ID).SetImageID(img.ID).SetMAC(mac).SetLabels(labels).
+				SetTemplateVmid(vmid).SetServerTypeID(typ.ID).SetImageID(img.ID).SetOsFlavor(img.OSFlavor).SetOsVersion(img.OSVersion).SetMAC(mac).SetLabels(labels).
 				SetCores(typ.Cores).SetMemoryMB(typ.MemoryMB).SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys)
 			if in.Backups != nil {
 				create.SetBackupsEnabled(in.Backups.Enabled).SetBackupKeep(in.Backups.Keep)
@@ -733,12 +733,15 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			}
 			types[r.ServerTypeID] = t
 		}
-		img, ok := imgs[r.ImageID]
-		if !ok {
-			if img, err = s.o.Catalog.GetImage(ctx, r.ImageID); err != nil {
-				return nil, err
+		var img catalog.Image
+		if r.ImageID != nil {
+			var ok bool
+			if img, ok = imgs[*r.ImageID]; !ok {
+				if img, err = s.o.Catalog.GetImage(ctx, *r.ImageID); err != nil {
+					return nil, err
+				}
+				imgs[*r.ImageID] = img
 			}
-			imgs[r.ImageID] = img
 		}
 		loc, ok := locs[r.LocationID]
 		if !ok {

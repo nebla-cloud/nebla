@@ -38,6 +38,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
@@ -131,6 +132,7 @@ func checkColumn(t, c string) error {
 			servertype.Table:         servertype.ValidColumn,
 			session.Table:            session.ValidColumn,
 			setting.Table:            setting.ValidColumn,
+			snapshot.Table:           snapshot.ValidColumn,
 			user.Table:               user.ValidColumn,
 			vnetslot.Table:           vnetslot.ValidColumn,
 			volume.Table:             volume.ValidColumn,

@@ -54,6 +54,8 @@ const (
 	FieldVnetPrefix = "vnet_prefix"
 	// FieldSdnAuditOk holds the string denoting the sdn_audit_ok field in the database.
 	FieldSdnAuditOk = "sdn_audit_ok"
+	// FieldSnapshotStorage holds the string denoting the snapshot_storage field in the database.
+	FieldSnapshotStorage = "snapshot_storage"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -119,6 +121,7 @@ var Columns = []string{
 	FieldSdnZone,
 	FieldVnetPrefix,
 	FieldSdnAuditOk,
+	FieldSnapshotStorage,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -164,6 +167,8 @@ var (
 	DefaultVnetPrefix string
 	// DefaultSdnAuditOk holds the default value on creation for the "sdn_audit_ok" field.
 	DefaultSdnAuditOk bool
+	// DefaultSnapshotStorage holds the default value on creation for the "snapshot_storage" field.
+	DefaultSnapshotStorage string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -273,6 +278,11 @@ func ByVnetPrefix(opts ...sql.OrderTermOption) OrderOption {
 // BySdnAuditOk orders the results by the sdn_audit_ok field.
 func BySdnAuditOk(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSdnAuditOk, opts...).ToFunc()
+}
+
+// BySnapshotStorage orders the results by the snapshot_storage field.
+func BySnapshotStorage(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSnapshotStorage, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -233,6 +233,48 @@ func (_u *ProjectUpdate) AddMaxNetworks(v int) *ProjectUpdate {
 	return _u
 }
 
+// SetMaxSnapshots sets the "max_snapshots" field.
+func (_u *ProjectUpdate) SetMaxSnapshots(v int) *ProjectUpdate {
+	_u.mutation.ResetMaxSnapshots()
+	_u.mutation.SetMaxSnapshots(v)
+	return _u
+}
+
+// SetNillableMaxSnapshots sets the "max_snapshots" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableMaxSnapshots(v *int) *ProjectUpdate {
+	if v != nil {
+		_u.SetMaxSnapshots(*v)
+	}
+	return _u
+}
+
+// AddMaxSnapshots adds value to the "max_snapshots" field.
+func (_u *ProjectUpdate) AddMaxSnapshots(v int) *ProjectUpdate {
+	_u.mutation.AddMaxSnapshots(v)
+	return _u
+}
+
+// SetMaxSnapshotGB sets the "max_snapshot_gb" field.
+func (_u *ProjectUpdate) SetMaxSnapshotGB(v int) *ProjectUpdate {
+	_u.mutation.ResetMaxSnapshotGB()
+	_u.mutation.SetMaxSnapshotGB(v)
+	return _u
+}
+
+// SetNillableMaxSnapshotGB sets the "max_snapshot_gb" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableMaxSnapshotGB(v *int) *ProjectUpdate {
+	if v != nil {
+		_u.SetMaxSnapshotGB(*v)
+	}
+	return _u
+}
+
+// AddMaxSnapshotGB adds value to the "max_snapshot_gb" field.
+func (_u *ProjectUpdate) AddMaxSnapshotGB(v int) *ProjectUpdate {
+	_u.mutation.AddMaxSnapshotGB(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdate) SetCreatedBy(v int64) *ProjectUpdate {
 	_u.mutation.SetCreatedBy(v)
@@ -417,6 +459,18 @@ func (_u *ProjectUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedMaxNetworks(); ok {
 		_spec.AddField(project.FieldMaxNetworks, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxSnapshots(); ok {
+		_spec.SetField(project.FieldMaxSnapshots, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxSnapshots(); ok {
+		_spec.AddField(project.FieldMaxSnapshots, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxSnapshotGB(); ok {
+		_spec.SetField(project.FieldMaxSnapshotGB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxSnapshotGB(); ok {
+		_spec.AddField(project.FieldMaxSnapshotGB, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -717,6 +771,48 @@ func (_u *ProjectUpdateOne) AddMaxNetworks(v int) *ProjectUpdateOne {
 	return _u
 }
 
+// SetMaxSnapshots sets the "max_snapshots" field.
+func (_u *ProjectUpdateOne) SetMaxSnapshots(v int) *ProjectUpdateOne {
+	_u.mutation.ResetMaxSnapshots()
+	_u.mutation.SetMaxSnapshots(v)
+	return _u
+}
+
+// SetNillableMaxSnapshots sets the "max_snapshots" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableMaxSnapshots(v *int) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetMaxSnapshots(*v)
+	}
+	return _u
+}
+
+// AddMaxSnapshots adds value to the "max_snapshots" field.
+func (_u *ProjectUpdateOne) AddMaxSnapshots(v int) *ProjectUpdateOne {
+	_u.mutation.AddMaxSnapshots(v)
+	return _u
+}
+
+// SetMaxSnapshotGB sets the "max_snapshot_gb" field.
+func (_u *ProjectUpdateOne) SetMaxSnapshotGB(v int) *ProjectUpdateOne {
+	_u.mutation.ResetMaxSnapshotGB()
+	_u.mutation.SetMaxSnapshotGB(v)
+	return _u
+}
+
+// SetNillableMaxSnapshotGB sets the "max_snapshot_gb" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableMaxSnapshotGB(v *int) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetMaxSnapshotGB(*v)
+	}
+	return _u
+}
+
+// AddMaxSnapshotGB adds value to the "max_snapshot_gb" field.
+func (_u *ProjectUpdateOne) AddMaxSnapshotGB(v int) *ProjectUpdateOne {
+	_u.mutation.AddMaxSnapshotGB(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdateOne) SetCreatedBy(v int64) *ProjectUpdateOne {
 	_u.mutation.SetCreatedBy(v)
@@ -931,6 +1027,18 @@ func (_u *ProjectUpdateOne) sqlSave(ctx context.Context) (_node *Project, err er
 	}
 	if value, ok := _u.mutation.AddedMaxNetworks(); ok {
 		_spec.AddField(project.FieldMaxNetworks, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxSnapshots(); ok {
+		_spec.SetField(project.FieldMaxSnapshots, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxSnapshots(); ok {
+		_spec.AddField(project.FieldMaxSnapshots, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxSnapshotGB(); ok {
+		_spec.SetField(project.FieldMaxSnapshotGB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxSnapshotGB(); ok {
+		_spec.AddField(project.FieldMaxSnapshotGB, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{

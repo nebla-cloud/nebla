@@ -30,6 +30,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
@@ -399,7 +400,17 @@ func (s *Service) DeleteImage(ctx context.Context, id int64) error {
 	if err := s.guardManual(ctx, id); err != nil {
 		return err
 	}
-	return mapWriteErr(s.db.Image.DeleteOneID(id).Exec(ctx), "image")
+	// servers.image_id is ON DELETE SET NULL, so the DB no longer refuses; snapshots may outlive the image, servers may not.
+	return mapWriteErr(s.withTx(ctx, func(tx *ent.Client) error {
+		used, err := tx.Server.Query().Where(server.ImageID(id)).Exist(ctx)
+		if err != nil {
+			return err
+		}
+		if used {
+			return apierr.New(http.StatusConflict, "resource_in_use", "image is still in use")
+		}
+		return tx.Image.DeleteOneID(id).Exec(ctx)
+	}), "image")
 }
 
 // TemplatesFor returns an image's templates in a location, shared ones first; empty when it has none there.

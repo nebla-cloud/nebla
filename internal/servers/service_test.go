@@ -35,6 +35,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
@@ -685,4 +686,42 @@ func TestServerDeleteAutoDelete(t *testing.T) {
 	require.False(t, kept.AutoDelete)
 	_, err = e.App.Ent.IPAllocation.Get(ctx, v6.AllocationID)
 	require.NoError(t, err, "the kept address stays allocated")
+}
+
+func TestServerOSFactsSurviveImageAndSnapshotDelete(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	c := e.App.Ent
+	debian := c.Image.Create().SetName("debian").SetOsFlavor("debian").SetOsVersion("13").SaveX(ctx)
+	snap := c.Snapshot.Create().SetProjectID(e.Project).SetLocationID(e.Location).SetName("s").SetLabels(map[string]string{}).
+		SetImageID(debian.ID).SetOsFlavor("debian").SetOsVersion("13").SetSizeGB(10).SaveX(ctx)
+	made := e.CreateServer("web", nil)
+	c.Server.UpdateOneID(made.ServerID).SetSnapshotID(snap.ID).SetImageID(debian.ID).SetOsFlavor("debian").SetOsVersion("13").ExecX(ctx)
+
+	c.Snapshot.DeleteOneID(snap.ID).ExecX(ctx)
+	c.Image.DeleteOneID(debian.ID).ExecX(ctx)
+
+	row := c.Server.GetX(ctx, made.ServerID)
+	require.Nil(t, row.ImageID)
+	require.Nil(t, row.SnapshotID)
+	flavor, version, err := servers.OSFacts(ctx, c, row)
+	require.NoError(t, err)
+	require.Equal(t, "debian", flavor)
+	require.Equal(t, "13", version)
+	require.False(t, c.Image.Query().Where(image.ID(debian.ID)).ExistX(ctx))
+
+	res := e.C.Get("/v1/servers/" + sid(made.ServerID))
+	require.Equal(t, http.StatusOK, res.StatusCode, body(t, res))
+}
+
+func TestOSFactsFallBackToImage(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	made := e.CreateServer("web", nil)
+	row := e.App.Ent.Server.GetX(ctx, made.ServerID)
+	flavor, version, err := servers.OSFacts(ctx, e.App.Ent, row)
+	require.NoError(t, err)
+	require.Equal(t, "ubuntu", flavor)
+	require.Equal(t, "24.04", version)
+	require.Equal(t, "ubuntu", row.OsFlavor, "create copies the image's facts onto the row")
 }

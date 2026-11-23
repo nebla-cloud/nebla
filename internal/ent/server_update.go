@@ -16,6 +16,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 )
 
 // ServerUpdate is the builder for updating Server entities.
@@ -132,6 +133,80 @@ func (_u *ServerUpdate) SetImageID(v int64) *ServerUpdate {
 func (_u *ServerUpdate) SetNillableImageID(v *int64) *ServerUpdate {
 	if v != nil {
 		_u.SetImageID(*v)
+	}
+	return _u
+}
+
+// ClearImageID clears the value of the "image_id" field.
+func (_u *ServerUpdate) ClearImageID() *ServerUpdate {
+	_u.mutation.ClearImageID()
+	return _u
+}
+
+// SetSnapshotID sets the "snapshot_id" field.
+func (_u *ServerUpdate) SetSnapshotID(v int64) *ServerUpdate {
+	_u.mutation.SetSnapshotID(v)
+	return _u
+}
+
+// SetNillableSnapshotID sets the "snapshot_id" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableSnapshotID(v *int64) *ServerUpdate {
+	if v != nil {
+		_u.SetSnapshotID(*v)
+	}
+	return _u
+}
+
+// ClearSnapshotID clears the value of the "snapshot_id" field.
+func (_u *ServerUpdate) ClearSnapshotID() *ServerUpdate {
+	_u.mutation.ClearSnapshotID()
+	return _u
+}
+
+// SetRebuildSnapshotID sets the "rebuild_snapshot_id" field.
+func (_u *ServerUpdate) SetRebuildSnapshotID(v int64) *ServerUpdate {
+	_u.mutation.SetRebuildSnapshotID(v)
+	return _u
+}
+
+// SetNillableRebuildSnapshotID sets the "rebuild_snapshot_id" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableRebuildSnapshotID(v *int64) *ServerUpdate {
+	if v != nil {
+		_u.SetRebuildSnapshotID(*v)
+	}
+	return _u
+}
+
+// ClearRebuildSnapshotID clears the value of the "rebuild_snapshot_id" field.
+func (_u *ServerUpdate) ClearRebuildSnapshotID() *ServerUpdate {
+	_u.mutation.ClearRebuildSnapshotID()
+	return _u
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (_u *ServerUpdate) SetOsFlavor(v string) *ServerUpdate {
+	_u.mutation.SetOsFlavor(v)
+	return _u
+}
+
+// SetNillableOsFlavor sets the "os_flavor" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableOsFlavor(v *string) *ServerUpdate {
+	if v != nil {
+		_u.SetOsFlavor(*v)
+	}
+	return _u
+}
+
+// SetOsVersion sets the "os_version" field.
+func (_u *ServerUpdate) SetOsVersion(v string) *ServerUpdate {
+	_u.mutation.SetOsVersion(v)
+	return _u
+}
+
+// SetNillableOsVersion sets the "os_version" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableOsVersion(v *string) *ServerUpdate {
+	if v != nil {
+		_u.SetOsVersion(*v)
 	}
 	return _u
 }
@@ -666,6 +741,16 @@ func (_u *ServerUpdate) SetImage(v *Image) *ServerUpdate {
 	return _u.SetImageID(v.ID)
 }
 
+// SetSnapshot sets the "snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdate) SetSnapshot(v *Snapshot) *ServerUpdate {
+	return _u.SetSnapshotID(v.ID)
+}
+
+// SetRebuildSnapshot sets the "rebuild_snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdate) SetRebuildSnapshot(v *Snapshot) *ServerUpdate {
+	return _u.SetRebuildSnapshotID(v.ID)
+}
+
 // Mutation returns the ServerMutation object of the builder.
 func (_u *ServerUpdate) Mutation() *ServerMutation {
 	return _u.mutation
@@ -680,6 +765,18 @@ func (_u *ServerUpdate) ClearServerType() *ServerUpdate {
 // ClearImage clears the "image" edge to the Image entity.
 func (_u *ServerUpdate) ClearImage() *ServerUpdate {
 	_u.mutation.ClearImage()
+	return _u
+}
+
+// ClearSnapshot clears the "snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdate) ClearSnapshot() *ServerUpdate {
+	_u.mutation.ClearSnapshot()
+	return _u
+}
+
+// ClearRebuildSnapshot clears the "rebuild_snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdate) ClearRebuildSnapshot() *ServerUpdate {
+	_u.mutation.ClearRebuildSnapshot()
 	return _u
 }
 
@@ -726,9 +823,6 @@ func (_u *ServerUpdate) check() error {
 	if _u.mutation.ServerTypeCleared() && len(_u.mutation.ServerTypeIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "Server.server_type"`)
 	}
-	if _u.mutation.ImageCleared() && len(_u.mutation.ImageIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Server.image"`)
-	}
 	return nil
 }
 
@@ -770,6 +864,12 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedTemplateVmid(); ok {
 		_spec.AddField(server.FieldTemplateVmid, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.OsFlavor(); ok {
+		_spec.SetField(server.FieldOsFlavor, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.OsVersion(); ok {
+		_spec.SetField(server.FieldOsVersion, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(server.FieldStatus, field.TypeEnum, value)
@@ -981,6 +1081,64 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.SnapshotCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.SnapshotTable,
+			Columns: []string{server.SnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SnapshotIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.SnapshotTable,
+			Columns: []string{server.SnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.RebuildSnapshotCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.RebuildSnapshotTable,
+			Columns: []string{server.RebuildSnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RebuildSnapshotIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.RebuildSnapshotTable,
+			Columns: []string{server.RebuildSnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -1103,6 +1261,80 @@ func (_u *ServerUpdateOne) SetImageID(v int64) *ServerUpdateOne {
 func (_u *ServerUpdateOne) SetNillableImageID(v *int64) *ServerUpdateOne {
 	if v != nil {
 		_u.SetImageID(*v)
+	}
+	return _u
+}
+
+// ClearImageID clears the value of the "image_id" field.
+func (_u *ServerUpdateOne) ClearImageID() *ServerUpdateOne {
+	_u.mutation.ClearImageID()
+	return _u
+}
+
+// SetSnapshotID sets the "snapshot_id" field.
+func (_u *ServerUpdateOne) SetSnapshotID(v int64) *ServerUpdateOne {
+	_u.mutation.SetSnapshotID(v)
+	return _u
+}
+
+// SetNillableSnapshotID sets the "snapshot_id" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableSnapshotID(v *int64) *ServerUpdateOne {
+	if v != nil {
+		_u.SetSnapshotID(*v)
+	}
+	return _u
+}
+
+// ClearSnapshotID clears the value of the "snapshot_id" field.
+func (_u *ServerUpdateOne) ClearSnapshotID() *ServerUpdateOne {
+	_u.mutation.ClearSnapshotID()
+	return _u
+}
+
+// SetRebuildSnapshotID sets the "rebuild_snapshot_id" field.
+func (_u *ServerUpdateOne) SetRebuildSnapshotID(v int64) *ServerUpdateOne {
+	_u.mutation.SetRebuildSnapshotID(v)
+	return _u
+}
+
+// SetNillableRebuildSnapshotID sets the "rebuild_snapshot_id" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableRebuildSnapshotID(v *int64) *ServerUpdateOne {
+	if v != nil {
+		_u.SetRebuildSnapshotID(*v)
+	}
+	return _u
+}
+
+// ClearRebuildSnapshotID clears the value of the "rebuild_snapshot_id" field.
+func (_u *ServerUpdateOne) ClearRebuildSnapshotID() *ServerUpdateOne {
+	_u.mutation.ClearRebuildSnapshotID()
+	return _u
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (_u *ServerUpdateOne) SetOsFlavor(v string) *ServerUpdateOne {
+	_u.mutation.SetOsFlavor(v)
+	return _u
+}
+
+// SetNillableOsFlavor sets the "os_flavor" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableOsFlavor(v *string) *ServerUpdateOne {
+	if v != nil {
+		_u.SetOsFlavor(*v)
+	}
+	return _u
+}
+
+// SetOsVersion sets the "os_version" field.
+func (_u *ServerUpdateOne) SetOsVersion(v string) *ServerUpdateOne {
+	_u.mutation.SetOsVersion(v)
+	return _u
+}
+
+// SetNillableOsVersion sets the "os_version" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableOsVersion(v *string) *ServerUpdateOne {
+	if v != nil {
+		_u.SetOsVersion(*v)
 	}
 	return _u
 }
@@ -1637,6 +1869,16 @@ func (_u *ServerUpdateOne) SetImage(v *Image) *ServerUpdateOne {
 	return _u.SetImageID(v.ID)
 }
 
+// SetSnapshot sets the "snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdateOne) SetSnapshot(v *Snapshot) *ServerUpdateOne {
+	return _u.SetSnapshotID(v.ID)
+}
+
+// SetRebuildSnapshot sets the "rebuild_snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdateOne) SetRebuildSnapshot(v *Snapshot) *ServerUpdateOne {
+	return _u.SetRebuildSnapshotID(v.ID)
+}
+
 // Mutation returns the ServerMutation object of the builder.
 func (_u *ServerUpdateOne) Mutation() *ServerMutation {
 	return _u.mutation
@@ -1651,6 +1893,18 @@ func (_u *ServerUpdateOne) ClearServerType() *ServerUpdateOne {
 // ClearImage clears the "image" edge to the Image entity.
 func (_u *ServerUpdateOne) ClearImage() *ServerUpdateOne {
 	_u.mutation.ClearImage()
+	return _u
+}
+
+// ClearSnapshot clears the "snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdateOne) ClearSnapshot() *ServerUpdateOne {
+	_u.mutation.ClearSnapshot()
+	return _u
+}
+
+// ClearRebuildSnapshot clears the "rebuild_snapshot" edge to the Snapshot entity.
+func (_u *ServerUpdateOne) ClearRebuildSnapshot() *ServerUpdateOne {
+	_u.mutation.ClearRebuildSnapshot()
 	return _u
 }
 
@@ -1710,9 +1964,6 @@ func (_u *ServerUpdateOne) check() error {
 	if _u.mutation.ServerTypeCleared() && len(_u.mutation.ServerTypeIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "Server.server_type"`)
 	}
-	if _u.mutation.ImageCleared() && len(_u.mutation.ImageIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "Server.image"`)
-	}
 	return nil
 }
 
@@ -1771,6 +2022,12 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if value, ok := _u.mutation.AddedTemplateVmid(); ok {
 		_spec.AddField(server.FieldTemplateVmid, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.OsFlavor(); ok {
+		_spec.SetField(server.FieldOsFlavor, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.OsVersion(); ok {
+		_spec.SetField(server.FieldOsVersion, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(server.FieldStatus, field.TypeEnum, value)
@@ -1975,6 +2232,64 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(image.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SnapshotCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.SnapshotTable,
+			Columns: []string{server.SnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SnapshotIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.SnapshotTable,
+			Columns: []string{server.SnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.RebuildSnapshotCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.RebuildSnapshotTable,
+			Columns: []string{server.RebuildSnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RebuildSnapshotIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.RebuildSnapshotTable,
+			Columns: []string{server.RebuildSnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

@@ -717,7 +717,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.IPAddress) ([]Floatin
 	}
 	srvs := map[int64]*ent.Server{}
 	if len(ids) > 0 {
-		list, err := s.o.Ent.Server.Query().Where(server.IDIn(ids...)).WithImage().All(ctx)
+		list, err := s.o.Ent.Server.Query().Where(server.IDIn(ids...)).All(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -744,20 +744,17 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.IPAddress) ([]Floatin
 		if lbls == nil {
 			lbls = map[string]string{}
 		}
+		guest, err := s.guestConfig(ctx, r, ip, srvs)
+		if err != nil {
+			return nil, fmt.Errorf("floating IP %d: %w", r.ID, err)
+		}
 		out[i] = FloatingIP{ID: r.ID, Name: r.Name, Description: r.Description, Labels: lbls, Family: r.Family, IP: ip.String(),
-			Location: loc.Ref(), ServerID: r.ServerID, Status: Status(r), Guest: guestConfig(r, ip, srvs), Created: r.CreatedAt}
+			Location: loc.Ref(), ServerID: r.ServerID, Status: Status(r), Guest: guest, Created: r.CreatedAt}
 	}
 	return out, nil
 }
 
-func flavor(sv *ent.Server) string {
-	if sv.Edges.Image == nil {
-		return ""
-	}
-	return sv.Edges.Image.OsFlavor
-}
-
-func guestConfig(r *ent.IPAddress, ip netip.Addr, srvs map[int64]*ent.Server) *GuestConfig {
+func (s *Service) guestConfig(ctx context.Context, r *ent.IPAddress, ip netip.Addr, srvs map[int64]*ent.Server) (*GuestConfig, error) {
 	var g GuestConfig
 	cur, prev := (*ent.Server)(nil), (*ent.Server)(nil)
 	if r.ServerID != nil {
@@ -767,16 +764,24 @@ func guestConfig(r *ent.IPAddress, ip netip.Addr, srvs map[int64]*ent.Server) *G
 		prev = srvs[*r.PreviousServerID]
 	}
 	if cur == nil && prev == nil {
-		return nil
+		return nil, nil
 	}
 	if cur != nil {
-		cmds := Guest(flavor(cur), ip)
+		fl, _, err := catalog.ServerOSFacts(ctx, s.o.Ent, cur)
+		if err != nil {
+			return nil, err
+		}
+		cmds := Guest(fl, ip)
 		g.Server, g.Apply, g.Persist = cur.Name, cmds.Apply, cmds.Persist
 	}
 	if prev != nil {
-		g.PreviousServer, g.Remove = prev.Name, Removal(flavor(prev), ip)
+		fl, _, err := catalog.ServerOSFacts(ctx, s.o.Ent, prev)
+		if err != nil {
+			return nil, err
+		}
+		g.PreviousServer, g.Remove = prev.Name, Removal(fl, ip)
 	}
-	return &g
+	return &g, nil
 }
 
 // Update changes the name, description and labels; a running action on the floating IP gives 409 locked.

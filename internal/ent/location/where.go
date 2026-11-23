@@ -155,6 +155,11 @@ func SdnAuditOk(v bool) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldSdnAuditOk, v))
 }
 
+// SnapshotStorage applies equality check predicate on the "snapshot_storage" field. It's identical to SnapshotStorageEQ.
+func SnapshotStorage(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldSnapshotStorage, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldCreatedAt, v))
@@ -1133,6 +1138,71 @@ func SdnAuditOkEQ(v bool) predicate.Location {
 // SdnAuditOkNEQ applies the NEQ predicate on the "sdn_audit_ok" field.
 func SdnAuditOkNEQ(v bool) predicate.Location {
 	return predicate.Location(sql.FieldNEQ(FieldSdnAuditOk, v))
+}
+
+// SnapshotStorageEQ applies the EQ predicate on the "snapshot_storage" field.
+func SnapshotStorageEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageNEQ applies the NEQ predicate on the "snapshot_storage" field.
+func SnapshotStorageNEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageIn applies the In predicate on the "snapshot_storage" field.
+func SnapshotStorageIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldSnapshotStorage, vs...))
+}
+
+// SnapshotStorageNotIn applies the NotIn predicate on the "snapshot_storage" field.
+func SnapshotStorageNotIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldSnapshotStorage, vs...))
+}
+
+// SnapshotStorageGT applies the GT predicate on the "snapshot_storage" field.
+func SnapshotStorageGT(v string) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageGTE applies the GTE predicate on the "snapshot_storage" field.
+func SnapshotStorageGTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageLT applies the LT predicate on the "snapshot_storage" field.
+func SnapshotStorageLT(v string) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageLTE applies the LTE predicate on the "snapshot_storage" field.
+func SnapshotStorageLTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageContains applies the Contains predicate on the "snapshot_storage" field.
+func SnapshotStorageContains(v string) predicate.Location {
+	return predicate.Location(sql.FieldContains(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageHasPrefix applies the HasPrefix predicate on the "snapshot_storage" field.
+func SnapshotStorageHasPrefix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasPrefix(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageHasSuffix applies the HasSuffix predicate on the "snapshot_storage" field.
+func SnapshotStorageHasSuffix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasSuffix(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageEqualFold applies the EqualFold predicate on the "snapshot_storage" field.
+func SnapshotStorageEqualFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldEqualFold(FieldSnapshotStorage, v))
+}
+
+// SnapshotStorageContainsFold applies the ContainsFold predicate on the "snapshot_storage" field.
+func SnapshotStorageContainsFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldContainsFold(FieldSnapshotStorage, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

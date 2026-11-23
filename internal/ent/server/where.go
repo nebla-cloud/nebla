@@ -95,6 +95,26 @@ func ImageID(v int64) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldImageID, v))
 }
 
+// SnapshotID applies equality check predicate on the "snapshot_id" field. It's identical to SnapshotIDEQ.
+func SnapshotID(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldSnapshotID, v))
+}
+
+// RebuildSnapshotID applies equality check predicate on the "rebuild_snapshot_id" field. It's identical to RebuildSnapshotIDEQ.
+func RebuildSnapshotID(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildSnapshotID, v))
+}
+
+// OsFlavor applies equality check predicate on the "os_flavor" field. It's identical to OsFlavorEQ.
+func OsFlavor(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldOsFlavor, v))
+}
+
+// OsVersion applies equality check predicate on the "os_version" field. It's identical to OsVersionEQ.
+func OsVersion(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldOsVersion, v))
+}
+
 // MAC applies equality check predicate on the "mac" field. It's identical to MACEQ.
 func MAC(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldMAC, v))
@@ -528,6 +548,206 @@ func ImageIDIn(vs ...int64) predicate.Server {
 // ImageIDNotIn applies the NotIn predicate on the "image_id" field.
 func ImageIDNotIn(vs ...int64) predicate.Server {
 	return predicate.Server(sql.FieldNotIn(FieldImageID, vs...))
+}
+
+// ImageIDIsNil applies the IsNil predicate on the "image_id" field.
+func ImageIDIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldImageID))
+}
+
+// ImageIDNotNil applies the NotNil predicate on the "image_id" field.
+func ImageIDNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldImageID))
+}
+
+// SnapshotIDEQ applies the EQ predicate on the "snapshot_id" field.
+func SnapshotIDEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldSnapshotID, v))
+}
+
+// SnapshotIDNEQ applies the NEQ predicate on the "snapshot_id" field.
+func SnapshotIDNEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldSnapshotID, v))
+}
+
+// SnapshotIDIn applies the In predicate on the "snapshot_id" field.
+func SnapshotIDIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldSnapshotID, vs...))
+}
+
+// SnapshotIDNotIn applies the NotIn predicate on the "snapshot_id" field.
+func SnapshotIDNotIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldSnapshotID, vs...))
+}
+
+// SnapshotIDIsNil applies the IsNil predicate on the "snapshot_id" field.
+func SnapshotIDIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldSnapshotID))
+}
+
+// SnapshotIDNotNil applies the NotNil predicate on the "snapshot_id" field.
+func SnapshotIDNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldSnapshotID))
+}
+
+// RebuildSnapshotIDEQ applies the EQ predicate on the "rebuild_snapshot_id" field.
+func RebuildSnapshotIDEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildSnapshotID, v))
+}
+
+// RebuildSnapshotIDNEQ applies the NEQ predicate on the "rebuild_snapshot_id" field.
+func RebuildSnapshotIDNEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldRebuildSnapshotID, v))
+}
+
+// RebuildSnapshotIDIn applies the In predicate on the "rebuild_snapshot_id" field.
+func RebuildSnapshotIDIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldRebuildSnapshotID, vs...))
+}
+
+// RebuildSnapshotIDNotIn applies the NotIn predicate on the "rebuild_snapshot_id" field.
+func RebuildSnapshotIDNotIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldRebuildSnapshotID, vs...))
+}
+
+// RebuildSnapshotIDIsNil applies the IsNil predicate on the "rebuild_snapshot_id" field.
+func RebuildSnapshotIDIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldRebuildSnapshotID))
+}
+
+// RebuildSnapshotIDNotNil applies the NotNil predicate on the "rebuild_snapshot_id" field.
+func RebuildSnapshotIDNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldRebuildSnapshotID))
+}
+
+// OsFlavorEQ applies the EQ predicate on the "os_flavor" field.
+func OsFlavorEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldOsFlavor, v))
+}
+
+// OsFlavorNEQ applies the NEQ predicate on the "os_flavor" field.
+func OsFlavorNEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldOsFlavor, v))
+}
+
+// OsFlavorIn applies the In predicate on the "os_flavor" field.
+func OsFlavorIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldOsFlavor, vs...))
+}
+
+// OsFlavorNotIn applies the NotIn predicate on the "os_flavor" field.
+func OsFlavorNotIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldOsFlavor, vs...))
+}
+
+// OsFlavorGT applies the GT predicate on the "os_flavor" field.
+func OsFlavorGT(v string) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldOsFlavor, v))
+}
+
+// OsFlavorGTE applies the GTE predicate on the "os_flavor" field.
+func OsFlavorGTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldOsFlavor, v))
+}
+
+// OsFlavorLT applies the LT predicate on the "os_flavor" field.
+func OsFlavorLT(v string) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldOsFlavor, v))
+}
+
+// OsFlavorLTE applies the LTE predicate on the "os_flavor" field.
+func OsFlavorLTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldOsFlavor, v))
+}
+
+// OsFlavorContains applies the Contains predicate on the "os_flavor" field.
+func OsFlavorContains(v string) predicate.Server {
+	return predicate.Server(sql.FieldContains(FieldOsFlavor, v))
+}
+
+// OsFlavorHasPrefix applies the HasPrefix predicate on the "os_flavor" field.
+func OsFlavorHasPrefix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasPrefix(FieldOsFlavor, v))
+}
+
+// OsFlavorHasSuffix applies the HasSuffix predicate on the "os_flavor" field.
+func OsFlavorHasSuffix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasSuffix(FieldOsFlavor, v))
+}
+
+// OsFlavorEqualFold applies the EqualFold predicate on the "os_flavor" field.
+func OsFlavorEqualFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldEqualFold(FieldOsFlavor, v))
+}
+
+// OsFlavorContainsFold applies the ContainsFold predicate on the "os_flavor" field.
+func OsFlavorContainsFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldContainsFold(FieldOsFlavor, v))
+}
+
+// OsVersionEQ applies the EQ predicate on the "os_version" field.
+func OsVersionEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldOsVersion, v))
+}
+
+// OsVersionNEQ applies the NEQ predicate on the "os_version" field.
+func OsVersionNEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldOsVersion, v))
+}
+
+// OsVersionIn applies the In predicate on the "os_version" field.
+func OsVersionIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldOsVersion, vs...))
+}
+
+// OsVersionNotIn applies the NotIn predicate on the "os_version" field.
+func OsVersionNotIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldOsVersion, vs...))
+}
+
+// OsVersionGT applies the GT predicate on the "os_version" field.
+func OsVersionGT(v string) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldOsVersion, v))
+}
+
+// OsVersionGTE applies the GTE predicate on the "os_version" field.
+func OsVersionGTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldOsVersion, v))
+}
+
+// OsVersionLT applies the LT predicate on the "os_version" field.
+func OsVersionLT(v string) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldOsVersion, v))
+}
+
+// OsVersionLTE applies the LTE predicate on the "os_version" field.
+func OsVersionLTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldOsVersion, v))
+}
+
+// OsVersionContains applies the Contains predicate on the "os_version" field.
+func OsVersionContains(v string) predicate.Server {
+	return predicate.Server(sql.FieldContains(FieldOsVersion, v))
+}
+
+// OsVersionHasPrefix applies the HasPrefix predicate on the "os_version" field.
+func OsVersionHasPrefix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasPrefix(FieldOsVersion, v))
+}
+
+// OsVersionHasSuffix applies the HasSuffix predicate on the "os_version" field.
+func OsVersionHasSuffix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasSuffix(FieldOsVersion, v))
+}
+
+// OsVersionEqualFold applies the EqualFold predicate on the "os_version" field.
+func OsVersionEqualFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldEqualFold(FieldOsVersion, v))
+}
+
+// OsVersionContainsFold applies the ContainsFold predicate on the "os_version" field.
+func OsVersionContainsFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldContainsFold(FieldOsVersion, v))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.
@@ -1914,6 +2134,52 @@ func HasImage() predicate.Server {
 func HasImageWith(preds ...predicate.Image) predicate.Server {
 	return predicate.Server(func(s *sql.Selector) {
 		step := newImageStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasSnapshot applies the HasEdge predicate on the "snapshot" edge.
+func HasSnapshot() predicate.Server {
+	return predicate.Server(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, SnapshotTable, SnapshotColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSnapshotWith applies the HasEdge predicate on the "snapshot" edge with a given conditions (other predicates).
+func HasSnapshotWith(preds ...predicate.Snapshot) predicate.Server {
+	return predicate.Server(func(s *sql.Selector) {
+		step := newSnapshotStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasRebuildSnapshot applies the HasEdge predicate on the "rebuild_snapshot" edge.
+func HasRebuildSnapshot() predicate.Server {
+	return predicate.Server(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, RebuildSnapshotTable, RebuildSnapshotColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasRebuildSnapshotWith applies the HasEdge predicate on the "rebuild_snapshot" edge with a given conditions (other predicates).
+func HasRebuildSnapshotWith(preds ...predicate.Snapshot) predicate.Server {
+	return predicate.Server(func(s *sql.Selector) {
+		step := newRebuildSnapshotStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

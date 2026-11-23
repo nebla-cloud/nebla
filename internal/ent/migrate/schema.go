@@ -675,6 +675,7 @@ var (
 		{Name: "sdn_zone", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "vnet_prefix", Type: field.TypeString, Size: 2147483647, Default: "nb"},
 		{Name: "sdn_audit_ok", Type: field.TypeBool, Default: false},
+		{Name: "snapshot_storage", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
@@ -838,6 +839,8 @@ var (
 		{Name: "max_volume_gb", Type: field.TypeInt, Default: 0},
 		{Name: "max_backups", Type: field.TypeInt, Default: 0},
 		{Name: "max_networks", Type: field.TypeInt, Default: 0},
+		{Name: "max_snapshots", Type: field.TypeInt, Default: 0},
+		{Name: "max_snapshot_gb", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "created_by", Type: field.TypeInt64, Nullable: true},
 	}
@@ -849,7 +852,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "projects_users_creator",
-				Columns:    []*schema.Column{ProjectsColumns[12]},
+				Columns:    []*schema.Column{ProjectsColumns[14]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -858,7 +861,7 @@ var (
 			{
 				Name:    "projects_created_by_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ProjectsColumns[12]},
+				Columns: []*schema.Column{ProjectsColumns[14]},
 			},
 		},
 	}
@@ -944,6 +947,8 @@ var (
 		{Name: "node", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "vmid", Type: field.TypeInt, Nullable: true},
 		{Name: "template_vmid", Type: field.TypeInt},
+		{Name: "os_flavor", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "os_version", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"initializing", "starting", "running", "stopping", "off", "rebuilding", "deleting", "missing", "error"}, Default: "initializing"},
 		{Name: "mac", Type: field.TypeString, Size: 2147483647},
 		{Name: "labels", Type: field.TypeJSON},
@@ -977,7 +982,9 @@ var (
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
 		{Name: "server_type_id", Type: field.TypeInt64},
-		{Name: "image_id", Type: field.TypeInt64},
+		{Name: "image_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "snapshot_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "rebuild_snapshot_id", Type: field.TypeInt64, Nullable: true},
 	}
 	// ServersTable holds the schema information for the "servers" table.
 	ServersTable = &schema.Table{
@@ -987,54 +994,66 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "servers_projects_project",
-				Columns:    []*schema.Column{ServersColumns[35]},
+				Columns:    []*schema.Column{ServersColumns[37]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_locations_location",
-				Columns:    []*schema.Column{ServersColumns[36]},
+				Columns:    []*schema.Column{ServersColumns[38]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_server_types_server_type",
-				Columns:    []*schema.Column{ServersColumns[37]},
+				Columns:    []*schema.Column{ServersColumns[39]},
 				RefColumns: []*schema.Column{ServerTypesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_images_image",
-				Columns:    []*schema.Column{ServersColumns[38]},
+				Columns:    []*schema.Column{ServersColumns[40]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
-				OnDelete:   schema.NoAction,
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "servers_snapshots_snapshot",
+				Columns:    []*schema.Column{ServersColumns[41]},
+				RefColumns: []*schema.Column{SnapshotsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "servers_snapshots_rebuild_snapshot",
+				Columns:    []*schema.Column{ServersColumns[42]},
+				RefColumns: []*schema.Column{SnapshotsColumns[0]},
+				OnDelete:   schema.SetNull,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "servers_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{ServersColumns[35], ServersColumns[1]},
+				Columns: []*schema.Column{ServersColumns[37], ServersColumns[1]},
 			},
 			{
 				Name:    "servers_mac_key",
 				Unique:  true,
-				Columns: []*schema.Column{ServersColumns[6]},
+				Columns: []*schema.Column{ServersColumns[8]},
 			},
 			{
 				Name:    "servers_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[36], ServersColumns[2]},
+				Columns: []*schema.Column{ServersColumns[38], ServersColumns[2]},
 			},
 			{
 				Name:    "servers_server_type_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[37]},
+				Columns: []*schema.Column{ServersColumns[39]},
 			},
 			{
 				Name:    "servers_image_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[38]},
+				Columns: []*schema.Column{ServersColumns[40]},
 			},
 		},
 	}
@@ -1148,6 +1167,91 @@ var (
 		Name:       "settings",
 		Columns:    SettingsColumns,
 		PrimaryKey: []*schema.Column{SettingsColumns[0]},
+	}
+	// SnapshotsColumns holds the columns for the "snapshots" table.
+	SnapshotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "labels", Type: field.TypeJSON},
+		{Name: "server_name", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "os_flavor", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "os_version", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "size_gb", Type: field.TypeInt},
+		{Name: "instance_generation", Type: field.TypeInt, Default: 0},
+		{Name: "network_fingerprint", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "vmid", Type: field.TypeInt, Nullable: true},
+		{Name: "node", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "storage", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "boot_key", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "step", Type: field.TypeInt, Default: 0},
+		{Name: "nonce", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "upid", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "was_running", Type: field.TypeBool, Default: false},
+		{Name: "force_stop", Type: field.TypeBool, Default: false},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"creating", "available", "deleting", "missing", "error"}, Default: "creating"},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+		{Name: "server_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "image_id", Type: field.TypeInt64, Nullable: true},
+	}
+	// SnapshotsTable holds the schema information for the "snapshots" table.
+	SnapshotsTable = &schema.Table{
+		Name:       "snapshots",
+		Columns:    SnapshotsColumns,
+		PrimaryKey: []*schema.Column{SnapshotsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "snapshots_projects_project",
+				Columns:    []*schema.Column{SnapshotsColumns[21]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "snapshots_locations_location",
+				Columns:    []*schema.Column{SnapshotsColumns[22]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "snapshots_servers_server",
+				Columns:    []*schema.Column{SnapshotsColumns[23]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "snapshots_images_image",
+				Columns:    []*schema.Column{SnapshotsColumns[24]},
+				RefColumns: []*schema.Column{ImagesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "snapshots_project_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{SnapshotsColumns[21], SnapshotsColumns[1]},
+			},
+			{
+				Name:    "snapshots_location_node_idx",
+				Unique:  false,
+				Columns: []*schema.Column{SnapshotsColumns[22], SnapshotsColumns[11]},
+			},
+			{
+				Name:    "snapshots_server_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{SnapshotsColumns[23]},
+			},
+			{
+				Name:    "snapshots_location_vmid_key",
+				Unique:  true,
+				Columns: []*schema.Column{SnapshotsColumns[22], SnapshotsColumns[10]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "vmid IS NOT NULL",
+				},
+			},
+		},
 	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
@@ -1397,6 +1501,7 @@ var (
 		ServerTypesTable,
 		SessionsTable,
 		SettingsTable,
+		SnapshotsTable,
 		UsersTable,
 		VnetSlotsTable,
 		VolumesTable,
@@ -1454,9 +1559,15 @@ func init() {
 	ServersTable.ForeignKeys[1].RefTable = LocationsTable
 	ServersTable.ForeignKeys[2].RefTable = ServerTypesTable
 	ServersTable.ForeignKeys[3].RefTable = ImagesTable
+	ServersTable.ForeignKeys[4].RefTable = SnapshotsTable
+	ServersTable.ForeignKeys[5].RefTable = SnapshotsTable
 	ServerNetworksTable.ForeignKeys[0].RefTable = ServersTable
 	ServerNetworksTable.ForeignKeys[1].RefTable = NetworksTable
 	SessionsTable.ForeignKeys[0].RefTable = UsersTable
+	SnapshotsTable.ForeignKeys[0].RefTable = ProjectsTable
+	SnapshotsTable.ForeignKeys[1].RefTable = LocationsTable
+	SnapshotsTable.ForeignKeys[2].RefTable = ServersTable
+	SnapshotsTable.ForeignKeys[3].RefTable = ImagesTable
 	VnetSlotsTable.ForeignKeys[0].RefTable = LocationsTable
 	VnetSlotsTable.ForeignKeys[1].RefTable = NetworksTable
 	VolumesTable.ForeignKeys[0].RefTable = ProjectsTable

@@ -15,6 +15,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 )
 
 // Server is the model entity for the Server schema.
@@ -37,7 +38,15 @@ type Server struct {
 	// ServerTypeID holds the value of the "server_type_id" field.
 	ServerTypeID int64 `json:"server_type_id,omitempty"`
 	// ImageID holds the value of the "image_id" field.
-	ImageID int64 `json:"image_id,omitempty"`
+	ImageID *int64 `json:"image_id,omitempty"`
+	// SnapshotID holds the value of the "snapshot_id" field.
+	SnapshotID *int64 `json:"snapshot_id,omitempty"`
+	// RebuildSnapshotID holds the value of the "rebuild_snapshot_id" field.
+	RebuildSnapshotID *int64 `json:"rebuild_snapshot_id,omitempty"`
+	// OsFlavor holds the value of the "os_flavor" field.
+	OsFlavor string `json:"os_flavor,omitempty"`
+	// OsVersion holds the value of the "os_version" field.
+	OsVersion string `json:"os_version,omitempty"`
 	// Status holds the value of the "status" field.
 	Status server.Status `json:"status,omitempty"`
 	// MAC holds the value of the "mac" field.
@@ -114,9 +123,13 @@ type ServerEdges struct {
 	ServerType *ServerType `json:"server_type,omitempty"`
 	// Image holds the value of the image edge.
 	Image *Image `json:"image,omitempty"`
+	// Snapshot holds the value of the snapshot edge.
+	Snapshot *Snapshot `json:"snapshot,omitempty"`
+	// RebuildSnapshot holds the value of the rebuild_snapshot edge.
+	RebuildSnapshot *Snapshot `json:"rebuild_snapshot,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [6]bool
 }
 
 // ProjectOrErr returns the Project value or an error if the edge
@@ -163,6 +176,28 @@ func (e ServerEdges) ImageOrErr() (*Image, error) {
 	return nil, &NotLoadedError{edge: "image"}
 }
 
+// SnapshotOrErr returns the Snapshot value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e ServerEdges) SnapshotOrErr() (*Snapshot, error) {
+	if e.Snapshot != nil {
+		return e.Snapshot, nil
+	} else if e.loadedTypes[4] {
+		return nil, &NotFoundError{label: snapshot.Label}
+	}
+	return nil, &NotLoadedError{edge: "snapshot"}
+}
+
+// RebuildSnapshotOrErr returns the RebuildSnapshot value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e ServerEdges) RebuildSnapshotOrErr() (*Snapshot, error) {
+	if e.RebuildSnapshot != nil {
+		return e.RebuildSnapshot, nil
+	} else if e.loadedTypes[5] {
+		return nil, &NotFoundError{label: snapshot.Label}
+	}
+	return nil, &NotLoadedError{edge: "rebuild_snapshot"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Server) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -172,9 +207,9 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case server.FieldBackupsEnabled, server.FieldNetRefresh, server.FieldInstanceBumpPending:
 			values[i] = new(sql.NullBool)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldSnapshotID, server.FieldRebuildSnapshotID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot:
 			values[i] = new(sql.NullInt64)
-		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData, server.FieldIsoNetHash:
+		case server.FieldName, server.FieldNode, server.FieldOsFlavor, server.FieldOsVersion, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData, server.FieldIsoNetHash:
 			values[i] = new(sql.NullString)
 		case server.FieldFirewallLeaseUntil, server.FieldBackupsEnabledAt, server.FieldIsoLeaseUntil, server.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -246,7 +281,34 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field image_id", values[i])
 			} else if value.Valid {
-				_m.ImageID = value.Int64
+				_m.ImageID = new(int64)
+				*_m.ImageID = value.Int64
+			}
+		case server.FieldSnapshotID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field snapshot_id", values[i])
+			} else if value.Valid {
+				_m.SnapshotID = new(int64)
+				*_m.SnapshotID = value.Int64
+			}
+		case server.FieldRebuildSnapshotID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field rebuild_snapshot_id", values[i])
+			} else if value.Valid {
+				_m.RebuildSnapshotID = new(int64)
+				*_m.RebuildSnapshotID = value.Int64
+			}
+		case server.FieldOsFlavor:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field os_flavor", values[i])
+			} else if value.Valid {
+				_m.OsFlavor = value.String
+			}
+		case server.FieldOsVersion:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field os_version", values[i])
+			} else if value.Valid {
+				_m.OsVersion = value.String
 			}
 		case server.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -474,6 +536,16 @@ func (_m *Server) QueryImage() *ImageQuery {
 	return NewServerClient(_m.config).QueryImage(_m)
 }
 
+// QuerySnapshot queries the "snapshot" edge of the Server entity.
+func (_m *Server) QuerySnapshot() *SnapshotQuery {
+	return NewServerClient(_m.config).QuerySnapshot(_m)
+}
+
+// QueryRebuildSnapshot queries the "rebuild_snapshot" edge of the Server entity.
+func (_m *Server) QueryRebuildSnapshot() *SnapshotQuery {
+	return NewServerClient(_m.config).QueryRebuildSnapshot(_m)
+}
+
 // Update returns a builder for updating this Server.
 // Note that you need to call Server.Unwrap() before calling this method if this Server
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -520,8 +592,26 @@ func (_m *Server) String() string {
 	builder.WriteString("server_type_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ServerTypeID))
 	builder.WriteString(", ")
-	builder.WriteString("image_id=")
-	builder.WriteString(fmt.Sprintf("%v", _m.ImageID))
+	if v := _m.ImageID; v != nil {
+		builder.WriteString("image_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.SnapshotID; v != nil {
+		builder.WriteString("snapshot_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.RebuildSnapshotID; v != nil {
+		builder.WriteString("rebuild_snapshot_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("os_flavor=")
+	builder.WriteString(_m.OsFlavor)
+	builder.WriteString(", ")
+	builder.WriteString("os_version=")
+	builder.WriteString(_m.OsVersion)
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))

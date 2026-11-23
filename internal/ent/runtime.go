@@ -30,6 +30,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
@@ -237,12 +238,16 @@ func init() {
 	locationDescSdnAuditOk := locationFields[20].Descriptor()
 	// location.DefaultSdnAuditOk holds the default value on creation for the sdn_audit_ok field.
 	location.DefaultSdnAuditOk = locationDescSdnAuditOk.Default.(bool)
+	// locationDescSnapshotStorage is the schema descriptor for snapshot_storage field.
+	locationDescSnapshotStorage := locationFields[21].Descriptor()
+	// location.DefaultSnapshotStorage holds the default value on creation for the snapshot_storage field.
+	location.DefaultSnapshotStorage = locationDescSnapshotStorage.Default.(string)
 	// locationDescCreatedAt is the schema descriptor for created_at field.
-	locationDescCreatedAt := locationFields[21].Descriptor()
+	locationDescCreatedAt := locationFields[22].Descriptor()
 	// location.DefaultCreatedAt holds the default value on creation for the created_at field.
 	location.DefaultCreatedAt = locationDescCreatedAt.Default.(func() time.Time)
 	// locationDescUpdatedAt is the schema descriptor for updated_at field.
-	locationDescUpdatedAt := locationFields[22].Descriptor()
+	locationDescUpdatedAt := locationFields[23].Descriptor()
 	// location.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
 	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -345,8 +350,16 @@ func init() {
 	projectDescMaxNetworks := projectFields[10].Descriptor()
 	// project.DefaultMaxNetworks holds the default value on creation for the max_networks field.
 	project.DefaultMaxNetworks = projectDescMaxNetworks.Default.(int)
+	// projectDescMaxSnapshots is the schema descriptor for max_snapshots field.
+	projectDescMaxSnapshots := projectFields[11].Descriptor()
+	// project.DefaultMaxSnapshots holds the default value on creation for the max_snapshots field.
+	project.DefaultMaxSnapshots = projectDescMaxSnapshots.Default.(int)
+	// projectDescMaxSnapshotGB is the schema descriptor for max_snapshot_gb field.
+	projectDescMaxSnapshotGB := projectFields[12].Descriptor()
+	// project.DefaultMaxSnapshotGB holds the default value on creation for the max_snapshot_gb field.
+	project.DefaultMaxSnapshotGB = projectDescMaxSnapshotGB.Default.(int)
 	// projectDescCreatedAt is the schema descriptor for created_at field.
-	projectDescCreatedAt := projectFields[12].Descriptor()
+	projectDescCreatedAt := projectFields[14].Descriptor()
 	// project.DefaultCreatedAt holds the default value on creation for the created_at field.
 	project.DefaultCreatedAt = projectDescCreatedAt.Default.(func() time.Time)
 	projectmemberFields := schema.ProjectMember{}.Fields()
@@ -367,60 +380,68 @@ func init() {
 	serverDescNode := serverFields[4].Descriptor()
 	// server.DefaultNode holds the default value on creation for the node field.
 	server.DefaultNode = serverDescNode.Default.(string)
+	// serverDescOsFlavor is the schema descriptor for os_flavor field.
+	serverDescOsFlavor := serverFields[11].Descriptor()
+	// server.DefaultOsFlavor holds the default value on creation for the os_flavor field.
+	server.DefaultOsFlavor = serverDescOsFlavor.Default.(string)
+	// serverDescOsVersion is the schema descriptor for os_version field.
+	serverDescOsVersion := serverFields[12].Descriptor()
+	// server.DefaultOsVersion holds the default value on creation for the os_version field.
+	server.DefaultOsVersion = serverDescOsVersion.Default.(string)
 	// serverDescIsoGeneration is the schema descriptor for iso_generation field.
-	serverDescIsoGeneration := serverFields[13].Descriptor()
+	serverDescIsoGeneration := serverFields[17].Descriptor()
 	// server.DefaultIsoGeneration holds the default value on creation for the iso_generation field.
 	server.DefaultIsoGeneration = serverDescIsoGeneration.Default.(int)
 	// serverDescInstanceGeneration is the schema descriptor for instance_generation field.
-	serverDescInstanceGeneration := serverFields[14].Descriptor()
+	serverDescInstanceGeneration := serverFields[18].Descriptor()
 	// server.DefaultInstanceGeneration holds the default value on creation for the instance_generation field.
 	server.DefaultInstanceGeneration = serverDescInstanceGeneration.Default.(int)
 	// serverDescCreateStep is the schema descriptor for create_step field.
-	serverDescCreateStep := serverFields[17].Descriptor()
+	serverDescCreateStep := serverFields[21].Descriptor()
 	// server.DefaultCreateStep holds the default value on creation for the create_step field.
 	server.DefaultCreateStep = serverDescCreateStep.Default.(int)
 	// serverDescRebuildStep is the schema descriptor for rebuild_step field.
-	serverDescRebuildStep := serverFields[21].Descriptor()
+	serverDescRebuildStep := serverFields[25].Descriptor()
 	// server.DefaultRebuildStep holds the default value on creation for the rebuild_step field.
 	server.DefaultRebuildStep = serverDescRebuildStep.Default.(int)
 	// serverDescUserData is the schema descriptor for user_data field.
-	serverDescUserData := serverFields[25].Descriptor()
+	serverDescUserData := serverFields[29].Descriptor()
 	// server.DefaultUserData holds the default value on creation for the user_data field.
 	server.DefaultUserData = serverDescUserData.Default.(string)
 	// serverDescFirewallGenDesired is the schema descriptor for firewall_gen_desired field.
-	serverDescFirewallGenDesired := serverFields[27].Descriptor()
+	serverDescFirewallGenDesired := serverFields[31].Descriptor()
 	// server.DefaultFirewallGenDesired holds the default value on creation for the firewall_gen_desired field.
 	server.DefaultFirewallGenDesired = serverDescFirewallGenDesired.Default.(int64)
 	// serverDescFirewallGenApplied is the schema descriptor for firewall_gen_applied field.
-	serverDescFirewallGenApplied := serverFields[28].Descriptor()
+	serverDescFirewallGenApplied := serverFields[32].Descriptor()
 	// server.DefaultFirewallGenApplied holds the default value on creation for the firewall_gen_applied field.
 	server.DefaultFirewallGenApplied = serverDescFirewallGenApplied.Default.(int64)
 	// serverDescBackupsEnabled is the schema descriptor for backups_enabled field.
-	serverDescBackupsEnabled := serverFields[30].Descriptor()
+	serverDescBackupsEnabled := serverFields[34].Descriptor()
 	// server.DefaultBackupsEnabled holds the default value on creation for the backups_enabled field.
 	server.DefaultBackupsEnabled = serverDescBackupsEnabled.Default.(bool)
 	// serverDescBackupKeep is the schema descriptor for backup_keep field.
-	serverDescBackupKeep := serverFields[31].Descriptor()
+	serverDescBackupKeep := serverFields[35].Descriptor()
 	// server.DefaultBackupKeep holds the default value on creation for the backup_keep field.
 	server.DefaultBackupKeep = serverDescBackupKeep.Default.(int)
 	// serverDescBackupSlot is the schema descriptor for backup_slot field.
-	serverDescBackupSlot := serverFields[32].Descriptor()
+	serverDescBackupSlot := serverFields[36].Descriptor()
 	// server.DefaultBackupSlot holds the default value on creation for the backup_slot field.
 	server.DefaultBackupSlot = serverDescBackupSlot.Default.(int)
 	// serverDescNetRefresh is the schema descriptor for net_refresh field.
-	serverDescNetRefresh := serverFields[34].Descriptor()
+	serverDescNetRefresh := serverFields[38].Descriptor()
 	// server.DefaultNetRefresh holds the default value on creation for the net_refresh field.
 	server.DefaultNetRefresh = serverDescNetRefresh.Default.(bool)
 	// serverDescIsoNetHash is the schema descriptor for iso_net_hash field.
-	serverDescIsoNetHash := serverFields[35].Descriptor()
+	serverDescIsoNetHash := serverFields[39].Descriptor()
 	// server.DefaultIsoNetHash holds the default value on creation for the iso_net_hash field.
 	server.DefaultIsoNetHash = serverDescIsoNetHash.Default.(string)
 	// serverDescInstanceBumpPending is the schema descriptor for instance_bump_pending field.
-	serverDescInstanceBumpPending := serverFields[37].Descriptor()
+	serverDescInstanceBumpPending := serverFields[41].Descriptor()
 	// server.DefaultInstanceBumpPending holds the default value on creation for the instance_bump_pending field.
 	server.DefaultInstanceBumpPending = serverDescInstanceBumpPending.Default.(bool)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[38].Descriptor()
+	serverDescCreatedAt := serverFields[42].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servernetworkFields := schema.ServerNetwork{}.Fields()
@@ -467,6 +488,60 @@ func init() {
 	sessionDescCreatedAt := sessionFields[3].Descriptor()
 	// session.DefaultCreatedAt holds the default value on creation for the created_at field.
 	session.DefaultCreatedAt = sessionDescCreatedAt.Default.(func() time.Time)
+	snapshotFields := schema.Snapshot{}.Fields()
+	_ = snapshotFields
+	// snapshotDescDescription is the schema descriptor for description field.
+	snapshotDescDescription := snapshotFields[4].Descriptor()
+	// snapshot.DefaultDescription holds the default value on creation for the description field.
+	snapshot.DefaultDescription = snapshotDescDescription.Default.(string)
+	// snapshotDescServerName is the schema descriptor for server_name field.
+	snapshotDescServerName := snapshotFields[7].Descriptor()
+	// snapshot.DefaultServerName holds the default value on creation for the server_name field.
+	snapshot.DefaultServerName = snapshotDescServerName.Default.(string)
+	// snapshotDescOsFlavor is the schema descriptor for os_flavor field.
+	snapshotDescOsFlavor := snapshotFields[9].Descriptor()
+	// snapshot.DefaultOsFlavor holds the default value on creation for the os_flavor field.
+	snapshot.DefaultOsFlavor = snapshotDescOsFlavor.Default.(string)
+	// snapshotDescOsVersion is the schema descriptor for os_version field.
+	snapshotDescOsVersion := snapshotFields[10].Descriptor()
+	// snapshot.DefaultOsVersion holds the default value on creation for the os_version field.
+	snapshot.DefaultOsVersion = snapshotDescOsVersion.Default.(string)
+	// snapshotDescInstanceGeneration is the schema descriptor for instance_generation field.
+	snapshotDescInstanceGeneration := snapshotFields[12].Descriptor()
+	// snapshot.DefaultInstanceGeneration holds the default value on creation for the instance_generation field.
+	snapshot.DefaultInstanceGeneration = snapshotDescInstanceGeneration.Default.(int)
+	// snapshotDescNetworkFingerprint is the schema descriptor for network_fingerprint field.
+	snapshotDescNetworkFingerprint := snapshotFields[13].Descriptor()
+	// snapshot.DefaultNetworkFingerprint holds the default value on creation for the network_fingerprint field.
+	snapshot.DefaultNetworkFingerprint = snapshotDescNetworkFingerprint.Default.(string)
+	// snapshotDescNode is the schema descriptor for node field.
+	snapshotDescNode := snapshotFields[15].Descriptor()
+	// snapshot.DefaultNode holds the default value on creation for the node field.
+	snapshot.DefaultNode = snapshotDescNode.Default.(string)
+	// snapshotDescStorage is the schema descriptor for storage field.
+	snapshotDescStorage := snapshotFields[16].Descriptor()
+	// snapshot.DefaultStorage holds the default value on creation for the storage field.
+	snapshot.DefaultStorage = snapshotDescStorage.Default.(string)
+	// snapshotDescBootKey is the schema descriptor for boot_key field.
+	snapshotDescBootKey := snapshotFields[17].Descriptor()
+	// snapshot.DefaultBootKey holds the default value on creation for the boot_key field.
+	snapshot.DefaultBootKey = snapshotDescBootKey.Default.(string)
+	// snapshotDescStep is the schema descriptor for step field.
+	snapshotDescStep := snapshotFields[18].Descriptor()
+	// snapshot.DefaultStep holds the default value on creation for the step field.
+	snapshot.DefaultStep = snapshotDescStep.Default.(int)
+	// snapshotDescWasRunning is the schema descriptor for was_running field.
+	snapshotDescWasRunning := snapshotFields[21].Descriptor()
+	// snapshot.DefaultWasRunning holds the default value on creation for the was_running field.
+	snapshot.DefaultWasRunning = snapshotDescWasRunning.Default.(bool)
+	// snapshotDescForceStop is the schema descriptor for force_stop field.
+	snapshotDescForceStop := snapshotFields[22].Descriptor()
+	// snapshot.DefaultForceStop holds the default value on creation for the force_stop field.
+	snapshot.DefaultForceStop = snapshotDescForceStop.Default.(bool)
+	// snapshotDescCreatedAt is the schema descriptor for created_at field.
+	snapshotDescCreatedAt := snapshotFields[24].Descriptor()
+	// snapshot.DefaultCreatedAt holds the default value on creation for the created_at field.
+	snapshot.DefaultCreatedAt = snapshotDescCreatedAt.Default.(func() time.Time)
 	userFields := schema.User{}.Fields()
 	_ = userFields
 	// userDescIsAdmin is the schema descriptor for is_admin field.

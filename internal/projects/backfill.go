@@ -146,6 +146,36 @@ func BackfillNetworkQuota(ctx context.Context, db *ent.Client, q Quota) (int, er
 	return n, err
 }
 
+const snapshotBackfillKey = "projects.snapshot_quota_backfilled"
+
+// BackfillSnapshotQuota gives q's snapshot limits, once per install, to limited projects that no panel admin owns.
+func BackfillSnapshotQuota(ctx context.Context, db *ent.Client, q Quota) (int, error) {
+	if q.MaxSnapshots == 0 && q.MaxSnapshotGB == 0 {
+		return 0, nil
+	}
+	n := 0
+	err := withTx(ctx, db, func(tx *ent.Client) error {
+		_, err := tx.Setting.Create().SetID(snapshotBackfillKey).SetValue("true").
+			OnConflictColumns(setting.FieldID).DoNothing().ID(ctx)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		// A project with all five older limits at 0 was made unlimited on purpose.
+		n, err = tx.Project.Update().
+			Where(
+				project.MaxSnapshots(0), project.MaxSnapshotGB(0),
+				project.Not(project.And(project.MaxServers(0), project.MaxVcpu(0), project.MaxMemoryMB(0), project.MaxDiskGB(0), project.MaxIps(0))),
+				project.Not(project.HasMembersWith(projectmember.Role(RoleOwner), projectmember.HasUserWith(user.IsAdmin(true)))),
+			).
+			SetMaxSnapshots(q.MaxSnapshots).SetMaxSnapshotGB(q.MaxSnapshotGB).Save(ctx)
+		return err
+	})
+	return n, err
+}
+
 const createdByKey = "projects.created_by_backfilled"
 
 // BackfillCreatedBy sets created_by, once per install, to each older project's earliest owner.

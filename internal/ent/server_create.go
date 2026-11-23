@@ -16,6 +16,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 )
 
 // ServerCreate is the builder for creating a Server entity.
@@ -87,6 +88,70 @@ func (_c *ServerCreate) SetServerTypeID(v int64) *ServerCreate {
 // SetImageID sets the "image_id" field.
 func (_c *ServerCreate) SetImageID(v int64) *ServerCreate {
 	_c.mutation.SetImageID(v)
+	return _c
+}
+
+// SetNillableImageID sets the "image_id" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableImageID(v *int64) *ServerCreate {
+	if v != nil {
+		_c.SetImageID(*v)
+	}
+	return _c
+}
+
+// SetSnapshotID sets the "snapshot_id" field.
+func (_c *ServerCreate) SetSnapshotID(v int64) *ServerCreate {
+	_c.mutation.SetSnapshotID(v)
+	return _c
+}
+
+// SetNillableSnapshotID sets the "snapshot_id" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableSnapshotID(v *int64) *ServerCreate {
+	if v != nil {
+		_c.SetSnapshotID(*v)
+	}
+	return _c
+}
+
+// SetRebuildSnapshotID sets the "rebuild_snapshot_id" field.
+func (_c *ServerCreate) SetRebuildSnapshotID(v int64) *ServerCreate {
+	_c.mutation.SetRebuildSnapshotID(v)
+	return _c
+}
+
+// SetNillableRebuildSnapshotID sets the "rebuild_snapshot_id" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableRebuildSnapshotID(v *int64) *ServerCreate {
+	if v != nil {
+		_c.SetRebuildSnapshotID(*v)
+	}
+	return _c
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (_c *ServerCreate) SetOsFlavor(v string) *ServerCreate {
+	_c.mutation.SetOsFlavor(v)
+	return _c
+}
+
+// SetNillableOsFlavor sets the "os_flavor" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableOsFlavor(v *string) *ServerCreate {
+	if v != nil {
+		_c.SetOsFlavor(*v)
+	}
+	return _c
+}
+
+// SetOsVersion sets the "os_version" field.
+func (_c *ServerCreate) SetOsVersion(v string) *ServerCreate {
+	_c.mutation.SetOsVersion(v)
+	return _c
+}
+
+// SetNillableOsVersion sets the "os_version" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableOsVersion(v *string) *ServerCreate {
+	if v != nil {
+		_c.SetOsVersion(*v)
+	}
 	return _c
 }
 
@@ -488,6 +553,16 @@ func (_c *ServerCreate) SetImage(v *Image) *ServerCreate {
 	return _c.SetImageID(v.ID)
 }
 
+// SetSnapshot sets the "snapshot" edge to the Snapshot entity.
+func (_c *ServerCreate) SetSnapshot(v *Snapshot) *ServerCreate {
+	return _c.SetSnapshotID(v.ID)
+}
+
+// SetRebuildSnapshot sets the "rebuild_snapshot" edge to the Snapshot entity.
+func (_c *ServerCreate) SetRebuildSnapshot(v *Snapshot) *ServerCreate {
+	return _c.SetRebuildSnapshotID(v.ID)
+}
+
 // Mutation returns the ServerMutation object of the builder.
 func (_c *ServerCreate) Mutation() *ServerMutation {
 	return _c.mutation
@@ -526,6 +601,14 @@ func (_c *ServerCreate) defaults() {
 	if _, ok := _c.mutation.Node(); !ok {
 		v := server.DefaultNode
 		_c.mutation.SetNode(v)
+	}
+	if _, ok := _c.mutation.OsFlavor(); !ok {
+		v := server.DefaultOsFlavor
+		_c.mutation.SetOsFlavor(v)
+	}
+	if _, ok := _c.mutation.OsVersion(); !ok {
+		v := server.DefaultOsVersion
+		_c.mutation.SetOsVersion(v)
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := server.DefaultStatus
@@ -609,8 +692,11 @@ func (_c *ServerCreate) check() error {
 	if _, ok := _c.mutation.ServerTypeID(); !ok {
 		return &ValidationError{Name: "server_type_id", err: errors.New(`ent: missing required field "Server.server_type_id"`)}
 	}
-	if _, ok := _c.mutation.ImageID(); !ok {
-		return &ValidationError{Name: "image_id", err: errors.New(`ent: missing required field "Server.image_id"`)}
+	if _, ok := _c.mutation.OsFlavor(); !ok {
+		return &ValidationError{Name: "os_flavor", err: errors.New(`ent: missing required field "Server.os_flavor"`)}
+	}
+	if _, ok := _c.mutation.OsVersion(); !ok {
+		return &ValidationError{Name: "os_version", err: errors.New(`ent: missing required field "Server.os_version"`)}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Server.status"`)}
@@ -686,9 +772,6 @@ func (_c *ServerCreate) check() error {
 	if len(_c.mutation.ServerTypeIDs()) == 0 {
 		return &ValidationError{Name: "server_type", err: errors.New(`ent: missing required edge "Server.server_type"`)}
 	}
-	if len(_c.mutation.ImageIDs()) == 0 {
-		return &ValidationError{Name: "image", err: errors.New(`ent: missing required edge "Server.image"`)}
-	}
 	return nil
 }
 
@@ -737,6 +820,14 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TemplateVmid(); ok {
 		_spec.SetField(server.FieldTemplateVmid, field.TypeInt, value)
 		_node.TemplateVmid = value
+	}
+	if value, ok := _c.mutation.OsFlavor(); ok {
+		_spec.SetField(server.FieldOsFlavor, field.TypeString, value)
+		_node.OsFlavor = value
+	}
+	if value, ok := _c.mutation.OsVersion(); ok {
+		_spec.SetField(server.FieldOsVersion, field.TypeString, value)
+		_node.OsVersion = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(server.FieldStatus, field.TypeEnum, value)
@@ -923,7 +1014,41 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
-		_node.ImageID = nodes[0]
+		_node.ImageID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SnapshotIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.SnapshotTable,
+			Columns: []string{server.SnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.SnapshotID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.RebuildSnapshotIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   server.RebuildSnapshotTable,
+			Columns: []string{server.RebuildSnapshotColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(snapshot.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.RebuildSnapshotID = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
@@ -1065,6 +1190,72 @@ func (u *ServerUpsert) SetImageID(v int64) *ServerUpsert {
 // UpdateImageID sets the "image_id" field to the value that was provided on create.
 func (u *ServerUpsert) UpdateImageID() *ServerUpsert {
 	u.SetExcluded(server.FieldImageID)
+	return u
+}
+
+// ClearImageID clears the value of the "image_id" field.
+func (u *ServerUpsert) ClearImageID() *ServerUpsert {
+	u.SetNull(server.FieldImageID)
+	return u
+}
+
+// SetSnapshotID sets the "snapshot_id" field.
+func (u *ServerUpsert) SetSnapshotID(v int64) *ServerUpsert {
+	u.Set(server.FieldSnapshotID, v)
+	return u
+}
+
+// UpdateSnapshotID sets the "snapshot_id" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateSnapshotID() *ServerUpsert {
+	u.SetExcluded(server.FieldSnapshotID)
+	return u
+}
+
+// ClearSnapshotID clears the value of the "snapshot_id" field.
+func (u *ServerUpsert) ClearSnapshotID() *ServerUpsert {
+	u.SetNull(server.FieldSnapshotID)
+	return u
+}
+
+// SetRebuildSnapshotID sets the "rebuild_snapshot_id" field.
+func (u *ServerUpsert) SetRebuildSnapshotID(v int64) *ServerUpsert {
+	u.Set(server.FieldRebuildSnapshotID, v)
+	return u
+}
+
+// UpdateRebuildSnapshotID sets the "rebuild_snapshot_id" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateRebuildSnapshotID() *ServerUpsert {
+	u.SetExcluded(server.FieldRebuildSnapshotID)
+	return u
+}
+
+// ClearRebuildSnapshotID clears the value of the "rebuild_snapshot_id" field.
+func (u *ServerUpsert) ClearRebuildSnapshotID() *ServerUpsert {
+	u.SetNull(server.FieldRebuildSnapshotID)
+	return u
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (u *ServerUpsert) SetOsFlavor(v string) *ServerUpsert {
+	u.Set(server.FieldOsFlavor, v)
+	return u
+}
+
+// UpdateOsFlavor sets the "os_flavor" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateOsFlavor() *ServerUpsert {
+	u.SetExcluded(server.FieldOsFlavor)
+	return u
+}
+
+// SetOsVersion sets the "os_version" field.
+func (u *ServerUpsert) SetOsVersion(v string) *ServerUpsert {
+	u.Set(server.FieldOsVersion, v)
+	return u
+}
+
+// UpdateOsVersion sets the "os_version" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateOsVersion() *ServerUpsert {
+	u.SetExcluded(server.FieldOsVersion)
 	return u
 }
 
@@ -1692,6 +1883,83 @@ func (u *ServerUpsertOne) SetImageID(v int64) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateImageID() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateImageID()
+	})
+}
+
+// ClearImageID clears the value of the "image_id" field.
+func (u *ServerUpsertOne) ClearImageID() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearImageID()
+	})
+}
+
+// SetSnapshotID sets the "snapshot_id" field.
+func (u *ServerUpsertOne) SetSnapshotID(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetSnapshotID(v)
+	})
+}
+
+// UpdateSnapshotID sets the "snapshot_id" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateSnapshotID() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateSnapshotID()
+	})
+}
+
+// ClearSnapshotID clears the value of the "snapshot_id" field.
+func (u *ServerUpsertOne) ClearSnapshotID() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearSnapshotID()
+	})
+}
+
+// SetRebuildSnapshotID sets the "rebuild_snapshot_id" field.
+func (u *ServerUpsertOne) SetRebuildSnapshotID(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildSnapshotID(v)
+	})
+}
+
+// UpdateRebuildSnapshotID sets the "rebuild_snapshot_id" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateRebuildSnapshotID() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildSnapshotID()
+	})
+}
+
+// ClearRebuildSnapshotID clears the value of the "rebuild_snapshot_id" field.
+func (u *ServerUpsertOne) ClearRebuildSnapshotID() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildSnapshotID()
+	})
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (u *ServerUpsertOne) SetOsFlavor(v string) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetOsFlavor(v)
+	})
+}
+
+// UpdateOsFlavor sets the "os_flavor" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateOsFlavor() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateOsFlavor()
+	})
+}
+
+// SetOsVersion sets the "os_version" field.
+func (u *ServerUpsertOne) SetOsVersion(v string) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetOsVersion(v)
+	})
+}
+
+// UpdateOsVersion sets the "os_version" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateOsVersion() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateOsVersion()
 	})
 }
 
@@ -2562,6 +2830,83 @@ func (u *ServerUpsertBulk) SetImageID(v int64) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateImageID() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateImageID()
+	})
+}
+
+// ClearImageID clears the value of the "image_id" field.
+func (u *ServerUpsertBulk) ClearImageID() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearImageID()
+	})
+}
+
+// SetSnapshotID sets the "snapshot_id" field.
+func (u *ServerUpsertBulk) SetSnapshotID(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetSnapshotID(v)
+	})
+}
+
+// UpdateSnapshotID sets the "snapshot_id" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateSnapshotID() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateSnapshotID()
+	})
+}
+
+// ClearSnapshotID clears the value of the "snapshot_id" field.
+func (u *ServerUpsertBulk) ClearSnapshotID() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearSnapshotID()
+	})
+}
+
+// SetRebuildSnapshotID sets the "rebuild_snapshot_id" field.
+func (u *ServerUpsertBulk) SetRebuildSnapshotID(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildSnapshotID(v)
+	})
+}
+
+// UpdateRebuildSnapshotID sets the "rebuild_snapshot_id" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateRebuildSnapshotID() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildSnapshotID()
+	})
+}
+
+// ClearRebuildSnapshotID clears the value of the "rebuild_snapshot_id" field.
+func (u *ServerUpsertBulk) ClearRebuildSnapshotID() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearRebuildSnapshotID()
+	})
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (u *ServerUpsertBulk) SetOsFlavor(v string) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetOsFlavor(v)
+	})
+}
+
+// UpdateOsFlavor sets the "os_flavor" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateOsFlavor() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateOsFlavor()
+	})
+}
+
+// SetOsVersion sets the "os_version" field.
+func (u *ServerUpsertBulk) SetOsVersion(v string) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetOsVersion(v)
+	})
+}
+
+// UpdateOsVersion sets the "os_version" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateOsVersion() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateOsVersion()
 	})
 }
 

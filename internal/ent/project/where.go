@@ -105,6 +105,16 @@ func MaxNetworks(v int) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldMaxNetworks, v))
 }
 
+// MaxSnapshots applies equality check predicate on the "max_snapshots" field. It's identical to MaxSnapshotsEQ.
+func MaxSnapshots(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxSnapshots, v))
+}
+
+// MaxSnapshotGB applies equality check predicate on the "max_snapshot_gb" field. It's identical to MaxSnapshotGBEQ.
+func MaxSnapshotGB(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxSnapshotGB, v))
+}
+
 // CreatedBy applies equality check predicate on the "created_by" field. It's identical to CreatedByEQ.
 func CreatedBy(v int64) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldCreatedBy, v))
@@ -538,6 +548,86 @@ func MaxNetworksLT(v int) predicate.Project {
 // MaxNetworksLTE applies the LTE predicate on the "max_networks" field.
 func MaxNetworksLTE(v int) predicate.Project {
 	return predicate.Project(sql.FieldLTE(FieldMaxNetworks, v))
+}
+
+// MaxSnapshotsEQ applies the EQ predicate on the "max_snapshots" field.
+func MaxSnapshotsEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxSnapshots, v))
+}
+
+// MaxSnapshotsNEQ applies the NEQ predicate on the "max_snapshots" field.
+func MaxSnapshotsNEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldNEQ(FieldMaxSnapshots, v))
+}
+
+// MaxSnapshotsIn applies the In predicate on the "max_snapshots" field.
+func MaxSnapshotsIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldIn(FieldMaxSnapshots, vs...))
+}
+
+// MaxSnapshotsNotIn applies the NotIn predicate on the "max_snapshots" field.
+func MaxSnapshotsNotIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldNotIn(FieldMaxSnapshots, vs...))
+}
+
+// MaxSnapshotsGT applies the GT predicate on the "max_snapshots" field.
+func MaxSnapshotsGT(v int) predicate.Project {
+	return predicate.Project(sql.FieldGT(FieldMaxSnapshots, v))
+}
+
+// MaxSnapshotsGTE applies the GTE predicate on the "max_snapshots" field.
+func MaxSnapshotsGTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldGTE(FieldMaxSnapshots, v))
+}
+
+// MaxSnapshotsLT applies the LT predicate on the "max_snapshots" field.
+func MaxSnapshotsLT(v int) predicate.Project {
+	return predicate.Project(sql.FieldLT(FieldMaxSnapshots, v))
+}
+
+// MaxSnapshotsLTE applies the LTE predicate on the "max_snapshots" field.
+func MaxSnapshotsLTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldLTE(FieldMaxSnapshots, v))
+}
+
+// MaxSnapshotGBEQ applies the EQ predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxSnapshotGB, v))
+}
+
+// MaxSnapshotGBNEQ applies the NEQ predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBNEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldNEQ(FieldMaxSnapshotGB, v))
+}
+
+// MaxSnapshotGBIn applies the In predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldIn(FieldMaxSnapshotGB, vs...))
+}
+
+// MaxSnapshotGBNotIn applies the NotIn predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBNotIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldNotIn(FieldMaxSnapshotGB, vs...))
+}
+
+// MaxSnapshotGBGT applies the GT predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBGT(v int) predicate.Project {
+	return predicate.Project(sql.FieldGT(FieldMaxSnapshotGB, v))
+}
+
+// MaxSnapshotGBGTE applies the GTE predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBGTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldGTE(FieldMaxSnapshotGB, v))
+}
+
+// MaxSnapshotGBLT applies the LT predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBLT(v int) predicate.Project {
+	return predicate.Project(sql.FieldLT(FieldMaxSnapshotGB, v))
+}
+
+// MaxSnapshotGBLTE applies the LTE predicate on the "max_snapshot_gb" field.
+func MaxSnapshotGBLTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldLTE(FieldMaxSnapshotGB, v))
 }
 
 // CreatedByEQ applies the EQ predicate on the "created_by" field.

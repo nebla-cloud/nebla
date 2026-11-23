@@ -31,6 +31,14 @@ const (
 	FieldServerTypeID = "server_type_id"
 	// FieldImageID holds the string denoting the image_id field in the database.
 	FieldImageID = "image_id"
+	// FieldSnapshotID holds the string denoting the snapshot_id field in the database.
+	FieldSnapshotID = "snapshot_id"
+	// FieldRebuildSnapshotID holds the string denoting the rebuild_snapshot_id field in the database.
+	FieldRebuildSnapshotID = "rebuild_snapshot_id"
+	// FieldOsFlavor holds the string denoting the os_flavor field in the database.
+	FieldOsFlavor = "os_flavor"
+	// FieldOsVersion holds the string denoting the os_version field in the database.
+	FieldOsVersion = "os_version"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldMAC holds the string denoting the mac field in the database.
@@ -99,6 +107,10 @@ const (
 	EdgeServerType = "server_type"
 	// EdgeImage holds the string denoting the image edge name in mutations.
 	EdgeImage = "image"
+	// EdgeSnapshot holds the string denoting the snapshot edge name in mutations.
+	EdgeSnapshot = "snapshot"
+	// EdgeRebuildSnapshot holds the string denoting the rebuild_snapshot edge name in mutations.
+	EdgeRebuildSnapshot = "rebuild_snapshot"
 	// Table holds the table name of the server in the database.
 	Table = "servers"
 	// ProjectTable is the table that holds the project relation/edge.
@@ -129,6 +141,20 @@ const (
 	ImageInverseTable = "images"
 	// ImageColumn is the table column denoting the image relation/edge.
 	ImageColumn = "image_id"
+	// SnapshotTable is the table that holds the snapshot relation/edge.
+	SnapshotTable = "servers"
+	// SnapshotInverseTable is the table name for the Snapshot entity.
+	// It exists in this package in order to avoid circular dependency with the "snapshot" package.
+	SnapshotInverseTable = "snapshots"
+	// SnapshotColumn is the table column denoting the snapshot relation/edge.
+	SnapshotColumn = "snapshot_id"
+	// RebuildSnapshotTable is the table that holds the rebuild_snapshot relation/edge.
+	RebuildSnapshotTable = "servers"
+	// RebuildSnapshotInverseTable is the table name for the Snapshot entity.
+	// It exists in this package in order to avoid circular dependency with the "snapshot" package.
+	RebuildSnapshotInverseTable = "snapshots"
+	// RebuildSnapshotColumn is the table column denoting the rebuild_snapshot relation/edge.
+	RebuildSnapshotColumn = "rebuild_snapshot_id"
 )
 
 // Columns holds all SQL columns for server fields.
@@ -142,6 +168,10 @@ var Columns = []string{
 	FieldTemplateVmid,
 	FieldServerTypeID,
 	FieldImageID,
+	FieldSnapshotID,
+	FieldRebuildSnapshotID,
+	FieldOsFlavor,
+	FieldOsVersion,
 	FieldStatus,
 	FieldMAC,
 	FieldLabels,
@@ -187,6 +217,10 @@ func ValidColumn(column string) bool {
 var (
 	// DefaultNode holds the default value on creation for the "node" field.
 	DefaultNode string
+	// DefaultOsFlavor holds the default value on creation for the "os_flavor" field.
+	DefaultOsFlavor string
+	// DefaultOsVersion holds the default value on creation for the "os_version" field.
+	DefaultOsVersion string
 	// DefaultIsoGeneration holds the default value on creation for the "iso_generation" field.
 	DefaultIsoGeneration int
 	// DefaultInstanceGeneration holds the default value on creation for the "instance_generation" field.
@@ -296,6 +330,26 @@ func ByServerTypeID(opts ...sql.OrderTermOption) OrderOption {
 // ByImageID orders the results by the image_id field.
 func ByImageID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldImageID, opts...).ToFunc()
+}
+
+// BySnapshotID orders the results by the snapshot_id field.
+func BySnapshotID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSnapshotID, opts...).ToFunc()
+}
+
+// ByRebuildSnapshotID orders the results by the rebuild_snapshot_id field.
+func ByRebuildSnapshotID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRebuildSnapshotID, opts...).ToFunc()
+}
+
+// ByOsFlavor orders the results by the os_flavor field.
+func ByOsFlavor(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOsFlavor, opts...).ToFunc()
+}
+
+// ByOsVersion orders the results by the os_version field.
+func ByOsVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOsVersion, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.
@@ -465,6 +519,20 @@ func ByImageField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newImageStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// BySnapshotField orders the results by snapshot field.
+func BySnapshotField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSnapshotStep(), sql.OrderByField(field, opts...))
+	}
+}
+
+// ByRebuildSnapshotField orders the results by rebuild_snapshot field.
+func ByRebuildSnapshotField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newRebuildSnapshotStep(), sql.OrderByField(field, opts...))
+	}
+}
 func newProjectStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -491,5 +559,19 @@ func newImageStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ImageInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, false, ImageTable, ImageColumn),
+	)
+}
+func newSnapshotStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SnapshotInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, false, SnapshotTable, SnapshotColumn),
+	)
+}
+func newRebuildSnapshotStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(RebuildSnapshotInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, false, RebuildSnapshotTable, RebuildSnapshotColumn),
 	)
 }

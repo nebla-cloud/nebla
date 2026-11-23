@@ -35,6 +35,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
@@ -828,6 +829,33 @@ func (f TraverseSetting) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.SettingQuery", q)
 }
 
+// The SnapshotFunc type is an adapter to allow the use of ordinary function as a Querier.
+type SnapshotFunc func(context.Context, *ent.SnapshotQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f SnapshotFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.SnapshotQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.SnapshotQuery", q)
+}
+
+// The TraverseSnapshot type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseSnapshot func(context.Context, *ent.SnapshotQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseSnapshot) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseSnapshot) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.SnapshotQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.SnapshotQuery", q)
+}
+
 // The UserFunc type is an adapter to allow the use of ordinary function as a Querier.
 type UserFunc func(context.Context, *ent.UserQuery) (ent.Value, error)
 
@@ -1020,6 +1048,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.SessionQuery, predicate.Session, session.OrderOption]{typ: ent.TypeSession, tq: q}, nil
 	case *ent.SettingQuery:
 		return &query[*ent.SettingQuery, predicate.Setting, setting.OrderOption]{typ: ent.TypeSetting, tq: q}, nil
+	case *ent.SnapshotQuery:
+		return &query[*ent.SnapshotQuery, predicate.Snapshot, snapshot.OrderOption]{typ: ent.TypeSnapshot, tq: q}, nil
 	case *ent.UserQuery:
 		return &query[*ent.UserQuery, predicate.User, user.OrderOption]{typ: ent.TypeUser, tq: q}, nil
 	case *ent.VNetSlotQuery:

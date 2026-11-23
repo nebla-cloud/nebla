@@ -34,6 +34,10 @@ const (
 	FieldMaxBackups = "max_backups"
 	// FieldMaxNetworks holds the string denoting the max_networks field in the database.
 	FieldMaxNetworks = "max_networks"
+	// FieldMaxSnapshots holds the string denoting the max_snapshots field in the database.
+	FieldMaxSnapshots = "max_snapshots"
+	// FieldMaxSnapshotGB holds the string denoting the max_snapshot_gb field in the database.
+	FieldMaxSnapshotGB = "max_snapshot_gb"
 	// FieldCreatedBy holds the string denoting the created_by field in the database.
 	FieldCreatedBy = "created_by"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -73,6 +77,8 @@ var Columns = []string{
 	FieldMaxVolumeGB,
 	FieldMaxBackups,
 	FieldMaxNetworks,
+	FieldMaxSnapshots,
+	FieldMaxSnapshotGB,
 	FieldCreatedBy,
 	FieldCreatedAt,
 }
@@ -106,6 +112,10 @@ var (
 	DefaultMaxBackups int
 	// DefaultMaxNetworks holds the default value on creation for the "max_networks" field.
 	DefaultMaxNetworks int
+	// DefaultMaxSnapshots holds the default value on creation for the "max_snapshots" field.
+	DefaultMaxSnapshots int
+	// DefaultMaxSnapshotGB holds the default value on creation for the "max_snapshot_gb" field.
+	DefaultMaxSnapshotGB int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -166,6 +176,16 @@ func ByMaxBackups(opts ...sql.OrderTermOption) OrderOption {
 // ByMaxNetworks orders the results by the max_networks field.
 func ByMaxNetworks(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMaxNetworks, opts...).ToFunc()
+}
+
+// ByMaxSnapshots orders the results by the max_snapshots field.
+func ByMaxSnapshots(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxSnapshots, opts...).ToFunc()
+}
+
+// ByMaxSnapshotGB orders the results by the max_snapshot_gb field.
+func ByMaxSnapshotGB(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxSnapshotGB, opts...).ToFunc()
 }
 
 // ByCreatedBy orders the results by the created_by field.

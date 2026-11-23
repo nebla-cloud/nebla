@@ -179,6 +179,13 @@ func run() error {
 	if filledSlots > 0 {
 		log.Info("backfilled server backup slots", "count", filledSlots)
 	}
+	filledSnap, err := projects.BackfillSnapshotQuota(ctx, client, cfg.DefaultQuota)
+	if err != nil {
+		return err
+	}
+	if filledSnap > 0 {
+		log.Info("backfilled snapshot project quota", "count", filledSnap)
+	}
 	n, err := runner.FailOrphanedActions(ctx)
 	if err != nil {
 		return err

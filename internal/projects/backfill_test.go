@@ -35,7 +35,8 @@ func legacyProject(t *testing.T, c *ent.Client, owner int64, q projects.Quota) i
 	ctx := context.Background()
 	p, err := c.Project.Create().SetName("legacy").SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).
 		SetMaxMemoryMB(q.MaxMemoryMB).SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
-		SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).SetMaxBackups(q.MaxBackups).SetMaxNetworks(q.MaxNetworks).Save(ctx)
+		SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).SetMaxBackups(q.MaxBackups).SetMaxNetworks(q.MaxNetworks).
+		SetMaxSnapshots(q.MaxSnapshots).SetMaxSnapshotGB(q.MaxSnapshotGB).Save(ctx)
 	require.NoError(t, err)
 	require.NoError(t, c.ProjectMember.Create().SetProjectID(p.ID).SetUserID(owner).SetRole(projects.RoleOwner).Exec(ctx))
 	return p.ID
@@ -46,7 +47,8 @@ func quotaOf(t *testing.T, c *ent.Client, id int64) projects.Quota {
 	p, err := c.Project.Get(context.Background(), id)
 	require.NoError(t, err)
 	return projects.Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps,
-		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB, MaxBackups: p.MaxBackups, MaxNetworks: p.MaxNetworks}
+		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB, MaxBackups: p.MaxBackups, MaxNetworks: p.MaxNetworks,
+		MaxSnapshots: p.MaxSnapshots, MaxSnapshotGB: p.MaxSnapshotGB}
 }
 
 func TestBackfillAppliesDefaultToLegacy(t *testing.T) {
@@ -246,4 +248,30 @@ func TestBackfillNetworkQuotaSkipsZero(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 	require.Equal(t, 3, quotaOf(t, c, id).MaxNetworks)
+}
+
+func TestBackfillSnapshotQuota(t *testing.T) {
+	ctx := context.Background()
+	_, c, _, u := setup(t, projects.Options{})
+	admin, err := auth.New(c, ext.Defaults(nil).Registration).CreateUser(ctx, "admin@example.test", testutil.Password, "A", true)
+	require.NoError(t, err)
+	limited := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 9})
+	adminOwned := legacyProject(t, c, admin.ID, projects.Quota{MaxServers: 9})
+	unlimited := legacyProject(t, c, u.ID, projects.Quota{})
+	has := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 9, MaxSnapshots: 2})
+	sq := projects.Quota{MaxSnapshots: 10, MaxSnapshotGB: 200}
+
+	n, err := projects.BackfillSnapshotQuota(ctx, c, sq)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, projects.Quota{MaxServers: 9, MaxSnapshots: 10, MaxSnapshotGB: 200}, quotaOf(t, c, limited))
+	require.Equal(t, projects.Quota{MaxServers: 9}, quotaOf(t, c, adminOwned))
+	require.Equal(t, projects.Quota{}, quotaOf(t, c, unlimited))
+	require.Equal(t, projects.Quota{MaxServers: 9, MaxSnapshots: 2}, quotaOf(t, c, has))
+
+	second := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 3})
+	n, err = projects.BackfillSnapshotQuota(ctx, c, sq)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Equal(t, projects.Quota{MaxServers: 3}, quotaOf(t, c, second))
 }

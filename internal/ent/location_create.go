@@ -258,6 +258,20 @@ func (_c *LocationCreate) SetNillableSdnAuditOk(v *bool) *LocationCreate {
 	return _c
 }
 
+// SetSnapshotStorage sets the "snapshot_storage" field.
+func (_c *LocationCreate) SetSnapshotStorage(v string) *LocationCreate {
+	_c.mutation.SetSnapshotStorage(v)
+	return _c
+}
+
+// SetNillableSnapshotStorage sets the "snapshot_storage" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableSnapshotStorage(v *string) *LocationCreate {
+	if v != nil {
+		_c.SetSnapshotStorage(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *LocationCreate) SetCreatedAt(v time.Time) *LocationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -435,6 +449,10 @@ func (_c *LocationCreate) defaults() {
 		v := location.DefaultSdnAuditOk
 		_c.mutation.SetSdnAuditOk(v)
 	}
+	if _, ok := _c.mutation.SnapshotStorage(); !ok {
+		v := location.DefaultSnapshotStorage
+		_c.mutation.SetSnapshotStorage(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := location.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -500,6 +518,9 @@ func (_c *LocationCreate) check() error {
 	}
 	if _, ok := _c.mutation.SdnAuditOk(); !ok {
 		return &ValidationError{Name: "sdn_audit_ok", err: errors.New(`ent: missing required field "Location.sdn_audit_ok"`)}
+	}
+	if _, ok := _c.mutation.SnapshotStorage(); !ok {
+		return &ValidationError{Name: "snapshot_storage", err: errors.New(`ent: missing required field "Location.snapshot_storage"`)}
 	}
 	return nil
 }
@@ -613,6 +634,10 @@ func (_c *LocationCreate) createSpec() (*Location, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SdnAuditOk(); ok {
 		_spec.SetField(location.FieldSdnAuditOk, field.TypeBool, value)
 		_node.SdnAuditOk = value
+	}
+	if value, ok := _c.mutation.SnapshotStorage(); ok {
+		_spec.SetField(location.FieldSnapshotStorage, field.TypeString, value)
+		_node.SnapshotStorage = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(location.FieldCreatedAt, field.TypeTime, value)
@@ -1002,6 +1027,18 @@ func (u *LocationUpsert) UpdateSdnAuditOk() *LocationUpsert {
 	return u
 }
 
+// SetSnapshotStorage sets the "snapshot_storage" field.
+func (u *LocationUpsert) SetSnapshotStorage(v string) *LocationUpsert {
+	u.Set(location.FieldSnapshotStorage, v)
+	return u
+}
+
+// UpdateSnapshotStorage sets the "snapshot_storage" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateSnapshotStorage() *LocationUpsert {
+	u.SetExcluded(location.FieldSnapshotStorage)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *LocationUpsert) SetUpdatedAt(v time.Time) *LocationUpsert {
 	u.Set(location.FieldUpdatedAt, v)
@@ -1370,6 +1407,20 @@ func (u *LocationUpsertOne) SetSdnAuditOk(v bool) *LocationUpsertOne {
 func (u *LocationUpsertOne) UpdateSdnAuditOk() *LocationUpsertOne {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateSdnAuditOk()
+	})
+}
+
+// SetSnapshotStorage sets the "snapshot_storage" field.
+func (u *LocationUpsertOne) SetSnapshotStorage(v string) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetSnapshotStorage(v)
+	})
+}
+
+// UpdateSnapshotStorage sets the "snapshot_storage" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateSnapshotStorage() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateSnapshotStorage()
 	})
 }
 
@@ -1909,6 +1960,20 @@ func (u *LocationUpsertBulk) SetSdnAuditOk(v bool) *LocationUpsertBulk {
 func (u *LocationUpsertBulk) UpdateSdnAuditOk() *LocationUpsertBulk {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateSdnAuditOk()
+	})
+}
+
+// SetSnapshotStorage sets the "snapshot_storage" field.
+func (u *LocationUpsertBulk) SetSnapshotStorage(v string) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetSnapshotStorage(v)
+	})
+}
+
+// UpdateSnapshotStorage sets the "snapshot_storage" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateSnapshotStorage() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateSnapshotStorage()
 	})
 }
 

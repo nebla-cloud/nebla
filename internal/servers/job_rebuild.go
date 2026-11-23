@@ -48,10 +48,12 @@ var rebuildProgress = map[int]int{stepVMID: 10, stepClone: 40, stepConfig: 50, s
 
 // RebuildServerArgs is the rebuild_server job; the template was chosen at request time.
 type RebuildServerArgs struct {
-	ServerID     int64 `json:"server_id"`
-	ActionID     int64 `json:"action_id"`
-	ImageID      int64 `json:"image_id"`
-	TemplateVMID int   `json:"template_vmid"`
+	ServerID     int64  `json:"server_id"`
+	ActionID     int64  `json:"action_id"`
+	ImageID      int64  `json:"image_id"`
+	OSFlavor     string `json:"os_flavor,omitempty"`
+	OSVersion    string `json:"os_version,omitempty"`
+	TemplateVMID int    `json:"template_vmid"`
 	// StartAfter is whether the server was running when the rebuild was requested.
 	StartAfter bool `json:"start_after"`
 	// InstanceGeneration pins the cloud-init instance-id generation; 0 uses the new ISO generation.
@@ -95,7 +97,7 @@ func (s *Service) Rebuild(ctx context.Context, projectID, id int64, imageRef str
 		}
 		running := row.Status == StatusRunning
 		return func(actionID int64) river.JobArgs {
-			return RebuildServerArgs{ServerID: id, ActionID: actionID, ImageID: img.ID, TemplateVMID: tmpl, StartAfter: running}
+			return RebuildServerArgs{ServerID: id, ActionID: actionID, ImageID: img.ID, OSFlavor: img.OSFlavor, OSVersion: img.OSVersion, TemplateVMID: tmpl, StartAfter: running}
 		}, nil
 	})
 }
@@ -139,8 +141,9 @@ type rebuildRun struct {
 }
 
 type rebuildImage struct {
-	id   int64
-	tmpl int
+	id                  int64
+	tmpl                int
+	osFlavor, osVersion string
 }
 
 func (w *RebuildServerWorker) Work(ctx context.Context, job *river.Job[RebuildServerArgs]) error {
@@ -150,7 +153,7 @@ func (w *RebuildServerWorker) Work(ctx context.Context, job *river.Job[RebuildSe
 	}
 	a := job.Args
 	r := &rebuildRun{o: &w.o, afterStep: w.afterStep, name: "rebuild", actionID: a.ActionID, startAfter: a.StartAfter,
-		instGen: a.InstanceGeneration, image: &rebuildImage{a.ImageID, a.TemplateVMID}, row: row}
+		instGen: a.InstanceGeneration, image: &rebuildImage{a.ImageID, a.TemplateVMID, a.OSFlavor, a.OSVersion}, row: row}
 	return contract{job: job.JobRow, name: "rebuild", finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: r.run, fail: r.cleanup}.work(ctx)
 }
@@ -250,7 +253,7 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	err := db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		u := etx.Server.UpdateOneID(r.row.ID)
 		if r.image != nil {
-			u.SetImageID(r.image.id).SetTemplateVmid(r.image.tmpl)
+			u.SetImageID(r.image.id).SetOsFlavor(r.image.osFlavor).SetOsVersion(r.image.osVersion).SetTemplateVmid(r.image.tmpl)
 		}
 		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap).
 			SetNetRefresh(!r.b.staleNet).SetInstanceBumpPending(false).SetIsoNetHash(r.b.netHash)

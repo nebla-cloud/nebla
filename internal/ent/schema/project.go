@@ -38,6 +38,8 @@ func (Project) Fields() []ent.Field {
 		field.Int("max_volume_gb").Default(0),
 		field.Int("max_backups").Default(0),
 		field.Int("max_networks").Default(0),
+		field.Int("max_snapshots").Default(0),
+		field.Int("max_snapshot_gb").Default(0),
 		// created_by is nil for projects made before it existed, or whose creator was deleted.
 		field.Int64("created_by").Optional().Nillable(),
 		createdAt(),

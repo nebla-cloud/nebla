@@ -340,7 +340,7 @@ func (s *server) DeleteAdminProject(ctx context.Context, req apigen.DeleteAdminP
 func (s *server) PutAdminProjectQuota(ctx context.Context, req apigen.PutAdminProjectQuotaRequestObject) (apigen.PutAdminProjectQuotaResponseObject, error) {
 	b := req.Body
 	q := projects.Quota{MaxServers: b.MaxServers, MaxVCPU: b.MaxVcpu, MaxMemoryMB: b.MaxMemoryMb, MaxDiskGB: b.MaxDiskGb, MaxIPs: b.MaxIps}
-	q, err := s.projects.UpdateQuota(ctx, req.Id, q, b.MaxVolumes, b.MaxVolumeGb, b.MaxBackups, b.MaxNetworks)
+	q, err := s.projects.UpdateQuota(ctx, req.Id, q, b.MaxVolumes, b.MaxVolumeGb, b.MaxBackups, b.MaxNetworks, nil, nil)
 	if err != nil {
 		return nil, err
 	}

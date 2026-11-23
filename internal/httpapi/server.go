@@ -51,6 +51,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/settings"
+	"github.com/nebla-cloud/nebla/internal/snapshots"
 	"github.com/nebla-cloud/nebla/internal/sshkeys"
 	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/nebla-cloud/nebla/web"
@@ -255,10 +256,10 @@ func New(deps Deps) http.Handler {
 // ServerHooks fills unset project and catalog hooks with the servers implementations.
 func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hooks) {
 	if p.HasServers == nil {
-		p.HasServers = networks.HasWith(floatingips.HasWith(volumes.HasVolumesWith(servers.HasServers)))
+		p.HasServers = networks.HasWith(floatingips.HasWith(volumes.HasVolumesWith(snapshots.HasSnapshotsWith(servers.HasServers))))
 	}
 	if p.Usage == nil {
-		p.Usage = networks.UsageWith(floatingips.UsageWith(backups.UsageWith(volumes.UsageWith(servers.Usage))))
+		p.Usage = networks.UsageWith(floatingips.UsageWith(backups.UsageWith(volumes.UsageWith(snapshots.UsageWith(servers.Usage)))))
 	}
 	if c.LocationInUse == nil {
 		c.LocationInUse = networks.LocationInUseWith(servers.LocationInUse)

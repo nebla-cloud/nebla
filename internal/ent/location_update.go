@@ -331,6 +331,20 @@ func (_u *LocationUpdate) SetNillableSdnAuditOk(v *bool) *LocationUpdate {
 	return _u
 }
 
+// SetSnapshotStorage sets the "snapshot_storage" field.
+func (_u *LocationUpdate) SetSnapshotStorage(v string) *LocationUpdate {
+	_u.mutation.SetSnapshotStorage(v)
+	return _u
+}
+
+// SetNillableSnapshotStorage sets the "snapshot_storage" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableSnapshotStorage(v *string) *LocationUpdate {
+	if v != nil {
+		_u.SetSnapshotStorage(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdate) SetUpdatedAt(v time.Time) *LocationUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -608,6 +622,9 @@ func (_u *LocationUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.SdnAuditOk(); ok {
 		_spec.SetField(location.FieldSdnAuditOk, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SnapshotStorage(); ok {
+		_spec.SetField(location.FieldSnapshotStorage, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)
@@ -1112,6 +1129,20 @@ func (_u *LocationUpdateOne) SetNillableSdnAuditOk(v *bool) *LocationUpdateOne {
 	return _u
 }
 
+// SetSnapshotStorage sets the "snapshot_storage" field.
+func (_u *LocationUpdateOne) SetSnapshotStorage(v string) *LocationUpdateOne {
+	_u.mutation.SetSnapshotStorage(v)
+	return _u
+}
+
+// SetNillableSnapshotStorage sets the "snapshot_storage" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableSnapshotStorage(v *string) *LocationUpdateOne {
+	if v != nil {
+		_u.SetSnapshotStorage(*v)
+	}
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdateOne) SetUpdatedAt(v time.Time) *LocationUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1419,6 +1450,9 @@ func (_u *LocationUpdateOne) sqlSave(ctx context.Context) (_node *Location, err 
 	}
 	if value, ok := _u.mutation.SdnAuditOk(); ok {
 		_spec.SetField(location.FieldSdnAuditOk, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SnapshotStorage(); ok {
+		_spec.SetField(location.FieldSnapshotStorage, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)

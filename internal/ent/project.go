@@ -38,6 +38,10 @@ type Project struct {
 	MaxBackups int `json:"max_backups,omitempty"`
 	// MaxNetworks holds the value of the "max_networks" field.
 	MaxNetworks int `json:"max_networks,omitempty"`
+	// MaxSnapshots holds the value of the "max_snapshots" field.
+	MaxSnapshots int `json:"max_snapshots,omitempty"`
+	// MaxSnapshotGB holds the value of the "max_snapshot_gb" field.
+	MaxSnapshotGB int `json:"max_snapshot_gb,omitempty"`
 	// CreatedBy holds the value of the "created_by" field.
 	CreatedBy *int64 `json:"created_by,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -84,7 +88,7 @@ func (*Project) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case project.FieldID, project.FieldMaxServers, project.FieldMaxVcpu, project.FieldMaxMemoryMB, project.FieldMaxDiskGB, project.FieldMaxIps, project.FieldMaxVolumes, project.FieldMaxVolumeGB, project.FieldMaxBackups, project.FieldMaxNetworks, project.FieldCreatedBy:
+		case project.FieldID, project.FieldMaxServers, project.FieldMaxVcpu, project.FieldMaxMemoryMB, project.FieldMaxDiskGB, project.FieldMaxIps, project.FieldMaxVolumes, project.FieldMaxVolumeGB, project.FieldMaxBackups, project.FieldMaxNetworks, project.FieldMaxSnapshots, project.FieldMaxSnapshotGB, project.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
 		case project.FieldName:
 			values[i] = new(sql.NullString)
@@ -170,6 +174,18 @@ func (_m *Project) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field max_networks", values[i])
 			} else if value.Valid {
 				_m.MaxNetworks = int(value.Int64)
+			}
+		case project.FieldMaxSnapshots:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_snapshots", values[i])
+			} else if value.Valid {
+				_m.MaxSnapshots = int(value.Int64)
+			}
+		case project.FieldMaxSnapshotGB:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_snapshot_gb", values[i])
+			} else if value.Valid {
+				_m.MaxSnapshotGB = int(value.Int64)
 			}
 		case project.FieldCreatedBy:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -259,6 +275,12 @@ func (_m *Project) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("max_networks=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MaxNetworks))
+	builder.WriteString(", ")
+	builder.WriteString("max_snapshots=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MaxSnapshots))
+	builder.WriteString(", ")
+	builder.WriteString("max_snapshot_gb=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MaxSnapshotGB))
 	builder.WriteString(", ")
 	if v := _m.CreatedBy; v != nil {
 		builder.WriteString("created_by=")

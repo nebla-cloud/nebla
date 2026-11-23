@@ -40,6 +40,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/servertype"
 	"github.com/nebla-cloud/nebla/internal/ent/session"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ent/user"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
@@ -84,6 +85,7 @@ const (
 	TypeServerType         = "ServerType"
 	TypeSession            = "Session"
 	TypeSetting            = "Setting"
+	TypeSnapshot           = "Snapshot"
 	TypeUser               = "User"
 	TypeVNetSlot           = "VNetSlot"
 	TypeVolume             = "Volume"
@@ -14441,6 +14443,7 @@ type LocationMutation struct {
 	sdn_zone               *string
 	vnet_prefix            *string
 	sdn_audit_ok           *bool
+	snapshot_storage       *string
 	created_at             *time.Time
 	updated_at             *time.Time
 	clearedFields          map[string]struct{}
@@ -15351,6 +15354,42 @@ func (m *LocationMutation) ResetSdnAuditOk() {
 	m.sdn_audit_ok = nil
 }
 
+// SetSnapshotStorage sets the "snapshot_storage" field.
+func (m *LocationMutation) SetSnapshotStorage(s string) {
+	m.snapshot_storage = &s
+}
+
+// SnapshotStorage returns the value of the "snapshot_storage" field in the mutation.
+func (m *LocationMutation) SnapshotStorage() (r string, exists bool) {
+	v := m.snapshot_storage
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSnapshotStorage returns the old "snapshot_storage" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldSnapshotStorage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSnapshotStorage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSnapshotStorage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSnapshotStorage: %w", err)
+	}
+	return oldValue.SnapshotStorage, nil
+}
+
+// ResetSnapshotStorage resets all changes to the "snapshot_storage" field.
+func (m *LocationMutation) ResetSnapshotStorage() {
+	m.snapshot_storage = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *LocationMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -15673,7 +15712,7 @@ func (m *LocationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *LocationMutation) Fields() []string {
-	fields := make([]string, 0, 22)
+	fields := make([]string, 0, 23)
 	if m.name != nil {
 		fields = append(fields, location.FieldName)
 	}
@@ -15734,6 +15773,9 @@ func (m *LocationMutation) Fields() []string {
 	if m.sdn_audit_ok != nil {
 		fields = append(fields, location.FieldSdnAuditOk)
 	}
+	if m.snapshot_storage != nil {
+		fields = append(fields, location.FieldSnapshotStorage)
+	}
 	if m.created_at != nil {
 		fields = append(fields, location.FieldCreatedAt)
 	}
@@ -15788,6 +15830,8 @@ func (m *LocationMutation) Field(name string) (ent.Value, bool) {
 		return m.VnetPrefix()
 	case location.FieldSdnAuditOk:
 		return m.SdnAuditOk()
+	case location.FieldSnapshotStorage:
+		return m.SnapshotStorage()
 	case location.FieldCreatedAt:
 		return m.CreatedAt()
 	case location.FieldUpdatedAt:
@@ -15841,6 +15885,8 @@ func (m *LocationMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldVnetPrefix(ctx)
 	case location.FieldSdnAuditOk:
 		return m.OldSdnAuditOk(ctx)
+	case location.FieldSnapshotStorage:
+		return m.OldSnapshotStorage(ctx)
 	case location.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case location.FieldUpdatedAt:
@@ -15993,6 +16039,13 @@ func (m *LocationMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSdnAuditOk(v)
+		return nil
+	case location.FieldSnapshotStorage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSnapshotStorage(v)
 		return nil
 	case location.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -16158,6 +16211,9 @@ func (m *LocationMutation) ResetField(name string) error {
 		return nil
 	case location.FieldSdnAuditOk:
 		m.ResetSdnAuditOk()
+		return nil
+	case location.FieldSnapshotStorage:
+		m.ResetSnapshotStorage()
 		return nil
 	case location.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -19202,38 +19258,42 @@ func (m *NodeMutation) ResetEdge(name string) error {
 // ProjectMutation represents an operation that mutates the Project nodes in the graph.
 type ProjectMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *int64
-	name             *string
-	max_servers      *int
-	addmax_servers   *int
-	max_vcpu         *int
-	addmax_vcpu      *int
-	max_memory_mb    *int
-	addmax_memory_mb *int
-	max_disk_gb      *int
-	addmax_disk_gb   *int
-	max_ips          *int
-	addmax_ips       *int
-	max_volumes      *int
-	addmax_volumes   *int
-	max_volume_gb    *int
-	addmax_volume_gb *int
-	max_backups      *int
-	addmax_backups   *int
-	max_networks     *int
-	addmax_networks  *int
-	created_at       *time.Time
-	clearedFields    map[string]struct{}
-	creator          *int64
-	clearedcreator   bool
-	members          map[int64]struct{}
-	removedmembers   map[int64]struct{}
-	clearedmembers   bool
-	done             bool
-	oldValue         func(context.Context) (*Project, error)
-	predicates       []predicate.Project
+	op                 Op
+	typ                string
+	id                 *int64
+	name               *string
+	max_servers        *int
+	addmax_servers     *int
+	max_vcpu           *int
+	addmax_vcpu        *int
+	max_memory_mb      *int
+	addmax_memory_mb   *int
+	max_disk_gb        *int
+	addmax_disk_gb     *int
+	max_ips            *int
+	addmax_ips         *int
+	max_volumes        *int
+	addmax_volumes     *int
+	max_volume_gb      *int
+	addmax_volume_gb   *int
+	max_backups        *int
+	addmax_backups     *int
+	max_networks       *int
+	addmax_networks    *int
+	max_snapshots      *int
+	addmax_snapshots   *int
+	max_snapshot_gb    *int
+	addmax_snapshot_gb *int
+	created_at         *time.Time
+	clearedFields      map[string]struct{}
+	creator            *int64
+	clearedcreator     bool
+	members            map[int64]struct{}
+	removedmembers     map[int64]struct{}
+	clearedmembers     bool
+	done               bool
+	oldValue           func(context.Context) (*Project, error)
+	predicates         []predicate.Project
 }
 
 var _ ent.Mutation = (*ProjectMutation)(nil)
@@ -19880,6 +19940,118 @@ func (m *ProjectMutation) ResetMaxNetworks() {
 	m.addmax_networks = nil
 }
 
+// SetMaxSnapshots sets the "max_snapshots" field.
+func (m *ProjectMutation) SetMaxSnapshots(i int) {
+	m.max_snapshots = &i
+	m.addmax_snapshots = nil
+}
+
+// MaxSnapshots returns the value of the "max_snapshots" field in the mutation.
+func (m *ProjectMutation) MaxSnapshots() (r int, exists bool) {
+	v := m.max_snapshots
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxSnapshots returns the old "max_snapshots" field's value of the Project entity.
+// If the Project object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProjectMutation) OldMaxSnapshots(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxSnapshots is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxSnapshots requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxSnapshots: %w", err)
+	}
+	return oldValue.MaxSnapshots, nil
+}
+
+// AddMaxSnapshots adds i to the "max_snapshots" field.
+func (m *ProjectMutation) AddMaxSnapshots(i int) {
+	if m.addmax_snapshots != nil {
+		*m.addmax_snapshots += i
+	} else {
+		m.addmax_snapshots = &i
+	}
+}
+
+// AddedMaxSnapshots returns the value that was added to the "max_snapshots" field in this mutation.
+func (m *ProjectMutation) AddedMaxSnapshots() (r int, exists bool) {
+	v := m.addmax_snapshots
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxSnapshots resets all changes to the "max_snapshots" field.
+func (m *ProjectMutation) ResetMaxSnapshots() {
+	m.max_snapshots = nil
+	m.addmax_snapshots = nil
+}
+
+// SetMaxSnapshotGB sets the "max_snapshot_gb" field.
+func (m *ProjectMutation) SetMaxSnapshotGB(i int) {
+	m.max_snapshot_gb = &i
+	m.addmax_snapshot_gb = nil
+}
+
+// MaxSnapshotGB returns the value of the "max_snapshot_gb" field in the mutation.
+func (m *ProjectMutation) MaxSnapshotGB() (r int, exists bool) {
+	v := m.max_snapshot_gb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxSnapshotGB returns the old "max_snapshot_gb" field's value of the Project entity.
+// If the Project object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProjectMutation) OldMaxSnapshotGB(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxSnapshotGB is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxSnapshotGB requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxSnapshotGB: %w", err)
+	}
+	return oldValue.MaxSnapshotGB, nil
+}
+
+// AddMaxSnapshotGB adds i to the "max_snapshot_gb" field.
+func (m *ProjectMutation) AddMaxSnapshotGB(i int) {
+	if m.addmax_snapshot_gb != nil {
+		*m.addmax_snapshot_gb += i
+	} else {
+		m.addmax_snapshot_gb = &i
+	}
+}
+
+// AddedMaxSnapshotGB returns the value that was added to the "max_snapshot_gb" field in this mutation.
+func (m *ProjectMutation) AddedMaxSnapshotGB() (r int, exists bool) {
+	v := m.addmax_snapshot_gb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxSnapshotGB resets all changes to the "max_snapshot_gb" field.
+func (m *ProjectMutation) ResetMaxSnapshotGB() {
+	m.max_snapshot_gb = nil
+	m.addmax_snapshot_gb = nil
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (m *ProjectMutation) SetCreatedBy(i int64) {
 	m.creator = &i
@@ -20093,7 +20265,7 @@ func (m *ProjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProjectMutation) Fields() []string {
-	fields := make([]string, 0, 12)
+	fields := make([]string, 0, 14)
 	if m.name != nil {
 		fields = append(fields, project.FieldName)
 	}
@@ -20123,6 +20295,12 @@ func (m *ProjectMutation) Fields() []string {
 	}
 	if m.max_networks != nil {
 		fields = append(fields, project.FieldMaxNetworks)
+	}
+	if m.max_snapshots != nil {
+		fields = append(fields, project.FieldMaxSnapshots)
+	}
+	if m.max_snapshot_gb != nil {
+		fields = append(fields, project.FieldMaxSnapshotGB)
 	}
 	if m.creator != nil {
 		fields = append(fields, project.FieldCreatedBy)
@@ -20158,6 +20336,10 @@ func (m *ProjectMutation) Field(name string) (ent.Value, bool) {
 		return m.MaxBackups()
 	case project.FieldMaxNetworks:
 		return m.MaxNetworks()
+	case project.FieldMaxSnapshots:
+		return m.MaxSnapshots()
+	case project.FieldMaxSnapshotGB:
+		return m.MaxSnapshotGB()
 	case project.FieldCreatedBy:
 		return m.CreatedBy()
 	case project.FieldCreatedAt:
@@ -20191,6 +20373,10 @@ func (m *ProjectMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldMaxBackups(ctx)
 	case project.FieldMaxNetworks:
 		return m.OldMaxNetworks(ctx)
+	case project.FieldMaxSnapshots:
+		return m.OldMaxSnapshots(ctx)
+	case project.FieldMaxSnapshotGB:
+		return m.OldMaxSnapshotGB(ctx)
 	case project.FieldCreatedBy:
 		return m.OldCreatedBy(ctx)
 	case project.FieldCreatedAt:
@@ -20274,6 +20460,20 @@ func (m *ProjectMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetMaxNetworks(v)
 		return nil
+	case project.FieldMaxSnapshots:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxSnapshots(v)
+		return nil
+	case project.FieldMaxSnapshotGB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxSnapshotGB(v)
+		return nil
 	case project.FieldCreatedBy:
 		v, ok := value.(int64)
 		if !ok {
@@ -20323,6 +20523,12 @@ func (m *ProjectMutation) AddedFields() []string {
 	if m.addmax_networks != nil {
 		fields = append(fields, project.FieldMaxNetworks)
 	}
+	if m.addmax_snapshots != nil {
+		fields = append(fields, project.FieldMaxSnapshots)
+	}
+	if m.addmax_snapshot_gb != nil {
+		fields = append(fields, project.FieldMaxSnapshotGB)
+	}
 	return fields
 }
 
@@ -20349,6 +20555,10 @@ func (m *ProjectMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedMaxBackups()
 	case project.FieldMaxNetworks:
 		return m.AddedMaxNetworks()
+	case project.FieldMaxSnapshots:
+		return m.AddedMaxSnapshots()
+	case project.FieldMaxSnapshotGB:
+		return m.AddedMaxSnapshotGB()
 	}
 	return nil, false
 }
@@ -20421,6 +20631,20 @@ func (m *ProjectMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddMaxNetworks(v)
 		return nil
+	case project.FieldMaxSnapshots:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxSnapshots(v)
+		return nil
+	case project.FieldMaxSnapshotGB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxSnapshotGB(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Project numeric field %s", name)
 }
@@ -20486,6 +20710,12 @@ func (m *ProjectMutation) ResetField(name string) error {
 		return nil
 	case project.FieldMaxNetworks:
 		m.ResetMaxNetworks()
+		return nil
+	case project.FieldMaxSnapshots:
+		m.ResetMaxSnapshots()
+		return nil
+	case project.FieldMaxSnapshotGB:
+		m.ResetMaxSnapshotGB()
 		return nil
 	case project.FieldCreatedBy:
 		m.ResetCreatedBy()
@@ -21813,6 +22043,8 @@ type ServerMutation struct {
 	addvmid                 *int
 	template_vmid           *int
 	addtemplate_vmid        *int
+	os_flavor               *string
+	os_version              *string
 	status                  *server.Status
 	mac                     *string
 	labels                  *map[string]string
@@ -21865,6 +22097,10 @@ type ServerMutation struct {
 	clearedserver_type      bool
 	image                   *int64
 	clearedimage            bool
+	snapshot                *int64
+	clearedsnapshot         bool
+	rebuild_snapshot        *int64
+	clearedrebuild_snapshot bool
 	done                    bool
 	oldValue                func(context.Context) (*Server, error)
 	predicates              []predicate.Server
@@ -22297,7 +22533,7 @@ func (m *ServerMutation) ImageID() (r int64, exists bool) {
 // OldImageID returns the old "image_id" field's value of the Server entity.
 // If the Server object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *ServerMutation) OldImageID(ctx context.Context) (v int64, err error) {
+func (m *ServerMutation) OldImageID(ctx context.Context) (v *int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldImageID is only allowed on UpdateOne operations")
 	}
@@ -22311,9 +22547,192 @@ func (m *ServerMutation) OldImageID(ctx context.Context) (v int64, err error) {
 	return oldValue.ImageID, nil
 }
 
+// ClearImageID clears the value of the "image_id" field.
+func (m *ServerMutation) ClearImageID() {
+	m.image = nil
+	m.clearedFields[server.FieldImageID] = struct{}{}
+}
+
+// ImageIDCleared returns if the "image_id" field was cleared in this mutation.
+func (m *ServerMutation) ImageIDCleared() bool {
+	_, ok := m.clearedFields[server.FieldImageID]
+	return ok
+}
+
 // ResetImageID resets all changes to the "image_id" field.
 func (m *ServerMutation) ResetImageID() {
 	m.image = nil
+	delete(m.clearedFields, server.FieldImageID)
+}
+
+// SetSnapshotID sets the "snapshot_id" field.
+func (m *ServerMutation) SetSnapshotID(i int64) {
+	m.snapshot = &i
+}
+
+// SnapshotID returns the value of the "snapshot_id" field in the mutation.
+func (m *ServerMutation) SnapshotID() (r int64, exists bool) {
+	v := m.snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSnapshotID returns the old "snapshot_id" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldSnapshotID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSnapshotID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSnapshotID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSnapshotID: %w", err)
+	}
+	return oldValue.SnapshotID, nil
+}
+
+// ClearSnapshotID clears the value of the "snapshot_id" field.
+func (m *ServerMutation) ClearSnapshotID() {
+	m.snapshot = nil
+	m.clearedFields[server.FieldSnapshotID] = struct{}{}
+}
+
+// SnapshotIDCleared returns if the "snapshot_id" field was cleared in this mutation.
+func (m *ServerMutation) SnapshotIDCleared() bool {
+	_, ok := m.clearedFields[server.FieldSnapshotID]
+	return ok
+}
+
+// ResetSnapshotID resets all changes to the "snapshot_id" field.
+func (m *ServerMutation) ResetSnapshotID() {
+	m.snapshot = nil
+	delete(m.clearedFields, server.FieldSnapshotID)
+}
+
+// SetRebuildSnapshotID sets the "rebuild_snapshot_id" field.
+func (m *ServerMutation) SetRebuildSnapshotID(i int64) {
+	m.rebuild_snapshot = &i
+}
+
+// RebuildSnapshotID returns the value of the "rebuild_snapshot_id" field in the mutation.
+func (m *ServerMutation) RebuildSnapshotID() (r int64, exists bool) {
+	v := m.rebuild_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRebuildSnapshotID returns the old "rebuild_snapshot_id" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldRebuildSnapshotID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRebuildSnapshotID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRebuildSnapshotID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRebuildSnapshotID: %w", err)
+	}
+	return oldValue.RebuildSnapshotID, nil
+}
+
+// ClearRebuildSnapshotID clears the value of the "rebuild_snapshot_id" field.
+func (m *ServerMutation) ClearRebuildSnapshotID() {
+	m.rebuild_snapshot = nil
+	m.clearedFields[server.FieldRebuildSnapshotID] = struct{}{}
+}
+
+// RebuildSnapshotIDCleared returns if the "rebuild_snapshot_id" field was cleared in this mutation.
+func (m *ServerMutation) RebuildSnapshotIDCleared() bool {
+	_, ok := m.clearedFields[server.FieldRebuildSnapshotID]
+	return ok
+}
+
+// ResetRebuildSnapshotID resets all changes to the "rebuild_snapshot_id" field.
+func (m *ServerMutation) ResetRebuildSnapshotID() {
+	m.rebuild_snapshot = nil
+	delete(m.clearedFields, server.FieldRebuildSnapshotID)
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (m *ServerMutation) SetOsFlavor(s string) {
+	m.os_flavor = &s
+}
+
+// OsFlavor returns the value of the "os_flavor" field in the mutation.
+func (m *ServerMutation) OsFlavor() (r string, exists bool) {
+	v := m.os_flavor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOsFlavor returns the old "os_flavor" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldOsFlavor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOsFlavor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOsFlavor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOsFlavor: %w", err)
+	}
+	return oldValue.OsFlavor, nil
+}
+
+// ResetOsFlavor resets all changes to the "os_flavor" field.
+func (m *ServerMutation) ResetOsFlavor() {
+	m.os_flavor = nil
+}
+
+// SetOsVersion sets the "os_version" field.
+func (m *ServerMutation) SetOsVersion(s string) {
+	m.os_version = &s
+}
+
+// OsVersion returns the value of the "os_version" field in the mutation.
+func (m *ServerMutation) OsVersion() (r string, exists bool) {
+	v := m.os_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOsVersion returns the old "os_version" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldOsVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOsVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOsVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOsVersion: %w", err)
+	}
+	return oldValue.OsVersion, nil
+}
+
+// ResetOsVersion resets all changes to the "os_version" field.
+func (m *ServerMutation) ResetOsVersion() {
+	m.os_version = nil
 }
 
 // SetStatus sets the "status" field.
@@ -23858,7 +24277,7 @@ func (m *ServerMutation) ClearImage() {
 
 // ImageCleared reports if the "image" edge to the Image entity was cleared.
 func (m *ServerMutation) ImageCleared() bool {
-	return m.clearedimage
+	return m.ImageIDCleared() || m.clearedimage
 }
 
 // ImageIDs returns the "image" edge IDs in the mutation.
@@ -23875,6 +24294,60 @@ func (m *ServerMutation) ImageIDs() (ids []int64) {
 func (m *ServerMutation) ResetImage() {
 	m.image = nil
 	m.clearedimage = false
+}
+
+// ClearSnapshot clears the "snapshot" edge to the Snapshot entity.
+func (m *ServerMutation) ClearSnapshot() {
+	m.clearedsnapshot = true
+	m.clearedFields[server.FieldSnapshotID] = struct{}{}
+}
+
+// SnapshotCleared reports if the "snapshot" edge to the Snapshot entity was cleared.
+func (m *ServerMutation) SnapshotCleared() bool {
+	return m.SnapshotIDCleared() || m.clearedsnapshot
+}
+
+// SnapshotIDs returns the "snapshot" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// SnapshotID instead. It exists only for internal usage by the builders.
+func (m *ServerMutation) SnapshotIDs() (ids []int64) {
+	if id := m.snapshot; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetSnapshot resets all changes to the "snapshot" edge.
+func (m *ServerMutation) ResetSnapshot() {
+	m.snapshot = nil
+	m.clearedsnapshot = false
+}
+
+// ClearRebuildSnapshot clears the "rebuild_snapshot" edge to the Snapshot entity.
+func (m *ServerMutation) ClearRebuildSnapshot() {
+	m.clearedrebuild_snapshot = true
+	m.clearedFields[server.FieldRebuildSnapshotID] = struct{}{}
+}
+
+// RebuildSnapshotCleared reports if the "rebuild_snapshot" edge to the Snapshot entity was cleared.
+func (m *ServerMutation) RebuildSnapshotCleared() bool {
+	return m.RebuildSnapshotIDCleared() || m.clearedrebuild_snapshot
+}
+
+// RebuildSnapshotIDs returns the "rebuild_snapshot" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// RebuildSnapshotID instead. It exists only for internal usage by the builders.
+func (m *ServerMutation) RebuildSnapshotIDs() (ids []int64) {
+	if id := m.rebuild_snapshot; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetRebuildSnapshot resets all changes to the "rebuild_snapshot" edge.
+func (m *ServerMutation) ResetRebuildSnapshot() {
+	m.rebuild_snapshot = nil
+	m.clearedrebuild_snapshot = false
 }
 
 // Where appends a list predicates to the ServerMutation builder.
@@ -23911,7 +24384,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 38)
+	fields := make([]string, 0, 42)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -23935,6 +24408,18 @@ func (m *ServerMutation) Fields() []string {
 	}
 	if m.image != nil {
 		fields = append(fields, server.FieldImageID)
+	}
+	if m.snapshot != nil {
+		fields = append(fields, server.FieldSnapshotID)
+	}
+	if m.rebuild_snapshot != nil {
+		fields = append(fields, server.FieldRebuildSnapshotID)
+	}
+	if m.os_flavor != nil {
+		fields = append(fields, server.FieldOsFlavor)
+	}
+	if m.os_version != nil {
+		fields = append(fields, server.FieldOsVersion)
 	}
 	if m.status != nil {
 		fields = append(fields, server.FieldStatus)
@@ -24050,6 +24535,14 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.ServerTypeID()
 	case server.FieldImageID:
 		return m.ImageID()
+	case server.FieldSnapshotID:
+		return m.SnapshotID()
+	case server.FieldRebuildSnapshotID:
+		return m.RebuildSnapshotID()
+	case server.FieldOsFlavor:
+		return m.OsFlavor()
+	case server.FieldOsVersion:
+		return m.OsVersion()
 	case server.FieldStatus:
 		return m.Status()
 	case server.FieldMAC:
@@ -24135,6 +24628,14 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldServerTypeID(ctx)
 	case server.FieldImageID:
 		return m.OldImageID(ctx)
+	case server.FieldSnapshotID:
+		return m.OldSnapshotID(ctx)
+	case server.FieldRebuildSnapshotID:
+		return m.OldRebuildSnapshotID(ctx)
+	case server.FieldOsFlavor:
+		return m.OldOsFlavor(ctx)
+	case server.FieldOsVersion:
+		return m.OldOsVersion(ctx)
 	case server.FieldStatus:
 		return m.OldStatus(ctx)
 	case server.FieldMAC:
@@ -24259,6 +24760,34 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetImageID(v)
+		return nil
+	case server.FieldSnapshotID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSnapshotID(v)
+		return nil
+	case server.FieldRebuildSnapshotID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRebuildSnapshotID(v)
+		return nil
+	case server.FieldOsFlavor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOsFlavor(v)
+		return nil
+	case server.FieldOsVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOsVersion(v)
 		return nil
 	case server.FieldStatus:
 		v, ok := value.(server.Status)
@@ -24674,6 +25203,15 @@ func (m *ServerMutation) ClearedFields() []string {
 	if m.FieldCleared(server.FieldVmid) {
 		fields = append(fields, server.FieldVmid)
 	}
+	if m.FieldCleared(server.FieldImageID) {
+		fields = append(fields, server.FieldImageID)
+	}
+	if m.FieldCleared(server.FieldSnapshotID) {
+		fields = append(fields, server.FieldSnapshotID)
+	}
+	if m.FieldCleared(server.FieldRebuildSnapshotID) {
+		fields = append(fields, server.FieldRebuildSnapshotID)
+	}
 	if m.FieldCleared(server.FieldIsoVolid) {
 		fields = append(fields, server.FieldIsoVolid)
 	}
@@ -24717,6 +25255,15 @@ func (m *ServerMutation) ClearField(name string) error {
 	switch name {
 	case server.FieldVmid:
 		m.ClearVmid()
+		return nil
+	case server.FieldImageID:
+		m.ClearImageID()
+		return nil
+	case server.FieldSnapshotID:
+		m.ClearSnapshotID()
+		return nil
+	case server.FieldRebuildSnapshotID:
+		m.ClearRebuildSnapshotID()
 		return nil
 	case server.FieldIsoVolid:
 		m.ClearIsoVolid()
@@ -24776,6 +25323,18 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldImageID:
 		m.ResetImageID()
+		return nil
+	case server.FieldSnapshotID:
+		m.ResetSnapshotID()
+		return nil
+	case server.FieldRebuildSnapshotID:
+		m.ResetRebuildSnapshotID()
+		return nil
+	case server.FieldOsFlavor:
+		m.ResetOsFlavor()
+		return nil
+	case server.FieldOsVersion:
+		m.ResetOsVersion()
 		return nil
 	case server.FieldStatus:
 		m.ResetStatus()
@@ -24873,7 +25432,7 @@ func (m *ServerMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ServerMutation) AddedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.project != nil {
 		edges = append(edges, server.EdgeProject)
 	}
@@ -24885,6 +25444,12 @@ func (m *ServerMutation) AddedEdges() []string {
 	}
 	if m.image != nil {
 		edges = append(edges, server.EdgeImage)
+	}
+	if m.snapshot != nil {
+		edges = append(edges, server.EdgeSnapshot)
+	}
+	if m.rebuild_snapshot != nil {
+		edges = append(edges, server.EdgeRebuildSnapshot)
 	}
 	return edges
 }
@@ -24909,13 +25474,21 @@ func (m *ServerMutation) AddedIDs(name string) []ent.Value {
 		if id := m.image; id != nil {
 			return []ent.Value{*id}
 		}
+	case server.EdgeSnapshot:
+		if id := m.snapshot; id != nil {
+			return []ent.Value{*id}
+		}
+	case server.EdgeRebuildSnapshot:
+		if id := m.rebuild_snapshot; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ServerMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	return edges
 }
 
@@ -24927,7 +25500,7 @@ func (m *ServerMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ServerMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 6)
 	if m.clearedproject {
 		edges = append(edges, server.EdgeProject)
 	}
@@ -24939,6 +25512,12 @@ func (m *ServerMutation) ClearedEdges() []string {
 	}
 	if m.clearedimage {
 		edges = append(edges, server.EdgeImage)
+	}
+	if m.clearedsnapshot {
+		edges = append(edges, server.EdgeSnapshot)
+	}
+	if m.clearedrebuild_snapshot {
+		edges = append(edges, server.EdgeRebuildSnapshot)
 	}
 	return edges
 }
@@ -24955,6 +25534,10 @@ func (m *ServerMutation) EdgeCleared(name string) bool {
 		return m.clearedserver_type
 	case server.EdgeImage:
 		return m.clearedimage
+	case server.EdgeSnapshot:
+		return m.clearedsnapshot
+	case server.EdgeRebuildSnapshot:
+		return m.clearedrebuild_snapshot
 	}
 	return false
 }
@@ -24975,6 +25558,12 @@ func (m *ServerMutation) ClearEdge(name string) error {
 	case server.EdgeImage:
 		m.ClearImage()
 		return nil
+	case server.EdgeSnapshot:
+		m.ClearSnapshot()
+		return nil
+	case server.EdgeRebuildSnapshot:
+		m.ClearRebuildSnapshot()
+		return nil
 	}
 	return fmt.Errorf("unknown Server unique edge %s", name)
 }
@@ -24994,6 +25583,12 @@ func (m *ServerMutation) ResetEdge(name string) error {
 		return nil
 	case server.EdgeImage:
 		m.ResetImage()
+		return nil
+	case server.EdgeSnapshot:
+		m.ResetSnapshot()
+		return nil
+	case server.EdgeRebuildSnapshot:
+		m.ResetRebuildSnapshot()
 		return nil
 	}
 	return fmt.Errorf("unknown Server edge %s", name)
@@ -27469,6 +28064,2006 @@ func (m *SettingMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *SettingMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Setting edge %s", name)
+}
+
+// SnapshotMutation represents an operation that mutates the Snapshot nodes in the graph.
+type SnapshotMutation struct {
+	config
+	op                     Op
+	typ                    string
+	id                     *int64
+	name                   *string
+	description            *string
+	labels                 *map[string]string
+	server_name            *string
+	os_flavor              *string
+	os_version             *string
+	size_gb                *int
+	addsize_gb             *int
+	instance_generation    *int
+	addinstance_generation *int
+	network_fingerprint    *string
+	vmid                   *int
+	addvmid                *int
+	node                   *string
+	storage                *string
+	boot_key               *string
+	step                   *int
+	addstep                *int
+	nonce                  *string
+	upid                   *string
+	was_running            *bool
+	force_stop             *bool
+	status                 *snapshot.Status
+	created_at             *time.Time
+	clearedFields          map[string]struct{}
+	project                *int64
+	clearedproject         bool
+	location               *int64
+	clearedlocation        bool
+	server                 *int64
+	clearedserver          bool
+	image                  *int64
+	clearedimage           bool
+	done                   bool
+	oldValue               func(context.Context) (*Snapshot, error)
+	predicates             []predicate.Snapshot
+}
+
+var _ ent.Mutation = (*SnapshotMutation)(nil)
+
+// snapshotOption allows management of the mutation configuration using functional options.
+type snapshotOption func(*SnapshotMutation)
+
+// newSnapshotMutation creates new mutation for the Snapshot entity.
+func newSnapshotMutation(c config, op Op, opts ...snapshotOption) *SnapshotMutation {
+	m := &SnapshotMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSnapshot,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSnapshotID sets the ID field of the mutation.
+func withSnapshotID(id int64) snapshotOption {
+	return func(m *SnapshotMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Snapshot
+		)
+		m.oldValue = func(ctx context.Context) (*Snapshot, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Snapshot.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSnapshot sets the old Snapshot of the mutation.
+func withSnapshot(node *Snapshot) snapshotOption {
+	return func(m *SnapshotMutation) {
+		m.oldValue = func(context.Context) (*Snapshot, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SnapshotMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SnapshotMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Snapshot entities.
+func (m *SnapshotMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SnapshotMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SnapshotMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Snapshot.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *SnapshotMutation) SetProjectID(i int64) {
+	m.project = &i
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *SnapshotMutation) ProjectID() (r int64, exists bool) {
+	v := m.project
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldProjectID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *SnapshotMutation) ResetProjectID() {
+	m.project = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *SnapshotMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *SnapshotMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *SnapshotMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetName sets the "name" field.
+func (m *SnapshotMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *SnapshotMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *SnapshotMutation) ResetName() {
+	m.name = nil
+}
+
+// SetDescription sets the "description" field.
+func (m *SnapshotMutation) SetDescription(s string) {
+	m.description = &s
+}
+
+// Description returns the value of the "description" field in the mutation.
+func (m *SnapshotMutation) Description() (r string, exists bool) {
+	v := m.description
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDescription returns the old "description" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldDescription(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDescription is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDescription requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDescription: %w", err)
+	}
+	return oldValue.Description, nil
+}
+
+// ResetDescription resets all changes to the "description" field.
+func (m *SnapshotMutation) ResetDescription() {
+	m.description = nil
+}
+
+// SetLabels sets the "labels" field.
+func (m *SnapshotMutation) SetLabels(value map[string]string) {
+	m.labels = &value
+}
+
+// Labels returns the value of the "labels" field in the mutation.
+func (m *SnapshotMutation) Labels() (r map[string]string, exists bool) {
+	v := m.labels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabels returns the old "labels" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldLabels(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabels is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabels requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabels: %w", err)
+	}
+	return oldValue.Labels, nil
+}
+
+// ResetLabels resets all changes to the "labels" field.
+func (m *SnapshotMutation) ResetLabels() {
+	m.labels = nil
+}
+
+// SetServerID sets the "server_id" field.
+func (m *SnapshotMutation) SetServerID(i int64) {
+	m.server = &i
+}
+
+// ServerID returns the value of the "server_id" field in the mutation.
+func (m *SnapshotMutation) ServerID() (r int64, exists bool) {
+	v := m.server
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerID returns the old "server_id" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldServerID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerID: %w", err)
+	}
+	return oldValue.ServerID, nil
+}
+
+// ClearServerID clears the value of the "server_id" field.
+func (m *SnapshotMutation) ClearServerID() {
+	m.server = nil
+	m.clearedFields[snapshot.FieldServerID] = struct{}{}
+}
+
+// ServerIDCleared returns if the "server_id" field was cleared in this mutation.
+func (m *SnapshotMutation) ServerIDCleared() bool {
+	_, ok := m.clearedFields[snapshot.FieldServerID]
+	return ok
+}
+
+// ResetServerID resets all changes to the "server_id" field.
+func (m *SnapshotMutation) ResetServerID() {
+	m.server = nil
+	delete(m.clearedFields, snapshot.FieldServerID)
+}
+
+// SetServerName sets the "server_name" field.
+func (m *SnapshotMutation) SetServerName(s string) {
+	m.server_name = &s
+}
+
+// ServerName returns the value of the "server_name" field in the mutation.
+func (m *SnapshotMutation) ServerName() (r string, exists bool) {
+	v := m.server_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerName returns the old "server_name" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldServerName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerName: %w", err)
+	}
+	return oldValue.ServerName, nil
+}
+
+// ResetServerName resets all changes to the "server_name" field.
+func (m *SnapshotMutation) ResetServerName() {
+	m.server_name = nil
+}
+
+// SetImageID sets the "image_id" field.
+func (m *SnapshotMutation) SetImageID(i int64) {
+	m.image = &i
+}
+
+// ImageID returns the value of the "image_id" field in the mutation.
+func (m *SnapshotMutation) ImageID() (r int64, exists bool) {
+	v := m.image
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageID returns the old "image_id" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldImageID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageID: %w", err)
+	}
+	return oldValue.ImageID, nil
+}
+
+// ClearImageID clears the value of the "image_id" field.
+func (m *SnapshotMutation) ClearImageID() {
+	m.image = nil
+	m.clearedFields[snapshot.FieldImageID] = struct{}{}
+}
+
+// ImageIDCleared returns if the "image_id" field was cleared in this mutation.
+func (m *SnapshotMutation) ImageIDCleared() bool {
+	_, ok := m.clearedFields[snapshot.FieldImageID]
+	return ok
+}
+
+// ResetImageID resets all changes to the "image_id" field.
+func (m *SnapshotMutation) ResetImageID() {
+	m.image = nil
+	delete(m.clearedFields, snapshot.FieldImageID)
+}
+
+// SetOsFlavor sets the "os_flavor" field.
+func (m *SnapshotMutation) SetOsFlavor(s string) {
+	m.os_flavor = &s
+}
+
+// OsFlavor returns the value of the "os_flavor" field in the mutation.
+func (m *SnapshotMutation) OsFlavor() (r string, exists bool) {
+	v := m.os_flavor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOsFlavor returns the old "os_flavor" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldOsFlavor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOsFlavor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOsFlavor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOsFlavor: %w", err)
+	}
+	return oldValue.OsFlavor, nil
+}
+
+// ResetOsFlavor resets all changes to the "os_flavor" field.
+func (m *SnapshotMutation) ResetOsFlavor() {
+	m.os_flavor = nil
+}
+
+// SetOsVersion sets the "os_version" field.
+func (m *SnapshotMutation) SetOsVersion(s string) {
+	m.os_version = &s
+}
+
+// OsVersion returns the value of the "os_version" field in the mutation.
+func (m *SnapshotMutation) OsVersion() (r string, exists bool) {
+	v := m.os_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOsVersion returns the old "os_version" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldOsVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOsVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOsVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOsVersion: %w", err)
+	}
+	return oldValue.OsVersion, nil
+}
+
+// ResetOsVersion resets all changes to the "os_version" field.
+func (m *SnapshotMutation) ResetOsVersion() {
+	m.os_version = nil
+}
+
+// SetSizeGB sets the "size_gb" field.
+func (m *SnapshotMutation) SetSizeGB(i int) {
+	m.size_gb = &i
+	m.addsize_gb = nil
+}
+
+// SizeGB returns the value of the "size_gb" field in the mutation.
+func (m *SnapshotMutation) SizeGB() (r int, exists bool) {
+	v := m.size_gb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSizeGB returns the old "size_gb" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldSizeGB(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSizeGB is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSizeGB requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSizeGB: %w", err)
+	}
+	return oldValue.SizeGB, nil
+}
+
+// AddSizeGB adds i to the "size_gb" field.
+func (m *SnapshotMutation) AddSizeGB(i int) {
+	if m.addsize_gb != nil {
+		*m.addsize_gb += i
+	} else {
+		m.addsize_gb = &i
+	}
+}
+
+// AddedSizeGB returns the value that was added to the "size_gb" field in this mutation.
+func (m *SnapshotMutation) AddedSizeGB() (r int, exists bool) {
+	v := m.addsize_gb
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSizeGB resets all changes to the "size_gb" field.
+func (m *SnapshotMutation) ResetSizeGB() {
+	m.size_gb = nil
+	m.addsize_gb = nil
+}
+
+// SetInstanceGeneration sets the "instance_generation" field.
+func (m *SnapshotMutation) SetInstanceGeneration(i int) {
+	m.instance_generation = &i
+	m.addinstance_generation = nil
+}
+
+// InstanceGeneration returns the value of the "instance_generation" field in the mutation.
+func (m *SnapshotMutation) InstanceGeneration() (r int, exists bool) {
+	v := m.instance_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInstanceGeneration returns the old "instance_generation" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldInstanceGeneration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInstanceGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInstanceGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInstanceGeneration: %w", err)
+	}
+	return oldValue.InstanceGeneration, nil
+}
+
+// AddInstanceGeneration adds i to the "instance_generation" field.
+func (m *SnapshotMutation) AddInstanceGeneration(i int) {
+	if m.addinstance_generation != nil {
+		*m.addinstance_generation += i
+	} else {
+		m.addinstance_generation = &i
+	}
+}
+
+// AddedInstanceGeneration returns the value that was added to the "instance_generation" field in this mutation.
+func (m *SnapshotMutation) AddedInstanceGeneration() (r int, exists bool) {
+	v := m.addinstance_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInstanceGeneration resets all changes to the "instance_generation" field.
+func (m *SnapshotMutation) ResetInstanceGeneration() {
+	m.instance_generation = nil
+	m.addinstance_generation = nil
+}
+
+// SetNetworkFingerprint sets the "network_fingerprint" field.
+func (m *SnapshotMutation) SetNetworkFingerprint(s string) {
+	m.network_fingerprint = &s
+}
+
+// NetworkFingerprint returns the value of the "network_fingerprint" field in the mutation.
+func (m *SnapshotMutation) NetworkFingerprint() (r string, exists bool) {
+	v := m.network_fingerprint
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNetworkFingerprint returns the old "network_fingerprint" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldNetworkFingerprint(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNetworkFingerprint is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNetworkFingerprint requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNetworkFingerprint: %w", err)
+	}
+	return oldValue.NetworkFingerprint, nil
+}
+
+// ResetNetworkFingerprint resets all changes to the "network_fingerprint" field.
+func (m *SnapshotMutation) ResetNetworkFingerprint() {
+	m.network_fingerprint = nil
+}
+
+// SetVmid sets the "vmid" field.
+func (m *SnapshotMutation) SetVmid(i int) {
+	m.vmid = &i
+	m.addvmid = nil
+}
+
+// Vmid returns the value of the "vmid" field in the mutation.
+func (m *SnapshotMutation) Vmid() (r int, exists bool) {
+	v := m.vmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVmid returns the old "vmid" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldVmid(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVmid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVmid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVmid: %w", err)
+	}
+	return oldValue.Vmid, nil
+}
+
+// AddVmid adds i to the "vmid" field.
+func (m *SnapshotMutation) AddVmid(i int) {
+	if m.addvmid != nil {
+		*m.addvmid += i
+	} else {
+		m.addvmid = &i
+	}
+}
+
+// AddedVmid returns the value that was added to the "vmid" field in this mutation.
+func (m *SnapshotMutation) AddedVmid() (r int, exists bool) {
+	v := m.addvmid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearVmid clears the value of the "vmid" field.
+func (m *SnapshotMutation) ClearVmid() {
+	m.vmid = nil
+	m.addvmid = nil
+	m.clearedFields[snapshot.FieldVmid] = struct{}{}
+}
+
+// VmidCleared returns if the "vmid" field was cleared in this mutation.
+func (m *SnapshotMutation) VmidCleared() bool {
+	_, ok := m.clearedFields[snapshot.FieldVmid]
+	return ok
+}
+
+// ResetVmid resets all changes to the "vmid" field.
+func (m *SnapshotMutation) ResetVmid() {
+	m.vmid = nil
+	m.addvmid = nil
+	delete(m.clearedFields, snapshot.FieldVmid)
+}
+
+// SetNode sets the "node" field.
+func (m *SnapshotMutation) SetNode(s string) {
+	m.node = &s
+}
+
+// Node returns the value of the "node" field in the mutation.
+func (m *SnapshotMutation) Node() (r string, exists bool) {
+	v := m.node
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNode returns the old "node" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldNode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNode: %w", err)
+	}
+	return oldValue.Node, nil
+}
+
+// ResetNode resets all changes to the "node" field.
+func (m *SnapshotMutation) ResetNode() {
+	m.node = nil
+}
+
+// SetStorage sets the "storage" field.
+func (m *SnapshotMutation) SetStorage(s string) {
+	m.storage = &s
+}
+
+// Storage returns the value of the "storage" field in the mutation.
+func (m *SnapshotMutation) Storage() (r string, exists bool) {
+	v := m.storage
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStorage returns the old "storage" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldStorage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStorage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStorage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStorage: %w", err)
+	}
+	return oldValue.Storage, nil
+}
+
+// ResetStorage resets all changes to the "storage" field.
+func (m *SnapshotMutation) ResetStorage() {
+	m.storage = nil
+}
+
+// SetBootKey sets the "boot_key" field.
+func (m *SnapshotMutation) SetBootKey(s string) {
+	m.boot_key = &s
+}
+
+// BootKey returns the value of the "boot_key" field in the mutation.
+func (m *SnapshotMutation) BootKey() (r string, exists bool) {
+	v := m.boot_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBootKey returns the old "boot_key" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldBootKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBootKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBootKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBootKey: %w", err)
+	}
+	return oldValue.BootKey, nil
+}
+
+// ResetBootKey resets all changes to the "boot_key" field.
+func (m *SnapshotMutation) ResetBootKey() {
+	m.boot_key = nil
+}
+
+// SetStep sets the "step" field.
+func (m *SnapshotMutation) SetStep(i int) {
+	m.step = &i
+	m.addstep = nil
+}
+
+// Step returns the value of the "step" field in the mutation.
+func (m *SnapshotMutation) Step() (r int, exists bool) {
+	v := m.step
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStep returns the old "step" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldStep(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStep is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStep requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStep: %w", err)
+	}
+	return oldValue.Step, nil
+}
+
+// AddStep adds i to the "step" field.
+func (m *SnapshotMutation) AddStep(i int) {
+	if m.addstep != nil {
+		*m.addstep += i
+	} else {
+		m.addstep = &i
+	}
+}
+
+// AddedStep returns the value that was added to the "step" field in this mutation.
+func (m *SnapshotMutation) AddedStep() (r int, exists bool) {
+	v := m.addstep
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetStep resets all changes to the "step" field.
+func (m *SnapshotMutation) ResetStep() {
+	m.step = nil
+	m.addstep = nil
+}
+
+// SetNonce sets the "nonce" field.
+func (m *SnapshotMutation) SetNonce(s string) {
+	m.nonce = &s
+}
+
+// Nonce returns the value of the "nonce" field in the mutation.
+func (m *SnapshotMutation) Nonce() (r string, exists bool) {
+	v := m.nonce
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNonce returns the old "nonce" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldNonce(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNonce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNonce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNonce: %w", err)
+	}
+	return oldValue.Nonce, nil
+}
+
+// ClearNonce clears the value of the "nonce" field.
+func (m *SnapshotMutation) ClearNonce() {
+	m.nonce = nil
+	m.clearedFields[snapshot.FieldNonce] = struct{}{}
+}
+
+// NonceCleared returns if the "nonce" field was cleared in this mutation.
+func (m *SnapshotMutation) NonceCleared() bool {
+	_, ok := m.clearedFields[snapshot.FieldNonce]
+	return ok
+}
+
+// ResetNonce resets all changes to the "nonce" field.
+func (m *SnapshotMutation) ResetNonce() {
+	m.nonce = nil
+	delete(m.clearedFields, snapshot.FieldNonce)
+}
+
+// SetUpid sets the "upid" field.
+func (m *SnapshotMutation) SetUpid(s string) {
+	m.upid = &s
+}
+
+// Upid returns the value of the "upid" field in the mutation.
+func (m *SnapshotMutation) Upid() (r string, exists bool) {
+	v := m.upid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpid returns the old "upid" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldUpid(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpid: %w", err)
+	}
+	return oldValue.Upid, nil
+}
+
+// ClearUpid clears the value of the "upid" field.
+func (m *SnapshotMutation) ClearUpid() {
+	m.upid = nil
+	m.clearedFields[snapshot.FieldUpid] = struct{}{}
+}
+
+// UpidCleared returns if the "upid" field was cleared in this mutation.
+func (m *SnapshotMutation) UpidCleared() bool {
+	_, ok := m.clearedFields[snapshot.FieldUpid]
+	return ok
+}
+
+// ResetUpid resets all changes to the "upid" field.
+func (m *SnapshotMutation) ResetUpid() {
+	m.upid = nil
+	delete(m.clearedFields, snapshot.FieldUpid)
+}
+
+// SetWasRunning sets the "was_running" field.
+func (m *SnapshotMutation) SetWasRunning(b bool) {
+	m.was_running = &b
+}
+
+// WasRunning returns the value of the "was_running" field in the mutation.
+func (m *SnapshotMutation) WasRunning() (r bool, exists bool) {
+	v := m.was_running
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWasRunning returns the old "was_running" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldWasRunning(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWasRunning is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWasRunning requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWasRunning: %w", err)
+	}
+	return oldValue.WasRunning, nil
+}
+
+// ResetWasRunning resets all changes to the "was_running" field.
+func (m *SnapshotMutation) ResetWasRunning() {
+	m.was_running = nil
+}
+
+// SetForceStop sets the "force_stop" field.
+func (m *SnapshotMutation) SetForceStop(b bool) {
+	m.force_stop = &b
+}
+
+// ForceStop returns the value of the "force_stop" field in the mutation.
+func (m *SnapshotMutation) ForceStop() (r bool, exists bool) {
+	v := m.force_stop
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldForceStop returns the old "force_stop" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldForceStop(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldForceStop is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldForceStop requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldForceStop: %w", err)
+	}
+	return oldValue.ForceStop, nil
+}
+
+// ResetForceStop resets all changes to the "force_stop" field.
+func (m *SnapshotMutation) ResetForceStop() {
+	m.force_stop = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *SnapshotMutation) SetStatus(s snapshot.Status) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *SnapshotMutation) Status() (r snapshot.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldStatus(ctx context.Context) (v snapshot.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *SnapshotMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *SnapshotMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *SnapshotMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *SnapshotMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (m *SnapshotMutation) ClearProject() {
+	m.clearedproject = true
+	m.clearedFields[snapshot.FieldProjectID] = struct{}{}
+}
+
+// ProjectCleared reports if the "project" edge to the Project entity was cleared.
+func (m *SnapshotMutation) ProjectCleared() bool {
+	return m.clearedproject
+}
+
+// ProjectIDs returns the "project" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ProjectID instead. It exists only for internal usage by the builders.
+func (m *SnapshotMutation) ProjectIDs() (ids []int64) {
+	if id := m.project; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetProject resets all changes to the "project" edge.
+func (m *SnapshotMutation) ResetProject() {
+	m.project = nil
+	m.clearedproject = false
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *SnapshotMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[snapshot.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *SnapshotMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *SnapshotMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *SnapshotMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// ClearServer clears the "server" edge to the Server entity.
+func (m *SnapshotMutation) ClearServer() {
+	m.clearedserver = true
+	m.clearedFields[snapshot.FieldServerID] = struct{}{}
+}
+
+// ServerCleared reports if the "server" edge to the Server entity was cleared.
+func (m *SnapshotMutation) ServerCleared() bool {
+	return m.ServerIDCleared() || m.clearedserver
+}
+
+// ServerIDs returns the "server" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServerID instead. It exists only for internal usage by the builders.
+func (m *SnapshotMutation) ServerIDs() (ids []int64) {
+	if id := m.server; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetServer resets all changes to the "server" edge.
+func (m *SnapshotMutation) ResetServer() {
+	m.server = nil
+	m.clearedserver = false
+}
+
+// ClearImage clears the "image" edge to the Image entity.
+func (m *SnapshotMutation) ClearImage() {
+	m.clearedimage = true
+	m.clearedFields[snapshot.FieldImageID] = struct{}{}
+}
+
+// ImageCleared reports if the "image" edge to the Image entity was cleared.
+func (m *SnapshotMutation) ImageCleared() bool {
+	return m.ImageIDCleared() || m.clearedimage
+}
+
+// ImageIDs returns the "image" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ImageID instead. It exists only for internal usage by the builders.
+func (m *SnapshotMutation) ImageIDs() (ids []int64) {
+	if id := m.image; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetImage resets all changes to the "image" edge.
+func (m *SnapshotMutation) ResetImage() {
+	m.image = nil
+	m.clearedimage = false
+}
+
+// Where appends a list predicates to the SnapshotMutation builder.
+func (m *SnapshotMutation) Where(ps ...predicate.Snapshot) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SnapshotMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SnapshotMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Snapshot, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SnapshotMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SnapshotMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Snapshot).
+func (m *SnapshotMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SnapshotMutation) Fields() []string {
+	fields := make([]string, 0, 24)
+	if m.project != nil {
+		fields = append(fields, snapshot.FieldProjectID)
+	}
+	if m.location != nil {
+		fields = append(fields, snapshot.FieldLocationID)
+	}
+	if m.name != nil {
+		fields = append(fields, snapshot.FieldName)
+	}
+	if m.description != nil {
+		fields = append(fields, snapshot.FieldDescription)
+	}
+	if m.labels != nil {
+		fields = append(fields, snapshot.FieldLabels)
+	}
+	if m.server != nil {
+		fields = append(fields, snapshot.FieldServerID)
+	}
+	if m.server_name != nil {
+		fields = append(fields, snapshot.FieldServerName)
+	}
+	if m.image != nil {
+		fields = append(fields, snapshot.FieldImageID)
+	}
+	if m.os_flavor != nil {
+		fields = append(fields, snapshot.FieldOsFlavor)
+	}
+	if m.os_version != nil {
+		fields = append(fields, snapshot.FieldOsVersion)
+	}
+	if m.size_gb != nil {
+		fields = append(fields, snapshot.FieldSizeGB)
+	}
+	if m.instance_generation != nil {
+		fields = append(fields, snapshot.FieldInstanceGeneration)
+	}
+	if m.network_fingerprint != nil {
+		fields = append(fields, snapshot.FieldNetworkFingerprint)
+	}
+	if m.vmid != nil {
+		fields = append(fields, snapshot.FieldVmid)
+	}
+	if m.node != nil {
+		fields = append(fields, snapshot.FieldNode)
+	}
+	if m.storage != nil {
+		fields = append(fields, snapshot.FieldStorage)
+	}
+	if m.boot_key != nil {
+		fields = append(fields, snapshot.FieldBootKey)
+	}
+	if m.step != nil {
+		fields = append(fields, snapshot.FieldStep)
+	}
+	if m.nonce != nil {
+		fields = append(fields, snapshot.FieldNonce)
+	}
+	if m.upid != nil {
+		fields = append(fields, snapshot.FieldUpid)
+	}
+	if m.was_running != nil {
+		fields = append(fields, snapshot.FieldWasRunning)
+	}
+	if m.force_stop != nil {
+		fields = append(fields, snapshot.FieldForceStop)
+	}
+	if m.status != nil {
+		fields = append(fields, snapshot.FieldStatus)
+	}
+	if m.created_at != nil {
+		fields = append(fields, snapshot.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SnapshotMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case snapshot.FieldProjectID:
+		return m.ProjectID()
+	case snapshot.FieldLocationID:
+		return m.LocationID()
+	case snapshot.FieldName:
+		return m.Name()
+	case snapshot.FieldDescription:
+		return m.Description()
+	case snapshot.FieldLabels:
+		return m.Labels()
+	case snapshot.FieldServerID:
+		return m.ServerID()
+	case snapshot.FieldServerName:
+		return m.ServerName()
+	case snapshot.FieldImageID:
+		return m.ImageID()
+	case snapshot.FieldOsFlavor:
+		return m.OsFlavor()
+	case snapshot.FieldOsVersion:
+		return m.OsVersion()
+	case snapshot.FieldSizeGB:
+		return m.SizeGB()
+	case snapshot.FieldInstanceGeneration:
+		return m.InstanceGeneration()
+	case snapshot.FieldNetworkFingerprint:
+		return m.NetworkFingerprint()
+	case snapshot.FieldVmid:
+		return m.Vmid()
+	case snapshot.FieldNode:
+		return m.Node()
+	case snapshot.FieldStorage:
+		return m.Storage()
+	case snapshot.FieldBootKey:
+		return m.BootKey()
+	case snapshot.FieldStep:
+		return m.Step()
+	case snapshot.FieldNonce:
+		return m.Nonce()
+	case snapshot.FieldUpid:
+		return m.Upid()
+	case snapshot.FieldWasRunning:
+		return m.WasRunning()
+	case snapshot.FieldForceStop:
+		return m.ForceStop()
+	case snapshot.FieldStatus:
+		return m.Status()
+	case snapshot.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SnapshotMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case snapshot.FieldProjectID:
+		return m.OldProjectID(ctx)
+	case snapshot.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case snapshot.FieldName:
+		return m.OldName(ctx)
+	case snapshot.FieldDescription:
+		return m.OldDescription(ctx)
+	case snapshot.FieldLabels:
+		return m.OldLabels(ctx)
+	case snapshot.FieldServerID:
+		return m.OldServerID(ctx)
+	case snapshot.FieldServerName:
+		return m.OldServerName(ctx)
+	case snapshot.FieldImageID:
+		return m.OldImageID(ctx)
+	case snapshot.FieldOsFlavor:
+		return m.OldOsFlavor(ctx)
+	case snapshot.FieldOsVersion:
+		return m.OldOsVersion(ctx)
+	case snapshot.FieldSizeGB:
+		return m.OldSizeGB(ctx)
+	case snapshot.FieldInstanceGeneration:
+		return m.OldInstanceGeneration(ctx)
+	case snapshot.FieldNetworkFingerprint:
+		return m.OldNetworkFingerprint(ctx)
+	case snapshot.FieldVmid:
+		return m.OldVmid(ctx)
+	case snapshot.FieldNode:
+		return m.OldNode(ctx)
+	case snapshot.FieldStorage:
+		return m.OldStorage(ctx)
+	case snapshot.FieldBootKey:
+		return m.OldBootKey(ctx)
+	case snapshot.FieldStep:
+		return m.OldStep(ctx)
+	case snapshot.FieldNonce:
+		return m.OldNonce(ctx)
+	case snapshot.FieldUpid:
+		return m.OldUpid(ctx)
+	case snapshot.FieldWasRunning:
+		return m.OldWasRunning(ctx)
+	case snapshot.FieldForceStop:
+		return m.OldForceStop(ctx)
+	case snapshot.FieldStatus:
+		return m.OldStatus(ctx)
+	case snapshot.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Snapshot field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SnapshotMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case snapshot.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
+		return nil
+	case snapshot.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case snapshot.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case snapshot.FieldDescription:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDescription(v)
+		return nil
+	case snapshot.FieldLabels:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabels(v)
+		return nil
+	case snapshot.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerID(v)
+		return nil
+	case snapshot.FieldServerName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerName(v)
+		return nil
+	case snapshot.FieldImageID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageID(v)
+		return nil
+	case snapshot.FieldOsFlavor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOsFlavor(v)
+		return nil
+	case snapshot.FieldOsVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOsVersion(v)
+		return nil
+	case snapshot.FieldSizeGB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSizeGB(v)
+		return nil
+	case snapshot.FieldInstanceGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInstanceGeneration(v)
+		return nil
+	case snapshot.FieldNetworkFingerprint:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNetworkFingerprint(v)
+		return nil
+	case snapshot.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVmid(v)
+		return nil
+	case snapshot.FieldNode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNode(v)
+		return nil
+	case snapshot.FieldStorage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStorage(v)
+		return nil
+	case snapshot.FieldBootKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBootKey(v)
+		return nil
+	case snapshot.FieldStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStep(v)
+		return nil
+	case snapshot.FieldNonce:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNonce(v)
+		return nil
+	case snapshot.FieldUpid:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpid(v)
+		return nil
+	case snapshot.FieldWasRunning:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWasRunning(v)
+		return nil
+	case snapshot.FieldForceStop:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetForceStop(v)
+		return nil
+	case snapshot.FieldStatus:
+		v, ok := value.(snapshot.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case snapshot.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Snapshot field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SnapshotMutation) AddedFields() []string {
+	var fields []string
+	if m.addsize_gb != nil {
+		fields = append(fields, snapshot.FieldSizeGB)
+	}
+	if m.addinstance_generation != nil {
+		fields = append(fields, snapshot.FieldInstanceGeneration)
+	}
+	if m.addvmid != nil {
+		fields = append(fields, snapshot.FieldVmid)
+	}
+	if m.addstep != nil {
+		fields = append(fields, snapshot.FieldStep)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SnapshotMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case snapshot.FieldSizeGB:
+		return m.AddedSizeGB()
+	case snapshot.FieldInstanceGeneration:
+		return m.AddedInstanceGeneration()
+	case snapshot.FieldVmid:
+		return m.AddedVmid()
+	case snapshot.FieldStep:
+		return m.AddedStep()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SnapshotMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case snapshot.FieldSizeGB:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSizeGB(v)
+		return nil
+	case snapshot.FieldInstanceGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInstanceGeneration(v)
+		return nil
+	case snapshot.FieldVmid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVmid(v)
+		return nil
+	case snapshot.FieldStep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddStep(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Snapshot numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SnapshotMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(snapshot.FieldServerID) {
+		fields = append(fields, snapshot.FieldServerID)
+	}
+	if m.FieldCleared(snapshot.FieldImageID) {
+		fields = append(fields, snapshot.FieldImageID)
+	}
+	if m.FieldCleared(snapshot.FieldVmid) {
+		fields = append(fields, snapshot.FieldVmid)
+	}
+	if m.FieldCleared(snapshot.FieldNonce) {
+		fields = append(fields, snapshot.FieldNonce)
+	}
+	if m.FieldCleared(snapshot.FieldUpid) {
+		fields = append(fields, snapshot.FieldUpid)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SnapshotMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SnapshotMutation) ClearField(name string) error {
+	switch name {
+	case snapshot.FieldServerID:
+		m.ClearServerID()
+		return nil
+	case snapshot.FieldImageID:
+		m.ClearImageID()
+		return nil
+	case snapshot.FieldVmid:
+		m.ClearVmid()
+		return nil
+	case snapshot.FieldNonce:
+		m.ClearNonce()
+		return nil
+	case snapshot.FieldUpid:
+		m.ClearUpid()
+		return nil
+	}
+	return fmt.Errorf("unknown Snapshot nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SnapshotMutation) ResetField(name string) error {
+	switch name {
+	case snapshot.FieldProjectID:
+		m.ResetProjectID()
+		return nil
+	case snapshot.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case snapshot.FieldName:
+		m.ResetName()
+		return nil
+	case snapshot.FieldDescription:
+		m.ResetDescription()
+		return nil
+	case snapshot.FieldLabels:
+		m.ResetLabels()
+		return nil
+	case snapshot.FieldServerID:
+		m.ResetServerID()
+		return nil
+	case snapshot.FieldServerName:
+		m.ResetServerName()
+		return nil
+	case snapshot.FieldImageID:
+		m.ResetImageID()
+		return nil
+	case snapshot.FieldOsFlavor:
+		m.ResetOsFlavor()
+		return nil
+	case snapshot.FieldOsVersion:
+		m.ResetOsVersion()
+		return nil
+	case snapshot.FieldSizeGB:
+		m.ResetSizeGB()
+		return nil
+	case snapshot.FieldInstanceGeneration:
+		m.ResetInstanceGeneration()
+		return nil
+	case snapshot.FieldNetworkFingerprint:
+		m.ResetNetworkFingerprint()
+		return nil
+	case snapshot.FieldVmid:
+		m.ResetVmid()
+		return nil
+	case snapshot.FieldNode:
+		m.ResetNode()
+		return nil
+	case snapshot.FieldStorage:
+		m.ResetStorage()
+		return nil
+	case snapshot.FieldBootKey:
+		m.ResetBootKey()
+		return nil
+	case snapshot.FieldStep:
+		m.ResetStep()
+		return nil
+	case snapshot.FieldNonce:
+		m.ResetNonce()
+		return nil
+	case snapshot.FieldUpid:
+		m.ResetUpid()
+		return nil
+	case snapshot.FieldWasRunning:
+		m.ResetWasRunning()
+		return nil
+	case snapshot.FieldForceStop:
+		m.ResetForceStop()
+		return nil
+	case snapshot.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case snapshot.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Snapshot field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SnapshotMutation) AddedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.project != nil {
+		edges = append(edges, snapshot.EdgeProject)
+	}
+	if m.location != nil {
+		edges = append(edges, snapshot.EdgeLocation)
+	}
+	if m.server != nil {
+		edges = append(edges, snapshot.EdgeServer)
+	}
+	if m.image != nil {
+		edges = append(edges, snapshot.EdgeImage)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SnapshotMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case snapshot.EdgeProject:
+		if id := m.project; id != nil {
+			return []ent.Value{*id}
+		}
+	case snapshot.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	case snapshot.EdgeServer:
+		if id := m.server; id != nil {
+			return []ent.Value{*id}
+		}
+	case snapshot.EdgeImage:
+		if id := m.image; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SnapshotMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 4)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SnapshotMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SnapshotMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.clearedproject {
+		edges = append(edges, snapshot.EdgeProject)
+	}
+	if m.clearedlocation {
+		edges = append(edges, snapshot.EdgeLocation)
+	}
+	if m.clearedserver {
+		edges = append(edges, snapshot.EdgeServer)
+	}
+	if m.clearedimage {
+		edges = append(edges, snapshot.EdgeImage)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SnapshotMutation) EdgeCleared(name string) bool {
+	switch name {
+	case snapshot.EdgeProject:
+		return m.clearedproject
+	case snapshot.EdgeLocation:
+		return m.clearedlocation
+	case snapshot.EdgeServer:
+		return m.clearedserver
+	case snapshot.EdgeImage:
+		return m.clearedimage
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SnapshotMutation) ClearEdge(name string) error {
+	switch name {
+	case snapshot.EdgeProject:
+		m.ClearProject()
+		return nil
+	case snapshot.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	case snapshot.EdgeServer:
+		m.ClearServer()
+		return nil
+	case snapshot.EdgeImage:
+		m.ClearImage()
+		return nil
+	}
+	return fmt.Errorf("unknown Snapshot unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SnapshotMutation) ResetEdge(name string) error {
+	switch name {
+	case snapshot.EdgeProject:
+		m.ResetProject()
+		return nil
+	case snapshot.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	case snapshot.EdgeServer:
+		m.ResetServer()
+		return nil
+	case snapshot.EdgeImage:
+		m.ResetImage()
+		return nil
+	}
+	return fmt.Errorf("unknown Snapshot edge %s", name)
 }
 
 // UserMutation represents an operation that mutates the User nodes in the graph.

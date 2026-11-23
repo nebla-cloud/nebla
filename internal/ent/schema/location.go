@@ -56,6 +56,8 @@ func (Location) Fields() []ent.Field {
 		field.Text("vnet_prefix").Default("nb"),
 		// sdn_audit_ok is the last discovery's SDN permission result.
 		field.Bool("sdn_audit_ok").Default(false),
+		// snapshot_storage "" means each node's effective disk storage.
+		field.Text("snapshot_storage").Default(""),
 		createdAt(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now).
 			Annotations(entsql.DefaultExpr("now()")),

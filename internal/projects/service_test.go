@@ -157,14 +157,14 @@ func TestQuotaNetworks(t *testing.T) {
 	require.Contains(t, e.Msg, "max_networks")
 
 	keep := 5
-	q, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, &keep)
+	q, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, &keep, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 5, q.MaxNetworks)
-	q, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, nil)
+	q, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 5, q.MaxNetworks, "nil keeps the current value")
 	bad := -1
-	_, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, &bad)
+	_, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, &bad, nil, nil)
 	require.True(t, errors.As(err, &e), "got %v", err)
 	require.Equal(t, 422, e.Status)
 }
@@ -483,4 +483,41 @@ func TestQuotaBackupsReserved(t *testing.T) {
 	require.NoError(t, reserve(projects.Usage{BackupsReserved: 3}))
 	existing = projects.Usage{BackupsReserved: 12}
 	require.NoError(t, reserve(projects.Usage{BackupsReserved: -3}), "shrinking passes over quota")
+}
+
+func TestQuotaSnapshots(t *testing.T) {
+	ctx := context.Background()
+	existing := projects.Usage{Snapshots: 1, SnapshotGB: 50}
+	svc, _, sqlDB, u := setup(t, projects.Options{Hooks: projects.Hooks{
+		Usage: func(context.Context, *ent.Client, int64) (projects.Usage, error) { return existing, nil },
+	}})
+	p, err := svc.Create(ctx, u.ID, false, "Web")
+	require.NoError(t, err)
+	q, err := svc.SetQuota(ctx, p.ID, projects.Quota{MaxSnapshots: 1, MaxSnapshotGB: 60})
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxSnapshots: 1, MaxSnapshotGB: 60}, q)
+
+	reserve := func(d projects.Usage) error {
+		return db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+			return svc.ReserveQuota(ctx, etx, p.ID, d)
+		})
+	}
+	var e apierr.E
+	err = reserve(projects.Usage{Snapshots: 1})
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, "quota_exceeded", e.Code)
+	require.Contains(t, e.Msg, "max_snapshots")
+
+	err = reserve(projects.Usage{SnapshotGB: 20})
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, "quota_exceeded", e.Code)
+	require.Contains(t, e.Msg, "max_snapshot_gb")
+
+	require.NoError(t, reserve(projects.Usage{SnapshotGB: 10}))
+
+	for _, bad := range []projects.Quota{{MaxSnapshots: -1}, {MaxSnapshotGB: -1}} {
+		_, err = svc.SetQuota(ctx, p.ID, bad)
+		require.True(t, errors.As(err, &e), "got %v", err)
+		require.Equal(t, 422, e.Status)
+	}
 }
