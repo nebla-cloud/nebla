@@ -22,7 +22,11 @@ import (
 )
 
 // GuestCommands are the commands a member runs inside the server to use a private network.
-type GuestCommands struct{ Apply, Persist, Remove string }
+type GuestCommands struct {
+	Apply, Persist, Remove string
+	// Note is extra guidance shown with the commands.
+	Note string
+}
 
 func netplanFlavor(flavor string) bool { return flavor == "ubuntu" || flavor == "debian" }
 

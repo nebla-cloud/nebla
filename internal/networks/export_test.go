@@ -15,8 +15,16 @@
 
 package networks
 
+import "github.com/nebla-cloud/nebla/internal/ent"
+
 // SetDiscoverHook installs f as Discover's phase hook and returns a restore func.
 func SetDiscoverHook(f func(phase string)) func() {
 	discoverHook = f
 	return func() { discoverHook = nil }
+}
+
+// SetNetRefresh overrides the net_refresh flag lookup and returns a restore func.
+func SetNetRefresh(v bool) func() {
+	netRefreshFn = func(*ent.Server) bool { return v }
+	return func() { netRefreshFn = netRefresh }
 }
