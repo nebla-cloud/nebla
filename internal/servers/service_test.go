@@ -17,6 +17,7 @@ package servers_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -32,6 +33,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/catalog"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
@@ -605,4 +608,30 @@ func TestUsageUsesServerSnapshot(t *testing.T) {
 	e.Admin.CreateServerType("tiny", 1, 512, 10)
 	e.Admin.SetQuota(e.Project, 0, 3, 0, 0, 0)
 	e.CreateServer("b", map[string]any{"server_type": "tiny"})
+}
+
+func TestLockServerBackupInProgress(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s := e.CreateServer("a", nil)
+	lock := func() error {
+		return db.WithTx(ctx, e.App.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+			_, err := servers.LockServer(ctx, etx, e.Project, s.ServerID)
+			return err
+		})
+	}
+	var ae apierr.E
+	// The create action is running.
+	require.ErrorAs(t, lock(), &ae)
+	require.Equal(t, "locked", ae.Code)
+
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, s.ActionID))
+	require.NoError(t, lock())
+
+	_, err := actions.Create(ctx, e.App.Ent, e.Project, servers.KindCreateBackup, []actions.Resource{{ID: s.ServerID, Type: servers.ResourceType}})
+	require.NoError(t, err)
+	require.ErrorAs(t, lock(), &ae)
+	require.Equal(t, http.StatusConflict, ae.Status)
+	require.Equal(t, "backup_in_progress", ae.Code)
+	require.Equal(t, "A backup of this server is running", ae.Msg)
 }

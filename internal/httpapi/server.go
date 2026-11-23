@@ -32,6 +32,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/apigen"
 	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/backups"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/config"
 	"github.com/nebla-cloud/nebla/internal/console"
@@ -160,18 +161,20 @@ func New(deps Deps) http.Handler {
 		Auth: au, Mail: deps.Mail, BaseURL: deps.Config.BaseURL, Logger: log, Hooks: deps.ProjectHooks,
 		DefaultQuota: deps.Config.DefaultQuota, MaxOwnedProjects: deps.Config.MaxProjectsPerUser,
 	})
+	bk := backups.New(backups.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Jobs: deps.Jobs, Logger: log})
 	s := &server{
-		deps:        deps,
-		log:         log,
-		auth:        au,
-		passkeys:    deps.Passkeys,
-		projects:    proj,
-		settings:    st,
-		catalog:     deps.Catalog,
-		osimages:    deps.OSImages,
-		ipam:        ipam.New(deps.SQL, deps.Ent),
-		sshkeys:     sshkeys.New(deps.Ent),
-		servers:     servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}),
+		deps:     deps,
+		log:      log,
+		auth:     au,
+		passkeys: deps.Passkeys,
+		projects: proj,
+		settings: st,
+		catalog:  deps.Catalog,
+		osimages: deps.OSImages,
+		ipam:     ipam.New(deps.SQL, deps.Ent),
+		sshkeys:  sshkeys.New(deps.Ent),
+		servers: servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs,
+			BackupInfo: bk.BackupInfo}),
 		firewalls:   firewalls.New(firewalls.Options{Ent: deps.Ent, SQL: deps.SQL, Jobs: deps.Jobs}),
 		volumes:     volumes.New(volumes.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
 		floatingIPs: newFloatingIPs(deps, proj, log),
@@ -247,7 +250,7 @@ func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hoo
 		p.HasServers = floatingips.HasWith(volumes.HasVolumesWith(servers.HasServers))
 	}
 	if p.Usage == nil {
-		p.Usage = floatingips.UsageWith(volumes.UsageWith(servers.Usage))
+		p.Usage = floatingips.UsageWith(backups.UsageWith(volumes.UsageWith(servers.Usage)))
 	}
 	if c.LocationInUse == nil {
 		c.LocationInUse = servers.LocationInUse

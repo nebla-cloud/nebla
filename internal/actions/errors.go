@@ -52,6 +52,9 @@ var verbs = map[string]string{
 	"assign_floating_ip":   "assign the floating IP",
 	"unassign_floating_ip": "unassign the floating IP",
 	"delete_floating_ip":   "delete the floating IP",
+	"create_backup":        "back up the server",
+	"restore_backup":       "restore the backup",
+	"delete_backup":        "delete the backup",
 }
 
 var templates = map[string]string{

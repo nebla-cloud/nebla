@@ -37,6 +37,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/cloudinit"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
 	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
@@ -69,6 +71,8 @@ const (
 const (
 	KindCreateServer = "create_server"
 	KindDeleteServer = "delete_server"
+	// KindCreateBackup is the action command of a running backup, which locks the server.
+	KindCreateBackup = "create_backup"
 	// ResourceType is the actions resource type for servers.
 	ResourceType = jobs.ServerResource
 	// MaxUserData is the largest accepted user_data in bytes.
@@ -100,6 +104,8 @@ type Options struct {
 	Projects *projects.Service
 	// Jobs nil makes Create and Delete fail with 503 service_unavailable.
 	Jobs *jobs.Jobs
+	// BackupInfo fills Server.Backups' count and times; nil leaves them zero.
+	BackupInfo func(ctx context.Context, ids []int64) (map[int64]ServerBackups, error)
 }
 
 type Service struct{ o Options }
@@ -119,7 +125,30 @@ type Server struct {
 	IPv4, IPv6    netip.Addr
 	CreatedAt     time.Time
 	Firewalls     []firewalls.Applied
+	Backups       ServerBackups
 }
+
+// ServerBackups is a server's backup settings and state.
+type ServerBackups struct {
+	Enabled bool
+	Keep    int
+	Count   int
+	// LastBackupAt and NextBackupAt are nil when there is none.
+	LastBackupAt, NextBackupAt *time.Time
+}
+
+// BackupSettings is a server's backup toggle and how many backups it keeps.
+type BackupSettings struct {
+	Enabled bool
+	Keep    int
+}
+
+const (
+	MinBackupKeep = 1
+	MaxBackupKeep = 14
+	// backupSlotPrime spreads servers over the day: slot = id * prime mod 1440.
+	backupSlotPrime = 7919
+)
 
 type CreateInput struct {
 	Name, ServerType, Image, Location string
@@ -130,12 +159,15 @@ type CreateInput struct {
 	Labels     map[string]string
 	StartAfter bool
 	Firewalls  []int64
+	// Backups nil leaves backups off.
+	Backups *BackupSettings
 }
 
 // UpdateInput changes only the non-nil fields.
 type UpdateInput struct {
-	Name   *string
-	Labels *map[string]string
+	Name    *string
+	Labels  *map[string]string
+	Backups *BackupSettings
 }
 
 var (
@@ -146,6 +178,8 @@ var (
 	errNotFound  = apierr.New(http.StatusNotFound, "not_found", "not found")
 	errNoJobs    = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
 	errLocked    = apierr.New(http.StatusConflict, "locked", "the server has a running action")
+	errBackingUp = apierr.New(http.StatusConflict, "backup_in_progress", "A backup of this server is running")
+	errNoBackups = apierr.New(http.StatusUnprocessableEntity, "backups_unavailable", "Backups are not available in this location")
 	ErrMissing   = apierr.New(http.StatusConflict, "server_missing", "the server's VM is missing in Proxmox")
 	errNotReady  = apierr.New(http.StatusConflict, "server_not_ready", "the server has no usable VM")
 	errNotOff    = apierr.New(http.StatusConflict, "server_not_stopped", "the server must be stopped")
@@ -262,6 +296,14 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	}
 	fwIDs := slices.Compact(slices.Sorted(slices.Values(in.Firewalls)))
 	delta := projects.Usage{Servers: 1, VCPU: typ.Cores, MemoryMB: typ.MemoryMB, DiskGB: typ.DiskGB, IPs: len(families)}
+	if in.Backups != nil {
+		if err := s.checkBackups(*in.Backups, loc, false); err != nil {
+			return Server{}, actions.Action{}, err
+		}
+		if in.Backups.Enabled {
+			delta.BackupsReserved = in.Backups.Keep
+		}
+	}
 
 	var id int64
 	var act actions.Action
@@ -285,11 +327,22 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			if err != nil {
 				return err
 			}
-			row, err := etx.Server.Create().SetProjectID(projectID).SetName(in.Name).SetLocationID(loc.ID).SetNode(nodeName).
+			create := etx.Server.Create().SetProjectID(projectID).SetName(in.Name).SetLocationID(loc.ID).SetNode(nodeName).
 				SetTemplateVmid(vmid).SetServerTypeID(typ.ID).SetImageID(img.ID).SetMAC(mac).SetLabels(labels).
-				SetCores(typ.Cores).SetMemoryMB(typ.MemoryMB).SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys).Save(ctx)
+				SetCores(typ.Cores).SetMemoryMB(typ.MemoryMB).SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys)
+			if in.Backups != nil {
+				create.SetBackupsEnabled(in.Backups.Enabled).SetBackupKeep(in.Backups.Keep)
+				if in.Backups.Enabled {
+					create.SetBackupsEnabledAt(time.Now())
+				}
+			}
+			row, err := create.Save(ctx)
 			if err != nil {
 				return writeErr(err)
+			}
+			// The id is known only now.
+			if err := etx.Server.UpdateOneID(row.ID).SetBackupSlot(int(row.ID * backupSlotPrime % 1440)).Exec(ctx); err != nil {
+				return err
 			}
 			for _, f := range families {
 				if _, err := ipam.Allocate(ctx, etx, loc.ID, f, row.ID); err != nil {
@@ -548,6 +601,17 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			atts[r.ProjectID] = att
 		}
 		out[i].Firewalls = att.Effective(r.ID, out[i].Labels)
+		out[i].Backups = ServerBackups{Enabled: r.BackupsEnabled, Keep: r.BackupKeep}
+	}
+	if s.o.BackupInfo != nil {
+		info, err := s.o.BackupInfo(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		for i := range out {
+			b := info[out[i].ID]
+			out[i].Backups.Count, out[i].Backups.LastBackupAt, out[i].Backups.NextBackupAt = b.Count, b.LastBackupAt, b.NextBackupAt
+		}
 	}
 	return out, nil
 }
@@ -567,7 +631,18 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 			return Server{}, err
 		}
 	}
+	if in.Backups != nil {
+		if err := checkKeep(in.Backups.Keep); err != nil {
+			return Server{}, err
+		}
+	}
 	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		// The project lock comes first, before the shared lock lockProjectFirewalls would upgrade.
+		if in.Backups != nil {
+			if err := projects.LockProject(ctx, etx, projectID); err != nil {
+				return err
+			}
+		}
 		if labels != nil {
 			if err := lockProjectFirewalls(ctx, etx, projectID); err != nil {
 				return err
@@ -583,6 +658,11 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 			}
 		}
 		u := etx.Server.UpdateOneID(id)
+		if in.Backups != nil {
+			if err := s.applyBackups(ctx, etx, row, *in.Backups, u); err != nil {
+				return err
+			}
+		}
 		if in.Name != nil {
 			u.SetName(*in.Name)
 		}
@@ -595,6 +675,66 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		return Server{}, err
 	}
 	return s.Get(ctx, projectID, id)
+}
+
+func checkKeep(keep int) error {
+	if keep < MinBackupKeep || keep > MaxBackupKeep {
+		return invalid("backups keep must be between %d and %d", MinBackupKeep, MaxBackupKeep)
+	}
+	return nil
+}
+
+// checkBackups validates b; wasOn is whether the server already has backups on, which skips the storage check.
+func (s *Service) checkBackups(b BackupSettings, loc catalog.Location, wasOn bool) error {
+	if err := checkKeep(b.Keep); err != nil {
+		return err
+	}
+	if b.Enabled && !wasOn && !s.o.Catalog.BackupsAvailable(loc) {
+		return errNoBackups
+	}
+	return nil
+}
+
+// StoredBackups matches the backups that count against a project's backup quota.
+var StoredBackups = backup.StatusNotIn(backup.StatusQueued, backup.StatusError)
+
+// BackupReservation is what the server reserves of its project's backup quota: its keep when on, else its stored backups.
+func BackupReservation(ctx context.Context, c *ent.Client, row *ent.Server) (int, error) {
+	if row.BackupsEnabled {
+		return row.BackupKeep, nil
+	}
+	return c.Backup.Query().Where(backup.ServerID(row.ID), StoredBackups).Count(ctx)
+}
+
+// applyBackups reserves the change in keep under the project lock and sets the backup columns on u.
+func (s *Service) applyBackups(ctx context.Context, etx *ent.Client, row *ent.Server, b BackupSettings, u *ent.ServerUpdateOne) error {
+	loc, err := s.o.Catalog.GetLocation(ctx, row.LocationID)
+	if err != nil {
+		return err
+	}
+	if err := s.checkBackups(b, loc, row.BackupsEnabled); err != nil {
+		return err
+	}
+	old, err := BackupReservation(ctx, etx, row)
+	if err != nil {
+		return err
+	}
+	next := b.Keep
+	if !b.Enabled {
+		if next, err = etx.Backup.Query().Where(backup.ServerID(row.ID), StoredBackups).Count(ctx); err != nil {
+			return err
+		}
+	}
+	if next > old {
+		if err := s.o.Projects.ReserveQuota(ctx, etx, row.ProjectID, projects.Usage{BackupsReserved: next - old}); err != nil {
+			return err
+		}
+	}
+	u.SetBackupsEnabled(b.Enabled).SetBackupKeep(b.Keep)
+	if b.Enabled && !row.BackupsEnabled {
+		u.SetBackupsEnabledAt(time.Now())
+	}
+	return nil
 }
 
 // lockProjectFirewalls serializes a label change with firewall changes, taking their locks before the server's.
@@ -654,6 +794,13 @@ func LockServer(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.
 		return nil, err
 	}
 	if busy {
+		backingUp, err := tx.Action.Query().Where(ActionsOf(projectID, id), action.StatusEQ(action.StatusRunning), action.Command(KindCreateBackup)).Exist(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if backingUp {
+			return nil, errBackingUp
+		}
 		return nil, errLocked
 	}
 	return row, nil
