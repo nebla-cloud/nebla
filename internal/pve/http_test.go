@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -908,5 +909,112 @@ func TestRestoreVMForm(t *testing.T) {
 	up, err := c.RestoreVM(ctx(t), "pve1", 8001, "nebla-pbs:backup/vm/7990/2026-11-23T21:14:39Z", "local-lvm")
 	if err != nil || up != "UPID:pve1:2" {
 		t.Fatalf("up = %q err=%v", up, err)
+	}
+}
+
+func TestSDNZonesParse(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api2/json/cluster/sdn/zones":
+			fmt.Fprint(w, `{"data":[{"zone":"nbspike","type":"simple","ipam":"pve","digest":"d1"},{"zone":"z2","type":"vxlan","mtu":1450,"nodes":"a,b","digest":"d1"}]}`)
+		case "/api2/json/cluster/sdn/vnets":
+			fmt.Fprint(w, `{"data":[{"vnet":"nbs1","zone":"nbspike","type":"vnet","digest":"d2"},{"vnet":"v2","zone":"z2","type":"vnet","vlanaware":1,"digest":"d2"}]}`)
+		case "/api2/json/cluster/sdn/vnets/nbs1/subnets":
+			fmt.Fprint(w, `{"data":[]}`)
+		case "/api2/json/cluster/sdn/vnets/v2/subnets":
+			fmt.Fprint(w, `{"data":[{"subnet":"z2-10.0.0.0-24","cidr":"10.0.0.0/24","type":"subnet","vnet":"v2"}]}`)
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+		}
+	})
+	zones, err := c.SDNZones(ctx(t))
+	want := []pve.SDNZone{{Zone: "nbspike", Type: "simple"}, {Zone: "z2", Type: "vxlan", MTU: 1450, Nodes: []string{"a", "b"}}}
+	if err != nil || !reflect.DeepEqual(zones, want) {
+		t.Fatalf("zones = %+v, %v", zones, err)
+	}
+	vnets, err := c.SDNVNets(ctx(t))
+	if err != nil || !reflect.DeepEqual(vnets, []pve.SDNVNet{{VNet: "nbs1", Zone: "nbspike"}, {VNet: "v2", Zone: "z2", VLANAware: true}}) {
+		t.Fatalf("vnets = %+v, %v", vnets, err)
+	}
+	if s, err := c.SDNSubnets(ctx(t), "nbs1"); err != nil || len(s) != 0 {
+		t.Fatalf("subnets = %v, %v", s, err)
+	}
+	if s, err := c.SDNSubnets(ctx(t), "v2"); err != nil || !slices.Equal(s, []string{"10.0.0.0/24"}) {
+		t.Fatalf("subnets = %v, %v", s, err)
+	}
+}
+
+func TestGuestBridgesIncludesPendingAndSnapshots(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch strings.TrimPrefix(r.URL.Path, "/api2/json/nodes/pve1/qemu/101") {
+		case "/config":
+			fmt.Fprint(w, `{"data":{"name":"a","net0":"virtio=BC:24:11:00:00:01,bridge=vmbr0,firewall=1","net1":"virtio=BC:24:11:00:00:02,bridge=nbs1","digest":"x"}}`)
+		case "/pending":
+			fmt.Fprint(w, `{"data":[{"key":"net1","value":"virtio=BC:24:11:00:00:02,bridge=nbs1","pending":"virtio=BC:24:11:00:00:02,bridge=nbs2"},{"key":"net2","delete":1,"value":"virtio=BC:24:11:00:00:03,bridge=nbs3"},{"key":"name","value":"a"}]}`)
+		case "/snapshot":
+			fmt.Fprint(w, `{"data":[{"name":"snap1","parent":null},{"name":"current","parent":"snap1"}]}`)
+		case "/snapshot/snap1/config":
+			fmt.Fprint(w, `{"data":{"net0":"virtio=BC:24:11:00:00:01,bridge=nbs4","snaptime":1700000000}}`)
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	})
+	got, err := c.GuestBridges(ctx(t), pve.GuestRef{VMID: 101, Node: "pve1", Kind: "qemu"})
+	if err != nil || !slices.Equal(got, []string{"nbs1", "nbs2", "nbs3", "nbs4", "vmbr0"}) {
+		t.Fatalf("bridges = %v, %v", got, err)
+	}
+}
+
+func TestGuestsKeepsBothKinds(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[{"type":"qemu","vmid":100,"node":"a","template":1},{"type":"lxc","vmid":200,"node":"b"},{"type":"storage","id":"storage/a/local"}]}`)
+	})
+	got, err := c.Guests(ctx(t))
+	if err != nil || !slices.Equal(got, []pve.GuestRef{{VMID: 100, Node: "a", Kind: "qemu"}, {VMID: 200, Node: "b", Kind: "lxc"}}) {
+		t.Fatalf("guests = %v, %v", got, err)
+	}
+}
+
+func TestSetIPSetNamed(t *testing.T) {
+	var got []string
+	have := false
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got = append(got, r.Method+" "+strings.TrimPrefix(r.URL.Path, "/api2/json/nodes/pve1/qemu/101/firewall")+" "+string(b))
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/ipset"):
+			if have {
+				fmt.Fprint(w, `{"data":[{"name":"ipfilter-net1"}]}`)
+				return
+			}
+			fmt.Fprint(w, `{"data":[]}`)
+		case r.Method == http.MethodGet:
+			fmt.Fprint(w, `{"data":[{"cidr":"10.0.0.9"}]}`)
+		default:
+			have = true
+			fmt.Fprint(w, `{"data":null}`)
+		}
+	})
+	ips := []netip.Addr{netip.MustParseAddr("10.0.0.5")}
+	if err := c.SetIPSet(ctx(t), "pve1", 101, pve.IPFilterSetFor(1), ips); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetIPSet(ctx(t), "pve1", 101, "ipfilter-net1", ips); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"GET /ipset ",
+		"POST /ipset name=ipfilter-net1",
+		"GET /ipset/ipfilter-net1 ",
+		"DELETE /ipset/ipfilter-net1/10.0.0.9 ",
+		"POST /ipset/ipfilter-net1 cidr=10.0.0.5",
+		"GET /ipset ",
+		"GET /ipset/ipfilter-net1 ",
+		"DELETE /ipset/ipfilter-net1/10.0.0.9 ",
+		"POST /ipset/ipfilter-net1 cidr=10.0.0.5",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %q\nwant %q", got, want)
 	}
 }

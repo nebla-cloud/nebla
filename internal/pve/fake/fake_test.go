@@ -261,12 +261,12 @@ func TestIPSetHolders(t *testing.T) {
 	s.OnIPSetWrite(func() {
 		mu.Lock()
 		defer mu.Unlock()
-		seen = append(seen, len(s.IPSetHolders(ip.String())))
+		seen = append(seen, len(s.IPSetHolders(ip.String(), pve.IPFilterSet)))
 	})
 	if err := c.SetFirewall(ctx, "pve1", 101, []netip.Addr{ip}); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.IPSetHolders(ip.String()); !slices.Equal(got, []int{101}) {
+	if got := s.IPSetHolders(ip.String(), pve.IPFilterSet); !slices.Equal(got, []int{101}) {
 		t.Fatalf("holders = %v", got)
 	}
 	if err := c.SetFirewall(ctx, "pve1", 101, nil); err != nil {
@@ -275,7 +275,7 @@ func TestIPSetHolders(t *testing.T) {
 	if err := c.SetFirewall(ctx, "pve1", 102, []netip.Addr{ip}); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.IPSetHolders(ip.String()); !slices.Equal(got, []int{102}) {
+	if got := s.IPSetHolders(ip.String(), pve.IPFilterSet); !slices.Equal(got, []int{102}) {
 		t.Fatalf("holders = %v", got)
 	}
 	mu.Lock()
@@ -442,5 +442,107 @@ func TestFakeBackupFailures(t *testing.T) {
 	}
 	if _, ok := s.VM(204); ok {
 		t.Fatal("failed restore left a vm")
+	}
+}
+
+func TestFakeSDNDenied(t *testing.T) {
+	s := fake.New(t)
+	s.AddNode("pve1", 8, 32768)
+	s.AddSDN(pve.SDNZone{Zone: "z", Type: "simple"}, pve.SDNVNet{VNet: "v", Zone: "z"})
+	s.SetSDNSubnets("v", "10.0.0.0/24")
+	c := pve.New(s.Conn())
+	z, _ := c.SDNZones(context.Background())
+	n, _ := c.SDNVNets(context.Background())
+	sub, err := c.SDNSubnets(context.Background(), "v")
+	if len(z) != 1 || len(n) != 1 || err != nil || !slices.Equal(sub, []string{"10.0.0.0/24"}) {
+		t.Fatalf("z=%v n=%v sub=%v err=%v", z, n, sub, err)
+	}
+	s.DenySDNAudit(true)
+	z, err1 := c.SDNZones(context.Background())
+	n, err2 := c.SDNVNets(context.Background())
+	if len(z) != 0 || len(n) != 0 || err1 != nil || err2 != nil {
+		t.Fatalf("denied: z=%v n=%v %v %v", z, n, err1, err2)
+	}
+}
+
+func TestFakePendingUnplug(t *testing.T) {
+	s := fake.New(t)
+	s.AddNode("pve1", 8, 32768)
+	s.AddVM("pve1", 101, "a")
+	s.SetVMConfig(101, "net1", "virtio=AA:BB:CC:00:00:01,bridge=nbs1")
+	s.SetPendingUnplug(101, "net1", 1)
+	c := pve.New(s.Conn())
+	ctx := context.Background()
+	if err := c.SetConfig(ctx, "pve1", 101, map[string]string{"delete": "net1"}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, _ := c.Config(ctx, "pve1", 101); cfg["net1"] == "" {
+		t.Fatal("first delete should stay pending")
+	}
+	p, _ := c.Pending(ctx, "pve1", 101)
+	if !slices.ContainsFunc(p, func(i pve.PendingItem) bool { return i.Key == "net1" && i.Delete == 1 }) {
+		t.Fatalf("pending = %+v", p)
+	}
+	if err := c.SetConfig(ctx, "pve1", 101, map[string]string{"delete": "net1"}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, _ := c.Config(ctx, "pve1", 101); cfg["net1"] != "" {
+		t.Fatalf("second delete should apply: %v", cfg)
+	}
+}
+
+func TestFakeNetHotplug(t *testing.T) {
+	s := fake.New(t)
+	s.AddNode("pve1", 8, 32768)
+	s.AddVM("pve1", 101, "a")
+	s.SetVMStatus(101, "running")
+	s.SetVMConfig(101, "hotplug", "disk")
+	c := pve.New(s.Conn())
+	ctx := context.Background()
+	if err := c.SetConfig(ctx, "pve1", 101, map[string]string{"net1": "virtio=AA:BB:CC:00:00:01,bridge=nbs1"}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, _ := c.Config(ctx, "pve1", 101); cfg["net1"] != "" {
+		t.Fatalf("net1 applied without network hotplug: %v", cfg)
+	}
+	s.SetVMConfig(101, "hotplug", "network,disk")
+	if err := c.SetConfig(ctx, "pve1", 101, map[string]string{"net1": "virtio=AA:BB:CC:00:00:01,bridge=nbs1"}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, _ := c.Config(ctx, "pve1", 101); cfg["net1"] == "" {
+		t.Fatal("net1 should apply with network hotplug")
+	}
+}
+
+func TestFakeForeignGuestAndNamedIPSet(t *testing.T) {
+	s := fake.New(t)
+	s.AddNode("pve1", 8, 32768)
+	s.AddVM("pve1", 101, "a")
+	s.AddForeignGuest(pve.GuestRef{VMID: 300, Node: "pve1", Kind: "lxc"}, map[string]string{"net0": "name=eth0,bridge=nbs1"},
+		map[string]map[string]string{"s": {"net0": "name=eth0,bridge=vmbr9"}})
+	c := pve.New(s.Conn())
+	ctx := context.Background()
+	gs, err := c.Guests(ctx)
+	if err != nil || !slices.Contains(gs, pve.GuestRef{VMID: 300, Node: "pve1", Kind: "lxc"}) {
+		t.Fatalf("guests = %v, %v", gs, err)
+	}
+	if b, err := c.GuestBridges(ctx, pve.GuestRef{VMID: 300, Node: "pve1", Kind: "lxc"}); err != nil || !slices.Equal(b, []string{"nbs1", "vmbr9"}) {
+		t.Fatalf("bridges = %v, %v", b, err)
+	}
+	name := pve.IPFilterSetFor(1)
+	if err := c.SetIPSet(ctx, "pve1", 101, name, []netip.Addr{netip.MustParseAddr("10.0.0.5")}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(s.IPSetHolders("10.0.0.5", name), []int{101}) || len(s.IPSetHolders("10.0.0.5", pve.IPFilterSet)) != 0 {
+		t.Fatal("holders wrong")
+	}
+	if err := c.DeleteIPSet(ctx, "pve1", 101, name); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := c.IPSet(ctx, "pve1", 101, name); ok {
+		t.Fatal("set should be gone")
+	}
+	if err := c.DeleteIPSet(ctx, "pve1", 101, name); err != nil {
+		t.Fatalf("missing set: %v", err)
 	}
 }

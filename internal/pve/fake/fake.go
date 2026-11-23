@@ -93,6 +93,14 @@ type vm struct {
 	rules    []pve.FirewallRule
 	rev      int // bumped on every config write; it is the digest
 	pending  map[string]pendingChange
+	snaps    map[string]map[string]string // snapshot configs by name
+	unplug   map[string]int               // delete=<key> writes that stay pending
+}
+
+// lxcGuest is a container the fake serves config and snapshots for.
+type lxcGuest struct {
+	config map[string]string
+	snaps  map[string]map[string]string
 }
 
 type task struct {
@@ -125,6 +133,11 @@ type Server struct {
 	nodes   map[string]*node
 	vms     map[int]*vm
 	cts     map[int]string // LXC containers: vmid to node
+	lxc     map[int]*lxcGuest
+	zones   []pve.SDNZone
+	vnets   []pve.SDNVNet
+	subnets map[string][]string
+	sdnDeny bool
 	tasks   map[string]*task
 	volumes map[string][]byte
 	backups map[string]*archive // by volid
@@ -157,7 +170,7 @@ type FakeDownload struct{ Node, Storage, URL, Filename, Content, Checksum, Algor
 func New(t *testing.T) *Server {
 	t.Helper()
 	s := &Server{tokenID: "root@pam!nebla", secret: "fake-secret", nodes: map[string]*node{},
-		vms: map[int]*vm{}, cts: map[int]string{}, tasks: map[string]*task{}, volumes: map[string][]byte{}, tickets: map[string]bool{}}
+		vms: map[int]*vm{}, cts: map[int]string{}, lxc: map[int]*lxcGuest{}, subnets: map[string][]string{}, tasks: map[string]*task{}, volumes: map[string][]byte{}, tickets: map[string]bool{}}
 	mux := http.NewServeMux()
 	s.routes(mux)
 	s.srv = httptest.NewTLSServer(s.wrap(mux))
@@ -296,6 +309,53 @@ func (s *Server) AddContainer(nodeName string, vmid int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cts[vmid] = nodeName
+}
+
+// AddSDN lists a zone and its vnets.
+func (s *Server) AddSDN(zone pve.SDNZone, vnets ...pve.SDNVNet) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.zones = append(s.zones, zone)
+	s.vnets = append(s.vnets, vnets...)
+}
+
+// SetSDNSubnets sets the CIDRs a vnet lists.
+func (s *Server) SetSDNSubnets(vnet string, cidrs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.subnets[vnet] = slices.Clone(cidrs)
+}
+
+// DenySDNAudit makes SDN reads answer empty lists, as PVE does without SDN.Audit.
+func (s *Server) DenySDNAudit(deny bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sdnDeny = deny
+}
+
+// AddForeignGuest adds a guest with the given config and snapshot configs, listed in /cluster/resources.
+func (s *Server) AddForeignGuest(g pve.GuestRef, cfg map[string]string, snapshots map[string]map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sweep()
+	if g.Kind == "lxc" {
+		s.cts[g.VMID] = g.Node
+		s.lxc[g.VMID] = &lxcGuest{config: maps.Clone(cfg), snaps: maps.Clone(snapshots)}
+		return
+	}
+	s.vms[g.VMID] = &vm{node: g.Node, status: "stopped", firewall: map[string]string{}, ipsets: map[string][]string{},
+		config: maps.Clone(cfg), snaps: maps.Clone(snapshots)}
+}
+
+// SetPendingUnplug makes the next n delete=<key> writes on vmid leave the key pending.
+func (s *Server) SetPendingUnplug(vmid int, key string, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v := s.vms[vmid]
+	if v.unplug == nil {
+		v.unplug = map[string]int{}
+	}
+	v.unplug[key] = n
 }
 
 // AddVM adds a stopped, non-template VM with a scsi0 disk.
@@ -467,13 +527,13 @@ func (s *Server) OnIPSetWrite(fn func()) {
 	s.onIPSetWrite = fn
 }
 
-// IPSetHolders lists the VMIDs whose anti-spoofing ipset contains ip, ascending.
-func (s *Server) IPSetHolders(ip string) []int {
+// IPSetHolders lists the VMIDs whose ipset name contains ip, ascending.
+func (s *Server) IPSetHolders(ip, name string) []int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []int
 	for id, v := range s.vms {
-		if slices.ContainsFunc(v.ipsets[pve.IPFilterSet], func(c string) bool { return strings.Split(c, "/")[0] == ip }) {
+		if slices.ContainsFunc(v.ipsets[name], func(c string) bool { return strings.Split(c, "/")[0] == ip }) {
 			out = append(out, id)
 		}
 	}
@@ -702,6 +762,24 @@ func diskHotplug(v *vm) bool {
 		h = "network,disk,usb"
 	}
 	return slices.Contains(strings.Split(h, ","), "disk")
+}
+
+func isNet(k string) bool {
+	n, ok := strings.CutPrefix(k, "net")
+	if !ok || n == "" {
+		return false
+	}
+	_, err := strconv.Atoi(n)
+	return err == nil
+}
+
+// netHotplug reports whether hotplug includes network; a missing key means Proxmox's default.
+func netHotplug(v *vm) bool {
+	h, ok := v.config["hotplug"]
+	if !ok {
+		h = "network,disk,usb"
+	}
+	return slices.Contains(strings.Split(h, ","), "network")
 }
 
 func (v *vm) setPending(k string, pc pendingChange) {
@@ -986,6 +1064,158 @@ func (s *Server) routes(mux *http.ServeMux) {
 		sort.Slice(out, func(i, j int) bool { return out[i]["vmid"].(int) < out[j]["vmid"].(int) })
 		return out, nil
 	})
+	s.handle(mux, "GET /cluster/sdn/zones", false, func(*http.Request, bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		out := []map[string]any{}
+		for _, z := range s.zones {
+			if s.sdnDeny {
+				break
+			}
+			row := map[string]any{"zone": z.Zone, "type": z.Type, "digest": "fake"}
+			if z.MTU != 0 {
+				row["mtu"] = z.MTU
+			}
+			if len(z.Nodes) > 0 {
+				row["nodes"] = strings.Join(z.Nodes, ",")
+			}
+			out = append(out, row)
+		}
+		return out, nil
+	})
+	s.handle(mux, "GET /cluster/sdn/vnets", false, func(*http.Request, bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		out := []map[string]any{}
+		for _, n := range s.vnets {
+			if s.sdnDeny {
+				break
+			}
+			row := map[string]any{"vnet": n.VNet, "zone": n.Zone, "type": "vnet", "digest": "fake"}
+			if n.VLANAware {
+				row["vlanaware"] = 1
+			}
+			out = append(out, row)
+		}
+		return out, nil
+	})
+	s.handle(mux, "GET /cluster/sdn/vnets/{vnet}/subnets", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		out := []map[string]any{}
+		if !s.sdnDeny {
+			for _, c := range s.subnets[r.PathValue("vnet")] {
+				out = append(out, map[string]any{"subnet": c, "cidr": c, "type": "subnet", "vnet": r.PathValue("vnet")})
+			}
+		}
+		return out, nil
+	})
+	// lxcFor returns the container on the path's node; caller holds s.mu.
+	lxcFor := func(r *http.Request) (*lxcGuest, *apiErr) {
+		id, _ := strconv.Atoi(r.PathValue("vmid"))
+		if g, ok := s.lxc[id]; ok && s.cts[id] == r.PathValue("node") {
+			return g, nil
+		}
+		return nil, notExist(id, r.PathValue("node"))
+	}
+	snapList := func(snaps map[string]map[string]string) []map[string]any {
+		out := []map[string]any{}
+		for _, n := range slices.Sorted(maps.Keys(snaps)) {
+			out = append(out, map[string]any{"name": n})
+		}
+		return append(out, map[string]any{"name": "current"})
+	}
+	snapConfig := func(snaps map[string]map[string]string, name string) (any, *apiErr) {
+		cfg, ok := snaps[name]
+		if !ok {
+			return nil, &apiErr{500, "snapshot '" + name + "' does not exist"}
+		}
+		out := map[string]any{}
+		for k, val := range cfg {
+			out[k] = val
+		}
+		return out, nil
+	}
+	s.handle(mux, "GET /nodes/{node}/lxc/{vmid}/config", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		g, e := lxcFor(r)
+		if e != nil {
+			return nil, e
+		}
+		out := map[string]any{"digest": "fake"}
+		for k, val := range g.config {
+			out[k] = val
+		}
+		return out, nil
+	})
+	s.handle(mux, "GET /nodes/{node}/lxc/{vmid}/pending", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		g, e := lxcFor(r)
+		if e != nil {
+			return nil, e
+		}
+		out := []map[string]any{}
+		for _, k := range slices.Sorted(maps.Keys(g.config)) {
+			out = append(out, map[string]any{"key": k, "value": g.config[k]})
+		}
+		return out, nil
+	})
+	s.handle(mux, "GET /nodes/{node}/lxc/{vmid}/snapshot", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		g, e := lxcFor(r)
+		if e != nil {
+			return nil, e
+		}
+		return snapList(g.snaps), nil
+	})
+	s.handle(mux, "GET /nodes/{node}/lxc/{vmid}/snapshot/{name}/config", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		g, e := lxcFor(r)
+		if e != nil {
+			return nil, e
+		}
+		return snapConfig(g.snaps, r.PathValue("name"))
+	})
+	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/snapshot", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		return snapList(v.snaps), nil
+	})
+	s.handle(mux, "GET /nodes/{node}/qemu/{vmid}/snapshot/{name}/config", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		return snapConfig(v.snaps, r.PathValue("name"))
+	})
+	s.handle(mux, "DELETE /nodes/{node}/qemu/{vmid}/firewall/ipset/{name}", false, func(r *http.Request, _ bool) (any, *apiErr) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		v, _, e := vmFor(r)
+		if e != nil {
+			return nil, e
+		}
+		name := r.PathValue("name")
+		entries, ok := v.ipsets[name]
+		if !ok {
+			return nil, &apiErr{500, "IPSet '" + name + "' does not exist"}
+		}
+		if len(entries) > 0 {
+			return nil, &apiErr{500, "IPSet '" + name + "' is not empty"}
+		}
+		delete(v.ipsets, name)
+		return nil, nil
+	})
 	s.handle(mux, "GET /cluster/nextid", false, func(*http.Request, bool) (any, *apiErr) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -1071,11 +1301,12 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, &apiErr{500, "detected modified configuration - file changed by other user? Try again. (digest mismatch)"}
 		}
 		hot := diskHotplug(v)
+		netHot := v.status != "running" || netHotplug(v)
 		for k, val := range f {
 			if k == "delete" || k == "digest" {
 				continue
 			}
-			if isVirtio(k) && !hot {
+			if isVirtio(k) && !hot || isNet(k) && !netHot {
 				v.setPending(k, pendingChange{value: val})
 				continue
 			}
@@ -1084,7 +1315,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 		}
 		for _, k := range strings.Split(f["delete"], ",") {
 			k = strings.TrimSpace(k)
-			if _, has := v.config[k]; has && isVirtio(k) && !hot {
+			if _, has := v.config[k]; has && (isVirtio(k) && !hot || isNet(k) && !netHot || v.unplug[k] > 0) {
+				if v.unplug[k] > 0 {
+					v.unplug[k]--
+				}
 				v.setPending(k, pendingChange{del: true})
 				continue
 			}

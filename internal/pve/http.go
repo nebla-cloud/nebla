@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -440,13 +441,17 @@ func (c *httpClient) SetConfigDigest(ctx context.Context, node string, vmid int,
 }
 
 func (c *httpClient) Pending(ctx context.Context, node string, vmid int) ([]PendingItem, error) {
+	return c.pendingAt(ctx, vmPath(node, vmid))
+}
+
+func (c *httpClient) pendingAt(ctx context.Context, base string) ([]PendingItem, error) {
 	var raw []struct {
 		Key     string `json:"key"`
 		Value   any    `json:"value"`
 		Pending any    `json:"pending"`
 		Delete  num    `json:"delete"`
 	}
-	if err := c.do(ctx, http.MethodGet, vmPath(node, vmid)+"/pending", nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, base+"/pending", nil, &raw); err != nil {
 		return nil, err
 	}
 	out := make([]PendingItem, len(raw))
@@ -611,7 +616,7 @@ func (c *httpClient) ClusterFirewallEnabled(ctx context.Context) (bool, error) {
 // IPFilterSet is the ipset Proxmox's ipfilter checks net0 traffic against.
 const IPFilterSet = "ipfilter-net0"
 
-func (c *httpClient) ipsetExists(ctx context.Context, base string) (bool, error) {
+func (c *httpClient) ipsetExists(ctx context.Context, base, name string) (bool, error) {
 	var sets []struct {
 		Name string `json:"name"`
 	}
@@ -621,15 +626,15 @@ func (c *httpClient) ipsetExists(ctx context.Context, base string) (bool, error)
 	return slices.ContainsFunc(sets, func(s struct {
 		Name string `json:"name"`
 	}) bool {
-		return s.Name == IPFilterSet
+		return s.Name == name
 	}), nil
 }
 
-func (c *httpClient) ipsetEntries(ctx context.Context, base string) ([]string, error) {
+func (c *httpClient) ipsetEntries(ctx context.Context, base, name string) ([]string, error) {
 	var have []struct {
 		CIDR string `json:"cidr"`
 	}
-	if err := c.do(ctx, http.MethodGet, base+"/ipset/"+IPFilterSet, nil, &have); err != nil {
+	if err := c.do(ctx, http.MethodGet, base+"/ipset/"+url.PathEscape(name), nil, &have); err != nil {
 		return nil, err
 	}
 	out := make([]string, len(have))
@@ -640,32 +645,40 @@ func (c *httpClient) ipsetEntries(ctx context.Context, base string) ([]string, e
 }
 
 func (c *httpClient) FirewallIPSet(ctx context.Context, node string, vmid int) ([]string, bool, error) {
+	return c.IPSet(ctx, node, vmid, IPFilterSet)
+}
+
+func (c *httpClient) IPSet(ctx context.Context, node string, vmid int, name string) ([]string, bool, error) {
 	base := vmPath(node, vmid) + "/firewall"
-	ok, err := c.ipsetExists(ctx, base)
+	ok, err := c.ipsetExists(ctx, base, name)
 	if err != nil || !ok {
 		return nil, false, err
 	}
-	cidrs, err := c.ipsetEntries(ctx, base)
+	cidrs, err := c.ipsetEntries(ctx, base, name)
 	return cidrs, err == nil, err
 }
 
 func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error {
-	base := vmPath(node, vmid) + "/firewall"
 	// Policies are the renderer's to write, not this call.
 	opts := url.Values{"enable": {"1"}, "ipfilter": {"1"}, "macfilter": {"1"}}
-	if err := c.do(ctx, http.MethodPut, base+"/options", opts, nil); err != nil {
+	if err := c.do(ctx, http.MethodPut, vmPath(node, vmid)+"/firewall/options", opts, nil); err != nil {
 		return err
 	}
-	ok, err := c.ipsetExists(ctx, base)
+	return c.SetIPSet(ctx, node, vmid, IPFilterSet, ips)
+}
+
+func (c *httpClient) SetIPSet(ctx context.Context, node string, vmid int, name string, ips []netip.Addr) error {
+	base := vmPath(node, vmid) + "/firewall"
+	ok, err := c.ipsetExists(ctx, base, name)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		if err := c.do(ctx, http.MethodPost, base+"/ipset", url.Values{"name": {IPFilterSet}}, nil); err != nil {
+		if err := c.do(ctx, http.MethodPost, base+"/ipset", url.Values{"name": {name}}, nil); err != nil {
 			return err
 		}
 	}
-	have, err := c.ipsetEntries(ctx, base)
+	have, err := c.ipsetEntries(ctx, base, name)
 	if err != nil {
 		return err
 	}
@@ -679,7 +692,7 @@ func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips
 			present[h] = true
 			continue
 		}
-		if err := c.do(ctx, http.MethodDelete, base+"/ipset/"+IPFilterSet+"/"+url.PathEscape(h), nil, nil); err != nil {
+		if err := c.do(ctx, http.MethodDelete, base+"/ipset/"+url.PathEscape(name)+"/"+url.PathEscape(h), nil, nil); err != nil {
 			return err
 		}
 	}
@@ -688,11 +701,155 @@ func (c *httpClient) SetFirewall(ctx context.Context, node string, vmid int, ips
 			continue
 		}
 		present[ip.String()] = true
-		if err := c.do(ctx, http.MethodPost, base+"/ipset/"+IPFilterSet, url.Values{"cidr": {ip.String()}}, nil); err != nil {
+		if err := c.do(ctx, http.MethodPost, base+"/ipset/"+url.PathEscape(name), url.Values{"cidr": {ip.String()}}, nil); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (c *httpClient) DeleteIPSet(ctx context.Context, node string, vmid int, name string) error {
+	base := vmPath(node, vmid) + "/firewall"
+	ok, err := c.ipsetExists(ctx, base, name)
+	if err != nil || !ok {
+		return err
+	}
+	have, err := c.ipsetEntries(ctx, base, name)
+	if err != nil {
+		return err
+	}
+	for _, h := range have {
+		if err := c.do(ctx, http.MethodDelete, base+"/ipset/"+url.PathEscape(name)+"/"+url.PathEscape(h), nil, nil); err != nil {
+			return err
+		}
+	}
+	return c.do(ctx, http.MethodDelete, base+"/ipset/"+url.PathEscape(name), nil, nil)
+}
+
+func (c *httpClient) SDNZones(ctx context.Context) ([]SDNZone, error) {
+	var raw []struct {
+		Zone  string `json:"zone"`
+		Type  string `json:"type"`
+		MTU   num    `json:"mtu"`
+		Nodes string `json:"nodes"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/cluster/sdn/zones", nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]SDNZone, len(raw))
+	for i, r := range raw {
+		out[i] = SDNZone{Zone: r.Zone, Type: r.Type, MTU: int(r.MTU)}
+		for n := range strings.SplitSeq(r.Nodes, ",") {
+			if n = strings.TrimSpace(n); n != "" {
+				out[i].Nodes = append(out[i].Nodes, n)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (c *httpClient) SDNVNets(ctx context.Context) ([]SDNVNet, error) {
+	var raw []struct {
+		VNet      string `json:"vnet"`
+		Zone      string `json:"zone"`
+		VLANAware num    `json:"vlanaware"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/cluster/sdn/vnets", nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]SDNVNet, len(raw))
+	for i, r := range raw {
+		out[i] = SDNVNet{VNet: r.VNet, Zone: r.Zone, VLANAware: r.VLANAware != 0}
+	}
+	return out, nil
+}
+
+func (c *httpClient) SDNSubnets(ctx context.Context, vnet string) ([]string, error) {
+	var raw []struct {
+		Subnet string `json:"subnet"`
+		CIDR   string `json:"cidr"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/cluster/sdn/vnets/"+url.PathEscape(vnet)+"/subnets", nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]string, len(raw))
+	for i, r := range raw {
+		out[i] = cmp.Or(r.CIDR, r.Subnet)
+	}
+	return out, nil
+}
+
+func (c *httpClient) Guests(ctx context.Context) ([]GuestRef, error) {
+	var raw []struct {
+		Type string `json:"type"`
+		VMID num    `json:"vmid"`
+		Node string `json:"node"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/cluster/resources", url.Values{"type": {"vm"}}, &raw); err != nil {
+		return nil, err
+	}
+	var out []GuestRef
+	for _, r := range raw {
+		if r.Type == "qemu" || r.Type == "lxc" {
+			out = append(out, GuestRef{VMID: int(r.VMID), Node: r.Node, Kind: r.Type})
+		}
+	}
+	return out, nil
+}
+
+func guestPath(g GuestRef) string {
+	return "/nodes/" + url.PathEscape(g.Node) + "/" + g.Kind + "/" + strconv.Itoa(g.VMID)
+}
+
+var netKey = regexp.MustCompile(`^net\d+$`)
+
+// bridgesIn appends the bridge of every net key in cfg to out.
+func bridgesIn(out []string, cfg map[string]string) []string {
+	for k, v := range cfg {
+		if !netKey.MatchString(k) {
+			continue
+		}
+		for p := range strings.SplitSeq(v, ",") {
+			if b, ok := strings.CutPrefix(p, "bridge="); ok {
+				out = append(out, b)
+			}
+		}
+	}
+	return out
+}
+
+func (c *httpClient) GuestBridges(ctx context.Context, g GuestRef) ([]string, error) {
+	base := guestPath(g)
+	cfg, err := c.getMap(ctx, base+"/config")
+	if err != nil {
+		return nil, fmt.Errorf("guest %d config: %w", g.VMID, err)
+	}
+	out := bridgesIn(nil, cfg)
+	pend, err := c.pendingAt(ctx, base)
+	if err != nil {
+		return nil, fmt.Errorf("guest %d pending: %w", g.VMID, err)
+	}
+	for _, p := range pend {
+		out = bridgesIn(out, map[string]string{p.Key: p.Value})
+		out = bridgesIn(out, map[string]string{p.Key: p.Pending})
+	}
+	var snaps []struct {
+		Name string `json:"name"`
+	}
+	if err := c.do(ctx, http.MethodGet, base+"/snapshot", nil, &snaps); err != nil {
+		return nil, fmt.Errorf("guest %d snapshots: %w", g.VMID, err)
+	}
+	for _, s := range snaps {
+		if s.Name == "current" {
+			continue
+		}
+		sc, err := c.getMap(ctx, base+"/snapshot/"+url.PathEscape(s.Name)+"/config")
+		if err != nil {
+			return nil, fmt.Errorf("guest %d snapshot %s: %w", g.VMID, s.Name, err)
+		}
+		out = bridgesIn(out, sc)
+	}
+	return slices.Compact(slices.Sorted(slices.Values(out))), nil
 }
 
 func (c *httpClient) Power(ctx context.Context, node string, vmid int, op PowerOp) (UPID, error) {

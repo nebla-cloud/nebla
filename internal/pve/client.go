@@ -127,6 +127,27 @@ type PendingItem struct {
 	Delete              int
 }
 
+// SDNZone is one SDN zone; empty Nodes means every node.
+type SDNZone struct {
+	Zone, Type string
+	MTU        int
+	Nodes      []string
+}
+
+type SDNVNet struct {
+	VNet, Zone string
+	VLANAware  bool
+}
+
+// GuestRef names one guest; Kind is "qemu" or "lxc".
+type GuestRef struct {
+	VMID       int
+	Node, Kind string
+}
+
+// IPFilterSetFor is the ipset Proxmox's ipfilter checks for the nic-th interface.
+func IPFilterSetFor(nic int) string { return "ipfilter-net" + strconv.Itoa(nic) }
+
 type Client interface {
 	Version(ctx context.Context) (string, error)
 	NodeVersion(ctx context.Context, node string) (string, error)
@@ -161,6 +182,20 @@ type Client interface {
 	SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error
 	// FirewallIPSet lists the IPFilterSet entries; ok is false when the set does not exist.
 	FirewallIPSet(ctx context.Context, node string, vmid int) (cidrs []string, ok bool, err error)
+	// IPSet lists a named ipset's entries; ok is false when the set does not exist.
+	IPSet(ctx context.Context, node string, vmid int, name string) (cidrs []string, ok bool, err error)
+	// SetIPSet makes the named ipset hold exactly ips, creating it if missing; firewall options stay untouched.
+	SetIPSet(ctx context.Context, node string, vmid int, name string, ips []netip.Addr) error
+	// DeleteIPSet removes the set and its entries; a missing set is not an error.
+	DeleteIPSet(ctx context.Context, node string, vmid int, name string) error
+	// SDNZones and SDNVNets answer empty without SDN.Audit.
+	SDNZones(ctx context.Context) ([]SDNZone, error)
+	SDNVNets(ctx context.Context) ([]SDNVNet, error)
+	SDNSubnets(ctx context.Context, vnet string) ([]string, error)
+	// Guests lists QEMU and LXC guests, templates included.
+	Guests(ctx context.Context) ([]GuestRef, error)
+	// GuestBridges lists the bridge of every net key in the guest's config, pending changes and snapshots.
+	GuestBridges(ctx context.Context, g GuestRef) ([]string, error)
 	FirewallOptions(ctx context.Context, node string, vmid int) (map[string]string, error)
 	SetFirewallOptions(ctx context.Context, node string, vmid int, kv map[string]string) error
 	FirewallRules(ctx context.Context, node string, vmid int) ([]FirewallRule, error)

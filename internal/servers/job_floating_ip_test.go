@@ -153,7 +153,7 @@ func (f *fipEnv) row(t *testing.T, id int64) *ent.IPAddress {
 	return r
 }
 
-func (f *fipEnv) holders(ip string) []int { return f.App.PVE.IPSetHolders(ip) }
+func (f *fipEnv) holders(ip string) []int { return f.App.PVE.IPSetHolders(ip, pve.IPFilterSet) }
 
 // settled creates a floating IP on server a and finishes its assign.
 func (f *fipEnv) settled(t *testing.T) (int64, string) {
@@ -446,12 +446,12 @@ func TestFloatingIPMoveUnderRiver(t *testing.T) {
 	fip, act, err := svc.Create(ctx, e.Project, floatingips.CreateInput{Family: "ipv4", Server: "a"})
 	require.NoError(t, err)
 	waitOK(t, e, act.ID)
-	require.Equal(t, []int{vmidOf(t, e, a.ServerID)}, e.App.PVE.IPSetHolders(fip.IP))
+	require.Equal(t, []int{vmidOf(t, e, a.ServerID)}, e.App.PVE.IPSetHolders(fip.IP, pve.IPFilterSet))
 
 	moved, err := svc.Assign(ctx, e.Project, fip.ID, "b")
 	require.NoError(t, err)
 	waitOK(t, e, moved.ID)
-	require.Equal(t, []int{vmidOf(t, e, b.ServerID)}, e.App.PVE.IPSetHolders(fip.IP))
+	require.Equal(t, []int{vmidOf(t, e, b.ServerID)}, e.App.PVE.IPSetHolders(fip.IP, pve.IPFilterSet))
 }
 
 // netConfig reads network-config from an uploaded seed ISO.
