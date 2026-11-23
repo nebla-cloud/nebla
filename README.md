@@ -19,6 +19,13 @@ types, images and IP pools, with quotas and tenant isolation built in. Nebla dri
 one container next to Postgres and installs nothing on the host. The core is AGPL-3.0 with no limit on nodes. A web
 panel ships in the binary, and the `nebla` CLI works from a terminal (see [Status](#status)). More at [nebla.dev](https://nebla.dev).
 
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/server-detail-dark.webp">
+  <img src="docs/assets/screenshots/server-detail-light.webp" alt="The server page in the Nebla panel: web-1 running Debian 13, with live CPU, network and disk graphs, its addresses and recent activity.">
+</picture>
+</p>
+
 ## Quick start
 
 1. Prepare Proxmox: create the role, user, API token and a cloud-init template as described in
@@ -42,6 +49,79 @@ panel ships in the binary, and the `nebla` CLI works from a terminal (see [Statu
    adding an IP pool. The API is described in [api/openapi.yaml](api/openapi.yaml).
 4. To use the panel from a terminal, install the CLI with `brew install nebla-cloud/tap/nebla` or a binary from
    [GitHub Releases](https://github.com/nebla-cloud/nebla/releases). See the [CLI guide](docs/cli.md#install).
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%">
+
+**Servers**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/server-list-dark.webp">
+  <img src="docs/assets/screenshots/server-list-light.webp" alt="The server list: six servers with their image, type, address, location and a CPU sparkline.">
+</picture>
+
+</td>
+<td width="50%">
+
+**Create server**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/create-server-dark.webp">
+  <img src="docs/assets/screenshots/create-server-light.webp" alt="The create-server page: location, image, type, networking, SSH keys and firewalls, with a summary and the project quota.">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Volumes**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/volumes-dark.webp">
+  <img src="docs/assets/screenshots/volumes-light.webp" alt="The volumes list: two volumes attached to servers and one spare.">
+</picture>
+
+</td>
+<td width="50%">
+
+**Firewalls**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/firewall-dark.webp">
+  <img src="docs/assets/screenshots/firewall-light.webp" alt="A firewall with SSH, HTTP and HTTPS inbound rules, applied to every server labelled role=web.">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Floating IPs**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/floating-ips-dark.webp">
+  <img src="docs/assets/screenshots/floating-ips-light.webp" alt="The floating IP list: one address assigned to web-1 and one spare.">
+</picture>
+
+</td>
+<td width="50%">
+
+**Command palette**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/command-palette-dark.webp">
+  <img src="docs/assets/screenshots/command-palette-light.webp" alt="The command palette, opened with Cmd+K or Ctrl+K, listing pages to jump to.">
+</picture>
+
+</td>
+</tr>
+</table>
+
+The screenshots follow your GitHub theme. They show demo data on a fake Proxmox.
 
 ## Configuration
 
@@ -131,6 +211,7 @@ The API, jobs, reconciler, console proxy and metrics are done, and the web panel
 - first-admin setup, login with passwords, TOTP and passkeys, and account settings
 - projects, members and invites, API tokens and SSH keys
 - servers: create, power actions, rebuild, change type, the web console, metrics graphs and activity
+- volumes: extra disks that attach to servers and keep their data when detached ([guide](docs/volumes.md))
 - firewalls: inbound and outbound rules, applied to servers directly or by label
 - floating IPs: addresses that belong to the project and move between servers ([guide](docs/floating-ips.md))
 - the admin area: one-line Proxmox setup, locations, OS images, server types, IP pools, users, projects, settings and
