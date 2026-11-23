@@ -457,3 +457,45 @@ func (a *API) Volume(ctx context.Context, ref string) (apiclient.Volume, error) 
 		return named(list, func(v apiclient.Volume) string { return v.Name }, name), nil
 	})
 }
+
+// FloatingIPs lists every floating IP matching params.
+func (a *API) FloatingIPs(ctx context.Context, params apiclient.GetFloatingIpsParams) ([]apiclient.FloatingIp, error) {
+	pp := perPage
+	params.PerPage = &pp
+	return pageAll(func(page *int) ([]apiclient.FloatingIp, apiclient.Meta, error) {
+		params.Page = page
+		res, err := a.C.GetFloatingIpsWithResponse(ctx, &params)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		v, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		return v.FloatingIps, v.Meta, nil
+	})
+}
+
+// FloatingIP finds a floating IP by id, name or address.
+func (a *API) FloatingIP(ctx context.Context, ref string) (apiclient.FloatingIp, error) {
+	return resolve(ref, "floating IP", func(id int64) (*apiclient.FloatingIp, *http.Response, []byte, error) {
+		res, err := a.C.GetFloatingIpWithResponse(ctx, id)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return res.JSON200, res.HTTPResponse, res.Body, nil
+	}, func(name string) (*apiclient.FloatingIp, error) {
+		list, err := a.FloatingIPs(ctx, apiclient.GetFloatingIpsParams{Name: &name})
+		if err != nil {
+			return nil, err
+		}
+		if f := named(list, func(f apiclient.FloatingIp) string { return f.Name }, name); f != nil {
+			return f, nil
+		}
+		all, err := a.FloatingIPs(ctx, apiclient.GetFloatingIpsParams{})
+		if err != nil {
+			return nil, err
+		}
+		return named(all, func(f apiclient.FloatingIp) string { return f.Ip }, name), nil
+	})
+}
