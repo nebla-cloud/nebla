@@ -115,20 +115,26 @@ func serverActionCmds(a *app) []*cobra.Command {
 }
 
 func serverRebuildCmd(a *app) *cobra.Command {
-	var image string
-	cmd := &cobra.Command{Use: "rebuild <ref>", Short: "Rebuild a server from an image", Args: cobra.ExactArgs(1)}
+	var image, snapshot string
+	cmd := &cobra.Command{Use: "rebuild <ref>", Short: "Rebuild a server from an image or a snapshot", Args: cobra.ExactArgs(1)}
 	wo := addWaitFlags(cmd)
 	cmd.Flags().StringVar(&image, "image", "", "image id or name")
-	_ = cmd.MarkFlagRequired("image")
+	cmd.Flags().StringVar(&snapshot, "snapshot", "", "snapshot id or name")
+	cmd.MarkFlagsMutuallyExclusive("image", "snapshot")
+	cmd.MarkFlagsOneRequired("image", "snapshot")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		body, from := apiclient.RebuildInput{Image: &image}, image
+		if snapshot != "" {
+			body, from = apiclient.RebuildInput{Snapshot: &snapshot}, snapshot
+		}
 		call := func(api *API, c *cobra.Command, id int64) (*apiclient.ActionCreated, error) {
-			r, err := api.C.RebuildServerWithResponse(c.Context(), id, apiclient.RebuildInput{Image: &image})
+			r, err := api.C.RebuildServerWithResponse(c.Context(), id, body)
 			if err != nil {
 				return nil, err
 			}
 			return result(r.StatusCode(), r.Body, r.JSON201)
 		}
-		return runServerAction(a, cmd, wo, args[0], call, "rebuilt from "+image)
+		return runServerAction(a, cmd, wo, args[0], call, "rebuilt from "+from)
 	}
 	return cmd
 }

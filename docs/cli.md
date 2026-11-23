@@ -85,11 +85,21 @@ nebla server describe web1
 nebla server rename web1 web2
 nebla server poweroff web2        # also: poweron, reboot, reset, shutdown
 nebla server rebuild web2 --image debian
+nebla server rebuild web2 --snapshot before-upgrade
 nebla server change-type web2 --type medium --upgrade-disk
 nebla server ssh web2 -u admin -p 2222 -- -A
 nebla server backup enable web2 --keep 7   # also: disable, now, list, delete, restore
 nebla server delete web2
 nebla server delete web2 --keep-ips   # keep its primary IPs; or --keep-ip web2-ipv4
+
+# Snapshots
+nebla snapshot create web2 --name before-upgrade --description "pre 24.04 upgrade" --label env=prod
+nebla snapshot list --server web2
+nebla snapshot describe before-upgrade
+nebla snapshot update before-upgrade --name keep --description "known good"
+nebla snapshot restore keep       # rebuilds the source server from the snapshot
+nebla snapshot delete keep
+nebla server create --name web3 --type small --snapshot keep --location eu-1
 
 # Firewalls
 nebla firewall create --name web --label env=prod
@@ -140,6 +150,13 @@ Firewalls are allow-lists that filter the public network only. A server can have
 split into multiple rules.
 
 Backups copy a server's boot disk every day and restore it in place; see [Backups](backups.md).
+
+A snapshot saves a server's boot disk only; volumes are not included. `snapshot create` shuts a running server down,
+saves it and starts it again, so it prints a warning first. On a terminal it asks before going ahead; `--yes` skips
+the question. `--force-stop` powers the server off if it doesn't shut down in time. `snapshot restore` rebuilds the
+source server from the snapshot. If the server's network changed since the snapshot, it warns that the server comes
+back with new SSH host keys and runs its user data again. A snapshot whose server is deleted can't be restored, but
+`server create --snapshot` builds a new server from it. `--snapshot` and `--image` can't be combined.
 
 A floating IP is one address that you can move between servers in its location. `assign` and `create --server` wait,
 then print the commands to run inside the server; see [Floating IPs](floating-ips.md).

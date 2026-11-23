@@ -35,6 +35,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/snapshots"
 	"github.com/riverqueue/river"
 )
 
@@ -43,6 +44,8 @@ func ServerWorkers(w *river.Workers, deps *httpapi.Deps, _ *fake.Server) {
 	servers.RegisterWorkers(w, servers.WorkerOptions{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Bus: deps.Bus,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), PollInterval: 20 * time.Millisecond,
 		Jobs: func() *jobs.Jobs { return deps.Jobs }})
+	snapshots.RegisterWorkers(w, snapshots.WorkerOptions{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Bus: deps.Bus,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), PollInterval: 20 * time.Millisecond})
 }
 
 // QueueOnlyJobs is a NewApp option whose job runtime inserts jobs but never works them.

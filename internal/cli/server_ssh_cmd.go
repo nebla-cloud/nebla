@@ -82,7 +82,7 @@ func serverSSHCmd(a *app) *cobra.Command {
 			return fmt.Errorf("server %s has no public IP", srv.Name)
 		}
 		if user == "" {
-			user = sshUser(srv.Image.OsFlavor)
+			user = sshUser(srv.OsFlavor)
 		}
 		look := a.env.LookPath
 		if look == nil {

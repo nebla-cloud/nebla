@@ -126,12 +126,12 @@ func ipFlagValue(v string, fromBool func(bool) error, fromRef func(string) error
 
 func serverCreateCmd(a *app) *cobra.Command {
 	var (
-		name, typ, image, location, userDataFile string
-		sshKeys, labels, firewalls, networks     []string
-		withoutIPv4, withIPv6, start             bool
-		backups                                  bool
-		backupKeep                               int
-		ipv4, ipv6                               string
+		name, typ, image, snapshot, location, userDataFile string
+		sshKeys, labels, firewalls, networks               []string
+		withoutIPv4, withIPv6, start                       bool
+		backups                                            bool
+		backupKeep                                         int
+		ipv4, ipv6                                         string
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -148,8 +148,14 @@ func serverCreateCmd(a *app) *cobra.Command {
 			return errors.New("--backup-keep needs --backups")
 		}
 		body := apiclient.PostServersJSONRequestBody{
-			Name: name, ServerType: typ, Image: &image, Location: location,
+			Name: name, ServerType: typ, Location: location,
 			StartAfterCreate: &start,
+		}
+		if image != "" {
+			body.Image = &image
+		}
+		if snapshot != "" {
+			body.Snapshot = &snapshot
 		}
 		fl := cmd.Flags()
 		if fl.Changed("ipv4") && fl.Changed("without-ipv4") {
@@ -282,6 +288,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.StringVar(&name, "name", "", "server name")
 	f.StringVar(&typ, "type", "", "server type id or name")
 	f.StringVar(&image, "image", "", "image id or name")
+	f.StringVar(&snapshot, "snapshot", "", "snapshot id or name to build from instead of an image")
 	f.StringVar(&location, "location", "", "location id or name")
 	f.StringArrayVar(&sshKeys, "ssh-key", nil, "SSH key id or name (repeatable)")
 	f.StringArrayVar(&firewalls, "firewall", nil, "firewall id or name to apply (repeatable)")
@@ -295,9 +302,11 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.BoolVar(&start, "start-after-create", true, "start the server once it is created")
 	f.BoolVar(&backups, "backups", false, "turn on scheduled backups")
 	f.IntVar(&backupKeep, "backup-keep", defaultBackupKeep, "backups to keep, 1-14 (with --backups)")
-	for _, n := range []string{"name", "type", "image", "location"} {
+	for _, n := range []string{"name", "type", "location"} {
 		_ = cmd.MarkFlagRequired(n)
 	}
+	cmd.MarkFlagsMutuallyExclusive("image", "snapshot")
+	cmd.MarkFlagsOneRequired("image", "snapshot")
 	return cmd
 }
 

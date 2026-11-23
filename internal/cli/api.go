@@ -576,3 +576,38 @@ func (a *API) PrimaryIP(ctx context.Context, ref string) (apiclient.PrimaryIp, e
 		return named(all, func(p apiclient.PrimaryIp) string { return p.Ip }, name), nil
 	})
 }
+
+// Snapshots lists every snapshot matching params.
+func (a *API) Snapshots(ctx context.Context, params apiclient.GetSnapshotsParams) ([]apiclient.Snapshot, error) {
+	pp := perPage
+	params.PerPage = &pp
+	return pageAll(func(page *int) ([]apiclient.Snapshot, apiclient.Meta, error) {
+		params.Page = page
+		res, err := a.C.GetSnapshotsWithResponse(ctx, &params)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		v, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		return v.Snapshots, v.Meta, nil
+	})
+}
+
+// Snapshot finds a snapshot by id or name.
+func (a *API) Snapshot(ctx context.Context, ref string) (apiclient.Snapshot, error) {
+	return resolve(ref, "snapshot", func(id int64) (*apiclient.Snapshot, *http.Response, []byte, error) {
+		res, err := a.C.GetSnapshotWithResponse(ctx, id)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return res.JSON200, res.HTTPResponse, res.Body, nil
+	}, func(name string) (*apiclient.Snapshot, error) {
+		list, err := a.Snapshots(ctx, apiclient.GetSnapshotsParams{Name: &name})
+		if err != nil {
+			return nil, err
+		}
+		return named(list, func(v apiclient.Snapshot) string { return v.Name }, name), nil
+	})
+}
