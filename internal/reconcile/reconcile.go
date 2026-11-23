@@ -792,9 +792,9 @@ func (r *Reconciler) rescueOne(ctx context.Context, log *slog.Logger, actionID, 
 			u.SetStatus(server.StatusError)
 			dirty = true
 		}
-		if command == servers.KindRebuildServer && row.RebuildStep > 0 {
-			// No rebuild resumes, so a later power-on must not look like one.
-			u.SetRebuildStep(0)
+		if command == servers.KindRebuildServer {
+			// No rebuild resumes, so a later power-on must not look like one, and the snapshot is free again.
+			u.SetRebuildStep(0).ClearRebuildSnapshotID()
 			dirty = true
 		}
 		if !dirty {

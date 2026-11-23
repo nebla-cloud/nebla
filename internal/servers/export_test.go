@@ -39,6 +39,7 @@ const (
 	StepVMID     = stepVMID
 	StepResize   = stepResize
 	StepClone    = stepClone
+	StepISO      = stepISO
 	StepSwap     = stepSwap
 	StepFirewall = stepFirewall
 )

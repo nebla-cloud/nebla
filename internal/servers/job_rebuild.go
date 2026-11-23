@@ -113,7 +113,11 @@ func (s *Service) Rebuild(ctx context.Context, projectID, id int64, src RebuildS
 			}
 			switch {
 			case snap.LocationID != row.LocationID:
-				return nil, invalid("This snapshot is in a different location")
+				loc, err := s.snapshotLocation(ctx, snap)
+				if err != nil {
+					return nil, err
+				}
+				return nil, invalid("This snapshot is in location %s", loc.Name)
 			case snap.Node != "" && snap.Node != row.Node:
 				return nil, errSnapshotMismatch
 			case row.DiskGB < snap.SizeGB:
@@ -277,6 +281,12 @@ func (r *rebuildRun) run(ctx context.Context) error {
 			return &stepError{"remove leftover vm", err}
 		}
 		if err := r.b.update(ctx, func(s *buildState) { *s = buildState{} }); err != nil {
+			return err
+		}
+	}
+	if r.args.KeepFingerprint != "" && r.b.st.Step >= stepISO && r.b.st.Step < stepSwap {
+		// The ISO's instance-id may have been decided differently by an earlier attempt; write it again.
+		if err := r.b.update(ctx, func(s *buildState) { s.Step = stepResize }); err != nil {
 			return err
 		}
 	}

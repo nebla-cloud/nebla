@@ -54,7 +54,7 @@ func readSnapshot(ctx context.Context, etx *ent.Client, projectID int64, ref str
 	if id, perr := strconv.ParseInt(ref, 10, 64); perr == nil {
 		row, err = find(func(q *ent.SnapshotQuery) { q.Where(snapshot.ID(id), snapshot.ProjectID(projectID)) })
 	}
-	if row == nil {
+	if row == nil && (err == nil || ent.IsNotFound(err)) {
 		row, err = find(func(q *ent.SnapshotQuery) { q.Where(snapshot.Name(ref), snapshot.ProjectID(projectID)) })
 	}
 	if err != nil {

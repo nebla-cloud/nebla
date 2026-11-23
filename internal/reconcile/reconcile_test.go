@@ -40,6 +40,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
@@ -49,6 +50,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/snapshots"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -1174,6 +1176,30 @@ func TestReconcileWarnsOnceWithoutJobs(t *testing.T) {
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Equal(t, 1, strings.Count(logs.String(), "firewall drift repair is disabled"))
+}
+
+func TestRescuedSnapshotRebuildFreesSnapshot(t *testing.T) {
+	ctx := context.Background()
+	e := queuedEnv(t)
+	r := newReconciler(e, quiet())
+	id := build(t, e, "web")
+	row := get(t, e, id)
+	e.App.PVE.AddTemplate(row.Node, 9100, "ceph")
+	snap := e.App.Ent.Snapshot.Create().SetProjectID(e.Project).SetLocationID(e.Location).SetName("gold").SetLabels(map[string]string{}).
+		SetSizeGB(10).SetVmid(9100).SetNode(row.Node).SetStatus(snapshot.StatusAvailable).SaveX(ctx)
+	svc := servers.New(servers.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Projects: projects.New(e.App.Ent, projects.Options{}), Jobs: e.App.Jobs})
+	a, err := svc.Rebuild(ctx, e.Project, id, servers.RebuildSource{Snapshot: "gold"})
+	require.NoError(t, err)
+	require.NotNil(t, get(t, e, id).RebuildSnapshotID)
+	require.Error(t, snapshots.CheckDeletable(ctx, e.App.Ent, snap))
+	discard(t, e, a.ID)
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	expectOrphaned(t, e, a.ID)
+	got := get(t, e, id)
+	require.Equal(t, server.StatusError, got.Status)
+	require.Nil(t, got.RebuildSnapshotID)
+	require.NoError(t, snapshots.CheckDeletable(ctx, e.App.Ent, snap))
 }
 
 func TestRescuedRebuildIsRepairable(t *testing.T) {

@@ -344,3 +344,41 @@ func TestRebuildFromImageClearsSnapshot(t *testing.T) {
 	require.Nil(t, row.RebuildSnapshotID)
 	require.Equal(t, server.StatusRunning, row.Status)
 }
+
+func TestRestoreResumeKeepsISOAndRowConsistent(t *testing.T) {
+	ctx := context.Background()
+	e, s, w := rebuildEnv(t)
+	addSnapshot(t, e, "gold", "pve1", 10, func(c *ent.SnapshotCreate) {
+		c.SetServerID(s.ServerID).SetInstanceGeneration(1).SetNetworkFingerprint(fingerprintOf(t, e, s.ServerID))
+	})
+	args, err := rebuildFrom(t, e, s, servers.RebuildSource{Snapshot: "gold"})
+	require.NoError(t, err)
+	require.Equal(t, 1, args.InstanceGeneration)
+
+	// The network changes, so the ISO drops the pin; the job crashes right after writing it.
+	assignFloating(t, e, s.ServerID, "10.0.0.15")
+	crashCtx, crash := context.WithCancel(ctx)
+	servers.SetRebuildAfterStep(w, func(n int) {
+		if n == servers.StepISO {
+			crash()
+		}
+	})
+	require.Error(t, w.Work(crashCtx, jobOf(args, 1)))
+	servers.SetRebuildAfterStep(w, nil)
+
+	// The floating IP goes away before the resume, so a naive resume would pin the old identity again.
+	e.App.Ent.IPAddress.Delete().ExecX(ctx)
+	require.NoError(t, w.Work(ctx, jobOf(args, 2)))
+	row := e.App.Ent.Server.GetX(ctx, s.ServerID)
+	require.Equal(t, 1, row.InstanceGeneration)
+	require.Contains(t, isoFiles(t, e, *row.IsoVolid)["meta-data"], "instance-id: nb-srv-"+sid(s.ServerID)+"-"+strconv.Itoa(row.InstanceGeneration)+"\n")
+}
+
+func TestRebuildFromSnapshotLocationMessage(t *testing.T) {
+	e, s, _ := rebuildEnv(t)
+	other := e.Admin.CreateLocation("us-1")
+	addSnapshot(t, e, "gold", "pve1", 10, func(c *ent.SnapshotCreate) { c.SetLocationID(other) })
+	_, err := rebuildFrom(t, e, s, servers.RebuildSource{Snapshot: "gold"})
+	ae := requireAPI(t, err, http.StatusUnprocessableEntity, "invalid_input")
+	require.Equal(t, "This snapshot is in location us-1", ae.Msg)
+}
