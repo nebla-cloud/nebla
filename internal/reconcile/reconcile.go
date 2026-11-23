@@ -230,6 +230,9 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 		log.Warn("reconcile: seed iso sync", "err", err)
 		errs = append(errs, fmt.Errorf("seed iso sync: %w", err))
 	}
+	if err := r.syncSnapshots(ctx, log, locationID, pc, all, vms, len(online) == len(loc.Nodes), listedAt); err != nil {
+		errs = append(errs, err)
+	}
 	fwOn, err := r.recordFirewall(ctx, pc, locationID)
 	if err != nil {
 		log.Warn("reconcile: datacenter firewall", "err", err)

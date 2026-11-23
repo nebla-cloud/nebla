@@ -284,7 +284,7 @@ func (r *rebuildRun) run(ctx context.Context) error {
 			return err
 		}
 	}
-	if r.args.KeepFingerprint != "" && r.b.st.Step >= stepISO && r.b.st.Step < stepSwap {
+	if r.keepFP != "" && r.b.st.Step >= stepISO && r.b.st.Step < stepSwap {
 		// The ISO's instance-id may have been decided differently by an earlier attempt; write it again.
 		if err := r.b.update(ctx, func(s *buildState) { s.Step = stepResize }); err != nil {
 			return err
