@@ -343,24 +343,53 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	return out, act, err
 }
 
-// Delete marks the snapshot deleting and queues delete_snapshot.
+// needsRestart reports whether a delete must start the snapshot's server first: a failed create left it off.
+func needsRestart(row *ent.Snapshot) bool { return row.WasRunning && row.ServerID != nil }
+
+// Delete marks the snapshot deleting and queues delete_snapshot, holding the server too when the job must start it.
 func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Action, error) {
 	if s.o.Jobs == nil {
 		return actions.Action{}, errNoJobs
 	}
+	pre, err := s.get(ctx, projectID, id)
+	if err != nil {
+		return actions.Action{}, err
+	}
 	var act actions.Action
-	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+	err = db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		res := []actions.Resource{{ID: id, Type: ResourceType}}
+		gone := false
+		// Lock order project -> server -> snapshot, so the server is locked before the snapshot row.
+		if needsRestart(pre) {
+			_, err := servers.LockServer(ctx, etx, projectID, *pre.ServerID)
+			var ae apierr.E
+			switch {
+			case errors.As(err, &ae) && ae.Status == http.StatusNotFound:
+				gone = true
+			case err != nil:
+				return err
+			default:
+				res = []actions.Resource{{ID: *pre.ServerID, Type: servers.ResourceType}, {ID: id, Type: ResourceType}}
+			}
+		}
 		row, err := lockSnapshot(ctx, etx, projectID, id)
 		if err != nil {
 			return err
 		}
+		if needsRestart(row) != needsRestart(pre) || (needsRestart(row) && *row.ServerID != *pre.ServerID) {
+			return errLocked
+		}
 		if err := CheckDeletable(ctx, etx, row); err != nil {
 			return err
 		}
-		if err := etx.Snapshot.UpdateOneID(id).SetStatus(snapshot.StatusDeleting).Exec(ctx); err != nil {
+		u := etx.Snapshot.UpdateOneID(id).SetStatus(snapshot.StatusDeleting)
+		if gone {
+			// The server is gone, so there is nothing to start.
+			u.SetWasRunning(false)
+		}
+		if err := u.Exec(ctx); err != nil {
 			return err
 		}
-		res := []actions.Resource{{ID: id, Type: ResourceType}}
 		act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindDeleteSnapshot, res, func(actionID int64) river.JobArgs {
 			return DeleteSnapshotArgs{SnapshotID: id, ActionID: actionID, PrevStatus: string(row.Status)}
 		}, nil)

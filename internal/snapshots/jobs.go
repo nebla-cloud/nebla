@@ -255,13 +255,15 @@ func (o *WorkerOptions) awaitStart(ctx context.Context, pc pve.Client, v pve.VM)
 	return nil
 }
 
-// syncServerStatus sets the server's status from its VM's listed state, or off when that can't be read.
+// syncServerStatus sets the server's status from its VM's listed state, or off when that can't be read (pc nil included).
 func (o *WorkerOptions) syncServerStatus(ctx context.Context, pc pve.Client, serverID int64, vmid int) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	st := servers.StatusOff
-	if v, found, err := findVM(ctx, pc, vmid); err == nil && found && v.Status == "running" {
-		st = servers.StatusRunning
+	if pc != nil {
+		if v, found, err := findVM(ctx, pc, vmid); err == nil && found && v.Status == "running" {
+			st = servers.StatusRunning
+		}
 	}
 	if err := o.setServerStatus(ctx, serverID, st); err != nil {
 		o.Logger.Error("snapshots: set server status", "server_id", serverID, "err", err)

@@ -88,3 +88,27 @@ func TestRescueSnapshotActions(t *testing.T) {
 	_, ok := e.App.PVE.VM(gone.VMID)
 	require.False(t, ok)
 }
+
+// A lost delete whose job row is gone too: the rescue infers the status a failed retry restores.
+func TestRescueDeleteWithoutJobArgs(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	ok := e.available(t, "web1")
+	failed := e.available(t, "web2")
+	e.App.Ent.Snapshot.UpdateOneID(failed.ID).SetStatus(snapshot.StatusError).ClearVmid().ExecX(ctx)
+	want := map[int64]string{ok.ID: "available", failed.ID: "error"}
+	acts := map[int64]actions.Action{}
+	for id := range want {
+		act, err := e.svc.Delete(ctx, e.Project, id)
+		require.NoError(t, err)
+		_, err = e.App.SQL.ExecContext(ctx, `delete from river_job where id = $1`, *act.RiverJobID)
+		require.NoError(t, err)
+		acts[id] = act
+	}
+	n, err := snapshots.RescueOrphaned(ctx, e.App.Ent, e.App.SQL, nil)
+	require.NoError(t, err)
+	require.Equal(t, 2, n)
+	for id, act := range acts {
+		e.requireJob(t, e.action(t, act.ID), "delete_snapshot", id, `"prev_status":"`+want[id]+`"`)
+	}
+}

@@ -476,7 +476,7 @@ func (c *create) awaitListed(ctx context.Context) error {
 	}
 }
 
-// finish checks the copied size, marks the snapshot available and succeeds the action.
+// finish checks the copied size, marks the snapshot available and succeeds the action; was_running is done with.
 func (c *create) finish(ctx context.Context) error {
 	vmid := *c.row.Vmid
 	v, found, err := findVM(ctx, c.pc, vmid)
@@ -496,7 +496,8 @@ func (c *create) finish(ctx context.Context) error {
 		c.log.Warn("snapshot size differs from the request", "boot_key", c.row.BootKey, "disk", cfg[c.row.BootKey], "size_gb", c.row.SizeGB)
 	}
 	err = db.WithTx(ctx, c.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
-		row, err := etx.Snapshot.UpdateOneID(c.row.ID).SetStatus(snapshot.StatusAvailable).SetStep(stepFinish).ClearUpid().Save(ctx)
+		row, err := etx.Snapshot.UpdateOneID(c.row.ID).SetStatus(snapshot.StatusAvailable).SetStep(stepFinish).ClearUpid().
+			SetWasRunning(false).Save(ctx)
 		if err != nil {
 			return err
 		}
@@ -542,6 +543,10 @@ func (c *create) undo(ctx context.Context) error {
 	if pc == nil {
 		var err error
 		if pc, err = c.o.pveFor(ctx, c.row.LocationID); err != nil {
+			if c.row.WasRunning && c.row.ServerID != nil {
+				// A crashed create may have left the server stopping; with no client its status falls back to off.
+				c.o.syncServerStatus(ctx, nil, *c.row.ServerID, 0)
+			}
 			return fmt.Errorf("connect to proxmox: %w", err)
 		}
 	}

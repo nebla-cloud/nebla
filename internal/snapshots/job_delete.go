@@ -61,7 +61,7 @@ func (w *DeleteSnapshotWorker) Work(ctx context.Context, job *river.Job[DeleteSn
 			}
 			return nil
 		}
-		if a.PrevStatus == string(snapshot.StatusError) && row.WasRunning && row.ServerID != nil {
+		if needsRestart(row) {
 			// A failed create's cleanup never started the server again; that comes first.
 			if err := connect(); err != nil {
 				return err

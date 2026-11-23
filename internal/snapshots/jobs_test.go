@@ -204,7 +204,7 @@ func TestCreateSnapshotRunning(t *testing.T) {
 
 	row := e.App.Ent.Snapshot.GetX(ctx, snap.ID)
 	require.Equal(t, snapshot.StatusAvailable, row.Status)
-	require.True(t, row.WasRunning)
+	require.False(t, row.WasRunning, "cleared once the server runs again, so a delete never restarts it")
 	require.Equal(t, "scsi0", row.BootKey)
 	require.Equal(t, "ceph", row.Storage)
 	require.Equal(t, "", row.Node, "shared storage")
@@ -637,6 +637,7 @@ func TestDeleteSnapshotJob(t *testing.T) {
 		r := e.available(t, "web1")
 		act, err := e.svc.Delete(ctx, e.Project, r.ID)
 		require.NoError(t, err)
+		require.Equal(t, []actions.Resource{{ID: r.ID, Type: snapshots.ResourceType}}, act.Resources, "a snapshot taken cleanly never holds its server")
 		rec := &recorder{}
 		a := e.finish(t, e.opts(rec), act.ID)
 		require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
@@ -759,4 +760,34 @@ func TestDeleteFailureRestoresStatus(t *testing.T) {
 			require.Equal(t, st, e.App.Ent.Snapshot.GetX(ctx, r.ID).Status)
 		})
 	}
+}
+
+func TestDeleteErrorSnapshotLocksServer(t *testing.T) {
+	t.Run("the action holds the server", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, srvID, _ := e.errorSnapshot(t, true)
+		act, err := e.svc.Delete(ctx, e.Project, r.ID)
+		require.NoError(t, err)
+		require.Equal(t, []actions.Resource{{ID: srvID, Type: servers.ResourceType}, {ID: r.ID, Type: snapshots.ResourceType}}, act.Resources)
+		e.requireJob(t, act, "delete_snapshot", r.ID, `"prev_status":"error"`)
+	})
+	t.Run("a running server action refuses the delete", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, srvID, _ := e.errorSnapshot(t, true)
+		_, err := actions.Create(ctx, e.App.Ent, e.Project, "start_server", []actions.Resource{{ID: srvID, Type: servers.ResourceType}})
+		require.NoError(t, err)
+		_, err = e.svc.Delete(ctx, e.Project, r.ID)
+		requireAPIErr(t, err, 409, "locked")
+		require.Equal(t, snapshot.StatusError, e.App.Ent.Snapshot.GetX(ctx, r.ID).Status)
+	})
+	t.Run("without a restart only the snapshot is held", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, _, _ := e.errorSnapshot(t, false)
+		act, err := e.svc.Delete(ctx, e.Project, r.ID)
+		require.NoError(t, err)
+		require.Equal(t, []actions.Resource{{ID: r.ID, Type: snapshots.ResourceType}}, act.Resources)
+	})
 }

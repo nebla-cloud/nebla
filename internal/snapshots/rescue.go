@@ -108,6 +108,13 @@ func rescueOne(ctx context.Context, tx *sql.Tx, etx *ent.Client, ins *river.Clie
 		if prevArgs != nil {
 			_ = json.Unmarshal(prevArgs, &prev)
 		}
+		if prev.PrevStatus == "" {
+			st, err := inferPrevStatus(ctx, etx, snapshotID)
+			if err != nil {
+				return err
+			}
+			prev.PrevStatus = st
+		}
 		args = DeleteSnapshotArgs{SnapshotID: snapshotID, ActionID: actionID, PrevStatus: prev.PrevStatus}
 	default:
 		return fmt.Errorf("unknown command %q", command)
@@ -117,4 +124,19 @@ func rescueOne(ctx context.Context, tx *sql.Tx, etx *ent.Client, ins *river.Clie
 		return err
 	}
 	return actions.AttachJob(ctx, etx, actionID, res.Job.ID)
+}
+
+// inferPrevStatus guesses a lost delete's earlier status: error for a failed create's leftover, else available.
+func inferPrevStatus(ctx context.Context, etx *ent.Client, id int64) (string, error) {
+	row, err := etx.Snapshot.Get(ctx, id)
+	if ent.IsNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if row.WasRunning || row.Vmid == nil {
+		return string(snapshot.StatusError), nil
+	}
+	return string(snapshot.StatusAvailable), nil
 }
