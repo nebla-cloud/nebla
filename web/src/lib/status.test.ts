@@ -14,7 +14,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, expect, it } from 'vitest'
-import { isTransitional, isVolumeTransitional, serverStatus, volumeStatus } from './status'
+import {
+  floatingIpStatus,
+  isFloatingIpTransitional,
+  isTransitional,
+  isVolumeTransitional,
+  serverStatus,
+  volumeStatus,
+} from './status'
 
 describe('serverStatus', () => {
   it('maps every status', () => {
@@ -54,5 +61,18 @@ describe('volumeStatus', () => {
     expect(isVolumeTransitional('creating')).toBe(true)
     expect(isVolumeTransitional('deleting')).toBe(true)
     expect(isVolumeTransitional('attached')).toBe(false)
+  })
+})
+
+describe('floatingIpStatus', () => {
+  it('maps floating IP statuses', () => {
+    expect(floatingIpStatus('active')).toEqual({ label: 'Active', tone: 'success', pulse: false })
+    expect(floatingIpStatus('releasing')).toEqual({ label: 'Releasing', tone: 'busy', pulse: true })
+    expect(floatingIpStatus('deleting')).toEqual({ label: 'Deleting', tone: 'busy', pulse: true })
+  })
+  it('polls only while releasing or deleting', () => {
+    expect(isFloatingIpTransitional('releasing')).toBe(true)
+    expect(isFloatingIpTransitional('deleting')).toBe(true)
+    expect(isFloatingIpTransitional('active')).toBe(false)
   })
 })

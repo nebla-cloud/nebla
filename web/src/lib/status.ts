@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import type { Server, Volume } from '@/api/types'
+import type { FloatingIp, Server, Volume } from '@/api/types'
 
 export type StatusTone = 'success' | 'busy' | 'neutral' | 'error'
 
@@ -63,4 +63,25 @@ export function volumeStatus(s: Volume['status']): {
 
 export function isVolumeTransitional(s: Volume['status']): boolean {
   return volumeStatus(s).pulse
+}
+
+const floatingIpStatuses: Record<
+  FloatingIp['status'],
+  { label: string; tone: StatusTone; pulse: boolean }
+> = {
+  active: { label: 'Active', tone: 'success', pulse: false },
+  releasing: { label: 'Releasing', tone: 'busy', pulse: true },
+  deleting: { label: 'Deleting', tone: 'busy', pulse: true },
+}
+
+export function floatingIpStatus(s: FloatingIp['status']): {
+  label: string
+  tone: StatusTone
+  pulse: boolean
+} {
+  return { ...(floatingIpStatuses[s] ?? { label: s, tone: 'neutral', pulse: false }) }
+}
+
+export function isFloatingIpTransitional(s: FloatingIp['status']): boolean {
+  return floatingIpStatus(s).pulse
 }

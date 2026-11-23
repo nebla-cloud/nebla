@@ -29,6 +29,9 @@ const labels: Record<string, string> = {
   detach_volume: 'Detaching volume',
   resize_volume: 'Resizing volume',
   delete_volume: 'Deleting volume',
+  assign_floating_ip: 'Assigning floating IP',
+  unassign_floating_ip: 'Unassigning floating IP',
+  delete_floating_ip: 'Deleting floating IP',
 }
 
 const done: Record<string, string> = {
@@ -54,6 +57,9 @@ const titles: Record<string, string> = {
   rebuild_server: 'Rebuild',
   change_server_type: 'Resize',
   apply_firewalls: 'Apply firewalls',
+  assign_floating_ip: 'Assign floating IP',
+  unassign_floating_ip: 'Unassign floating IP',
+  delete_floating_ip: 'Delete floating IP',
 }
 
 function sentence(command: string): string {

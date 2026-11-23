@@ -105,9 +105,10 @@ const recent = computed(() => activity.data.value?.pages[0]?.actions.slice(0, 3)
 
 const rows = computed(() => {
   const s = props.server
-  const list: { label: string; value: string; ip?: boolean; sub?: string }[] = []
+  const list: { label: string; value: string; ip?: boolean; sub?: string; fip?: number }[] = []
   if (s.public_net.ipv4) list.push({ label: 'IPv4', value: s.public_net.ipv4.ip, ip: true })
   if (s.public_net.ipv6) list.push({ label: 'IPv6', value: s.public_net.ipv6.ip, ip: true })
+  for (const f of s.public_net.floating_ips) list.push({ label: 'Floating IP', value: f.ip, fip: f.id })
   list.push(
     // The slug stays as a second, muted value: e2e reads it from a definition.
     {
@@ -247,10 +248,16 @@ async function confirmDelete() {
                 Rename
               </UButton>
             </dd>
-            <template v-for="r in rows" :key="r.label">
+            <template v-for="r in rows" :key="`${r.label}-${r.value}`">
               <dt class="text-muted">{{ r.label }}</dt>
               <dd class="flex flex-wrap items-center gap-2 font-medium break-all text-highlighted">
-                <span v-if="r.ip" class="font-mono">{{ r.value }}</span>
+                <RouterLink
+                  v-if="r.fip !== undefined"
+                  :to="{ name: 'floating-ip', params: { projectId, floatingIpId: r.fip } }"
+                  class="font-mono underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                  >{{ r.value }}</RouterLink
+                >
+                <span v-else-if="r.ip" class="font-mono">{{ r.value }}</span>
                 <template v-else>{{ r.value }}</template>
                 <UButton
                   v-if="r.ip"

@@ -212,7 +212,7 @@ describe('ProjectDetailPage', () => {
     serve([
       http.delete('*/v1/admin/projects/7', () =>
         json(409, {
-          error: { code: 'project_not_empty', message: "Delete the project's servers and volumes first." },
+          error: { code: 'project_not_empty', message: "Delete the project's servers, volumes and floating IPs first." },
         }),
       ),
     ])
@@ -225,7 +225,7 @@ describe('ProjectDetailPage', () => {
     ;(document.body.querySelector('button[form="confirm-by-name"]') as HTMLElement).click()
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain(
-        'This project still has servers or volumes. Its members need to delete them first.',
+        'This project still has servers, volumes or floating IPs. Its members need to delete them first.',
       ),
     )
   })

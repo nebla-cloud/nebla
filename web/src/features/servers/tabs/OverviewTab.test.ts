@@ -100,6 +100,11 @@ async function mountTab(s: Server) {
       name: 'server-activity',
       component: RouterView,
     },
+    {
+      path: '/p/:projectId/floating-ips/:floatingIpId',
+      name: 'floating-ip',
+      component: RouterView,
+    },
   ])
   await router.push('/p/1')
   const res = mountApp(OverviewTab, { router, props: { server: s } })
@@ -151,6 +156,28 @@ describe('OverviewTab', () => {
     const buttons = facts!.findAll('button').map((b) => b.text())
     expect(buttons).toContain('Rename')
     expect(buttons).toContain('Edit labels')
+  })
+
+  it('lists each floating IP with a link to it', async () => {
+    const w = await mountTab(
+      makeServer({
+        public_net: {
+          ipv4: { ip: '203.0.113.10' },
+          ipv6: null,
+          floating_ips: [
+            { id: 3, ip: '203.0.113.50' },
+            { id: 4, ip: '2001:db8::50' },
+          ],
+        },
+      }),
+    )
+    const dts = w.findAll('dt').map((d) => d.text())
+    expect(dts.filter((t) => t === 'Floating IP')).toHaveLength(2)
+    const links = w.findAll('dd a')
+    expect(links.map((a) => [a.text(), a.attributes('href')])).toEqual([
+      ['203.0.113.50', '/p/1/floating-ips/3'],
+      ['2001:db8::50', '/p/1/floating-ips/4'],
+    ])
   })
 
   it('shows the OS name with the image slug as a second, muted value', async () => {

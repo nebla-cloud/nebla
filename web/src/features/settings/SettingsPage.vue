@@ -155,7 +155,7 @@ async function confirmDelete() {
           v-if="notEmpty"
           color="error"
           variant="subtle"
-          title="Delete this project's servers and volumes first."
+          title="Delete this project's servers, volumes and floating IPs first."
         >
           <template #description>
             <RouterLink :to="`/p/${projectId}/servers`" class="font-semibold underline">
@@ -193,7 +193,7 @@ async function confirmDelete() {
           <div class="flex flex-col gap-0.5">
             <span class="font-semibold text-highlighted">Delete this project</span>
             <span class="text-sm text-muted"
-              >Removes the project for everyone. Servers and volumes must be deleted first.</span
+              >Removes the project for everyone. Servers, volumes and floating IPs must be deleted first.</span
             >
           </div>
           <UButton color="error" class="self-start" @click="deleteOpen = true"
