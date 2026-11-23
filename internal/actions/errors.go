@@ -47,6 +47,8 @@ var verbs = map[string]string{
 	"create_volume":        "create the volume",
 	"attach_volume":        "attach the volume",
 	"detach_volume":        "detach the volume",
+	"attach_to_network":    "attach the server to the network",
+	"detach_from_network":  "detach the server from the network",
 	"resize_volume":        "resize the volume",
 	"delete_volume":        "delete the volume",
 	"assign_floating_ip":   "assign the floating IP",

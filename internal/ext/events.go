@@ -39,6 +39,8 @@ const (
 	BackupUsage       EventKind = "backup.usage"
 	FloatingIPCreated EventKind = "floating_ip.created"
 	FloatingIPDeleted EventKind = "floating_ip.deleted"
+	NetworkCreated    EventKind = "network.created"
+	NetworkDeleted    EventKind = "network.deleted"
 )
 
 type Event struct {
