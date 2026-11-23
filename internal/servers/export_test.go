@@ -18,6 +18,8 @@ package servers
 import (
 	"context"
 	"time"
+
+	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
 // SetAfterStep installs a hook called after each create step is persisted.
@@ -61,4 +63,10 @@ func SetSettleWait(t interface{ Cleanup(func()) }, f func(context.Context, time.
 	old := settleWait
 	settleWait = f
 	t.Cleanup(func() { settleWait = old })
+}
+
+// ApplyFirewallsNow renders server id's firewalls and allow-set onto vmid, as an apply or build does.
+func ApplyFirewallsNow(ctx context.Context, o WorkerOptions, pc pve.Client, id int64, node string, vmid int) error {
+	_, _, err := o.applyFirewallsNow(ctx, pc, id, node, vmid)
+	return err
 }

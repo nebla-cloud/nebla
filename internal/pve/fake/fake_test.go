@@ -18,9 +18,12 @@ package fake_test
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
@@ -245,5 +248,54 @@ func TestFakeFileStorageVolume(t *testing.T) {
 	}
 	if all, _ := c.StorageContent(ctx, "pve1", "local", 0); len(all) != 0 {
 		t.Fatalf("still there: %+v", all)
+	}
+}
+
+func TestIPSetHolders(t *testing.T) {
+	ctx := context.Background()
+	s, c := volEnv(t)
+	s.AddVM("pve1", 102, "db")
+	ip := netip.MustParseAddr("10.0.0.50")
+	var mu sync.Mutex
+	var seen []int
+	s.OnIPSetWrite(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		seen = append(seen, len(s.IPSetHolders(ip.String())))
+	})
+	if err := c.SetFirewall(ctx, "pve1", 101, []netip.Addr{ip}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.IPSetHolders(ip.String()); !slices.Equal(got, []int{101}) {
+		t.Fatalf("holders = %v", got)
+	}
+	if err := c.SetFirewall(ctx, "pve1", 101, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFirewall(ctx, "pve1", 102, []netip.Addr{ip}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.IPSetHolders(ip.String()); !slices.Equal(got, []int{102}) {
+		t.Fatalf("holders = %v", got)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Equal(seen, []int{1, 0, 1}) {
+		t.Fatalf("holders after each entry write = %v", seen)
+	}
+
+	// A blocking hook blocks the caller's SetFirewall.
+	release := make(chan struct{})
+	s.OnIPSetWrite(func() { <-release })
+	done := make(chan error, 1)
+	go func() { done <- c.SetFirewall(ctx, "pve1", 101, []netip.Addr{netip.MustParseAddr("10.0.0.51")}) }()
+	select {
+	case <-done:
+		t.Fatal("SetFirewall returned while the hook blocked")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }

@@ -36,7 +36,8 @@ import (
 // ServerWorkers is a WorkerSetup that registers the server job workers.
 func ServerWorkers(w *river.Workers, deps *httpapi.Deps, _ *fake.Server) {
 	servers.RegisterWorkers(w, servers.WorkerOptions{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Bus: deps.Bus,
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), PollInterval: 20 * time.Millisecond})
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), PollInterval: 20 * time.Millisecond,
+		Jobs: func() *jobs.Jobs { return deps.Jobs }})
 }
 
 // QueueOnlyJobs is a NewApp option whose job runtime inserts jobs but never works them.

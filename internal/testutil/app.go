@@ -122,7 +122,9 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 		if setup != nil {
 			setup(workers, &deps, pve)
 		}
-		deps.Jobs = StartJobs(t, pool, sqlDB, workers)
+		// Workers read deps.Jobs, so it is set before the runtime starts.
+		deps.Jobs = newJobs(t, pool, sqlDB, workers)
+		startJobs(t, deps.Jobs)
 	}
 	deps.OSImages.SetJobs(deps.Jobs)
 	srv.Config.Handler = httpapi.New(deps)
@@ -139,11 +141,23 @@ func NewAppWithWorkers(t *testing.T, setup WorkerSetup, opts ...func(*httpapi.De
 // StartJobs builds and starts a job runtime with fast polling; it is stopped at cleanup.
 func StartJobs(t testing.TB, pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.Workers) *jobs.Jobs {
 	t.Helper()
+	j := newJobs(t, pool, sqlDB, workers)
+	startJobs(t, j)
+	return j
+}
+
+func newJobs(t testing.TB, pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.Workers) *jobs.Jobs {
+	t.Helper()
 	j, err := jobs.New(pool, sqlDB, workers, jobs.WithPollInterval(20*time.Millisecond),
 		jobs.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
 	if err != nil {
 		t.Fatal(err)
 	}
+	return j
+}
+
+func startJobs(t testing.TB, j *jobs.Jobs) {
+	t.Helper()
 	if err := j.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +168,6 @@ func StartJobs(t testing.TB, pool *pgxpool.Pool, sqlDB *sql.DB, workers *river.W
 			t.Errorf("stop jobs: %v", err)
 		}
 	})
-	return j
 }
 
 func (a *App) Do(req *http.Request) *http.Response {

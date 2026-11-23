@@ -141,6 +141,7 @@ type Server struct {
 	clusterFWOff bool
 	failRule     bool
 	onFWWrite    func()
+	onIPSetWrite func()
 	onRuleAdd    func(*pve.FirewallRule)
 	needDigest   bool
 	conflictDel  bool
@@ -456,6 +457,27 @@ func (s *Server) OnFirewallWrite(fn func()) {
 	s.onFWWrite = fn
 }
 
+// OnIPSetWrite runs fn after each ipset entry add or delete, before the response is sent.
+func (s *Server) OnIPSetWrite(fn func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onIPSetWrite = fn
+}
+
+// IPSetHolders lists the VMIDs whose anti-spoofing ipset contains ip, ascending.
+func (s *Server) IPSetHolders(ip string) []int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []int
+	for id, v := range s.vms {
+		if slices.ContainsFunc(v.ipsets[pve.IPFilterSet], func(c string) bool { return strings.Split(c, "/")[0] == ip }) {
+			out = append(out, id)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // OnRuleAdd lets fn change each added rule before it is stored, like a Proxmox normalisation.
 func (s *Server) OnRuleAdd(fn func(*pve.FirewallRule)) {
 	s.mu.Lock()
@@ -601,6 +623,14 @@ func (s *Server) handle(mux *http.ServeMux, pattern string, taskEndpoint bool, h
 		if r.Method != http.MethodGet && (strings.HasSuffix(path, "/firewall/options") || strings.Contains(path, "/firewall/rules")) {
 			s.mu.Lock()
 			fn := s.onFWWrite
+			s.mu.Unlock()
+			if fn != nil {
+				fn()
+			}
+		}
+		if r.Method != http.MethodGet && strings.Contains(path, "/firewall/ipset/") {
+			s.mu.Lock()
+			fn := s.onIPSetWrite
 			s.mu.Unlock()
 			if fn != nil {
 				fn()

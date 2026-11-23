@@ -29,6 +29,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/riverqueue/river"
 )
 
@@ -65,6 +66,8 @@ type WorkerOptions struct {
 	PollInterval time.Duration
 	// PowerWait bounds a power task and the wait for its state; 2m when zero.
 	PowerWait time.Duration
+	// Jobs returns the job runtime, built after the workers; the floating IP worker bumps firewalls with it.
+	Jobs func() *jobs.Jobs
 }
 
 // RegisterWorkers adds the server job workers; they follow the jobs.StartAction worker contract.
@@ -76,6 +79,7 @@ func RegisterWorkers(w *river.Workers, o WorkerOptions) {
 	river.AddWorker(w, NewUsageWorker(o))
 	river.AddWorker(w, NewChangeTypeWorker(o))
 	river.AddWorker(w, NewApplyFirewallsWorker(o))
+	river.AddWorker(w, NewFloatingIPWorker(o))
 }
 
 func (o *WorkerOptions) defaults() {

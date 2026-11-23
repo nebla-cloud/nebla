@@ -24,8 +24,10 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
+	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
@@ -228,18 +230,35 @@ func (o *WorkerOptions) applyFirewallsNow(ctx context.Context, pc pve.Client, id
 		return 0, false, &stepError{"apply firewall", err}
 	}
 	// The v1 anti-spoofing ipset is restored with every apply; Sync already set its flags.
-	assign, err := ipam.Assignments(ctx, o.Ent, id)
-	if err != nil {
+	if err := o.writeAllowSet(ctx, pc, id, node, vmid); err != nil {
 		return 0, false, err
 	}
-	ips := make([]netip.Addr, len(assign))
-	for i, a := range assign {
-		ips[i] = a.IP
-	}
-	if err := pc.SetFirewall(ctx, node, vmid, ips); err != nil {
-		return 0, false, &stepError{"apply anti-spoofing", err}
-	}
 	return gen, anyFW, nil
+}
+
+// writeAllowSet writes the server's allow-set onto vmid while holding its floating IPs, so no move commits mid-write.
+func (o *WorkerOptions) writeAllowSet(ctx context.Context, pc pve.Client, serverID int64, node string, vmid int) error {
+	return db.WithTx(ctx, o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		if err := floatingips.LockAssigned(ctx, etx, serverID); err != nil {
+			return err
+		}
+		assign, err := ipam.Assignments(ctx, etx, serverID)
+		if err != nil {
+			return err
+		}
+		fips, err := floatingips.AllowedIPs(ctx, etx, serverID)
+		if err != nil {
+			return err
+		}
+		ips := make([]netip.Addr, 0, len(assign)+len(fips))
+		for _, a := range assign {
+			ips = append(ips, a.IP)
+		}
+		if err := pc.SetFirewall(ctx, node, vmid, append(ips, fips...)); err != nil {
+			return &stepError{"apply anti-spoofing", err}
+		}
+		return nil
+	})
 }
 
 // lease is a claimed firewall_lease_until on a server.

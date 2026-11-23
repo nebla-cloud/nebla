@@ -82,7 +82,9 @@ func run() error {
 	osi := osimages.New(osimages.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log})
 	workers := river.NewWorkers()
 	osimages.Register(workers, osi)
-	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
+	var runner *jobs.Jobs
+	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log,
+		Jobs: func() *jobs.Jobs { return runner }})
 	volumes.RegisterWorkers(workers, volumes.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
 		VolumeRescue: func(ctx context.Context) error {
@@ -97,7 +99,7 @@ func run() error {
 		return err
 	}
 	auth.RegisterPasskeyJobs(workers, passkeys)
-	runner, err := jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
+	runner, err = jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
 		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), volumes.UsagePeriodicJob(), enroll.SweepPeriodicJob(),
 			auth.ChallengeCleanupPeriodicJob()))
 	if err != nil {
