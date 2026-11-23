@@ -31,6 +31,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
@@ -336,7 +337,7 @@ func TestOneRuleChangeTouchesOneRule(t *testing.T) {
 	}
 	require.Equal(t, 2, delta["POST rules"], "only the changed rule's two families are added: %v", delta)
 	require.Equal(t, 2, delta["DELETE rules"], "only the old rule's two families are deleted: %v", delta)
-	require.LessOrEqual(t, total, 15, "a one-rule change costs a constant number of calls: %v", delta)
+	require.LessOrEqual(t, total, 18, "a one-rule change costs a constant number of calls: %v", delta)
 	vm, _ = f.App.PVE.VM(f.vmid)
 	require.Len(t, vm.Rules, 2*firewalls.MaxRules)
 }
@@ -829,4 +830,40 @@ func TestLabelUpdateRacesChangeType(t *testing.T) {
 			require.NoError(t, actions.Succeed(ctx, e.App.Ent, change.ID))
 		}
 	}
+}
+
+// privateNIC gives the server a private NIC row on a fresh network.
+func (f *fwEnv) privateNIC(t *testing.T, name, ip string, nic int, st servernetwork.State) int64 {
+	t.Helper()
+	ctx := context.Background()
+	n := f.App.Ent.Network.Create().SetProjectID(f.Project).SetLocationID(f.Location).SetName(name).SetLabels(map[string]string{}).
+		SetIPRange("10.9.0.0/24").SaveX(ctx)
+	f.App.Ent.ServerNetwork.Create().SetServerID(f.srv).SetNetworkID(n.ID).SetIP(ip).SetNic(nic).SetState(st).
+		SetMAC("BC:24:11:aa:00:0" + strconv.Itoa(nic)).ExecX(ctx)
+	return n.ID
+}
+
+func TestApplyWritesPrivateSets(t *testing.T) {
+	f := newFWEnv(t)
+	f.privateNIC(t, "a", "10.9.0.2", 2, servernetwork.StateAttached)
+	pc, err := f.App.Catalog.ProxmoxFor(context.Background(), f.Location)
+	require.NoError(t, err)
+	require.NoError(t, servers.ApplyFirewallsNow(context.Background(), opts(f.ServerEnv), pc, f.srv, "pve1", f.vmid))
+	vm, ok := f.App.PVE.VM(f.vmid)
+	require.True(t, ok)
+	require.Equal(t, []string{"10.9.0.2"}, vm.IPSets["ipfilter-net2"])
+	require.NotContains(t, vm.IPSets, "ipfilter-net1")
+	require.Contains(t, vm.IPSets, "ipfilter-net0")
+}
+
+func TestApplyDeletesStalePrivateSet(t *testing.T) {
+	f := newFWEnv(t)
+	id := f.privateNIC(t, "a", "10.9.0.2", 2, servernetwork.StateAttached)
+	pc, err := f.App.Catalog.ProxmoxFor(context.Background(), f.Location)
+	require.NoError(t, err)
+	require.NoError(t, servers.ApplyFirewallsNow(context.Background(), opts(f.ServerEnv), pc, f.srv, "pve1", f.vmid))
+	f.App.Ent.ServerNetwork.Delete().Where(servernetwork.NetworkID(id)).ExecX(context.Background())
+	require.NoError(t, servers.ApplyFirewallsNow(context.Background(), opts(f.ServerEnv), pc, f.srv, "pve1", f.vmid))
+	vm, _ := f.App.PVE.VM(f.vmid)
+	require.NotContains(t, vm.IPSets, "ipfilter-net2")
 }

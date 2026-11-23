@@ -78,12 +78,12 @@ func converged(t *testing.T, s *fake.Server, d Desired) {
 func TestSyncNeverOpens(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true, System{})
 	b := Render([]Rule{
 		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: pfx("0.0.0.0/0")},
 		{ID: 3, FirewallID: 2, Direction: "out", Protocol: "udp", Port: ptr("53"), IPs: pfx("192.0.2.1/32")},
-	}, true)
-	none := Render(nil, false)
+	}, true, System{})
+	none := Render(nil, false, System{})
 
 	var old, next Desired
 	var wasDrop bool
@@ -125,7 +125,7 @@ func TestSyncNeverOpens(t *testing.T) {
 func TestSyncIdempotent(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, d); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestSyncRemovesForeignRules(t *testing.T) {
 	if err := pc.AddFirewallRule(ctx, node, vmid, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "25", Enable: true}); err != nil {
 		t.Fatal(err)
 	}
-	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, d); err != nil {
 		t.Fatal(err)
 	}
@@ -164,11 +164,11 @@ func TestSyncRemovesForeignRules(t *testing.T) {
 func TestSyncResumesAfterFailure(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, a); err != nil {
 		t.Fatal(err)
 	}
-	b := Render([]Rule{{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	b := Render([]Rule{{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: pfx("0.0.0.0/0", "::/0")}}, true, System{})
 	s.FailNextRuleWrite()
 	if err := Sync(ctx, pc, node, vmid, b); err == nil {
 		t.Fatal("want an error from the failed rule write")
@@ -188,7 +188,7 @@ func TestSyncRepairsEditedRule(t *testing.T) {
 	a := Render([]Rule{
 		{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("192.0.2.0/24")},
 		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: pfx("0.0.0.0/0")},
-	}, true)
+	}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, a); err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestSyncRepairsEditedRule(t *testing.T) {
 }
 
 func TestInSync(t *testing.T) {
-	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true, System{})
 	live := func() []pve.FirewallRule {
 		out := slices.Clone(d.Rules)
 		for i := range out {
@@ -291,7 +291,7 @@ func TestInSync(t *testing.T) {
 
 func TestDrift(t *testing.T) {
 	port := "22"
-	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: &port, IPs: []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}}}, true)
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: &port, IPs: []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}}}, true, System{})
 	cur := slices.Clone(d.Rules)
 	if got := Drift(cur, maps.Clone(d.Options), d); got != "" {
 		t.Fatalf("in sync: %q", got)
@@ -313,14 +313,14 @@ func TestDrift(t *testing.T) {
 func TestSyncReplacesRulesWithPrependingAdds(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	old := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	old := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, old); err != nil {
 		t.Fatal(err)
 	}
 	next := Render([]Rule{
 		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")},
 		{ID: 3, FirewallID: 1, Direction: "in", Protocol: "udp", Port: ptr("9999"), IPs: pfx("10.99.0.11/32")},
-	}, true)
+	}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, next); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func TestSyncReplacesRulesWithPrependingAdds(t *testing.T) {
 func TestSyncStoredRuleDiffers(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, a); err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +347,7 @@ func TestSyncStoredRuleDiffers(t *testing.T) {
 	b := Render([]Rule{
 		{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")},
 		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "udp", Port: ptr("53"), IPs: pfx("0.0.0.0/0")},
-	}, true)
+	}, true, System{})
 	for range 3 {
 		err := Sync(ctx, pc, node, vmid, b)
 		if !errors.Is(err, ErrStoredDiffers) {
@@ -366,7 +366,7 @@ func TestSyncStoredRuleDiffers(t *testing.T) {
 func TestDeleteRuleDigestMismatch(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true)
+	a := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0", "::/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, a); err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,7 @@ func TestDeleteRuleDigestMismatch(t *testing.T) {
 func TestSyncStoredDiffersDeletesAllStale(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	old := Render([]Rule{{ID: 9, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("3306"), IPs: pfx("0.0.0.0/0")}}, true)
+	old := Render([]Rule{{ID: 9, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("3306"), IPs: pfx("0.0.0.0/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, old); err != nil {
 		t.Fatal(err)
 	}
@@ -410,7 +410,7 @@ func TestSyncStoredDiffersDeletesAllStale(t *testing.T) {
 	d := Render([]Rule{
 		{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")},
 		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "udp", Port: ptr("53"), IPs: pfx("0.0.0.0/0")},
-	}, true)
+	}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, d); !errors.Is(err, ErrStoredDiffers) {
 		t.Fatalf("err = %v, want ErrStoredDiffers", err)
 	}
@@ -425,7 +425,7 @@ func TestSyncRuleGoneAfterAddIsTransient(t *testing.T) {
 	ctx := context.Background()
 	// The rule is stored under another comment, as if deleted and replaced meanwhile.
 	s.OnRuleAdd(func(r *pve.FirewallRule) { r.Comment = "someone else" })
-	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true, System{})
 	err := Sync(ctx, pc, node, vmid, d)
 	if !errors.Is(err, ErrRuleGone) || errors.Is(err, ErrStoredDiffers) {
 		t.Fatalf("err = %v, want ErrRuleGone only", err)
@@ -438,7 +438,7 @@ func TestSyncRuleGoneAfterAddIsTransient(t *testing.T) {
 func TestSyncStoredDiffersCleanupConflictRetries(t *testing.T) {
 	s, pc := setup(t)
 	ctx := context.Background()
-	old := Render([]Rule{{ID: 9, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("3306"), IPs: pfx("0.0.0.0/0")}}, true)
+	old := Render([]Rule{{ID: 9, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("3306"), IPs: pfx("0.0.0.0/0")}}, true, System{})
 	if err := Sync(ctx, pc, node, vmid, old); err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +448,7 @@ func TestSyncStoredDiffersCleanupConflictRetries(t *testing.T) {
 			t.Errorf("VM opened: %v", v.Firewall)
 		}
 	})
-	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true)
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true, System{})
 	s.ConflictNextRuleDelete()
 	err := Sync(ctx, pc, node, vmid, d)
 	if errors.Is(err, ErrStoredDiffers) || !pve.IsTransient(err) {
@@ -459,5 +459,54 @@ func TestSyncStoredDiffersCleanupConflictRetries(t *testing.T) {
 	}
 	if v, _ := s.VM(vmid); len(v.Rules) != 0 {
 		t.Fatalf("stale rules left after cleanup: %+v", v.Rules)
+	}
+}
+
+func TestSyncKeepsSystemRulesOnTop(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	sys := System{PrivateNICs: []int{1, 2}, VXLANGuard: true}
+	user := func(port string) Rule {
+		return Rule{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr(port), IPs: pfx("0.0.0.0/0")}
+	}
+	first := Render([]Rule{user("22")}, true, sys)
+	if err := Sync(ctx, pc, node, vmid, first); err != nil {
+		t.Fatal(err)
+	}
+	next := Render([]Rule{user("22"), {ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: pfx("0.0.0.0/0")}}, true, sys)
+	if err := Sync(ctx, pc, node, vmid, next); err != nil {
+		t.Fatal(err)
+	}
+	converged(t, s, next)
+	v, _ := s.VM(vmid)
+	k := 5
+	for i, r := range v.Rules {
+		if got := strings.HasPrefix(r.Comment, SystemPrefix); got != (i < k) {
+			t.Fatalf("rule %d %q: system=%v, want system only in the first %d: %+v", i, r.Comment, got, k, v.Rules)
+		}
+	}
+}
+
+func TestVXLANGuardWithoutFirewall(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	d := Render(nil, false, System{VXLANGuard: true})
+	if err := Sync(ctx, pc, node, vmid, d); err != nil {
+		t.Fatal(err)
+	}
+	v, _ := s.VM(vmid)
+	if len(v.Rules) != 1 || v.Rules[0].Comment != "nebla:sys:vxlan" || v.Firewall["policy_in"] != "ACCEPT" {
+		t.Fatalf("rules %+v options %v", v.Rules, v.Firewall)
+	}
+	writes := 0
+	s.OnFirewallWrite(func() { writes++ })
+	if err := Sync(ctx, pc, node, vmid, d); err != nil || writes != 0 {
+		t.Fatalf("resync err %v writes %d", err, writes)
+	}
+	if err := Sync(ctx, pc, node, vmid, Render(nil, false, System{})); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ = s.VM(vmid); len(v.Rules) != 0 {
+		t.Fatalf("guard should go when the location stops being vxlan: %+v", v.Rules)
 	}
 }

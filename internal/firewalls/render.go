@@ -47,10 +47,38 @@ type Desired struct {
 	Rules   []pve.FirewallRule
 }
 
-// Render maps effective rules, given in position order per firewall, to the desired Proxmox state.
-func Render(rules []Rule, anyFirewall bool) Desired {
+// SystemPrefix starts the comment of every Nebla-owned rule that users never see.
+const SystemPrefix = "nebla:sys:"
+
+// System is the Nebla-owned input to a render: private NICs and the VXLAN guard.
+type System struct {
+	PrivateNICs []int
+	VXLANGuard  bool
+}
+
+// systemRules lists the Nebla-owned rules, in the order they must sit on top.
+func systemRules(sys System, anyFirewall bool) []pve.FirewallRule {
+	var out []pve.FirewallRule
+	if sys.VXLANGuard {
+		out = append(out, pve.FirewallRule{Type: "out", Action: "DROP", Iface: "net0", Proto: "udp", Dport: "4789", Enable: true, Comment: SystemPrefix + "vxlan"})
+	}
+	if !anyFirewall {
+		return out
+	}
+	for _, n := range slices.Sorted(slices.Values(sys.PrivateNICs)) {
+		iface := fmt.Sprintf("net%d", n)
+		for _, dir := range []string{"in", "out"} {
+			out = append(out, pve.FirewallRule{Type: dir, Action: "ACCEPT", Iface: iface, Enable: true, Comment: fmt.Sprintf("%s%s:%s", SystemPrefix, iface, dir)})
+		}
+	}
+	return out
+}
+
+// Render maps effective rules, given in position order per firewall, to the desired Proxmox state, system rules first.
+func Render(rules []Rule, anyFirewall bool, sys System) Desired {
 	d := Desired{Options: map[string]string{"enable": "1", "ipfilter": "1", "macfilter": "1", "ndp": "1", "radv": "0", "dhcp": "0",
 		"policy_in": "ACCEPT", "policy_out": "ACCEPT"}}
+	d.Rules = systemRules(sys, anyFirewall)
 	if !anyFirewall {
 		return d
 	}

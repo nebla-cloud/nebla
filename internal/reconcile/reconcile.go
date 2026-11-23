@@ -44,6 +44,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -347,6 +348,47 @@ func ipsetDrift(cidrs []string, exists bool, assign []ipam.Assignment, floating 
 	return ""
 }
 
+// privateSetDrift describes how ipfilter-net1..3 differ from the server's private NICs; "" when they match.
+func (r *Reconciler) privateSetDrift(ctx context.Context, pc pve.Client, v pve.VM, serverID int64) (string, error) {
+	nics, err := networks.PrivateNICs(ctx, r.o.Ent, serverID)
+	if err != nil {
+		return "", err
+	}
+	want := map[int]netip.Addr{}
+	for _, n := range nics {
+		want[n.Index] = n.IP
+	}
+	for i := 1; i <= networks.MaxNICs; i++ {
+		name := pve.IPFilterSetFor(i)
+		cidrs, exists, err := pc.IPSet(ctx, v.Node, v.VMID, name)
+		if err != nil {
+			return "", fmt.Errorf("read ipset %s: %w", name, err)
+		}
+		ip, ok := want[i]
+		switch {
+		case !ok && exists:
+			return "ipset " + name + " should not exist", nil
+		case ok && !exists:
+			return "ipset " + name + " is missing", nil
+		case ok && !onlyAddr(cidrs, ip):
+			return "ipset " + name + " is " + strings.Join(cidrs, ",") + ", want " + ip.String(), nil
+		}
+	}
+	return "", nil
+}
+
+// onlyAddr reports whether an ipset's entries are exactly ip, bare or as a /32.
+func onlyAddr(cidrs []string, ip netip.Addr) bool {
+	if len(cidrs) != 1 {
+		return false
+	}
+	if a, err := netip.ParseAddr(cidrs[0]); err == nil {
+		return a == ip
+	}
+	p, err := netip.ParsePrefix(cidrs[0])
+	return err == nil && p.IsSingleIP() && p.Addr() == ip
+}
+
 // nicFirewall reports whether a net0 config value has the firewall flag on.
 func nicFirewall(net0 string) bool {
 	return slices.Contains(strings.Split(net0, ","), "firewall=1")
@@ -418,9 +460,18 @@ func (r *Reconciler) repairFirewall(ctx context.Context, log *slog.Logger, pc pv
 	if err != nil {
 		return fmt.Errorf("read firewall ipset: %w", err)
 	}
-	drift := firewalls.Drift(cur, opts, firewalls.Render(rules, anyFW))
+	sys, err := networks.SystemFor(tctx, r.o.Ent, row.ID)
+	if err != nil {
+		return err
+	}
+	drift := firewalls.Drift(cur, opts, firewalls.Render(rules, anyFW, sys))
 	if drift == "" {
 		drift = ipsetDrift(cidrs, exists, assign, fips)
+	}
+	if drift == "" {
+		if drift, err = r.privateSetDrift(tctx, pc, v, row.ID); err != nil {
+			return err
+		}
 	}
 	if drift == "" {
 		return nil

@@ -39,6 +39,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
@@ -1298,4 +1299,26 @@ func TestReconcilePassResumesFloatingIPsOnce(t *testing.T) {
 		return err == nil && err2 == nil && open == 0 && done == 2
 	}, 30*time.Second, 50*time.Millisecond)
 	require.Equal(t, int32(1), calls.Load())
+}
+
+func TestDriftSeesMissingPrivateSet(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	n := e.App.Ent.Network.Create().SetProjectID(e.Project).SetLocationID(e.Location).SetName("n").SetLabels(map[string]string{}).
+		SetIPRange("10.9.0.0/24").SaveX(ctx)
+	// Attached with no apply: the VM lacks ipfilter-net1.
+	e.App.Ent.ServerNetwork.Create().SetServerID(row.ID).SetNetworkID(n.ID).SetIP("10.9.0.2").SetNic(1).
+		SetState(servernetwork.StateAttached).SetMAC("BC:24:11:aa:00:01").ExecX(ctx)
+	baseline := len(applies(t, e, row.ID))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1, "the missing private set is drift")
+	settle(t, e, row.ID)
+	require.Equal(t, []string{"10.9.0.2"}, vmFW(t, e, vmid).IPSets["ipfilter-net1"])
+
+	finishLast(t, e, row.ID, action.StatusSuccess, time.Hour)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Len(t, applies(t, e, row.ID), baseline+1, "a matching private set is not drift")
 }

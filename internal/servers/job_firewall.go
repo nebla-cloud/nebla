@@ -29,6 +29,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
 )
@@ -221,7 +222,11 @@ func (o *WorkerOptions) applyFirewallsNow(ctx context.Context, pc pve.Client, id
 			return 0, false, &permanentError{actions.CodeFirewallUnenforced, unenforcedDetail}
 		}
 	}
-	switch err := firewalls.Sync(ctx, pc, node, vmid, firewalls.Render(rules, anyFW)); {
+	sys, err := networks.SystemFor(ctx, o.Ent, id)
+	if err != nil {
+		return 0, false, err
+	}
+	switch err := firewalls.Sync(ctx, pc, node, vmid, firewalls.Render(rules, anyFW, sys)); {
 	case errors.Is(err, firewalls.ErrStoredDiffers):
 		return 0, false, permanent("apply firewall: %v", err)
 	case errors.Is(err, firewalls.ErrRuleGone):
@@ -242,6 +247,9 @@ func (o *WorkerOptions) writeAllowSet(ctx context.Context, pc pve.Client, server
 		if err := floatingips.LockAssigned(ctx, etx, serverID); err != nil {
 			return err
 		}
+		if err := networks.LockNICs(ctx, etx, serverID); err != nil {
+			return err
+		}
 		assign, err := ipam.Assignments(ctx, etx, serverID)
 		if err != nil {
 			return err
@@ -257,8 +265,40 @@ func (o *WorkerOptions) writeAllowSet(ctx context.Context, pc pve.Client, server
 		if err := pc.SetFirewall(ctx, node, vmid, append(ips, fips...)); err != nil {
 			return &stepError{"apply anti-spoofing", err}
 		}
+		nics, err := networks.PrivateNICs(ctx, etx, serverID)
+		if err != nil {
+			return err
+		}
+		if err := writePrivateSets(ctx, pc, node, vmid, nics); err != nil {
+			return &stepError{"apply private anti-spoofing", err}
+		}
 		return nil
 	})
+}
+
+// writePrivateSets writes ipfilter-net1..3 for the present NICs and drops the sets of absent ones.
+func writePrivateSets(ctx context.Context, pc pve.Client, node string, vmid int, nics []networks.NIC) error {
+	have := map[int]netip.Addr{}
+	for _, n := range nics {
+		have[n.Index] = n.IP
+	}
+	for i := 1; i <= networks.MaxNICs; i++ {
+		name := pve.IPFilterSetFor(i)
+		if ip, ok := have[i]; ok {
+			if err := pc.SetIPSet(ctx, node, vmid, name, []netip.Addr{ip}); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, exists, err := pc.IPSet(ctx, node, vmid, name); err != nil {
+			return err
+		} else if exists {
+			if err := pc.DeleteIPSet(ctx, node, vmid, name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // lease is a claimed firewall_lease_until on a server.

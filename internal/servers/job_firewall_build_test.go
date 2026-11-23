@@ -193,7 +193,7 @@ func TestResumedCreatePastFirewallStepGetsRules(t *testing.T) {
 	vmid := *row.Vmid
 	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
 	require.NoError(t, err)
-	require.NoError(t, firewalls.Sync(ctx, pc, "pve1", vmid, firewalls.Render(nil, false)))
+	require.NoError(t, firewalls.Sync(ctx, pc, "pve1", vmid, firewalls.Render(nil, false, firewalls.System{})))
 	require.Empty(t, dports(t, e, vmid))
 	require.Equal(t, -1, startCall(e, vmid))
 

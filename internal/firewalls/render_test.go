@@ -90,7 +90,7 @@ func TestRender(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			d := Render(c.rules, c.any)
+			d := Render(c.rules, c.any, System{})
 			if !reflect.DeepEqual(d.Options, c.opts) {
 				t.Errorf("options = %v, want %v", d.Options, c.opts)
 			}
@@ -100,7 +100,7 @@ func TestRender(t *testing.T) {
 		})
 	}
 
-	d := Render([]Rule{ssh}, true)
+	d := Render([]Rule{ssh}, true, System{})
 	for i, want := range []string{"nebla:3:7:0:", "nebla:3:7:0:"} {
 		if !strings.HasPrefix(d.Rules[i].Comment, want) {
 			t.Errorf("comment %d = %q, want prefix %q", i, d.Rules[i].Comment, want)
@@ -116,7 +116,7 @@ func TestRenderSplitsLongLists(t *testing.T) {
 	for i := range 50 {
 		ips = append(ips, netip.MustParsePrefix(fmt.Sprintf("2001:db8:aaaa:bbbb:cccc:dddd:eeee:%x/128", i+1)))
 	}
-	d := Render([]Rule{{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: ips}}, true)
+	d := Render([]Rule{{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("443"), IPs: ips}}, true, System{})
 	if len(d.Rules) < 2 {
 		t.Fatalf("want a split, got %d rules", len(d.Rules))
 	}
@@ -137,8 +137,8 @@ func TestRenderSplitsLongLists(t *testing.T) {
 
 func TestRenderHashAndDeterminism(t *testing.T) {
 	base := Rule{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("192.0.2.0/24")}
-	c0 := Render([]Rule{base}, true).Rules[0].Comment
-	if again := Render([]Rule{base}, true); !reflect.DeepEqual(again, Render([]Rule{base}, true)) || again.Rules[0].Comment != c0 {
+	c0 := Render([]Rule{base}, true, System{}).Rules[0].Comment
+	if again := Render([]Rule{base}, true, System{}); !reflect.DeepEqual(again, Render([]Rule{base}, true, System{})) || again.Rules[0].Comment != c0 {
 		t.Fatal("render is not deterministic")
 	}
 	variants := map[string]func(r *Rule){
@@ -151,13 +151,48 @@ func TestRenderHashAndDeterminism(t *testing.T) {
 	for name, mut := range variants {
 		r := base
 		mut(&r)
-		if c := Render([]Rule{r}, true).Rules[0].Comment; c == c0 {
+		if c := Render([]Rule{r}, true, System{}).Rules[0].Comment; c == c0 {
 			t.Errorf("%s: comment hash unchanged (%s)", name, c)
 		}
 	}
 	r := base
 	r.Description = "ssh"
-	if c := Render([]Rule{r}, true).Rules[0].Comment; c != c0 {
+	if c := Render([]Rule{r}, true, System{}).Rules[0].Comment; c != c0 {
 		t.Errorf("description is not rendered, hash should not change")
+	}
+}
+
+func TestRenderSystemRulesFirst(t *testing.T) {
+	rules := []Rule{
+		{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")},
+		{ID: 2, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("80"), IPs: pfx("0.0.0.0/0")},
+	}
+	d := Render(rules, true, System{PrivateNICs: []int{3, 1}, VXLANGuard: true})
+	var got []string
+	for _, r := range d.Rules[:5] {
+		got = append(got, r.Comment)
+	}
+	want := []string{"nebla:sys:vxlan", "nebla:sys:net1:in", "nebla:sys:net1:out", "nebla:sys:net3:in", "nebla:sys:net3:out"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("system rules = %v, want %v", got, want)
+	}
+	if len(d.Rules) != 7 || strings.HasPrefix(d.Rules[5].Comment, SystemPrefix) || strings.HasPrefix(d.Rules[6].Comment, SystemPrefix) {
+		t.Fatalf("user rules should follow: %+v", d.Rules[5:])
+	}
+	if g := d.Rules[0]; g.Type != "out" || g.Action != "DROP" || g.Iface != "net0" || g.Proto != "udp" || g.Dport != "4789" || !g.Enable {
+		t.Errorf("guard = %+v", g)
+	}
+	if a := d.Rules[1]; a.Type != "in" || a.Action != "ACCEPT" || a.Iface != "net1" || a.Proto != "" || a.Dport != "" || !a.Enable {
+		t.Errorf("allowance = %+v", a)
+	}
+}
+
+func TestRenderNoAllowancesWithAccept(t *testing.T) {
+	d := Render(nil, false, System{PrivateNICs: []int{1, 2}, VXLANGuard: true})
+	if len(d.Rules) != 1 || d.Rules[0].Comment != "nebla:sys:vxlan" {
+		t.Fatalf("rules = %+v, want only the guard", d.Rules)
+	}
+	if d := Render(nil, false, System{PrivateNICs: []int{1}}); len(d.Rules) != 0 {
+		t.Fatalf("rules = %+v, want none", d.Rules)
 	}
 }
