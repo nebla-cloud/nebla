@@ -70,6 +70,7 @@ func (IPAddress) Edges() []ent.Edge {
 func (IPAddress) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("project_id", "name").Unique().StorageKey("ip_addresses_project_name_key"),
+		index.Fields("allocation_id").Unique().StorageKey("ip_addresses_allocation_id_key"),
 		index.Fields("server_id").StorageKey("ip_addresses_server_id_idx"),
 		index.Fields("releasing_from_id").StorageKey("ip_addresses_releasing_from_id_idx"),
 	}

@@ -367,6 +367,11 @@ var (
 				Columns: []*schema.Column{IPAddressesColumns[11], IPAddressesColumns[4]},
 			},
 			{
+				Name:    "ip_addresses_allocation_id_key",
+				Unique:  true,
+				Columns: []*schema.Column{IPAddressesColumns[13]},
+			},
+			{
 				Name:    "ip_addresses_server_id_idx",
 				Unique:  false,
 				Columns: []*schema.Column{IPAddressesColumns[14]},
