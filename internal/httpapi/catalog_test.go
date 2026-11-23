@@ -105,6 +105,32 @@ func TestAdminLocationHTTP(t *testing.T) {
 	res.Body.Close()
 }
 
+func TestImportStorageSurvivesLocationReload(t *testing.T) {
+	app := testutil.NewApp(t)
+	app.SeedPVE()
+	admin := app.LoginAdmin()
+	id := admin.CreateLocation("eu-1")
+	conn := app.PVE.Conn()
+	input := map[string]any{
+		"name": "eu-1", "disk_storage": "ceph", "iso_storage": "local", "import_storage": "local",
+		"pve": map[string]any{"url": conn.BaseURL, "token_id": conn.TokenID, "ca_fingerprint": conn.CAFingerprint},
+	}
+	path := "/v1/admin/locations/" + itoa(id)
+	res := admin.Send(http.MethodPut, path, input)
+	require.Equal(t, 422, res.StatusCode, app.Body(res))
+
+	app.PVE.AddStorage("pve1", "local", []string{"iso", "import"}, false)
+	res = admin.Send(http.MethodPut, path, input)
+	require.Equal(t, 200, res.StatusCode, app.Body(res))
+
+	type location struct {
+		ImportStorage string `json:"import_storage"`
+	}
+	require.Equal(t, "local", decode[location](t, app, admin.Get(path)).ImportStorage)
+	list := decode[struct{ Locations []location }](t, app, admin.Get("/v1/admin/locations"))
+	require.Equal(t, []location{{ImportStorage: "local"}}, list.Locations)
+}
+
 func TestProjectCatalogHTTP(t *testing.T) {
 	app := testutil.NewApp(t)
 	app.SeedPVE()

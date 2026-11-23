@@ -91,7 +91,12 @@ async function submit() {
   try {
     emit('saved', await saveLocation.mutateAsync(body()))
   } catch (e) {
-    formError.value = errorMessage(e)
+    const message = errorMessage(e)
+    if (message.startsWith('import_storage ')) {
+      errors.value.import_storage = message
+    } else {
+      formError.value = message
+    }
   }
 }
 </script>
@@ -205,7 +210,8 @@ async function submit() {
       <UFormField
         label="Import storage"
         name="import_storage"
-        help="Storage with the import content type, used to build catalog templates. Leave blank to turn that off."
+        help="Enable the Import content type on this storage in Proxmox before saving. Leave blank to disable catalog template builds."
+        :error="errors.import_storage"
       >
         <UInput
           v-model="form.import_storage"

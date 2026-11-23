@@ -51,7 +51,7 @@ func templateTag(buildID int64, nonce string) string {
 }
 
 const (
-	reasonNoImport    = "location has no import_storage"
+	reasonNoImport    = "To build templates, enable the Import content type on a Proxmox directory storage, then select it as Import storage in the Nebla location settings."
 	reasonUnreachable = "Proxmox is unreachable"
 	reasonVersion     = "no online node runs Proxmox VE 8.4 or later"
 	pveCallTimeout    = 10 * time.Second

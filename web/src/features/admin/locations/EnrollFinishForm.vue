@@ -75,7 +75,6 @@ watch(
 )
 const formError = ref<string | null>(null)
 
-
 async function submit() {
   formError.value = null
   const body: EnrollmentFinish = {
@@ -138,7 +137,15 @@ async function submit() {
         <option v-for="s in isos" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>
       </select>
     </UFormField>
-    <UFormField label="Import storage" name="import_storage" help="Optional. For disk images.">
+    <UFormField
+      label="Import storage"
+      name="import_storage"
+      :help="
+        imports.length
+          ? 'Select a storage to enable catalog template builds. Choose None to leave builds disabled.'
+          : 'No eligible import storage was reported. To build templates, enable Import on a directory storage under Proxmox → Datacenter → Storage, keep its existing content types, then rerun location setup.'
+      "
+    >
       <select v-model="form.imp" name="import_storage" :class="selectFullClass">
         <option value="">None</option>
         <option v-for="s in imports" :key="s.id" :value="s.id">{{ s.id }} ({{ s.type }})</option>

@@ -211,11 +211,11 @@ func TestAvailability(t *testing.T) {
 		require.NoError(t, err)
 		ls := locState(t, list, "debian-13", loc)
 		require.False(t, ls.Available)
-		require.Equal(t, "location has no import_storage", ls.Reason)
+		require.Equal(t, "To build templates, enable the Import content type on a Proxmox directory storage, then select it as Import storage in the Nebla location settings.", ls.Reason)
 		require.Equal(t, "unavailable", ls.State)
 		_, err = e.svc.Enable(ctx, "debian-13", loc)
 		ae := requireCode(t, err, http.StatusUnprocessableEntity, "catalog_unavailable")
-		require.Equal(t, "location has no import_storage", ae.Msg)
+		require.Equal(t, "To build templates, enable the Import content type on a Proxmox directory storage, then select it as Import storage in the Nebla location settings.", ae.Msg)
 	})
 	t.Run("all nodes below 8.4", func(t *testing.T) {
 		e := newEnv(t)
