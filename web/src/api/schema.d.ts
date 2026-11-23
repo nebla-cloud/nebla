@@ -2331,7 +2331,7 @@ export interface components {
             /** @description PBS storage with the backup content type; empty turns backups off. Omitted on update keeps the current value */
             backup_storage?: string;
             backup_window?: components["schemas"]["BackupWindow"];
-            /** @description The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omit it and vnet_prefix to leave both unchanged */
+            /** @description The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omitting only sdn_zone keeps the current zone; omitting both sdn_zone and vnet_prefix changes nothing. Turning it off, or changing the zone or prefix, is refused with 409 while networks are in use or cooling */
             sdn_zone?: string;
             /** @description Prefix of the VNet names Nebla uses; default nb */
             vnet_prefix?: string;

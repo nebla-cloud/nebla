@@ -1106,7 +1106,7 @@ type LocationInput struct {
 	Name          string             `json:"name"`
 	Pve           PveConnectionInput `json:"pve"`
 
-	// SdnZone The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omit it and vnet_prefix to leave both unchanged
+	// SdnZone The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omitting only sdn_zone keeps the current zone; omitting both sdn_zone and vnet_prefix changes nothing. Turning it off, or changing the zone or prefix, is refused with 409 while networks are in use or cooling
 	SdnZone *string `json:"sdn_zone,omitempty"`
 
 	// VnetPrefix Prefix of the VNet names Nebla uses; default nb

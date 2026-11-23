@@ -3670,7 +3670,7 @@ components:
         backup_window: { $ref: "#/components/schemas/BackupWindow" }
         sdn_zone:
           type: string
-          description: "The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omit it and vnet_prefix to leave both unchanged"
+          description: "The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omitting only sdn_zone keeps the current zone; omitting both sdn_zone and vnet_prefix changes nothing. Turning it off, or changing the zone or prefix, is refused with 409 while networks are in use or cooling"
         vnet_prefix:
           type: string
           pattern: "^[a-z][a-z0-9]{0,3}$"

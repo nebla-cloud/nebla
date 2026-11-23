@@ -464,7 +464,7 @@ func TestAttachRefusals(t *testing.T) {
 			p, s, netRef, ip := c.setup(t, e)
 			before := e.App.Ent.ServerNetwork.Query().CountX(ctx)
 			acts := e.App.Ent.Action.Query().CountX(ctx)
-			_, err := e.svc.Attach(ctx, p, s, netRef, ip)
+			_, _, err := e.svc.Attach(ctx, p, s, netRef, ip)
 			requireAPIErr(t, err, c.status, c.code, c.msg)
 			require.Equal(t, before, e.App.Ent.ServerNetwork.Query().CountX(ctx))
 			require.Equal(t, acts, e.App.Ent.Action.Query().CountX(ctx))
@@ -491,8 +491,11 @@ func TestAttachPicksLowestIPAndNIC(t *testing.T) {
 	s1 := e.rawServer(t, e.Project, e.Location, "s1", server.StatusRunning)
 	s2 := e.rawServer(t, e.Project, e.Location, "s2", server.StatusOff)
 
-	act, err := e.svc.Attach(ctx, e.Project, s1, ref(n1.ID), "")
+	act, g1, err := e.svc.Attach(ctx, e.Project, s1, ref(n1.ID), "")
 	require.NoError(t, err)
+	require.NotNil(t, g1, "the commands come back from the starting transaction")
+	require.Contains(t, g1.Apply, "10.1.0.2/24")
+	require.Empty(t, g1.Note)
 	require.Equal(t, networks.KindAttach, act.Command)
 	require.ElementsMatch(t, []actions.Resource{{ID: s1, Type: "server"}, {ID: n1.ID, Type: networks.ResourceType}}, act.Resources)
 	rows := e.rows(t, s1)
@@ -503,12 +506,14 @@ func TestAttachPicksLowestIPAndNIC(t *testing.T) {
 	require.Regexp(t, `^BC:24:11(:[0-9A-F]{2}){3}$`, rows[0].MAC)
 	e.settle(t, s1, act)
 
-	act, err = e.svc.Attach(ctx, e.Project, s2, n1.Name, "")
+	act, g2, err := e.svc.Attach(ctx, e.Project, s2, n1.Name, "")
 	require.NoError(t, err)
+	require.NotNil(t, g2)
+	require.Equal(t, "Run these after starting the server.", g2.Note)
 	require.Equal(t, "10.1.0.3", e.rows(t, s2)[0].IP)
 	e.settle(t, s2, act)
 
-	act, err = e.svc.Attach(ctx, e.Project, s1, ref(n2.ID), "10.2.0.50")
+	act, _, err = e.svc.Attach(ctx, e.Project, s1, ref(n2.ID), "10.2.0.50")
 	require.NoError(t, err)
 	e.settle(t, s1, act)
 	rows = e.rows(t, s1)
@@ -518,14 +523,14 @@ func TestAttachPicksLowestIPAndNIC(t *testing.T) {
 	require.NotEqual(t, rows[0].MAC, rows[1].MAC)
 
 	// Detaching nic 1 frees it for the next attach.
-	act, err = e.svc.Detach(ctx, e.Project, s1, ref(n1.ID))
+	act, _, err = e.svc.Detach(ctx, e.Project, s1, ref(n1.ID))
 	require.NoError(t, err)
 	require.Equal(t, networks.KindDetach, act.Command)
 	require.Equal(t, servernetwork.StateDetaching, e.rows(t, s1)[0].State)
 	require.NoError(t, actions.Succeed(ctx, e.App.Ent, act.ID))
 	e.App.Ent.ServerNetwork.Delete().Where(servernetwork.ServerID(s1), servernetwork.NetworkID(n1.ID)).ExecX(ctx)
 
-	_, err = e.svc.Attach(ctx, e.Project, s1, ref(n3.ID), "")
+	_, _, err = e.svc.Attach(ctx, e.Project, s1, ref(n3.ID), "")
 	require.NoError(t, err)
 	got := e.rows(t, s1)
 	require.Len(t, got, 2)
@@ -548,12 +553,12 @@ func TestDetachRefusals(t *testing.T) {
 	n := e.createNet(t, e.Project, "n", "10.1.0.0/24")
 	s := e.rawServer(t, e.Project, e.Location, "web", server.StatusRunning)
 
-	_, err := e.svc.Detach(ctx, e.Project, s, ref(n.ID))
+	_, _, err := e.svc.Detach(ctx, e.Project, s, ref(n.ID))
 	requireAPIErr(t, err, http.StatusUnprocessableEntity, "invalid_input", msgNotOn)
 	e.rawAttach(t, s, n.ID, "10.1.0.2", 1, servernetwork.StateAttaching)
-	_, err = e.svc.Detach(ctx, e.Project, s, ref(n.ID))
+	_, _, err = e.svc.Detach(ctx, e.Project, s, ref(n.ID))
 	requireAPIErr(t, err, http.StatusConflict, "locked", "")
-	_, err = e.svc.Detach(ctx, e.Admin.CreateProject("q"), s, ref(n.ID))
+	_, _, err = e.svc.Detach(ctx, e.Admin.CreateProject("q"), s, ref(n.ID))
 	requireAPIErr(t, err, http.StatusNotFound, "not_found", "")
 }
 
@@ -567,7 +572,7 @@ func TestDetachWhileFirewallOff(t *testing.T) {
 	f := false
 	e.setFirewall(t, &f)
 
-	act, err := e.svc.Detach(ctx, e.Project, s, ref(n.ID))
+	act, _, err := e.svc.Detach(ctx, e.Project, s, ref(n.ID))
 	require.NoError(t, err)
 	require.Equal(t, networks.KindDetach, act.Command)
 	require.Equal(t, servernetwork.StateDetaching, e.rows(t, s)[0].State)

@@ -356,6 +356,10 @@ func TestAdminLocationPrivateNetworks(t *testing.T) {
 	require.Equal(t, http.StatusConflict, res.StatusCode)
 	require.Contains(t, e.App.Body(res), "This location's private networks are in use; the zone and prefix can't change.")
 
+	res = e.Admin.Send(http.MethodPut, path, adminLocationBody(e, map[string]any{"sdn_zone": ""}))
+	require.Equal(t, http.StatusConflict, res.StatusCode)
+	require.Contains(t, e.App.Body(res), "This location's private networks are in use; the zone and prefix can't change.")
+
 	res = e.Admin.Send(http.MethodPut, path, adminLocationBody(e, map[string]any{"vnet_prefix": "BAD!"}))
 	require.Equal(t, http.StatusUnprocessableEntity, res.StatusCode)
 	res.Body.Close()
@@ -384,4 +388,13 @@ func TestNetworkQuotaAPI(t *testing.T) {
 		} `json:"usage"`
 	}](t, e.App, e.Admin.Get(pp), http.StatusOK)
 	require.Equal(t, 1, p.Usage.Networks)
+}
+
+func TestAdminLocationZoneOff(t *testing.T) {
+	e := newNetEnv(t)
+	off := decodeJSON[apiAdminLoc](t, e.App, e.Admin.Send(http.MethodPut, "/v1/admin/locations/"+itoa(e.Location),
+		adminLocationBody(e, map[string]any{"sdn_zone": ""})), http.StatusOK)
+	require.Nil(t, off.SdnZone)
+	require.Equal(t, "not_set_up", off.PrivateNetworks.State)
+	require.Zero(t, off.PrivateNetworks.Available)
 }

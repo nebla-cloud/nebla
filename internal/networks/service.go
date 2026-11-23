@@ -659,16 +659,35 @@ func attachResources(serverID, networkID int64) []actions.Resource {
 	return []actions.Resource{{ID: serverID, Type: jobs.ServerResource}, {ID: networkID, Type: ResourceType}}
 }
 
+// guestAt returns the guest commands for the server's NIC at index, read inside the caller's transaction.
+func guestAt(ctx context.Context, etx *ent.Client, srv *ent.Server, index int, networkID int64, attach bool) (*GuestCommands, error) {
+	nics, err := PrivateNICs(ctx, etx, srv.ID)
+	if err != nil {
+		return nil, err
+	}
+	flavor, err := FlavorOf(ctx, etx, srv)
+	if err != nil {
+		return nil, err
+	}
+	for _, n := range nics {
+		if n.Index == index {
+			return GuestFor(srv, n, networkID, flavor, attach), nil
+		}
+	}
+	return nil, nil
+}
+
 // Attach joins the project's server to a network (by id or name) and queues the hot-plug.
-func (s *Service) Attach(ctx context.Context, projectID, serverID int64, networkRef, ip string) (actions.Action, error) {
+func (s *Service) Attach(ctx context.Context, projectID, serverID int64, networkRef, ip string) (actions.Action, *GuestCommands, error) {
 	if s.o.Jobs == nil {
-		return actions.Action{}, errNoJobs
+		return actions.Action{}, nil, errNoJobs
 	}
 	n, err := byRef(ctx, s.o.Ent, projectID, networkRef)
 	if err != nil {
-		return actions.Action{}, err
+		return actions.Action{}, nil, err
 	}
 	var act actions.Action
+	var guest *GuestCommands
 	err = s.withTx(ctx, func(tx *sql.Tx, etx *ent.Client) error {
 		if err := projects.LockProject(ctx, etx, projectID); err != nil {
 			return notFound(err)
@@ -685,7 +704,11 @@ func (s *Service) Attach(ctx context.Context, projectID, serverID int64, network
 		if err != nil {
 			return notFound(err)
 		}
-		if _, err := addRow(ctx, etx, loc, nets[n.ID], srv, ip); err != nil {
+		row, err := addRow(ctx, etx, loc, nets[n.ID], srv, ip)
+		if err != nil {
+			return err
+		}
+		if guest, err = guestAt(ctx, etx, srv, row.Nic, n.ID, true); err != nil {
 			return err
 		}
 		act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindAttach, attachResources(serverID, n.ID), func(actionID int64) river.JobArgs {
@@ -693,19 +716,20 @@ func (s *Service) Attach(ctx context.Context, projectID, serverID int64, network
 		}, nil)
 		return err
 	})
-	return act, err
+	return act, guest, err
 }
 
 // Detach starts removing the server from a network; it works while private networks are paused.
-func (s *Service) Detach(ctx context.Context, projectID, serverID int64, networkRef string) (actions.Action, error) {
+func (s *Service) Detach(ctx context.Context, projectID, serverID int64, networkRef string) (actions.Action, *GuestCommands, error) {
 	if s.o.Jobs == nil {
-		return actions.Action{}, errNoJobs
+		return actions.Action{}, nil, errNoJobs
 	}
 	n, err := byRef(ctx, s.o.Ent, projectID, networkRef)
 	if err != nil {
-		return actions.Action{}, err
+		return actions.Action{}, nil, err
 	}
 	var act actions.Action
+	var guest *GuestCommands
 	err = s.withTx(ctx, func(tx *sql.Tx, etx *ent.Client) error {
 		if err := projects.LockProject(ctx, etx, projectID); err != nil {
 			return notFound(err)
@@ -713,7 +737,8 @@ func (s *Service) Detach(ctx context.Context, projectID, serverID int64, network
 		if _, err := lockNetworks(ctx, etx, projectID, n.ID); err != nil {
 			return err
 		}
-		if _, err := lockServer(ctx, etx, projectID, serverID); err != nil {
+		srv, err := lockServer(ctx, etx, projectID, serverID)
+		if err != nil {
 			return err
 		}
 		row, err := etx.ServerNetwork.Query().Where(servernetwork.ServerID(serverID), servernetwork.NetworkID(n.ID)).Only(ctx)
@@ -726,6 +751,9 @@ func (s *Service) Detach(ctx context.Context, projectID, serverID int64, network
 		if row.State == servernetwork.StateAttaching {
 			return errLocked
 		}
+		if guest, err = guestAt(ctx, etx, srv, row.Nic, n.ID, false); err != nil {
+			return err
+		}
 		if err := etx.ServerNetwork.UpdateOneID(row.ID).SetState(servernetwork.StateDetaching).Exec(ctx); err != nil {
 			return err
 		}
@@ -734,7 +762,7 @@ func (s *Service) Detach(ctx context.Context, projectID, serverID int64, network
 		}, nil)
 		return err
 	})
-	return act, err
+	return act, guest, err
 }
 
 // ReserveForCreate adds attaching rows, in order, for a server being created. The caller holds the project lock and the server row exists.

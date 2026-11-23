@@ -97,35 +97,6 @@ func (s *server) privateNets(ctx context.Context, ids []int64, running map[int64
 	return out, nil
 }
 
-// attachGuest returns the commands for the server's NIC in the given transitional state, or nil.
-func (s *server) attachGuest(ctx context.Context, serverID int64, state servernetwork.State, attach bool) (*apigen.NetworkGuestConfig, error) {
-	row, err := s.deps.Ent.ServerNetwork.Query().Where(servernetwork.ServerID(serverID), servernetwork.StateEQ(state)).Only(ctx)
-	if ent.IsNotFound(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	nics, err := networks.PrivateNICs(ctx, s.deps.Ent, serverID)
-	if err != nil {
-		return nil, err
-	}
-	srv, err := s.deps.Ent.Server.Get(ctx, serverID)
-	if err != nil {
-		return nil, err
-	}
-	flavor, err := networks.FlavorOf(ctx, s.deps.Ent, srv)
-	if err != nil {
-		return nil, err
-	}
-	for _, n := range nics {
-		if n.Index == row.Nic {
-			return apiGuestConfig(networks.GuestFor(srv, n, row.NetworkID, flavor, attach)), nil
-		}
-	}
-	return nil, nil
-}
-
 func isRunning(status string) bool { return status == string(entserver.StatusRunning) }
 
 func (s *server) GetNetworks(ctx context.Context, req apigen.GetNetworksRequestObject) (apigen.GetNetworksResponseObject, error) {
@@ -234,15 +205,11 @@ func (s *server) AttachServerToNetwork(ctx context.Context, req apigen.AttachSer
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.networks.Attach(ctx, sc.ProjectID, req.Id, req.Body.Network, deref(req.Body.Ip))
+	a, g, err := s.networks.Attach(ctx, sc.ProjectID, req.Id, req.Body.Network, deref(req.Body.Ip))
 	if err != nil {
 		return nil, err
 	}
-	g, err := s.attachGuest(ctx, req.Id, servernetwork.StateAttaching, true)
-	if err != nil {
-		return nil, err
-	}
-	return apigen.AttachServerToNetwork201JSONResponse{NetworkActionCreatedJSONResponse: networkAction(a, g)}, nil
+	return apigen.AttachServerToNetwork201JSONResponse{NetworkActionCreatedJSONResponse: networkAction(a, apiGuestConfig(g))}, nil
 }
 
 func (s *server) DetachServerFromNetwork(ctx context.Context, req apigen.DetachServerFromNetworkRequestObject) (apigen.DetachServerFromNetworkResponseObject, error) {
@@ -250,15 +217,11 @@ func (s *server) DetachServerFromNetwork(ctx context.Context, req apigen.DetachS
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.networks.Detach(ctx, sc.ProjectID, req.Id, req.Body.Network)
+	a, g, err := s.networks.Detach(ctx, sc.ProjectID, req.Id, req.Body.Network)
 	if err != nil {
 		return nil, err
 	}
-	g, err := s.attachGuest(ctx, req.Id, servernetwork.StateDetaching, false)
-	if err != nil {
-		return nil, err
-	}
-	return apigen.DetachServerFromNetwork201JSONResponse{NetworkActionCreatedJSONResponse: networkAction(a, g)}, nil
+	return apigen.DetachServerFromNetwork201JSONResponse{NetworkActionCreatedJSONResponse: networkAction(a, apiGuestConfig(g))}, nil
 }
 
 // apiPool maps a location's private network pool.
