@@ -534,8 +534,6 @@ func fipImage(t *testing.T, e fipEnv, img string) {
 	waitAction(t, app, c, boot.Action.ID)
 	bootIP := fipAddr(boot.FloatingIP)
 	A, B := attach(aID, aName), attach(bID, bName)
-	// apply installs arping, so the guests need a package mirror.
-	A.con.exec("getent hosts deb.debian.org archive.ubuntu.com || echo no-dns; timeout 5 bash -c 'echo > /dev/tcp/1.1.1.1/53' && echo tcp-ok || echo no-tcp; cat /etc/resolv.conf", time.Minute)
 
 	t.Run("cloud-init", func(t *testing.T) {
 		A.con.t, B.con.t = t, t
