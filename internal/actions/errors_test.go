@@ -111,3 +111,7 @@ func TestFirewallUnenforcedMessage(t *testing.T) {
 		actions.Message("apply_firewalls", actions.CodeFirewallUnenforced))
 	require.Equal(t, "Couldn't apply the firewall rules. Try again, or contact your admin.", actions.Message("apply_firewalls", actions.CodeFailed))
 }
+
+func TestReleasePendingMessage(t *testing.T) {
+	require.Equal(t, "Couldn't assign the floating IP because the address is still being released from the previous server. It will finish on its own; try again later.", actions.Message("assign_floating_ip", actions.CodeReleasePending))
+}

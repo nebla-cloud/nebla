@@ -63,7 +63,7 @@ var templates = map[string]string{
 	CodeOrphaned:           "Couldn't %s because the request was interrupted. Try again.",
 	CodeFirewallUnenforced: "Firewall rules couldn't be enforced at this location; contact the administrator.",
 	CodePowerOffRequired:   "Power off the server to %s.",
-	CodeReleasePending:     "Couldn't %s yet because the address is still being released from its previous server. Try again shortly.",
+	CodeReleasePending:     "Couldn't %s because the address is still being released from the previous server. It will finish on its own; try again later.",
 }
 
 // ValidCode reports whether code is one of the Code* kinds.

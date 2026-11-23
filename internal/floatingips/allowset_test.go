@@ -16,19 +16,28 @@ package floatingips_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/netip"
 	"testing"
 
+	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAllowedIPsSkipsReleasing(t *testing.T) {
+type seeded struct {
+	c      *ent.Client
+	sql    *sql.DB
+	s1, s2 int64
+	add    func(ip string, srv int64, releasing *int64)
+}
+
+func seed(t *testing.T) seeded {
 	ctx := context.Background()
-	c := testutil.NewEnt(t)
+	c, sqlDB := testutil.NewEntSQL(t)
 	p := c.Project.Create().SetName("p").SaveX(ctx)
 	loc := c.Location.Create().SetName("eu-1").SetPveURL("https://pve.invalid").SetTokenID("t").SetTokenSecret([]byte("s")).
 		SetDiskStorage("local-lvm").SetIsoStorage("local").SaveX(ctx)
@@ -51,9 +60,16 @@ func TestAllowedIPsSkipsReleasing(t *testing.T) {
 		}
 		cr.SaveX(ctx)
 	}
-	add("203.0.113.10", s1, nil)
-	add("203.0.113.11", s1, &s2)
-	add("203.0.113.12", s2, &s1)
+	return seeded{c: c, sql: sqlDB, s1: s1, s2: s2, add: add}
+}
+
+func TestAllowedIPsSkipsReleasing(t *testing.T) {
+	ctx := context.Background()
+	e := seed(t)
+	c, s1, s2 := e.c, e.s1, e.s2
+	e.add("203.0.113.10", s1, nil)
+	e.add("203.0.113.11", s1, &s2)
+	e.add("203.0.113.12", s2, &s1)
 
 	got, err := floatingips.AllowedIPs(ctx, c, s1)
 	require.NoError(t, err)
@@ -61,4 +77,27 @@ func TestAllowedIPsSkipsReleasing(t *testing.T) {
 	got, err = floatingips.AllowedIPs(ctx, c, s2)
 	require.NoError(t, err)
 	require.Empty(t, got)
+}
+
+func TestLockAssignedTakesShareLock(t *testing.T) {
+	ctx := context.Background()
+	e := seed(t)
+	e.add("203.0.113.10", e.s1, nil)
+	e.add("203.0.113.12", e.s2, nil)
+
+	tx, err := e.c.Tx(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	require.NoError(t, floatingips.LockAssigned(ctx, tx.Client(), e.s1))
+
+	try := func(clause string, server int64) error {
+		other, err := e.sql.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer other.Rollback()
+		_, err = other.ExecContext(ctx, "SELECT id FROM ip_addresses WHERE server_id = $1 "+clause, server)
+		return err
+	}
+	require.Error(t, try("FOR UPDATE NOWAIT", e.s1))
+	require.NoError(t, try("FOR SHARE NOWAIT", e.s1))
+	require.NoError(t, try("FOR UPDATE NOWAIT", e.s2))
 }
