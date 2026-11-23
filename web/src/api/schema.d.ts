@@ -1925,6 +1925,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/networks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the project's private networks */
+        get: operations["getNetworks"];
+        put?: never;
+        /** Create a private network in a location */
+        post: operations["postNetworks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/networks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get a private network */
+        get: operations["getNetwork"];
+        /** Rename a private network or replace its labels */
+        put: operations["putNetwork"];
+        post?: never;
+        /** Delete a private network that has no servers */
+        delete: operations["deleteNetwork"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/networks/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** List a private network's actions */
+        get: operations["getNetworkActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{id}/actions/attach_to_network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach a server to a private network in its location */
+        post: operations["attachServerToNetwork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{id}/actions/detach_from_network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Detach a server from a private network */
+        post: operations["detachServerFromNetwork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1943,8 +2039,10 @@ export interface components {
             max_volume_gb: number;
             /** @description Stored plus reserved backups; 0 is unlimited */
             max_backups: number;
+            /** @description Private networks; 0 is unlimited */
+            max_networks: number;
         };
-        /** @description An omitted max_volumes, max_volume_gb or max_backups keeps the current value */
+        /** @description An omitted max_volumes, max_volume_gb, max_backups or max_networks keeps the current value */
         QuotaInput: {
             max_servers: number;
             max_vcpu: number;
@@ -1954,6 +2052,7 @@ export interface components {
             max_volumes?: number;
             max_volume_gb?: number;
             max_backups?: number;
+            max_networks?: number;
         };
         ProjectInput: {
             name: string;
@@ -1980,6 +2079,7 @@ export interface components {
             backups: number;
             /** @description Backup slots held: each server's stored count, and at least its keep while backups are on */
             backups_reserved: number;
+            networks: number;
         };
         AdminProject: {
             /** Format: int64 */
@@ -2231,6 +2331,10 @@ export interface components {
             /** @description PBS storage with the backup content type; empty turns backups off. Omitted on update keeps the current value */
             backup_storage?: string;
             backup_window?: components["schemas"]["BackupWindow"];
+            /** @description The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omit it and vnet_prefix to leave both unchanged */
+            sdn_zone?: string;
+            /** @description Prefix of the VNet names Nebla uses; default nb */
+            vnet_prefix?: string;
         };
         /** @description When scheduled backups start, as HH:MM UTC; the window may cross midnight */
         BackupWindow: {
@@ -2293,11 +2397,33 @@ export interface components {
             backup_window: components["schemas"]["BackupWindow"];
             /** @description Read-only: backups of this location kept on a storage other than backup_storage */
             backups_on_other_storage: number;
+            /** @description The SDN zone holding the private network VNets; null when private networks are off */
+            sdn_zone: string | null;
+            vnet_prefix: string;
+            private_networks: components["schemas"]["PrivateNetworkPool"];
             nodes: components["schemas"]["Node"][];
             /** Format: date-time */
             created: string;
             /** Format: date-time */
             updated: string;
+        };
+        /** @description Read-only: the location's private network pool */
+        PrivateNetworkPool: {
+            /** @enum {string} */
+            state: "not_set_up" | "needs_setup" | "firewall_off" | "ready";
+            zone: string | null;
+            available: number;
+            in_use: number;
+            cooling: number;
+            unusable: {
+                vnet: string;
+                reason: string;
+            }[];
+            degraded: {
+                vnet: string;
+                network: string;
+                reason: string;
+            }[];
         };
         EnrollCheck: {
             token_name: string;
@@ -2393,6 +2519,8 @@ export interface components {
             volumes_available: boolean;
             /** @description Whether backups can be turned on here */
             backups_available: boolean;
+            /** @description Whether private networks can be created here */
+            private_networks_available: boolean;
         };
         ServerTypeInput: {
             name: string;
@@ -2666,6 +2794,13 @@ export interface components {
                 firewall: number;
             }[];
             backups?: components["schemas"]["BackupSettings"];
+            /** @description Private networks to join at creation, at most 3, all in the server's location */
+            networks?: {
+                /** @description Network id or name */
+                network: string;
+                /** @description An address on the network; the lowest free one when omitted */
+                ip?: string;
+            }[];
         };
         ServerUpdate: {
             name?: string;
@@ -2720,6 +2855,14 @@ export interface components {
                     ip: string;
                 }[];
             };
+            /** @description The private networks the server is on */
+            private_net: {
+                /** Format: int64 */
+                network: number;
+                name: string;
+                ip: string;
+                guest_config: components["schemas"]["NetworkGuestConfig"] | null;
+            }[];
             labels: components["schemas"]["Labels"];
             disk_gb: number;
             /** @description Firewalls in effect on the server and why each applies */
@@ -2769,6 +2912,56 @@ export interface components {
             status: "creating" | "available" | "attached" | "deleting" | "missing" | "error";
             /** @description Stable path inside the server, e.g. /dev/disk/by-id/virtio-nb-vol-1 */
             linux_device: string;
+            /** Format: date-time */
+            created: string;
+        };
+        NetworkInput: {
+            name: string;
+            /** @description Location id or name */
+            location: string;
+            /** @description IPv4 CIDR inside 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16, /8 to /28; the first free 10.N.0.0/16 when omitted */
+            ip_range?: string;
+            labels?: components["schemas"]["Labels"];
+        };
+        NetworkUpdate: {
+            name?: string;
+            labels?: components["schemas"]["Labels"];
+        };
+        NetworkAttachInput: {
+            /** @description Network id or name */
+            network: string;
+            /** @description An address on the network; the lowest free one when omitted */
+            ip?: string;
+        };
+        NetworkDetachInput: {
+            /** @description Network id or name */
+            network: string;
+        };
+        /** @description Commands to run inside the server so it uses the network; new and rebuilt servers set this up automatically */
+        NetworkGuestConfig: {
+            /** @description Commands that bring the network up now */
+            apply: string | null;
+            /** @description Commands that keep the network across reboots */
+            persist: string | null;
+            /** @description Commands that take the network down */
+            remove: string | null;
+            /** @description When to run the commands */
+            note: string | null;
+        };
+        Network: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            labels: components["schemas"]["Labels"];
+            location: components["schemas"]["LocationRef"];
+            /** @description The network's IPv4 range in CIDR form */
+            ip_range: string;
+            servers: {
+                /** Format: int64 */
+                server: number;
+                name: string;
+                ip: string;
+            }[];
             /** Format: date-time */
             created: string;
         };
@@ -2838,6 +3031,18 @@ export interface components {
             content: {
                 "application/json": {
                     action: components["schemas"]["Action"];
+                };
+            };
+        };
+        /** @description The action, and the commands to run inside the server when there are any */
+        NetworkActionCreated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    action: components["schemas"]["Action"];
+                    guest_config: components["schemas"]["NetworkGuestConfig"] | null;
                 };
             };
         };
@@ -6989,6 +7194,242 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: components["responses"]["ActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getNetworks: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key) */
+                label_selector?: string;
+                /** @description Exact network name */
+                name?: string;
+                /** @description Only networks in this location id or name */
+                location?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        networks: components["schemas"]["Network"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postNetworks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        network: components["schemas"]["Network"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Network"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    putNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Network"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getNetworkActions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Only actions in these statuses (running, success, error); repeat the parameter or separate with commas */
+                status?: string[];
+                /** @description id, id:asc or id:desc (default) */
+                sort?: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        actions: components["schemas"]["Action"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    attachServerToNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkAttachInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["NetworkActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    detachServerFromNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NetworkDetachInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["NetworkActionCreated"];
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];

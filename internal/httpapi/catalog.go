@@ -23,6 +23,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/apigen"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/networks"
 )
 
 // pageParams applies the spec defaults (page 1, per_page 25, max 50).
@@ -56,10 +57,10 @@ func apiNode(n catalog.Node) apigen.Node {
 		MaxCpu: n.MaxCPU, MaxMem: n.MaxMem, Cpu: n.CPU, Mem: n.Mem, Updated: n.UpdatedAt}
 }
 
-func apiAdminLocation(l catalog.Location, onOtherStorage int) apigen.AdminLocation {
+func apiAdminLocation(l catalog.Location, onOtherStorage int, pool networks.PoolStatus) apigen.AdminLocation {
 	out := apigen.AdminLocation{Id: l.ID, Name: l.Name, Description: l.Description, DiskStorage: l.DiskStorage, IsoStorage: l.ISOStorage, ImportStorage: l.ImportStorage,
-		FirewallEnabled: l.FirewallEnabled,
-		VolumeStorage:   l.VolumeStorage, VolumeStorageOk: l.VolumeStorageOK,
+		FirewallEnabled: l.FirewallEnabled, SdnZone: pool.Zone, VnetPrefix: pool.Prefix, PrivateNetworks: apiPool(pool),
+		VolumeStorage: l.VolumeStorage, VolumeStorageOk: l.VolumeStorageOK,
 		BackupStorage: l.BackupStorage, BackupStorageOk: l.BackupStorageOK, BackupsOnOtherStorage: onOtherStorage,
 		BackupWindow: apigen.BackupWindow{Start: hhmm(l.BackupWindowStart), End: hhmm(l.BackupWindowEnd)},
 		Pve:          apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
@@ -70,17 +71,22 @@ func apiAdminLocation(l catalog.Location, onOtherStorage int) apigen.AdminLocati
 	return out
 }
 
-// adminLocation maps l with its count of backups kept on a storage other than the current one.
+// adminLocation maps l with its count of backups kept on another storage and its private network pool.
 func (s *server) adminLocation(ctx context.Context, l catalog.Location) (apigen.AdminLocation, error) {
 	n, err := s.catalog.BackupsOnOtherStorage(ctx, l)
 	if err != nil {
 		return apigen.AdminLocation{}, err
 	}
-	return apiAdminLocation(l, n), nil
+	pool, err := s.networks.Pool(ctx, l.ID)
+	if err != nil {
+		return apigen.AdminLocation{}, err
+	}
+	return apiAdminLocation(l, n, pool), nil
 }
 
-func apiLocation(l catalog.Location, ipv4, ipv6, volumes, backups bool) apigen.Location {
-	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description, VolumesAvailable: volumes, BackupsAvailable: backups}
+func apiLocation(l catalog.Location, ipv4, ipv6, volumes, backups, private bool) apigen.Location {
+	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description, VolumesAvailable: volumes, BackupsAvailable: backups,
+		PrivateNetworksAvailable: private}
 	out.Networks.Ipv4, out.Networks.Ipv6 = ipv4, ipv6
 	return out
 }
@@ -97,7 +103,13 @@ func (s *server) locationWithNetworks(ctx context.Context, l catalog.Location) (
 		s.log.WarnContext(ctx, "volumes availability", "location", l.ID, "err", err)
 		vols = false
 	}
-	return apiLocation(l, v4, v6, vols, s.catalog.BackupsAvailable(l)), nil
+	private, err := s.networks.Available(ctx, l.ID)
+	if err != nil {
+		// An unreachable pool only hides private networks.
+		s.log.WarnContext(ctx, "private networks availability", "location", l.ID, "err", err)
+		private = false
+	}
+	return apiLocation(l, v4, v6, vols, s.catalog.BackupsAvailable(l), private), nil
 }
 
 func locationInput(b *apigen.LocationInput) (catalog.LocationInput, error) {
@@ -193,7 +205,11 @@ func (s *server) PostAdminLocations(ctx context.Context, req apigen.PostAdminLoc
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PostAdminLocations201JSONResponse(apiAdminLocation(l, 0)), nil
+	out, err := s.adminLocation(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PostAdminLocations201JSONResponse(out), nil
 }
 
 func (s *server) GetAdminLocation(ctx context.Context, req apigen.GetAdminLocationRequestObject) (apigen.GetAdminLocationResponseObject, error) {
@@ -202,7 +218,10 @@ func (s *server) GetAdminLocation(ctx context.Context, req apigen.GetAdminLocati
 		return nil, err
 	}
 	out, err := s.adminLocation(ctx, l)
-	return apigen.GetAdminLocation200JSONResponse(out), err
+	if err != nil {
+		return nil, err
+	}
+	return apigen.GetAdminLocation200JSONResponse(out), nil
 }
 
 func (s *server) PutAdminLocation(ctx context.Context, req apigen.PutAdminLocationRequestObject) (apigen.PutAdminLocationResponseObject, error) {
@@ -214,8 +233,27 @@ func (s *server) PutAdminLocation(ctx context.Context, req apigen.PutAdminLocati
 	if err != nil {
 		return nil, err
 	}
+	if b := req.Body; b.SdnZone != nil || b.VnetPrefix != nil {
+		cur, err := s.networks.Pool(ctx, req.Id)
+		if err != nil {
+			return nil, err
+		}
+		zone, prefix := cur.Zone, cur.Prefix
+		if b.SdnZone != nil {
+			zone = b.SdnZone
+		}
+		if b.VnetPrefix != nil {
+			prefix = *b.VnetPrefix
+		}
+		if _, err := s.networks.SetLocationSDN(ctx, req.Id, zone, prefix); err != nil {
+			return nil, err
+		}
+	}
 	out, err := s.adminLocation(ctx, l)
-	return apigen.PutAdminLocation200JSONResponse(out), err
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PutAdminLocation200JSONResponse(out), nil
 }
 
 func (s *server) DeleteAdminLocation(ctx context.Context, req apigen.DeleteAdminLocationRequestObject) (apigen.DeleteAdminLocationResponseObject, error) {
@@ -231,7 +269,10 @@ func (s *server) PostAdminLocationSyncNodes(ctx context.Context, req apigen.Post
 		return nil, err
 	}
 	out, err := s.adminLocation(ctx, l)
-	return apigen.PostAdminLocationSyncNodes200JSONResponse(out), err
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PostAdminLocationSyncNodes200JSONResponse(out), nil
 }
 
 func (s *server) PutAdminLocationNode(ctx context.Context, req apigen.PutAdminLocationNodeRequestObject) (apigen.PutAdminLocationNodeResponseObject, error) {

@@ -21,17 +21,21 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/apigen"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 )
 
-// apiServer maps s; vols are its attached volume ids and fips its floating IPs, nil for none.
-func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref) apigen.Server {
+// apiServer maps s; vols are its attached volume ids, fips its floating IPs and pn its private networks, nil for none.
+func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref, pn []privateNetItem) apigen.Server {
 	if vols == nil {
 		vols = []int64{}
 	}
+	if pn == nil {
+		pn = []privateNetItem{}
+	}
 	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apigen.LocationRef{Id: s.Location.ID, Name: s.Location.Name, Description: s.Location.Description},
-		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, Created: s.CreatedAt,
+		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, PrivateNet: pn, Created: s.CreatedAt,
 		Backups: apigen.ServerBackups{Enabled: s.Backups.Enabled, Keep: s.Backups.Keep, Count: s.Backups.Count,
 			LastBackupAt: s.Backups.LastBackupAt, NextBackupAt: s.Backups.NextBackupAt},
 		Firewalls: make([]apigen.ServerFirewall, len(s.Firewalls))}
@@ -54,14 +58,18 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref) apigen.Se
 	return out
 }
 
-// serverExtras returns srv's attached volume ids and floating IPs.
-func (s *server) serverExtras(ctx context.Context, srv servers.Server) ([]int64, []floatingips.Ref, error) {
+// serverExtras returns srv's attached volume ids, floating IPs and private networks.
+func (s *server) serverExtras(ctx context.Context, srv servers.Server) ([]int64, []floatingips.Ref, []privateNetItem, error) {
 	m, err := s.volumes.ServerVolumes(ctx, []int64{srv.ID})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	f, err := s.floatingIPs.ServerRefs(ctx, []int64{srv.ID})
-	return m[srv.ID], f[srv.ID], err
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	pn, err := s.privateNets(ctx, []int64{srv.ID}, map[int64]bool{srv.ID: isRunning(srv.Status)})
+	return m[srv.ID], f[srv.ID], pn[srv.ID], err
 }
 
 func splitList(vs *[]string) []string {
@@ -99,9 +107,17 @@ func (s *server) GetServers(ctx context.Context, req apigen.GetServersRequestObj
 	if err != nil {
 		return nil, err
 	}
+	running := make(map[int64]bool, len(ss))
+	for _, v := range ss {
+		running[v.ID] = isRunning(v.Status)
+	}
+	pn, err := s.privateNets(ctx, ids, running)
+	if err != nil {
+		return nil, err
+	}
 	out := apigen.GetServers200JSONResponse{Servers: make([]apigen.Server, len(ss)), Meta: meta(page, perPage, total)}
 	for i, v := range ss {
-		out.Servers[i] = apiServer(v, vols[v.ID], fips[v.ID])
+		out.Servers[i] = apiServer(v, vols[v.ID], fips[v.ID], pn[v.ID])
 	}
 	return out, nil
 }
@@ -127,6 +143,9 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 		in.Firewalls = append(in.Firewalls, f.Firewall)
 	}
 	in.Backups = backupSettings(b.Backups)
+	for _, n := range deref(b.Networks) {
+		in.Networks = append(in.Networks, networks.CreateRef{Network: n.Network, IP: deref(n.Ip)})
+	}
 	if b.StartAfterCreate != nil {
 		in.StartAfter = *b.StartAfterCreate
 	}
@@ -134,7 +153,11 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PostServers201JSONResponse{Server: apiServer(srv, nil, nil), Action: apiAction(a), NextActions: []apigen.Action{}}, nil
+	pn, err := s.privateNets(ctx, []int64{srv.ID}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PostServers201JSONResponse{Server: apiServer(srv, nil, nil, pn[srv.ID]), Action: apiAction(a), NextActions: []apigen.Action{}}, nil
 }
 
 func (s *server) GetServer(ctx context.Context, req apigen.GetServerRequestObject) (apigen.GetServerResponseObject, error) {
@@ -146,11 +169,11 @@ func (s *server) GetServer(ctx context.Context, req apigen.GetServerRequestObjec
 	if err != nil {
 		return nil, err
 	}
-	vols, fips, err := s.serverExtras(ctx, srv)
+	vols, fips, pn, err := s.serverExtras(ctx, srv)
 	if err != nil {
 		return nil, err
 	}
-	return apigen.GetServer200JSONResponse(apiServer(srv, vols, fips)), nil
+	return apigen.GetServer200JSONResponse(apiServer(srv, vols, fips, pn)), nil
 }
 
 func (s *server) PutServer(ctx context.Context, req apigen.PutServerRequestObject) (apigen.PutServerResponseObject, error) {
@@ -167,11 +190,11 @@ func (s *server) PutServer(ctx context.Context, req apigen.PutServerRequestObjec
 	if err != nil {
 		return nil, err
 	}
-	vols, fips, err := s.serverExtras(ctx, srv)
+	vols, fips, pn, err := s.serverExtras(ctx, srv)
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PutServer200JSONResponse(apiServer(srv, vols, fips)), nil
+	return apigen.PutServer200JSONResponse(apiServer(srv, vols, fips, pn)), nil
 }
 
 func (s *server) DeleteServer(ctx context.Context, req apigen.DeleteServerRequestObject) (apigen.DeleteServerResponseObject, error) {

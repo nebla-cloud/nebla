@@ -78,6 +78,15 @@ var projectScopedOps = map[string]bool{
 	"AssignFloatingIp":     true,
 	"UnassignFloatingIp":   true,
 
+	"GetNetworks":             true,
+	"PostNetworks":            true,
+	"GetNetwork":              true,
+	"PutNetwork":              true,
+	"DeleteNetwork":           true,
+	"GetNetworkActions":       true,
+	"AttachServerToNetwork":   true,
+	"DetachServerFromNetwork": true,
+
 	"GetFirewalls":                true,
 	"PostFirewalls":               true,
 	"GetFirewall":                 true,

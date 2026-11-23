@@ -301,6 +301,30 @@ func (e LocationEnrollmentState) Valid() bool {
 	}
 }
 
+// Defines values for PrivateNetworkPoolState.
+const (
+	FirewallOff PrivateNetworkPoolState = "firewall_off"
+	NeedsSetup  PrivateNetworkPoolState = "needs_setup"
+	NotSetUp    PrivateNetworkPoolState = "not_set_up"
+	Ready       PrivateNetworkPoolState = "ready"
+)
+
+// Valid indicates whether the value is a known member of the PrivateNetworkPoolState enum.
+func (e PrivateNetworkPoolState) Valid() bool {
+	switch e {
+	case FirewallOff:
+		return true
+	case NeedsSetup:
+		return true
+	case NotSetUp:
+		return true
+	case Ready:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Role.
 const (
 	RoleAdmin    Role = "admin"
@@ -523,14 +547,21 @@ type AdminLocation struct {
 	DiskStorage           string    `json:"disk_storage"`
 
 	// FirewallEnabled Whether the datacenter firewall was on at the last check; null until checked
-	FirewallEnabled *bool         `json:"firewall_enabled"`
-	Id              int64         `json:"id"`
-	ImportStorage   string        `json:"import_storage"`
-	IsoStorage      string        `json:"iso_storage"`
-	Name            string        `json:"name"`
-	Nodes           []Node        `json:"nodes"`
-	Pve             PveConnection `json:"pve"`
-	Updated         time.Time     `json:"updated"`
+	FirewallEnabled *bool  `json:"firewall_enabled"`
+	Id              int64  `json:"id"`
+	ImportStorage   string `json:"import_storage"`
+	IsoStorage      string `json:"iso_storage"`
+	Name            string `json:"name"`
+	Nodes           []Node `json:"nodes"`
+
+	// PrivateNetworks Read-only: the location's private network pool
+	PrivateNetworks PrivateNetworkPool `json:"private_networks"`
+	Pve             PveConnection      `json:"pve"`
+
+	// SdnZone The SDN zone holding the private network VNets; null when private networks are off
+	SdnZone    *string   `json:"sdn_zone"`
+	Updated    time.Time `json:"updated"`
+	VnetPrefix string    `json:"vnet_prefix"`
 
 	// VolumeStorage Empty uses each node's disk storage
 	VolumeStorage string `json:"volume_storage"`
@@ -1000,6 +1031,9 @@ type Location struct {
 		Ipv6 bool `json:"ipv6"`
 	} `json:"networks"`
 
+	// PrivateNetworksAvailable Whether private networks can be created here
+	PrivateNetworksAvailable bool `json:"private_networks_available"`
+
 	// VolumesAvailable Whether volumes can be created here
 	VolumesAvailable bool `json:"volumes_available"`
 }
@@ -1072,6 +1106,12 @@ type LocationInput struct {
 	Name          string             `json:"name"`
 	Pve           PveConnectionInput `json:"pve"`
 
+	// SdnZone The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omit it and vnet_prefix to leave both unchanged
+	SdnZone *string `json:"sdn_zone,omitempty"`
+
+	// VnetPrefix Prefix of the VNet names Nebla uses; default nb
+	VnetPrefix *string `json:"vnet_prefix,omitempty"`
+
 	// VolumeStorage Storage with the images content type for volumes; empty uses each node's disk storage. Omitted on update keeps the current value
 	VolumeStorage *string `json:"volume_storage,omitempty"`
 }
@@ -1115,6 +1155,75 @@ type Metrics struct {
 
 	// TimeSeries Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s). Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample.
 	TimeSeries map[string][][]*float64 `json:"time_series"`
+}
+
+// Network defines model for Network.
+type Network struct {
+	Created time.Time `json:"created"`
+	Id      int64     `json:"id"`
+
+	// IpRange The network's IPv4 range in CIDR form
+	IpRange string `json:"ip_range"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+	Servers  []struct {
+		Ip     string `json:"ip"`
+		Name   string `json:"name"`
+		Server int64  `json:"server"`
+	} `json:"servers"`
+}
+
+// NetworkAttachInput defines model for NetworkAttachInput.
+type NetworkAttachInput struct {
+	// Ip An address on the network; the lowest free one when omitted
+	Ip *string `json:"ip,omitempty"`
+
+	// Network Network id or name
+	Network string `json:"network"`
+}
+
+// NetworkDetachInput defines model for NetworkDetachInput.
+type NetworkDetachInput struct {
+	// Network Network id or name
+	Network string `json:"network"`
+}
+
+// NetworkGuestConfig Commands to run inside the server so it uses the network; new and rebuilt servers set this up automatically
+type NetworkGuestConfig struct {
+	// Apply Commands that bring the network up now
+	Apply *string `json:"apply"`
+
+	// Note When to run the commands
+	Note *string `json:"note"`
+
+	// Persist Commands that keep the network across reboots
+	Persist *string `json:"persist"`
+
+	// Remove Commands that take the network down
+	Remove *string `json:"remove"`
+}
+
+// NetworkInput defines model for NetworkInput.
+type NetworkInput struct {
+	// IpRange IPv4 CIDR inside 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16, /8 to /28; the first free 10.N.0.0/16 when omitted
+	IpRange *string `json:"ip_range,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name
+	Location string `json:"location"`
+	Name     string `json:"name"`
+}
+
+// NetworkUpdate defines model for NetworkUpdate.
+type NetworkUpdate struct {
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
 }
 
 // Node defines model for Node.
@@ -1187,6 +1296,27 @@ type PasswordChange struct {
 	NewPassword     string `json:"new_password"`
 }
 
+// PrivateNetworkPool Read-only: the location's private network pool
+type PrivateNetworkPool struct {
+	Available int `json:"available"`
+	Cooling   int `json:"cooling"`
+	Degraded  []struct {
+		Network string `json:"network"`
+		Reason  string `json:"reason"`
+		Vnet    string `json:"vnet"`
+	} `json:"degraded"`
+	InUse    int                     `json:"in_use"`
+	State    PrivateNetworkPoolState `json:"state"`
+	Unusable []struct {
+		Reason string `json:"reason"`
+		Vnet   string `json:"vnet"`
+	} `json:"unusable"`
+	Zone *string `json:"zone"`
+}
+
+// PrivateNetworkPoolState defines model for PrivateNetworkPool.State.
+type PrivateNetworkPoolState string
+
 // Project defines model for Project.
 type Project struct {
 	Created time.Time    `json:"created"`
@@ -1212,6 +1342,7 @@ type ProjectUsage struct {
 	DiskGb          int `json:"disk_gb"`
 	Ips             int `json:"ips"`
 	MemoryMb        int `json:"memory_mb"`
+	Networks        int `json:"networks"`
 	Servers         int `json:"servers"`
 	Vcpu            int `json:"vcpu"`
 	VolumeGb        int `json:"volume_gb"`
@@ -1248,18 +1379,22 @@ type Quota struct {
 	MaxDiskGb   int `json:"max_disk_gb"`
 	MaxIps      int `json:"max_ips"`
 	MaxMemoryMb int `json:"max_memory_mb"`
+
+	// MaxNetworks Private networks; 0 is unlimited
+	MaxNetworks int `json:"max_networks"`
 	MaxServers  int `json:"max_servers"`
 	MaxVcpu     int `json:"max_vcpu"`
 	MaxVolumeGb int `json:"max_volume_gb"`
 	MaxVolumes  int `json:"max_volumes"`
 }
 
-// QuotaInput An omitted max_volumes, max_volume_gb or max_backups keeps the current value
+// QuotaInput An omitted max_volumes, max_volume_gb, max_backups or max_networks keeps the current value
 type QuotaInput struct {
 	MaxBackups  *int `json:"max_backups,omitempty"`
 	MaxDiskGb   int  `json:"max_disk_gb"`
 	MaxIps      int  `json:"max_ips"`
 	MaxMemoryMb int  `json:"max_memory_mb"`
+	MaxNetworks *int `json:"max_networks,omitempty"`
 	MaxServers  int  `json:"max_servers"`
 	MaxVcpu     int  `json:"max_vcpu"`
 	MaxVolumeGb *int `json:"max_volume_gb,omitempty"`
@@ -1292,9 +1427,17 @@ type Server struct {
 	Image     Image            `json:"image"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels    Labels      `json:"labels"`
-	Location  LocationRef `json:"location"`
-	Name      string      `json:"name"`
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+
+	// PrivateNet The private networks the server is on
+	PrivateNet []struct {
+		GuestConfig *NetworkGuestConfig `json:"guest_config"`
+		Ip          string              `json:"ip"`
+		Name        string              `json:"name"`
+		Network     int64               `json:"network"`
+	} `json:"private_net"`
 	PublicNet struct {
 		// FloatingIps Floating IPs assigned to the server
 		FloatingIps []struct {
@@ -1351,8 +1494,17 @@ type ServerInput struct {
 	Labels *Labels `json:"labels,omitempty"`
 
 	// Location Location id or name
-	Location  string `json:"location"`
-	Name      string `json:"name"`
+	Location string `json:"location"`
+	Name     string `json:"name"`
+
+	// Networks Private networks to join at creation, at most 3, all in the server's location
+	Networks *[]struct {
+		// Ip An address on the network; the lowest free one when omitted
+		Ip *string `json:"ip,omitempty"`
+
+		// Network Network id or name
+		Network string `json:"network"`
+	} `json:"networks,omitempty"`
 	PublicNet *struct {
 		Ipv4 *bool `json:"ipv4,omitempty"`
 		Ipv6 *bool `json:"ipv6,omitempty"`
@@ -1557,6 +1709,12 @@ type ActionsCreated struct {
 	Actions []Action `json:"actions"`
 }
 
+// NetworkActionCreated defines model for NetworkActionCreated.
+type NetworkActionCreated struct {
+	Action      Action              `json:"action"`
+	GuestConfig *NetworkGuestConfig `json:"guest_config"`
+}
+
 // GetActionsParams defines parameters for GetActions.
 type GetActionsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -1750,6 +1908,33 @@ type PostInviteAcceptJSONBody struct {
 type GetLocationsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
 	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
+// GetNetworksParams defines parameters for GetNetworks.
+type GetNetworksParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact network name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Location Only networks in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
+// GetNetworkActionsParams defines parameters for GetNetworkActions.
+type GetNetworkActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
 // PostProjectInvitesJSONBody defines parameters for PostProjectInvites.
@@ -1978,6 +2163,12 @@ type PutMePasskeyJSONRequestBody = PasskeyName
 // PostMePasswordJSONRequestBody defines body for PostMePassword for application/json ContentType.
 type PostMePasswordJSONRequestBody = PasswordChange
 
+// PostNetworksJSONRequestBody defines body for PostNetworks for application/json ContentType.
+type PostNetworksJSONRequestBody = NetworkInput
+
+// PutNetworkJSONRequestBody defines body for PutNetwork for application/json ContentType.
+type PutNetworkJSONRequestBody = NetworkUpdate
+
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody = ProjectInput
 
@@ -1999,8 +2190,14 @@ type PostServersJSONRequestBody = ServerInput
 // PutServerJSONRequestBody defines body for PutServer for application/json ContentType.
 type PutServerJSONRequestBody = ServerUpdate
 
+// AttachServerToNetworkJSONRequestBody defines body for AttachServerToNetwork for application/json ContentType.
+type AttachServerToNetworkJSONRequestBody = NetworkAttachInput
+
 // ChangeServerTypeJSONRequestBody defines body for ChangeServerType for application/json ContentType.
 type ChangeServerTypeJSONRequestBody = ChangeTypeInput
+
+// DetachServerFromNetworkJSONRequestBody defines body for DetachServerFromNetwork for application/json ContentType.
+type DetachServerFromNetworkJSONRequestBody = NetworkDetachInput
 
 // RebuildServerJSONRequestBody defines body for RebuildServer for application/json ContentType.
 type RebuildServerJSONRequestBody = RebuildInput
@@ -2909,6 +3106,54 @@ type ClientInterface interface {
 	// Corresponds with POST /me/password (the `PostMePassword` operationId).
 	PostMePassword(ctx context.Context, body PostMePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetNetworks List the project's private networks
+	//
+	// Corresponds with GET /networks (the `GetNetworks` operationId).
+	GetNetworks(ctx context.Context, params *GetNetworksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostNetworksWithBody Create a private network in a location
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /networks (the `PostNetworks` operationId).
+	PostNetworksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostNetworks Create a private network in a location
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /networks (the `PostNetworks` operationId).
+	PostNetworks(ctx context.Context, body PostNetworksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNetwork Delete a private network that has no servers
+	//
+	// Corresponds with DELETE /networks/{id} (the `DeleteNetwork` operationId).
+	DeleteNetwork(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNetwork Get a private network
+	//
+	// Corresponds with GET /networks/{id} (the `GetNetwork` operationId).
+	GetNetwork(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutNetworkWithBody Rename a private network or replace its labels
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+	PutNetworkWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutNetwork Rename a private network or replace its labels
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+	PutNetwork(ctx context.Context, id ID, body PutNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNetworkActions List a private network's actions
+	//
+	// Corresponds with GET /networks/{id}/actions (the `GetNetworkActions` operationId).
+	GetNetworkActions(ctx context.Context, id ID, params *GetNetworkActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetProjects List the caller's projects
 	//
 	// Corresponds with GET /projects (the `GetProjects` operationId).
@@ -3087,6 +3332,20 @@ type ClientInterface interface {
 	// Corresponds with GET /servers/{id}/actions (the `GetServerActions` operationId).
 	GetServerActions(ctx context.Context, id ID, params *GetServerActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// AttachServerToNetworkWithBody Attach a server to a private network in its location
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+	AttachServerToNetworkWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AttachServerToNetwork Attach a server to a private network in its location
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+	AttachServerToNetwork(ctx context.Context, id ID, body AttachServerToNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ChangeServerTypeWithBody Change a stopped server's type
 	//
 	// Takes any type of body and a specified content type.
@@ -3100,6 +3359,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /servers/{id}/actions/change_type (the `ChangeServerType` operationId).
 	ChangeServerType(ctx context.Context, id ID, body ChangeServerTypeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DetachServerFromNetworkWithBody Detach a server from a private network
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+	DetachServerFromNetworkWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DetachServerFromNetwork Detach a server from a private network
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+	DetachServerFromNetwork(ctx context.Context, id ID, body DetachServerFromNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PoweroffServer Stop a server immediately
 	//
@@ -5439,6 +5712,134 @@ func (c *Client) PostMePassword(ctx context.Context, body PostMePasswordJSONRequ
 	return c.Client.Do(req)
 }
 
+// GetNetworks List the project's private networks
+//
+// Corresponds with GET /networks (the `GetNetworks` operationId).
+func (c *Client) GetNetworks(ctx context.Context, params *GetNetworksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNetworksRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostNetworksWithBody Create a private network in a location
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /networks (the `PostNetworks` operationId).
+func (c *Client) PostNetworksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostNetworksRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostNetworks Create a private network in a location
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /networks (the `PostNetworks` operationId).
+func (c *Client) PostNetworks(ctx context.Context, body PostNetworksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostNetworksRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNetwork Delete a private network that has no servers
+//
+// Corresponds with DELETE /networks/{id} (the `DeleteNetwork` operationId).
+func (c *Client) DeleteNetwork(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNetworkRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetNetwork Get a private network
+//
+// Corresponds with GET /networks/{id} (the `GetNetwork` operationId).
+func (c *Client) GetNetwork(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNetworkRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutNetworkWithBody Rename a private network or replace its labels
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+func (c *Client) PutNetworkWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutNetworkRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutNetwork Rename a private network or replace its labels
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+func (c *Client) PutNetwork(ctx context.Context, id ID, body PutNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutNetworkRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetNetworkActions List a private network's actions
+//
+// Corresponds with GET /networks/{id}/actions (the `GetNetworkActions` operationId).
+func (c *Client) GetNetworkActions(ctx context.Context, id ID, params *GetNetworkActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNetworkActionsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetProjects List the caller's projects
 //
 // Corresponds with GET /projects (the `GetProjects` operationId).
@@ -5917,6 +6318,40 @@ func (c *Client) GetServerActions(ctx context.Context, id ID, params *GetServerA
 	return c.Client.Do(req)
 }
 
+// AttachServerToNetworkWithBody Attach a server to a private network in its location
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+func (c *Client) AttachServerToNetworkWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAttachServerToNetworkRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AttachServerToNetwork Attach a server to a private network in its location
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+func (c *Client) AttachServerToNetwork(ctx context.Context, id ID, body AttachServerToNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAttachServerToNetworkRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ChangeServerTypeWithBody Change a stopped server's type
 //
 // Takes any type of body and a specified content type.
@@ -5941,6 +6376,40 @@ func (c *Client) ChangeServerTypeWithBody(ctx context.Context, id ID, contentTyp
 // Corresponds with POST /servers/{id}/actions/change_type (the `ChangeServerType` operationId).
 func (c *Client) ChangeServerType(ctx context.Context, id ID, body ChangeServerTypeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewChangeServerTypeRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DetachServerFromNetworkWithBody Detach a server from a private network
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+func (c *Client) DetachServerFromNetworkWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDetachServerFromNetworkRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DetachServerFromNetwork Detach a server from a private network
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+func (c *Client) DetachServerFromNetwork(ctx context.Context, id ID, body DetachServerFromNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDetachServerFromNetworkRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10722,6 +11191,360 @@ func NewPostMePasswordRequestWithBody(server string, contentType string, body io
 	return req, nil
 }
 
+// NewGetNetworksRequest constructs an http.Request for the GetNetworks method
+func NewGetNetworksRequest(server string, params *GetNetworksParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/networks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "label_selector", *params.LabelSelector, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "location", *params.Location, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostNetworksRequest calls the generic PostNetworks builder with application/json body
+func NewPostNetworksRequest(server string, body PostNetworksJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostNetworksRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostNetworksRequestWithBody constructs an http.Request for the PostNetworks method, with any body, and a specified content type
+func NewPostNetworksRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/networks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteNetworkRequest constructs an http.Request for the DeleteNetwork method
+func NewDeleteNetworkRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/networks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetNetworkRequest constructs an http.Request for the GetNetwork method
+func NewGetNetworkRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/networks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutNetworkRequest calls the generic PutNetwork builder with application/json body
+func NewPutNetworkRequest(server string, id ID, body PutNetworkJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutNetworkRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutNetworkRequestWithBody constructs an http.Request for the PutNetwork method, with any body, and a specified content type
+func NewPutNetworkRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/networks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetNetworkActionsRequest constructs an http.Request for the GetNetworkActions method
+func NewGetNetworkActionsRequest(server string, id ID, params *GetNetworkActionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/networks/%s/actions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetProjectsRequest constructs an http.Request for the GetProjects method
 func NewGetProjectsRequest(server string) (*http.Request, error) {
 	var err error
@@ -11772,6 +12595,53 @@ func NewGetServerActionsRequest(server string, id ID, params *GetServerActionsPa
 	return req, nil
 }
 
+// NewAttachServerToNetworkRequest calls the generic AttachServerToNetwork builder with application/json body
+func NewAttachServerToNetworkRequest(server string, id ID, body AttachServerToNetworkJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAttachServerToNetworkRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAttachServerToNetworkRequestWithBody constructs an http.Request for the AttachServerToNetwork method, with any body, and a specified content type
+func NewAttachServerToNetworkRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/actions/attach_to_network", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewChangeServerTypeRequest calls the generic ChangeServerType builder with application/json body
 func NewChangeServerTypeRequest(server string, id ID, body ChangeServerTypeJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -11800,6 +12670,53 @@ func NewChangeServerTypeRequestWithBody(server string, id ID, contentType string
 	}
 
 	operationPath := fmt.Sprintf("/servers/%s/actions/change_type", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDetachServerFromNetworkRequest calls the generic DetachServerFromNetwork builder with application/json body
+func NewDetachServerFromNetworkRequest(server string, id ID, body DetachServerFromNetworkJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDetachServerFromNetworkRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewDetachServerFromNetworkRequestWithBody constructs an http.Request for the DetachServerFromNetwork method, with any body, and a specified content type
+func NewDetachServerFromNetworkRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/actions/detach_from_network", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -14170,6 +15087,62 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /me/password (the `PostMePassword` operationId).
 	PostMePasswordWithResponse(ctx context.Context, body PostMePasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostMePasswordResponse, error)
 
+	// GetNetworksWithResponse List the project's private networks
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /networks (the `GetNetworks` operationId).
+	GetNetworksWithResponse(ctx context.Context, params *GetNetworksParams, reqEditors ...RequestEditorFn) (*GetNetworksResponse, error)
+
+	// PostNetworksWithBodyWithResponse Create a private network in a location
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /networks (the `PostNetworks` operationId).
+	PostNetworksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostNetworksResponse, error)
+
+	// PostNetworksWithResponse Create a private network in a location
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /networks (the `PostNetworks` operationId).
+	PostNetworksWithResponse(ctx context.Context, body PostNetworksJSONRequestBody, reqEditors ...RequestEditorFn) (*PostNetworksResponse, error)
+
+	// DeleteNetworkWithResponse Delete a private network that has no servers
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /networks/{id} (the `DeleteNetwork` operationId).
+	DeleteNetworkWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteNetworkResponse, error)
+
+	// GetNetworkWithResponse Get a private network
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /networks/{id} (the `GetNetwork` operationId).
+	GetNetworkWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetNetworkResponse, error)
+
+	// PutNetworkWithBodyWithResponse Rename a private network or replace its labels
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+	PutNetworkWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutNetworkResponse, error)
+
+	// PutNetworkWithResponse Rename a private network or replace its labels
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+	PutNetworkWithResponse(ctx context.Context, id ID, body PutNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*PutNetworkResponse, error)
+
+	// GetNetworkActionsWithResponse List a private network's actions
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /networks/{id}/actions (the `GetNetworkActions` operationId).
+	GetNetworkActionsWithResponse(ctx context.Context, id ID, params *GetNetworkActionsParams, reqEditors ...RequestEditorFn) (*GetNetworkActionsResponse, error)
+
 	// GetProjectsWithResponse List the caller's projects
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -14380,6 +15353,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /servers/{id}/actions (the `GetServerActions` operationId).
 	GetServerActionsWithResponse(ctx context.Context, id ID, params *GetServerActionsParams, reqEditors ...RequestEditorFn) (*GetServerActionsResponse, error)
 
+	// AttachServerToNetworkWithBodyWithResponse Attach a server to a private network in its location
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+	AttachServerToNetworkWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AttachServerToNetworkResponse, error)
+
+	// AttachServerToNetworkWithResponse Attach a server to a private network in its location
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+	AttachServerToNetworkWithResponse(ctx context.Context, id ID, body AttachServerToNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*AttachServerToNetworkResponse, error)
+
 	// ChangeServerTypeWithBodyWithResponse Change a stopped server's type
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -14393,6 +15380,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /servers/{id}/actions/change_type (the `ChangeServerType` operationId).
 	ChangeServerTypeWithResponse(ctx context.Context, id ID, body ChangeServerTypeJSONRequestBody, reqEditors ...RequestEditorFn) (*ChangeServerTypeResponse, error)
+
+	// DetachServerFromNetworkWithBodyWithResponse Detach a server from a private network
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+	DetachServerFromNetworkWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DetachServerFromNetworkResponse, error)
+
+	// DetachServerFromNetworkWithResponse Detach a server from a private network
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+	DetachServerFromNetworkWithResponse(ctx context.Context, id ID, body DetachServerFromNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*DetachServerFromNetworkResponse, error)
 
 	// PoweroffServerWithResponse Stop a server immediately
 	//
@@ -21367,6 +22368,457 @@ func (r PostMePasswordResponse) ContentType() string {
 	return ""
 }
 
+type GetNetworksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Meta     Meta      `json:"meta"`
+		Networks []Network `json:"networks"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNetworksResponse) GetJSON200() *struct {
+	Meta     Meta      `json:"meta"`
+	Networks []Network `json:"networks"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetNetworksResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetNetworksResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetNetworksResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetNetworksResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNetworksResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNetworksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNetworksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNetworksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostNetworksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *struct {
+		Network Network `json:"network"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostNetworksResponse) GetJSON201() *struct {
+	Network Network `json:"network"`
+} {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostNetworksResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostNetworksResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostNetworksResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostNetworksResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostNetworksResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostNetworksResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostNetworksResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostNetworksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostNetworksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostNetworksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteNetworkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteNetworkResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteNetworkResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteNetworkResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteNetworkResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteNetworkResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNetworkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNetworkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNetworkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNetworkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetNetworkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Network
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNetworkResponse) GetJSON200() *Network {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetNetworkResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetNetworkResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetNetworkResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNetworkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNetworkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNetworkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNetworkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutNetworkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Network
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutNetworkResponse) GetJSON200() *Network {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutNetworkResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PutNetworkResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PutNetworkResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PutNetworkResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutNetworkResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutNetworkResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutNetworkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutNetworkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutNetworkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutNetworkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetNetworkActionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Actions []Action `json:"actions"`
+		Meta    Meta     `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNetworkActionsResponse) GetJSON200() *struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetNetworkActionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetNetworkActionsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetNetworkActionsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetNetworkActionsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNetworkActionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNetworkActionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNetworkActionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNetworkActionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -23018,6 +24470,96 @@ func (r GetServerActionsResponse) ContentType() string {
 	return ""
 }
 
+type AttachServerToNetworkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *NetworkActionCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AttachServerToNetworkResponse) GetJSON201() *NetworkActionCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r AttachServerToNetworkResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r AttachServerToNetworkResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r AttachServerToNetworkResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r AttachServerToNetworkResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r AttachServerToNetworkResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r AttachServerToNetworkResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r AttachServerToNetworkResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AttachServerToNetworkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AttachServerToNetworkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AttachServerToNetworkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AttachServerToNetworkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ChangeServerTypeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -23102,6 +24644,96 @@ func (r ChangeServerTypeResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ChangeServerTypeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DetachServerFromNetworkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *NetworkActionCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSON201() *NetworkActionCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DetachServerFromNetworkResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DetachServerFromNetworkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DetachServerFromNetworkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DetachServerFromNetworkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DetachServerFromNetworkResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27157,6 +28789,110 @@ func (c *ClientWithResponses) PostMePasswordWithResponse(ctx context.Context, bo
 	return ParsePostMePasswordResponse(rsp)
 }
 
+// GetNetworksWithResponse List the project's private networks
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /networks (the `GetNetworks` operationId).
+func (c *ClientWithResponses) GetNetworksWithResponse(ctx context.Context, params *GetNetworksParams, reqEditors ...RequestEditorFn) (*GetNetworksResponse, error) {
+	rsp, err := c.GetNetworks(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNetworksResponse(rsp)
+}
+
+// PostNetworksWithBodyWithResponse Create a private network in a location
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /networks (the `PostNetworks` operationId).
+func (c *ClientWithResponses) PostNetworksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostNetworksResponse, error) {
+	rsp, err := c.PostNetworksWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostNetworksResponse(rsp)
+}
+
+// PostNetworksWithResponse Create a private network in a location
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /networks (the `PostNetworks` operationId).
+func (c *ClientWithResponses) PostNetworksWithResponse(ctx context.Context, body PostNetworksJSONRequestBody, reqEditors ...RequestEditorFn) (*PostNetworksResponse, error) {
+	rsp, err := c.PostNetworks(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostNetworksResponse(rsp)
+}
+
+// DeleteNetworkWithResponse Delete a private network that has no servers
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /networks/{id} (the `DeleteNetwork` operationId).
+func (c *ClientWithResponses) DeleteNetworkWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteNetworkResponse, error) {
+	rsp, err := c.DeleteNetwork(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNetworkResponse(rsp)
+}
+
+// GetNetworkWithResponse Get a private network
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /networks/{id} (the `GetNetwork` operationId).
+func (c *ClientWithResponses) GetNetworkWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetNetworkResponse, error) {
+	rsp, err := c.GetNetwork(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNetworkResponse(rsp)
+}
+
+// PutNetworkWithBodyWithResponse Rename a private network or replace its labels
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+func (c *ClientWithResponses) PutNetworkWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutNetworkResponse, error) {
+	rsp, err := c.PutNetworkWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutNetworkResponse(rsp)
+}
+
+// PutNetworkWithResponse Rename a private network or replace its labels
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /networks/{id} (the `PutNetwork` operationId).
+func (c *ClientWithResponses) PutNetworkWithResponse(ctx context.Context, id ID, body PutNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*PutNetworkResponse, error) {
+	rsp, err := c.PutNetwork(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutNetworkResponse(rsp)
+}
+
+// GetNetworkActionsWithResponse List a private network's actions
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /networks/{id}/actions (the `GetNetworkActions` operationId).
+func (c *ClientWithResponses) GetNetworkActionsWithResponse(ctx context.Context, id ID, params *GetNetworkActionsParams, reqEditors ...RequestEditorFn) (*GetNetworkActionsResponse, error) {
+	rsp, err := c.GetNetworkActions(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNetworkActionsResponse(rsp)
+}
+
 // GetProjectsWithResponse List the caller's projects
 //
 // Returns a wrapper object for the known response body format(s).
@@ -27547,6 +29283,32 @@ func (c *ClientWithResponses) GetServerActionsWithResponse(ctx context.Context, 
 	return ParseGetServerActionsResponse(rsp)
 }
 
+// AttachServerToNetworkWithBodyWithResponse Attach a server to a private network in its location
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+func (c *ClientWithResponses) AttachServerToNetworkWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AttachServerToNetworkResponse, error) {
+	rsp, err := c.AttachServerToNetworkWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAttachServerToNetworkResponse(rsp)
+}
+
+// AttachServerToNetworkWithResponse Attach a server to a private network in its location
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{id}/actions/attach_to_network (the `AttachServerToNetwork` operationId).
+func (c *ClientWithResponses) AttachServerToNetworkWithResponse(ctx context.Context, id ID, body AttachServerToNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*AttachServerToNetworkResponse, error) {
+	rsp, err := c.AttachServerToNetwork(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAttachServerToNetworkResponse(rsp)
+}
+
 // ChangeServerTypeWithBodyWithResponse Change a stopped server's type
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -27571,6 +29333,32 @@ func (c *ClientWithResponses) ChangeServerTypeWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseChangeServerTypeResponse(rsp)
+}
+
+// DetachServerFromNetworkWithBodyWithResponse Detach a server from a private network
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+func (c *ClientWithResponses) DetachServerFromNetworkWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DetachServerFromNetworkResponse, error) {
+	rsp, err := c.DetachServerFromNetworkWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDetachServerFromNetworkResponse(rsp)
+}
+
+// DetachServerFromNetworkWithResponse Detach a server from a private network
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{id}/actions/detach_from_network (the `DetachServerFromNetwork` operationId).
+func (c *ClientWithResponses) DetachServerFromNetworkWithResponse(ctx context.Context, id ID, body DetachServerFromNetworkJSONRequestBody, reqEditors ...RequestEditorFn) (*DetachServerFromNetworkResponse, error) {
+	rsp, err := c.DetachServerFromNetwork(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDetachServerFromNetworkResponse(rsp)
 }
 
 // PoweroffServerWithResponse Stop a server immediately
@@ -33419,6 +35207,362 @@ func ParsePostMePasswordResponse(rsp *http.Response) (*PostMePasswordResponse, e
 	return response, nil
 }
 
+// ParseGetNetworksResponse parses an HTTP response from a GetNetworksWithResponse call
+func ParseGetNetworksResponse(rsp *http.Response) (*GetNetworksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNetworksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Meta     Meta      `json:"meta"`
+			Networks []Network `json:"networks"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostNetworksResponse parses an HTTP response from a PostNetworksWithResponse call
+func ParsePostNetworksResponse(rsp *http.Response) (*PostNetworksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostNetworksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Network Network `json:"network"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNetworkResponse parses an HTTP response from a DeleteNetworkWithResponse call
+func ParseDeleteNetworkResponse(rsp *http.Response) (*DeleteNetworkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNetworkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetNetworkResponse parses an HTTP response from a GetNetworkWithResponse call
+func ParseGetNetworkResponse(rsp *http.Response) (*GetNetworkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNetworkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Network
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutNetworkResponse parses an HTTP response from a PutNetworkWithResponse call
+func ParsePutNetworkResponse(rsp *http.Response) (*PutNetworkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutNetworkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Network
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetNetworkActionsResponse parses an HTTP response from a GetNetworkActionsWithResponse call
+func ParseGetNetworkActionsResponse(rsp *http.Response) (*GetNetworkActionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNetworkActionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Actions []Action `json:"actions"`
+			Meta    Meta     `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetProjectsResponse parses an HTTP response from a GetProjectsWithResponse call
 func ParseGetProjectsResponse(rsp *http.Response) (*GetProjectsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -34705,6 +36849,81 @@ func ParseGetServerActionsResponse(rsp *http.Response) (*GetServerActionsRespons
 	return response, nil
 }
 
+// ParseAttachServerToNetworkResponse parses an HTTP response from a AttachServerToNetworkWithResponse call
+func ParseAttachServerToNetworkResponse(rsp *http.Response) (*AttachServerToNetworkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AttachServerToNetworkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest NetworkActionCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseChangeServerTypeResponse parses an HTTP response from a ChangeServerTypeWithResponse call
 func ParseChangeServerTypeResponse(rsp *http.Response) (*ChangeServerTypeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -34721,6 +36940,81 @@ func ParseChangeServerTypeResponse(rsp *http.Response) (*ChangeServerTypeRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest ActionCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDetachServerFromNetworkResponse parses an HTTP response from a DetachServerFromNetworkWithResponse call
+func ParseDetachServerFromNetworkResponse(rsp *http.Response) (*DetachServerFromNetworkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DetachServerFromNetworkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest NetworkActionCreated
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

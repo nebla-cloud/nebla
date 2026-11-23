@@ -3030,6 +3030,197 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /networks:
+    get:
+      operationId: getNetworks
+      x-nebla-scope: project
+      summary: List the project's private networks
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: label_selector
+          in: query
+          description: "Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)"
+          schema: { type: string }
+        - name: name
+          in: query
+          description: Exact network name
+          schema: { type: string }
+        - name: location
+          in: query
+          description: Only networks in this location id or name
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [networks, meta]
+                properties:
+                  networks:
+                    type: array
+                    items: { $ref: "#/components/schemas/Network" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postNetworks
+      x-nebla-scope: project
+      summary: Create a private network in a location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NetworkInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [network]
+                properties:
+                  network: { $ref: "#/components/schemas/Network" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /networks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getNetwork
+      x-nebla-scope: project
+      summary: Get a private network
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Network" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putNetwork
+      x-nebla-scope: project
+      summary: Rename a private network or replace its labels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NetworkUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Network" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteNetwork
+      x-nebla-scope: project
+      summary: Delete a private network that has no servers
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /networks/{id}/actions:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getNetworkActions
+      x-nebla-scope: project
+      summary: List a private network's actions
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          description: Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: sort
+          in: query
+          description: "id, id:asc or id:desc (default)"
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, meta]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/attach_to_network:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: attachServerToNetwork
+      x-nebla-scope: project
+      summary: Attach a server to a private network in its location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NetworkAttachInput" }
+      responses:
+        "201": { $ref: "#/components/responses/NetworkActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /servers/{id}/actions/detach_from_network:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: detachServerFromNetwork
+      x-nebla-scope: project
+      summary: Detach a server from a private network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NetworkDetachInput" }
+      responses:
+        "201": { $ref: "#/components/responses/NetworkActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
 components:
   responses:
     ActionCreated:
@@ -3041,6 +3232,19 @@ components:
             required: [action]
             properties:
               action: { $ref: "#/components/schemas/Action" }
+    NetworkActionCreated:
+      description: The action, and the commands to run inside the server when there are any
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [action, guest_config]
+            properties:
+              action: { $ref: "#/components/schemas/Action" }
+              guest_config:
+                nullable: true
+                allOf:
+                  - $ref: "#/components/schemas/NetworkGuestConfig"
     ActionsCreated:
       description: One apply_firewalls action per affected server
       content:
@@ -3103,7 +3307,7 @@ components:
       enum: [read, read_write]
     Quota:
       type: object
-      required: [max_servers, max_vcpu, max_memory_mb, max_disk_gb, max_ips, max_volumes, max_volume_gb, max_backups]
+      required: [max_servers, max_vcpu, max_memory_mb, max_disk_gb, max_ips, max_volumes, max_volume_gb, max_backups, max_networks]
       properties:
         max_servers: { type: integer, minimum: 0 }
         max_vcpu: { type: integer, minimum: 0 }
@@ -3113,9 +3317,10 @@ components:
         max_volumes: { type: integer, minimum: 0 }
         max_volume_gb: { type: integer, minimum: 0 }
         max_backups: { type: integer, minimum: 0, description: Stored plus reserved backups; 0 is unlimited }
+        max_networks: { type: integer, minimum: 0, description: Private networks; 0 is unlimited }
     QuotaInput:
       type: object
-      description: An omitted max_volumes, max_volume_gb or max_backups keeps the current value
+      description: An omitted max_volumes, max_volume_gb, max_backups or max_networks keeps the current value
       required: [max_servers, max_vcpu, max_memory_mb, max_disk_gb, max_ips]
       properties:
         max_servers: { type: integer, minimum: 0 }
@@ -3126,6 +3331,7 @@ components:
         max_volumes: { type: integer, minimum: 0 }
         max_volume_gb: { type: integer, minimum: 0 }
         max_backups: { type: integer, minimum: 0 }
+        max_networks: { type: integer, minimum: 0 }
     ProjectInput:
       type: object
       required: [name]
@@ -3143,7 +3349,7 @@ components:
         created: { type: string, format: date-time }
     ProjectUsage:
       type: object
-      required: [servers, vcpu, memory_mb, disk_gb, ips, volumes, volume_gb, backups, backups_reserved]
+      required: [servers, vcpu, memory_mb, disk_gb, ips, volumes, volume_gb, backups, backups_reserved, networks]
       properties:
         servers: { type: integer }
         vcpu: { type: integer }
@@ -3154,6 +3360,7 @@ components:
         volume_gb: { type: integer }
         backups: { type: integer, description: Stored backups }
         backups_reserved: { type: integer, description: "Backup slots held: each server's stored count, and at least its keep while backups are on" }
+        networks: { type: integer }
     AdminProject:
       type: object
       required: [id, name, quota, owner_email, usage, member_count, created]
@@ -3461,6 +3668,13 @@ components:
           type: string
           description: "PBS storage with the backup content type; empty turns backups off. Omitted on update keeps the current value"
         backup_window: { $ref: "#/components/schemas/BackupWindow" }
+        sdn_zone:
+          type: string
+          description: "The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omit it and vnet_prefix to leave both unchanged"
+        vnet_prefix:
+          type: string
+          pattern: "^[a-z][a-z0-9]{0,3}$"
+          description: "Prefix of the VNet names Nebla uses; default nb"
     BackupWindow:
       type: object
       description: When scheduled backups start, as HH:MM UTC; the window may cross midnight
@@ -3489,7 +3703,7 @@ components:
         disk_storage_override: { type: string, description: "Empty clears the override" }
     AdminLocation:
       type: object
-      required: [id, name, description, pve, disk_storage, iso_storage, import_storage, volume_storage, volume_storage_ok, backup_storage, backup_storage_ok, backup_window, backups_on_other_storage, firewall_enabled, nodes, created, updated]
+      required: [id, name, description, pve, disk_storage, iso_storage, import_storage, volume_storage, volume_storage_ok, backup_storage, backup_storage_ok, backup_window, backups_on_other_storage, firewall_enabled, nodes, sdn_zone, vnet_prefix, private_networks, created, updated]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -3508,11 +3722,41 @@ components:
         backup_storage_ok: { type: boolean, description: "Read-only: whether the token may use the backup storage and run backups" }
         backup_window: { $ref: "#/components/schemas/BackupWindow" }
         backups_on_other_storage: { type: integer, description: "Read-only: backups of this location kept on a storage other than backup_storage" }
+        sdn_zone: { type: string, nullable: true, description: The SDN zone holding the private network VNets; null when private networks are off }
+        vnet_prefix: { type: string }
+        private_networks: { $ref: "#/components/schemas/PrivateNetworkPool" }
         nodes:
           type: array
           items: { $ref: "#/components/schemas/Node" }
         created: { type: string, format: date-time }
         updated: { type: string, format: date-time }
+    PrivateNetworkPool:
+      type: object
+      description: "Read-only: the location's private network pool"
+      required: [state, zone, available, in_use, cooling, unusable, degraded]
+      properties:
+        state: { type: string, enum: [not_set_up, needs_setup, firewall_off, ready] }
+        zone: { type: string, nullable: true }
+        available: { type: integer }
+        in_use: { type: integer }
+        cooling: { type: integer }
+        unusable:
+          type: array
+          items:
+            type: object
+            required: [vnet, reason]
+            properties:
+              vnet: { type: string }
+              reason: { type: string }
+        degraded:
+          type: array
+          items:
+            type: object
+            required: [vnet, network, reason]
+            properties:
+              vnet: { type: string }
+              network: { type: string }
+              reason: { type: string }
     EnrollCheck:
       type: object
       required: [token_name, location, expires_at]
@@ -3613,7 +3857,7 @@ components:
         description: { type: string }
     Location:
       type: object
-      required: [id, name, description, networks, volumes_available, backups_available]
+      required: [id, name, description, networks, volumes_available, backups_available, private_networks_available]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -3627,6 +3871,7 @@ components:
             ipv6: { type: boolean }
         volumes_available: { type: boolean, description: Whether volumes can be created here }
         backups_available: { type: boolean, description: Whether backups can be turned on here }
+        private_networks_available: { type: boolean, description: Whether private networks can be created here }
     ServerTypeInput:
       type: object
       required: [name, cores, memory_mb, disk_gb]
@@ -3947,6 +4192,15 @@ components:
             properties:
               firewall: { type: integer, format: int64 }
         backups: { $ref: "#/components/schemas/BackupSettings" }
+        networks:
+          type: array
+          description: Private networks to join at creation, at most 3, all in the server's location
+          items:
+            type: object
+            required: [network]
+            properties:
+              network: { type: string, description: Network id or name }
+              ip: { type: string, description: An address on the network; the lowest free one when omitted }
     ServerUpdate:
       type: object
       properties:
@@ -3997,7 +4251,7 @@ components:
         ip: { type: string }
     Server:
       type: object
-      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, firewalls, volumes, backups, created]
+      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, firewalls, volumes, backups, private_net, created]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -4022,6 +4276,20 @@ components:
                 properties:
                   id: { type: integer, format: int64 }
                   ip: { type: string }
+        private_net:
+          type: array
+          description: The private networks the server is on
+          items:
+            type: object
+            required: [network, name, ip, guest_config]
+            properties:
+              network: { type: integer, format: int64 }
+              name: { type: string }
+              ip: { type: string }
+              guest_config:
+                nullable: true
+                allOf:
+                  - $ref: "#/components/schemas/NetworkGuestConfig"
         labels: { $ref: "#/components/schemas/Labels" }
         disk_gb: { type: integer }
         firewalls:
@@ -4072,6 +4340,58 @@ components:
           type: string
           enum: [creating, available, attached, deleting, missing, error]
         linux_device: { type: string, description: "Stable path inside the server, e.g. /dev/disk/by-id/virtio-nb-vol-1" }
+        created: { type: string, format: date-time }
+    NetworkInput:
+      type: object
+      required: [name, location]
+      properties:
+        name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" }
+        location: { type: string, description: Location id or name }
+        ip_range: { type: string, description: "IPv4 CIDR inside 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16, /8 to /28; the first free 10.N.0.0/16 when omitted" }
+        labels: { $ref: "#/components/schemas/Labels" }
+    NetworkUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+    NetworkAttachInput:
+      type: object
+      required: [network]
+      properties:
+        network: { type: string, description: Network id or name }
+        ip: { type: string, description: An address on the network; the lowest free one when omitted }
+    NetworkDetachInput:
+      type: object
+      required: [network]
+      properties:
+        network: { type: string, description: Network id or name }
+    NetworkGuestConfig:
+      type: object
+      description: Commands to run inside the server so it uses the network; new and rebuilt servers set this up automatically
+      required: [apply, persist, remove, note]
+      properties:
+        apply: { type: string, nullable: true, description: Commands that bring the network up now }
+        persist: { type: string, nullable: true, description: Commands that keep the network across reboots }
+        remove: { type: string, nullable: true, description: Commands that take the network down }
+        note: { type: string, nullable: true, description: When to run the commands }
+    Network:
+      type: object
+      required: [id, name, labels, location, ip_range, servers, created]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+        location: { $ref: "#/components/schemas/LocationRef" }
+        ip_range: { type: string, description: The network's IPv4 range in CIDR form }
+        servers:
+          type: array
+          items:
+            type: object
+            required: [server, name, ip]
+            properties:
+              server: { type: integer, format: int64 }
+              name: { type: string }
+              ip: { type: string }
         created: { type: string, format: date-time }
     FloatingIpInput:
       type: object

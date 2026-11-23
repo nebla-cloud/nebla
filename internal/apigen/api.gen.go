@@ -301,6 +301,30 @@ func (e LocationEnrollmentState) Valid() bool {
 	}
 }
 
+// Defines values for PrivateNetworkPoolState.
+const (
+	FirewallOff PrivateNetworkPoolState = "firewall_off"
+	NeedsSetup  PrivateNetworkPoolState = "needs_setup"
+	NotSetUp    PrivateNetworkPoolState = "not_set_up"
+	Ready       PrivateNetworkPoolState = "ready"
+)
+
+// Valid indicates whether the value is a known member of the PrivateNetworkPoolState enum.
+func (e PrivateNetworkPoolState) Valid() bool {
+	switch e {
+	case FirewallOff:
+		return true
+	case NeedsSetup:
+		return true
+	case NotSetUp:
+		return true
+	case Ready:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Role.
 const (
 	RoleAdmin    Role = "admin"
@@ -523,14 +547,21 @@ type AdminLocation struct {
 	DiskStorage           string    `json:"disk_storage"`
 
 	// FirewallEnabled Whether the datacenter firewall was on at the last check; null until checked
-	FirewallEnabled *bool         `json:"firewall_enabled"`
-	Id              int64         `json:"id"`
-	ImportStorage   string        `json:"import_storage"`
-	IsoStorage      string        `json:"iso_storage"`
-	Name            string        `json:"name"`
-	Nodes           []Node        `json:"nodes"`
-	Pve             PveConnection `json:"pve"`
-	Updated         time.Time     `json:"updated"`
+	FirewallEnabled *bool  `json:"firewall_enabled"`
+	Id              int64  `json:"id"`
+	ImportStorage   string `json:"import_storage"`
+	IsoStorage      string `json:"iso_storage"`
+	Name            string `json:"name"`
+	Nodes           []Node `json:"nodes"`
+
+	// PrivateNetworks Read-only: the location's private network pool
+	PrivateNetworks PrivateNetworkPool `json:"private_networks"`
+	Pve             PveConnection      `json:"pve"`
+
+	// SdnZone The SDN zone holding the private network VNets; null when private networks are off
+	SdnZone    *string   `json:"sdn_zone"`
+	Updated    time.Time `json:"updated"`
+	VnetPrefix string    `json:"vnet_prefix"`
 
 	// VolumeStorage Empty uses each node's disk storage
 	VolumeStorage string `json:"volume_storage"`
@@ -1000,6 +1031,9 @@ type Location struct {
 		Ipv6 bool `json:"ipv6"`
 	} `json:"networks"`
 
+	// PrivateNetworksAvailable Whether private networks can be created here
+	PrivateNetworksAvailable bool `json:"private_networks_available"`
+
 	// VolumesAvailable Whether volumes can be created here
 	VolumesAvailable bool `json:"volumes_available"`
 }
@@ -1072,6 +1106,12 @@ type LocationInput struct {
 	Name          string             `json:"name"`
 	Pve           PveConnectionInput `json:"pve"`
 
+	// SdnZone The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omit it and vnet_prefix to leave both unchanged
+	SdnZone *string `json:"sdn_zone,omitempty"`
+
+	// VnetPrefix Prefix of the VNet names Nebla uses; default nb
+	VnetPrefix *string `json:"vnet_prefix,omitempty"`
+
 	// VolumeStorage Storage with the images content type for volumes; empty uses each node's disk storage. Omitted on update keeps the current value
 	VolumeStorage *string `json:"volume_storage,omitempty"`
 }
@@ -1115,6 +1155,75 @@ type Metrics struct {
 
 	// TimeSeries Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s). Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample.
 	TimeSeries map[string][][]*float64 `json:"time_series"`
+}
+
+// Network defines model for Network.
+type Network struct {
+	Created time.Time `json:"created"`
+	Id      int64     `json:"id"`
+
+	// IpRange The network's IPv4 range in CIDR form
+	IpRange string `json:"ip_range"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+	Servers  []struct {
+		Ip     string `json:"ip"`
+		Name   string `json:"name"`
+		Server int64  `json:"server"`
+	} `json:"servers"`
+}
+
+// NetworkAttachInput defines model for NetworkAttachInput.
+type NetworkAttachInput struct {
+	// Ip An address on the network; the lowest free one when omitted
+	Ip *string `json:"ip,omitempty"`
+
+	// Network Network id or name
+	Network string `json:"network"`
+}
+
+// NetworkDetachInput defines model for NetworkDetachInput.
+type NetworkDetachInput struct {
+	// Network Network id or name
+	Network string `json:"network"`
+}
+
+// NetworkGuestConfig Commands to run inside the server so it uses the network; new and rebuilt servers set this up automatically
+type NetworkGuestConfig struct {
+	// Apply Commands that bring the network up now
+	Apply *string `json:"apply"`
+
+	// Note When to run the commands
+	Note *string `json:"note"`
+
+	// Persist Commands that keep the network across reboots
+	Persist *string `json:"persist"`
+
+	// Remove Commands that take the network down
+	Remove *string `json:"remove"`
+}
+
+// NetworkInput defines model for NetworkInput.
+type NetworkInput struct {
+	// IpRange IPv4 CIDR inside 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16, /8 to /28; the first free 10.N.0.0/16 when omitted
+	IpRange *string `json:"ip_range,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name
+	Location string `json:"location"`
+	Name     string `json:"name"`
+}
+
+// NetworkUpdate defines model for NetworkUpdate.
+type NetworkUpdate struct {
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
 }
 
 // Node defines model for Node.
@@ -1187,6 +1296,27 @@ type PasswordChange struct {
 	NewPassword     string `json:"new_password"`
 }
 
+// PrivateNetworkPool Read-only: the location's private network pool
+type PrivateNetworkPool struct {
+	Available int `json:"available"`
+	Cooling   int `json:"cooling"`
+	Degraded  []struct {
+		Network string `json:"network"`
+		Reason  string `json:"reason"`
+		Vnet    string `json:"vnet"`
+	} `json:"degraded"`
+	InUse    int                     `json:"in_use"`
+	State    PrivateNetworkPoolState `json:"state"`
+	Unusable []struct {
+		Reason string `json:"reason"`
+		Vnet   string `json:"vnet"`
+	} `json:"unusable"`
+	Zone *string `json:"zone"`
+}
+
+// PrivateNetworkPoolState defines model for PrivateNetworkPool.State.
+type PrivateNetworkPoolState string
+
 // Project defines model for Project.
 type Project struct {
 	Created time.Time    `json:"created"`
@@ -1212,6 +1342,7 @@ type ProjectUsage struct {
 	DiskGb          int `json:"disk_gb"`
 	Ips             int `json:"ips"`
 	MemoryMb        int `json:"memory_mb"`
+	Networks        int `json:"networks"`
 	Servers         int `json:"servers"`
 	Vcpu            int `json:"vcpu"`
 	VolumeGb        int `json:"volume_gb"`
@@ -1248,18 +1379,22 @@ type Quota struct {
 	MaxDiskGb   int `json:"max_disk_gb"`
 	MaxIps      int `json:"max_ips"`
 	MaxMemoryMb int `json:"max_memory_mb"`
+
+	// MaxNetworks Private networks; 0 is unlimited
+	MaxNetworks int `json:"max_networks"`
 	MaxServers  int `json:"max_servers"`
 	MaxVcpu     int `json:"max_vcpu"`
 	MaxVolumeGb int `json:"max_volume_gb"`
 	MaxVolumes  int `json:"max_volumes"`
 }
 
-// QuotaInput An omitted max_volumes, max_volume_gb or max_backups keeps the current value
+// QuotaInput An omitted max_volumes, max_volume_gb, max_backups or max_networks keeps the current value
 type QuotaInput struct {
 	MaxBackups  *int `json:"max_backups,omitempty"`
 	MaxDiskGb   int  `json:"max_disk_gb"`
 	MaxIps      int  `json:"max_ips"`
 	MaxMemoryMb int  `json:"max_memory_mb"`
+	MaxNetworks *int `json:"max_networks,omitempty"`
 	MaxServers  int  `json:"max_servers"`
 	MaxVcpu     int  `json:"max_vcpu"`
 	MaxVolumeGb *int `json:"max_volume_gb,omitempty"`
@@ -1292,9 +1427,17 @@ type Server struct {
 	Image     Image            `json:"image"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels    Labels      `json:"labels"`
-	Location  LocationRef `json:"location"`
-	Name      string      `json:"name"`
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+
+	// PrivateNet The private networks the server is on
+	PrivateNet []struct {
+		GuestConfig *NetworkGuestConfig `json:"guest_config"`
+		Ip          string              `json:"ip"`
+		Name        string              `json:"name"`
+		Network     int64               `json:"network"`
+	} `json:"private_net"`
 	PublicNet struct {
 		// FloatingIps Floating IPs assigned to the server
 		FloatingIps []struct {
@@ -1351,8 +1494,17 @@ type ServerInput struct {
 	Labels *Labels `json:"labels,omitempty"`
 
 	// Location Location id or name
-	Location  string `json:"location"`
-	Name      string `json:"name"`
+	Location string `json:"location"`
+	Name     string `json:"name"`
+
+	// Networks Private networks to join at creation, at most 3, all in the server's location
+	Networks *[]struct {
+		// Ip An address on the network; the lowest free one when omitted
+		Ip *string `json:"ip,omitempty"`
+
+		// Network Network id or name
+		Network string `json:"network"`
+	} `json:"networks,omitempty"`
 	PublicNet *struct {
 		Ipv4 *bool `json:"ipv4,omitempty"`
 		Ipv6 *bool `json:"ipv6,omitempty"`
@@ -1557,6 +1709,12 @@ type ActionsCreated struct {
 	Actions []Action `json:"actions"`
 }
 
+// NetworkActionCreated defines model for NetworkActionCreated.
+type NetworkActionCreated struct {
+	Action      Action              `json:"action"`
+	GuestConfig *NetworkGuestConfig `json:"guest_config"`
+}
+
 // GetActionsParams defines parameters for GetActions.
 type GetActionsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -1750,6 +1908,33 @@ type PostInviteAcceptJSONBody struct {
 type GetLocationsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
 	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+}
+
+// GetNetworksParams defines parameters for GetNetworks.
+type GetNetworksParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact network name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Location Only networks in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
+// GetNetworkActionsParams defines parameters for GetNetworkActions.
+type GetNetworkActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
 // PostProjectInvitesJSONBody defines parameters for PostProjectInvites.
@@ -1978,6 +2163,12 @@ type PutMePasskeyJSONRequestBody = PasskeyName
 // PostMePasswordJSONRequestBody defines body for PostMePassword for application/json ContentType.
 type PostMePasswordJSONRequestBody = PasswordChange
 
+// PostNetworksJSONRequestBody defines body for PostNetworks for application/json ContentType.
+type PostNetworksJSONRequestBody = NetworkInput
+
+// PutNetworkJSONRequestBody defines body for PutNetwork for application/json ContentType.
+type PutNetworkJSONRequestBody = NetworkUpdate
+
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody = ProjectInput
 
@@ -1999,8 +2190,14 @@ type PostServersJSONRequestBody = ServerInput
 // PutServerJSONRequestBody defines body for PutServer for application/json ContentType.
 type PutServerJSONRequestBody = ServerUpdate
 
+// AttachServerToNetworkJSONRequestBody defines body for AttachServerToNetwork for application/json ContentType.
+type AttachServerToNetworkJSONRequestBody = NetworkAttachInput
+
 // ChangeServerTypeJSONRequestBody defines body for ChangeServerType for application/json ContentType.
 type ChangeServerTypeJSONRequestBody = ChangeTypeInput
+
+// DetachServerFromNetworkJSONRequestBody defines body for DetachServerFromNetwork for application/json ContentType.
+type DetachServerFromNetworkJSONRequestBody = NetworkDetachInput
 
 // RebuildServerJSONRequestBody defines body for RebuildServer for application/json ContentType.
 type RebuildServerJSONRequestBody = RebuildInput
@@ -2310,6 +2507,24 @@ type ServerInterface interface {
 	// PostMePassword Change the current user's password and sign out other sessions
 	// (POST /me/password)
 	PostMePassword(w http.ResponseWriter, r *http.Request)
+	// GetNetworks List the project's private networks
+	// (GET /networks)
+	GetNetworks(w http.ResponseWriter, r *http.Request, params GetNetworksParams)
+	// PostNetworks Create a private network in a location
+	// (POST /networks)
+	PostNetworks(w http.ResponseWriter, r *http.Request)
+	// DeleteNetwork Delete a private network that has no servers
+	// (DELETE /networks/{id})
+	DeleteNetwork(w http.ResponseWriter, r *http.Request, id ID)
+	// GetNetwork Get a private network
+	// (GET /networks/{id})
+	GetNetwork(w http.ResponseWriter, r *http.Request, id ID)
+	// PutNetwork Rename a private network or replace its labels
+	// (PUT /networks/{id})
+	PutNetwork(w http.ResponseWriter, r *http.Request, id ID)
+	// GetNetworkActions List a private network's actions
+	// (GET /networks/{id}/actions)
+	GetNetworkActions(w http.ResponseWriter, r *http.Request, id ID, params GetNetworkActionsParams)
 	// GetProjects List the caller's projects
 	// (GET /projects)
 	GetProjects(w http.ResponseWriter, r *http.Request)
@@ -2379,9 +2594,15 @@ type ServerInterface interface {
 	// GetServerActions List a server's actions
 	// (GET /servers/{id}/actions)
 	GetServerActions(w http.ResponseWriter, r *http.Request, id ID, params GetServerActionsParams)
+	// AttachServerToNetwork Attach a server to a private network in its location
+	// (POST /servers/{id}/actions/attach_to_network)
+	AttachServerToNetwork(w http.ResponseWriter, r *http.Request, id ID)
 	// ChangeServerType Change a stopped server's type
 	// (POST /servers/{id}/actions/change_type)
 	ChangeServerType(w http.ResponseWriter, r *http.Request, id ID)
+	// DetachServerFromNetwork Detach a server from a private network
+	// (POST /servers/{id}/actions/detach_from_network)
+	DetachServerFromNetwork(w http.ResponseWriter, r *http.Request, id ID)
 	// PoweroffServer Stop a server immediately
 	// (POST /servers/{id}/actions/poweroff)
 	PoweroffServer(w http.ResponseWriter, r *http.Request, id ID)
@@ -3030,6 +3251,42 @@ func (_ Unimplemented) PostMePassword(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetNetworks List the project's private networks
+// (GET /networks)
+func (_ Unimplemented) GetNetworks(w http.ResponseWriter, r *http.Request, params GetNetworksParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostNetworks Create a private network in a location
+// (POST /networks)
+func (_ Unimplemented) PostNetworks(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteNetwork Delete a private network that has no servers
+// (DELETE /networks/{id})
+func (_ Unimplemented) DeleteNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetNetwork Get a private network
+// (GET /networks/{id})
+func (_ Unimplemented) GetNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutNetwork Rename a private network or replace its labels
+// (PUT /networks/{id})
+func (_ Unimplemented) PutNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetNetworkActions List a private network's actions
+// (GET /networks/{id}/actions)
+func (_ Unimplemented) GetNetworkActions(w http.ResponseWriter, r *http.Request, id ID, params GetNetworkActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetProjects List the caller's projects
 // (GET /projects)
 func (_ Unimplemented) GetProjects(w http.ResponseWriter, r *http.Request) {
@@ -3168,9 +3425,21 @@ func (_ Unimplemented) GetServerActions(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// AttachServerToNetwork Attach a server to a private network in its location
+// (POST /servers/{id}/actions/attach_to_network)
+func (_ Unimplemented) AttachServerToNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ChangeServerType Change a stopped server's type
 // (POST /servers/{id}/actions/change_type)
 func (_ Unimplemented) ChangeServerType(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DetachServerFromNetwork Detach a server from a private network
+// (POST /servers/{id}/actions/detach_from_network)
+func (_ Unimplemented) DetachServerFromNetwork(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -5978,6 +6247,264 @@ func (siw *ServerInterfaceWrapper) PostMePassword(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetNetworks operation middleware
+func (siw *ServerInterfaceWrapper) GetNetworks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetNetworksParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "label_selector" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label_selector", r.URL.Query(), &params.LabelSelector, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label_selector"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label_selector", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location", r.URL.Query(), &params.Location, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "location"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNetworks(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostNetworks operation middleware
+func (siw *ServerInterfaceWrapper) PostNetworks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostNetworks(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNetwork operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNetwork(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNetwork(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNetwork operation middleware
+func (siw *ServerInterfaceWrapper) GetNetwork(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNetwork(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutNetwork operation middleware
+func (siw *ServerInterfaceWrapper) PutNetwork(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutNetwork(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNetworkActions operation middleware
+func (siw *ServerInterfaceWrapper) GetNetworkActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetNetworkActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNetworkActions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProjects operation middleware
 func (siw *ServerInterfaceWrapper) GetProjects(w http.ResponseWriter, r *http.Request) {
 
@@ -6719,6 +7246,32 @@ func (siw *ServerInterfaceWrapper) GetServerActions(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// AttachServerToNetwork operation middleware
+func (siw *ServerInterfaceWrapper) AttachServerToNetwork(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AttachServerToNetwork(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ChangeServerType operation middleware
 func (siw *ServerInterfaceWrapper) ChangeServerType(w http.ResponseWriter, r *http.Request) {
 
@@ -6736,6 +7289,32 @@ func (siw *ServerInterfaceWrapper) ChangeServerType(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ChangeServerType(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DetachServerFromNetwork operation middleware
+func (siw *ServerInterfaceWrapper) DetachServerFromNetwork(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DetachServerFromNetwork(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8252,6 +8831,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/floating_ips/{id}/actions/unassign", wrapper.UnassignFloatingIp)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/networks", wrapper.GetNetworks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/networks", wrapper.PostNetworks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/networks/{id}", wrapper.DeleteNetwork)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/networks/{id}", wrapper.GetNetwork)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/networks/{id}", wrapper.PutNetwork)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/networks/{id}/actions", wrapper.GetNetworkActions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/attach_to_network", wrapper.AttachServerToNetwork)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/detach_from_network", wrapper.DetachServerFromNetwork)
+	})
 
 	return r
 }
@@ -8265,6 +8868,11 @@ type ActionsCreatedJSONResponse struct {
 }
 
 type ErrorJSONResponse Error
+
+type NetworkActionCreatedJSONResponse struct {
+	Action      Action              `json:"action"`
+	GuestConfig *NetworkGuestConfig `json:"guest_config"`
+}
 
 type GetActionsRequestObject struct {
 	Params GetActionsParams
@@ -16369,6 +16977,552 @@ func (response PostMePassworddefaultJSONResponse) VisitPostMePasswordResponse(w 
 	return err
 }
 
+type GetNetworksRequestObject struct {
+	Params GetNetworksParams
+}
+
+type GetNetworksResponseObject interface {
+	VisitGetNetworksResponse(w http.ResponseWriter) error
+}
+
+type GetNetworks200JSONResponse struct {
+	Meta     Meta      `json:"meta"`
+	Networks []Network `json:"networks"`
+}
+
+func (response GetNetworks200JSONResponse) VisitGetNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworks401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetNetworks401JSONResponse) VisitGetNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworks404JSONResponse Error
+
+func (response GetNetworks404JSONResponse) VisitGetNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworks422JSONResponse Error
+
+func (response GetNetworks422JSONResponse) VisitGetNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworksdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetNetworksdefaultJSONResponse) VisitGetNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostNetworksRequestObject struct {
+	Body *PostNetworksJSONRequestBody
+}
+
+type PostNetworksResponseObject interface {
+	VisitPostNetworksResponse(w http.ResponseWriter) error
+}
+
+type PostNetworks201JSONResponse struct {
+	Network Network `json:"network"`
+}
+
+func (response PostNetworks201JSONResponse) VisitPostNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostNetworks401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostNetworks401JSONResponse) VisitPostNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostNetworks403JSONResponse Error
+
+func (response PostNetworks403JSONResponse) VisitPostNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostNetworks404JSONResponse Error
+
+func (response PostNetworks404JSONResponse) VisitPostNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostNetworks409JSONResponse Error
+
+func (response PostNetworks409JSONResponse) VisitPostNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostNetworks422JSONResponse Error
+
+func (response PostNetworks422JSONResponse) VisitPostNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostNetworksdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostNetworksdefaultJSONResponse) VisitPostNetworksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetworkRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteNetworkResponseObject interface {
+	VisitDeleteNetworkResponse(w http.ResponseWriter) error
+}
+
+type DeleteNetwork204Response struct {
+}
+
+func (response DeleteNetwork204Response) VisitDeleteNetworkResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteNetwork401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteNetwork401JSONResponse) VisitDeleteNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetwork403JSONResponse Error
+
+func (response DeleteNetwork403JSONResponse) VisitDeleteNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetwork404JSONResponse Error
+
+func (response DeleteNetwork404JSONResponse) VisitDeleteNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetwork409JSONResponse Error
+
+func (response DeleteNetwork409JSONResponse) VisitDeleteNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNetworkdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteNetworkdefaultJSONResponse) VisitDeleteNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetNetworkResponseObject interface {
+	VisitGetNetworkResponse(w http.ResponseWriter) error
+}
+
+type GetNetwork200JSONResponse Network
+
+func (response GetNetwork200JSONResponse) VisitGetNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetwork401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetNetwork401JSONResponse) VisitGetNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetwork404JSONResponse Error
+
+func (response GetNetwork404JSONResponse) VisitGetNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetNetworkdefaultJSONResponse) VisitGetNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutNetworkRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutNetworkJSONRequestBody
+}
+
+type PutNetworkResponseObject interface {
+	VisitPutNetworkResponse(w http.ResponseWriter) error
+}
+
+type PutNetwork200JSONResponse Network
+
+func (response PutNetwork200JSONResponse) VisitPutNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutNetwork401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutNetwork401JSONResponse) VisitPutNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutNetwork403JSONResponse Error
+
+func (response PutNetwork403JSONResponse) VisitPutNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutNetwork404JSONResponse Error
+
+func (response PutNetwork404JSONResponse) VisitPutNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutNetwork409JSONResponse Error
+
+func (response PutNetwork409JSONResponse) VisitPutNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutNetwork422JSONResponse Error
+
+func (response PutNetwork422JSONResponse) VisitPutNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutNetworkdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutNetworkdefaultJSONResponse) VisitPutNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkActionsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetNetworkActionsParams
+}
+
+type GetNetworkActionsResponseObject interface {
+	VisitGetNetworkActionsResponse(w http.ResponseWriter) error
+}
+
+type GetNetworkActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetNetworkActions200JSONResponse) VisitGetNetworkActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetNetworkActions401JSONResponse) VisitGetNetworkActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkActions404JSONResponse Error
+
+func (response GetNetworkActions404JSONResponse) VisitGetNetworkActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkActions422JSONResponse Error
+
+func (response GetNetworkActions422JSONResponse) VisitGetNetworkActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetworkActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetNetworkActionsdefaultJSONResponse) VisitGetNetworkActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProjectsRequestObject struct {
 }
 
@@ -18306,6 +19460,132 @@ func (response GetServerActionsdefaultJSONResponse) VisitGetServerActionsRespons
 	return err
 }
 
+type AttachServerToNetworkRequestObject struct {
+	Id   ID `json:"id"`
+	Body *AttachServerToNetworkJSONRequestBody
+}
+
+type AttachServerToNetworkResponseObject interface {
+	VisitAttachServerToNetworkResponse(w http.ResponseWriter) error
+}
+
+type AttachServerToNetwork201JSONResponse struct {
+	NetworkActionCreatedJSONResponse
+}
+
+func (response AttachServerToNetwork201JSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachServerToNetwork401JSONResponse struct{ ErrorJSONResponse }
+
+func (response AttachServerToNetwork401JSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachServerToNetwork403JSONResponse Error
+
+func (response AttachServerToNetwork403JSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachServerToNetwork404JSONResponse Error
+
+func (response AttachServerToNetwork404JSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachServerToNetwork409JSONResponse Error
+
+func (response AttachServerToNetwork409JSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachServerToNetwork422JSONResponse Error
+
+func (response AttachServerToNetwork422JSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachServerToNetwork503JSONResponse Error
+
+func (response AttachServerToNetwork503JSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AttachServerToNetworkdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response AttachServerToNetworkdefaultJSONResponse) VisitAttachServerToNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ChangeServerTypeRequestObject struct {
 	Id   ID `json:"id"`
 	Body *ChangeServerTypeJSONRequestBody
@@ -18419,6 +19699,132 @@ type ChangeServerTypedefaultJSONResponse struct {
 }
 
 func (response ChangeServerTypedefaultJSONResponse) VisitChangeServerTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetworkRequestObject struct {
+	Id   ID `json:"id"`
+	Body *DetachServerFromNetworkJSONRequestBody
+}
+
+type DetachServerFromNetworkResponseObject interface {
+	VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error
+}
+
+type DetachServerFromNetwork201JSONResponse struct {
+	NetworkActionCreatedJSONResponse
+}
+
+func (response DetachServerFromNetwork201JSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetwork401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DetachServerFromNetwork401JSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetwork403JSONResponse Error
+
+func (response DetachServerFromNetwork403JSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetwork404JSONResponse Error
+
+func (response DetachServerFromNetwork404JSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetwork409JSONResponse Error
+
+func (response DetachServerFromNetwork409JSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetwork422JSONResponse Error
+
+func (response DetachServerFromNetwork422JSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetwork503JSONResponse Error
+
+func (response DetachServerFromNetwork503JSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetachServerFromNetworkdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DetachServerFromNetworkdefaultJSONResponse) VisitDetachServerFromNetworkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -21676,6 +23082,24 @@ type StrictServerInterface interface {
 	// PostMePassword Change the current user's password and sign out other sessions
 	// (POST /me/password)
 	PostMePassword(ctx context.Context, request PostMePasswordRequestObject) (PostMePasswordResponseObject, error)
+	// GetNetworks List the project's private networks
+	// (GET /networks)
+	GetNetworks(ctx context.Context, request GetNetworksRequestObject) (GetNetworksResponseObject, error)
+	// PostNetworks Create a private network in a location
+	// (POST /networks)
+	PostNetworks(ctx context.Context, request PostNetworksRequestObject) (PostNetworksResponseObject, error)
+	// DeleteNetwork Delete a private network that has no servers
+	// (DELETE /networks/{id})
+	DeleteNetwork(ctx context.Context, request DeleteNetworkRequestObject) (DeleteNetworkResponseObject, error)
+	// GetNetwork Get a private network
+	// (GET /networks/{id})
+	GetNetwork(ctx context.Context, request GetNetworkRequestObject) (GetNetworkResponseObject, error)
+	// PutNetwork Rename a private network or replace its labels
+	// (PUT /networks/{id})
+	PutNetwork(ctx context.Context, request PutNetworkRequestObject) (PutNetworkResponseObject, error)
+	// GetNetworkActions List a private network's actions
+	// (GET /networks/{id}/actions)
+	GetNetworkActions(ctx context.Context, request GetNetworkActionsRequestObject) (GetNetworkActionsResponseObject, error)
 	// GetProjects List the caller's projects
 	// (GET /projects)
 	GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error)
@@ -21745,9 +23169,15 @@ type StrictServerInterface interface {
 	// GetServerActions List a server's actions
 	// (GET /servers/{id}/actions)
 	GetServerActions(ctx context.Context, request GetServerActionsRequestObject) (GetServerActionsResponseObject, error)
+	// AttachServerToNetwork Attach a server to a private network in its location
+	// (POST /servers/{id}/actions/attach_to_network)
+	AttachServerToNetwork(ctx context.Context, request AttachServerToNetworkRequestObject) (AttachServerToNetworkResponseObject, error)
 	// ChangeServerType Change a stopped server's type
 	// (POST /servers/{id}/actions/change_type)
 	ChangeServerType(ctx context.Context, request ChangeServerTypeRequestObject) (ChangeServerTypeResponseObject, error)
+	// DetachServerFromNetwork Detach a server from a private network
+	// (POST /servers/{id}/actions/detach_from_network)
+	DetachServerFromNetwork(ctx context.Context, request DetachServerFromNetworkRequestObject) (DetachServerFromNetworkResponseObject, error)
 	// PoweroffServer Stop a server immediately
 	// (POST /servers/{id}/actions/poweroff)
 	PoweroffServer(ctx context.Context, request PoweroffServerRequestObject) (PoweroffServerResponseObject, error)
@@ -24482,6 +25912,175 @@ func (sh *strictHandler) PostMePassword(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// GetNetworks operation middleware
+func (sh *strictHandler) GetNetworks(w http.ResponseWriter, r *http.Request, params GetNetworksParams) {
+	var request GetNetworksRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNetworks(ctx, request.(GetNetworksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNetworks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNetworksResponseObject); ok {
+		if err := validResponse.VisitGetNetworksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostNetworks operation middleware
+func (sh *strictHandler) PostNetworks(w http.ResponseWriter, r *http.Request) {
+	var request PostNetworksRequestObject
+
+	var body PostNetworksJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostNetworks(ctx, request.(PostNetworksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostNetworks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostNetworksResponseObject); ok {
+		if err := validResponse.VisitPostNetworksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNetwork operation middleware
+func (sh *strictHandler) DeleteNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteNetworkRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNetwork(ctx, request.(DeleteNetworkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNetwork")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNetworkResponseObject); ok {
+		if err := validResponse.VisitDeleteNetworkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNetwork operation middleware
+func (sh *strictHandler) GetNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetNetworkRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNetwork(ctx, request.(GetNetworkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNetwork")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNetworkResponseObject); ok {
+		if err := validResponse.VisitGetNetworkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutNetwork operation middleware
+func (sh *strictHandler) PutNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutNetworkRequestObject
+
+	request.Id = id
+
+	var body PutNetworkJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutNetwork(ctx, request.(PutNetworkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutNetwork")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutNetworkResponseObject); ok {
+		if err := validResponse.VisitPutNetworkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNetworkActions operation middleware
+func (sh *strictHandler) GetNetworkActions(w http.ResponseWriter, r *http.Request, id ID, params GetNetworkActionsParams) {
+	var request GetNetworkActionsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNetworkActions(ctx, request.(GetNetworkActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNetworkActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNetworkActionsResponseObject); ok {
+		if err := validResponse.VisitGetNetworkActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProjects operation middleware
 func (sh *strictHandler) GetProjects(w http.ResponseWriter, r *http.Request) {
 	var request GetProjectsRequestObject
@@ -25129,6 +26728,39 @@ func (sh *strictHandler) GetServerActions(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// AttachServerToNetwork operation middleware
+func (sh *strictHandler) AttachServerToNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	var request AttachServerToNetworkRequestObject
+
+	request.Id = id
+
+	var body AttachServerToNetworkJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AttachServerToNetwork(ctx, request.(AttachServerToNetworkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AttachServerToNetwork")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AttachServerToNetworkResponseObject); ok {
+		if err := validResponse.VisitAttachServerToNetworkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ChangeServerType operation middleware
 func (sh *strictHandler) ChangeServerType(w http.ResponseWriter, r *http.Request, id ID) {
 	var request ChangeServerTypeRequestObject
@@ -25155,6 +26787,39 @@ func (sh *strictHandler) ChangeServerType(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ChangeServerTypeResponseObject); ok {
 		if err := validResponse.VisitChangeServerTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DetachServerFromNetwork operation middleware
+func (sh *strictHandler) DetachServerFromNetwork(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DetachServerFromNetworkRequestObject
+
+	request.Id = id
+
+	var body DetachServerFromNetworkJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DetachServerFromNetwork(ctx, request.(DetachServerFromNetworkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DetachServerFromNetwork")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DetachServerFromNetworkResponseObject); ok {
+		if err := validResponse.VisitDetachServerFromNetworkResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

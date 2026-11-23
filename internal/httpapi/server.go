@@ -104,6 +104,7 @@ type server struct {
 	volumes     *volumes.Service
 	backups     *backups.Service
 	floatingIPs *floatingips.Service
+	networks    *networks.Service
 	console     *console.Service
 	enroll      *enroll.Service
 	loginLimit  *ratelimit.Limiter
@@ -164,6 +165,7 @@ func New(deps Deps) http.Handler {
 		DefaultQuota: deps.Config.DefaultQuota, MaxOwnedProjects: deps.Config.MaxProjectsPerUser,
 	})
 	bk := backups.New(backups.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Jobs: deps.Jobs, Logger: log})
+	nets := newNetworks(deps, proj, log)
 	s := &server{
 		deps:     deps,
 		log:      log,
@@ -176,11 +178,12 @@ func New(deps Deps) http.Handler {
 		ipam:     ipam.New(deps.SQL, deps.Ent),
 		sshkeys:  sshkeys.New(deps.Ent),
 		servers: servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs,
-			BackupInfo: bk.BackupInfo}),
+			BackupInfo: bk.BackupInfo, Networks: nets}),
 		firewalls:   firewalls.New(firewalls.Options{Ent: deps.Ent, SQL: deps.SQL, Jobs: deps.Jobs}),
 		backups:     bk,
 		volumes:     volumes.New(volumes.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
 		floatingIPs: newFloatingIPs(deps, proj, log),
+		networks:    nets,
 		enroll:      deps.Enroll,
 		loginLimit:  ratelimit.New(rate.Every(90*time.Second), 10),
 		apiLimit:    newAPILimiter(deps.APILimiter),
@@ -311,4 +314,12 @@ func newFloatingIPs(deps Deps, proj *projects.Service, log *slog.Logger) *floati
 		o.Bus = deps.Bus
 	}
 	return floatingips.New(o)
+}
+
+func newNetworks(deps Deps, proj *projects.Service, log *slog.Logger) *networks.Service {
+	o := networks.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}
+	if deps.Bus != nil {
+		o.Bus = deps.Bus
+	}
+	return networks.New(o)
 }

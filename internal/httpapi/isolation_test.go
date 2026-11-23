@@ -186,6 +186,56 @@ func TestFloatingIPsIsolation(t *testing.T) {
 	require.Nil(t, row.ServerID)
 }
 
+// TestNetworksIsolation: a project-A token never sees or acts on project B's networks or attaches to B's servers.
+func TestNetworksIsolation(t *testing.T) {
+	ctx := context.Background()
+	e := newNetEnv(t)
+	web := e.RunningServer("web")
+	nb := createNet(t, e, e.C, map[string]any{"name": "backend", "location": "eu-1"})
+	projA := e.Admin.CreateProject("a")
+	tokA := e.App.TokenClient(e.Admin.CreateToken(projA, "read_write"))
+	mine := createNet(t, e, tokA, map[string]any{"name": "mine", "location": "eu-1"})
+	before, err := e.App.Ent.Action.Query().Count(ctx)
+	require.NoError(t, err)
+
+	np := "/v1/networks/" + strconv.FormatInt(nb.ID, 10)
+	sp := "/v1/servers/" + strconv.FormatInt(web.ServerID, 10)
+	for _, r := range []struct {
+		method, path string
+		body         any
+	}{
+		{http.MethodGet, np, nil},
+		{http.MethodPut, np, map[string]any{"name": "x"}},
+		{http.MethodDelete, np, nil},
+		{http.MethodGet, np + "/actions", nil},
+		{http.MethodPost, sp + "/actions/attach_to_network", map[string]string{"network": "mine"}},
+		{http.MethodPost, sp + "/actions/detach_from_network", map[string]string{"network": "mine"}},
+	} {
+		res := tokA.Send(r.method, r.path, r.body)
+		body := e.App.Body(res)
+		require.Equal(t, http.StatusNotFound, res.StatusCode, "%s %s: %s", r.method, r.path, body)
+		require.Equal(t, "not_found", errCode2(t, body))
+	}
+	// A's own servers can't join B's network, by name or id.
+	for _, ref := range []string{"backend", strconv.FormatInt(nb.ID, 10)} {
+		res := tokA.Send(http.MethodPost, "/v1/servers", map[string]any{"name": "x", "server_type": "small", "image": "ubuntu", "location": "eu-1",
+			"networks": []map[string]string{{"network": ref}}})
+		require.Equal(t, http.StatusNotFound, res.StatusCode, e.App.Body(res))
+		res.Body.Close()
+	}
+	listed := decodeJSON[struct {
+		Networks []apiNet `json:"networks"`
+	}](t, e.App, tokA.Get("/v1/networks"), http.StatusOK)
+	require.Len(t, listed.Networks, 1)
+	require.Equal(t, mine.ID, listed.Networks[0].ID)
+	after, err := e.App.Ent.Action.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, before, after, "no action started")
+	row, err := e.App.Ent.Network.Get(ctx, nb.ID)
+	require.NoError(t, err)
+	require.Equal(t, "backend", row.Name)
+}
+
 func errCode2(t *testing.T, body string) string {
 	t.Helper()
 	var e struct{ Error struct{ Code string } }
