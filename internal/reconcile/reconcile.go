@@ -64,7 +64,7 @@ type Options struct {
 	Logger *slog.Logger
 	// VolumeRescue repairs orphaned volume actions; it runs at the end of every pass.
 	VolumeRescue func(ctx context.Context) error
-	// FloatingIPResume restarts floating IP changes left without an action; it runs at the end of every pass.
+	// FloatingIPResume restarts floating IP changes left without an action; it runs once per pass.
 	FloatingIPResume func(ctx context.Context) error
 }
 
@@ -112,12 +112,17 @@ func (r *Reconciler) Run(ctx context.Context, locationID int64) error {
 			log.Error("reconcile: volume rescue", "err", err)
 		}
 	}
-	if r.o.FloatingIPResume != nil {
-		if err := r.o.FloatingIPResume(ctx); err != nil {
-			log.Error("reconcile: floating IP resume", "err", err)
-		}
-	}
 	return errors.Join(errs...)
+}
+
+// ResumeFloatingIPs runs FloatingIPResume; the fan-out calls it once per pass.
+func (r *Reconciler) ResumeFloatingIPs(ctx context.Context) {
+	if r.o.FloatingIPResume == nil {
+		return
+	}
+	if err := r.o.FloatingIPResume(ctx); err != nil {
+		r.o.Logger.Error("reconcile: floating IP resume", "err", err)
+	}
 }
 
 // RescueAll fails orphaned server actions in every location without Proxmox; failed rows are logged and left to Run.

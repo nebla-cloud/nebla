@@ -75,6 +75,7 @@ type allWorker struct {
 }
 
 func (w *allWorker) Work(ctx context.Context, _ *river.Job[AllArgs]) error {
+	w.r.ResumeFloatingIPs(ctx)
 	ids, err := w.r.o.Ent.Location.Query().IDs(ctx)
 	if err != nil || len(ids) == 0 {
 		return err

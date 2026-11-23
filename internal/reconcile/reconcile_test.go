@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1270,5 +1271,31 @@ func TestReconcileRunsFloatingIPResume(t *testing.T) {
 	r := reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: quiet(),
 		FloatingIPResume: func(context.Context) error { calls++; return errors.New("boom") }})
 	require.NoError(t, r.Run(ctx, e.Location))
+	require.Zero(t, calls, "a location run leaves the global resume to the pass")
+	r.ResumeFloatingIPs(ctx)
 	require.Equal(t, 1, calls)
+}
+
+func TestReconcilePassResumesFloatingIPsOnce(t *testing.T) {
+	ctx := context.Background()
+	var calls atomic.Int32
+	e := testutil.NewServerEnv(testutil.NewAppWithWorkers(t, func(w *river.Workers, d *httpapi.Deps, p *fake.Server) {
+		testutil.ServerWorkers(w, d, p)
+		reconcile.Register(w, reconcile.New(reconcile.Options{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Logger: quiet(),
+			FloatingIPResume: func(context.Context) error { calls.Add(1); return nil }}))
+	}))
+	e.App.Ent.Location.Create().SetName("eu-2").SetPveURL("https://pve2.invalid").SetTokenID("t").SetTokenSecret([]byte("s")).
+		SetDiskStorage("local-lvm").SetIsoStorage("local").SaveX(ctx)
+	_, err := e.App.Jobs.Client.Insert(ctx, reconcile.AllArgs{}, nil)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var open int
+		err := e.App.SQL.QueryRowContext(ctx, `SELECT count(*) FROM river_job WHERE kind IN ($1, $2) AND finalized_at IS NULL`,
+			reconcile.AllArgs{}.Kind(), reconcile.LocationArgs{}.Kind()).Scan(&open)
+		var done int
+		err2 := e.App.SQL.QueryRowContext(ctx, `SELECT count(*) FROM river_job WHERE kind = $1 AND finalized_at IS NOT NULL`,
+			reconcile.LocationArgs{}.Kind()).Scan(&done)
+		return err == nil && err2 == nil && open == 0 && done == 2
+	}, 30*time.Second, 50*time.Millisecond)
+	require.Equal(t, int32(1), calls.Load())
 }
