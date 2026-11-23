@@ -31,6 +31,8 @@ const (
 	CodePowerOffRequired = "power_off_required"
 	// CodeReleasePending means the address is still being released from its previous server.
 	CodeReleasePending = "release_pending"
+	// CodeShutdownTimeout means a clean shutdown didn't finish in time and a forced stop wasn't allowed.
+	CodeShutdownTimeout = "shutdown_timeout"
 )
 
 var verbs = map[string]string{
@@ -59,6 +61,8 @@ var verbs = map[string]string{
 	"delete_backup":        "delete the backup",
 	"assign_primary_ip":    "assign the primary IP",
 	"unassign_primary_ip":  "unassign the primary IP",
+	"create_snapshot":      "take the snapshot",
+	"delete_snapshot":      "delete the snapshot",
 }
 
 var templates = map[string]string{
@@ -71,6 +75,7 @@ var templates = map[string]string{
 	CodeFirewallUnenforced: "Firewall rules couldn't be enforced at this location; contact the administrator.",
 	CodePowerOffRequired:   "Power off the server to %s.",
 	CodeReleasePending:     "Couldn't %s because the address is still being released from the previous server. It will finish on its own; try again later.",
+	CodeShutdownTimeout:    "The server didn't shut down within 3 minutes, so no snapshot was taken. It is still running.",
 }
 
 // ValidCode reports whether code is one of the Code* kinds.

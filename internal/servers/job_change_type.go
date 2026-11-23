@@ -86,7 +86,7 @@ func BootDiskGB(ctx context.Context, pc pve.Client, v pve.VM) *int {
 	if disk == "" {
 		return nil
 	}
-	b, ok := diskBytes(cfg[disk])
+	b, ok := DiskBytes(cfg[disk])
 	if !ok {
 		return nil
 	}
@@ -242,7 +242,7 @@ func growDisk(ctx context.Context, pc pve.Client, v pve.VM, gb int) error {
 	if disk == "" {
 		return permanent("vm %d has no boot disk", v.VMID)
 	}
-	if cur, ok := diskBytes(cfg[disk]); ok && int64(gb)<<30 <= cur {
+	if cur, ok := DiskBytes(cfg[disk]); ok && int64(gb)<<30 <= cur {
 		return nil
 	}
 	return pc.ResizeDisk(ctx, v.Node, v.VMID, disk, gb)

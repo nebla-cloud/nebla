@@ -168,8 +168,8 @@ func templateGone(vmid int) error {
 	return permanent("template %d no longer exists in Proxmox", vmid)
 }
 
-// diskBytes parses the size= option of a disk config value.
-func diskBytes(disk string) (int64, bool) {
+// DiskBytes parses the size= option of a disk config value.
+func DiskBytes(disk string) (int64, bool) {
 	for _, p := range strings.Split(disk, ",") {
 		sz, ok := strings.CutPrefix(p, "size=")
 		if !ok || sz == "" {

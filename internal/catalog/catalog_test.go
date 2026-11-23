@@ -829,3 +829,35 @@ func TestBackupWindowValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1380, got.BackupWindowStart, "nil keeps the stored window")
 }
+
+func TestSnapshotStorageValidatedAgainstImagesContent(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	in := testutil.LocationInput(pv, "eu-1")
+	in.SnapshotStorage = new("local")
+	_, err := svc.CreateLocation(ctx, in)
+	require.ErrorContains(t, err, `snapshot_storage "local" does not allow the images content type`)
+
+	in.SnapshotStorage = new("nope")
+	_, err = svc.CreateLocation(ctx, in)
+	require.ErrorContains(t, err, `snapshot_storage "nope" does not exist on any online node`)
+
+	in.SnapshotStorage = new(" local-lvm ")
+	loc, err := svc.CreateLocation(ctx, in)
+	require.NoError(t, err)
+	require.Equal(t, "local-lvm", loc.SnapshotStorage)
+
+	// nil keeps the value on update; "" clears it.
+	in.PVE.TokenSecret = nil
+	in.SnapshotStorage = nil
+	got, err := svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, "local-lvm", got.SnapshotStorage)
+	in.SnapshotStorage = new("")
+	got, err = svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, "", got.SnapshotStorage)
+	in.SnapshotStorage = new("local")
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	require.ErrorContains(t, err, "does not allow the images content type")
+}

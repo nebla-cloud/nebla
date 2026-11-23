@@ -64,9 +64,11 @@ type Location struct {
 	BackupStorageOK   bool
 	BackupWindowStart int
 	BackupWindowEnd   int
-	Nodes             []Node
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	// SnapshotStorage "" means each node's disk storage.
+	SnapshotStorage string
+	Nodes           []Node
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // LocationRef is the member-facing reference to a location.
@@ -126,6 +128,8 @@ type LocationInput struct {
 	BackupStorage *string
 	// BackupWindowStart and BackupWindowEnd are minutes from 00:00 UTC (0-1439); nil keeps the current value.
 	BackupWindowStart, BackupWindowEnd *int
+	// SnapshotStorage nil keeps the current value on update; when set it must allow images.
+	SnapshotStorage *string
 }
 
 type NodeUpdate struct {
@@ -147,7 +151,8 @@ func toLocation(l *ent.Location) Location {
 		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, ImportStorage: l.ImportStorage,
 		FirewallEnabled: l.FirewallEnabled, VolumeStorage: l.VolumeStorage, VolumeStorageOK: l.VolumeStorageOk,
 		BackupStorage: l.BackupStorage, BackupStorageOK: l.BackupStorageOk, BackupWindowStart: l.BackupWindowStart, BackupWindowEnd: l.BackupWindowEnd,
-		Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
+		SnapshotStorage: l.SnapshotStorage,
+		Nodes:           []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
 	for _, n := range l.Edges.Nodes {
 		out.Nodes = append(out.Nodes, toNode(n))
 	}
@@ -168,6 +173,9 @@ func (s *Service) validLocation(in *LocationInput) (pve.Conn, error) {
 	}
 	if in.BackupStorage != nil {
 		in.BackupStorage = new(strings.TrimSpace(*in.BackupStorage))
+	}
+	if in.SnapshotStorage != nil {
+		in.SnapshotStorage = new(strings.TrimSpace(*in.SnapshotStorage))
 	}
 	for _, m := range []*int{in.BackupWindowStart, in.BackupWindowEnd} {
 		if m != nil && (*m < 0 || *m > 1439) {
@@ -197,8 +205,8 @@ func (s *Service) validLocation(in *LocationInput) (pve.Conn, error) {
 		InsecureTLS: in.PVE.InsecureTLS, PollInterval: s.opts.PollInterval}, nil
 }
 
-// probe connects with conn, checks the storages (imp and vol may be empty) and returns the discovered nodes.
-func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp, vol string) ([]pve.Node, error) {
+// probe connects with conn, checks the storages (imp, vol and snap may be empty) and returns the discovered nodes.
+func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp, vol, snap string) ([]pve.Node, error) {
 	ctx, cancel := context.WithTimeout(ctx, pveTimeout)
 	defer cancel()
 	c := s.opts.NewClient(conn)
@@ -212,7 +220,7 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp, vol 
 	if len(nodes) == 0 {
 		return nil, invalid("Proxmox reports no nodes")
 	}
-	var diskSeen, diskOK, isoSeen, isoOK, impSeen, impOK, volSeen, volOK bool
+	var diskSeen, diskOK, isoSeen, isoOK, impSeen, impOK, volSeen, volOK, snapSeen, snapOK bool
 	for _, n := range nodes {
 		if n.Status != "online" {
 			continue
@@ -234,6 +242,9 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp, vol 
 			if vol != "" && st.ID == vol {
 				volSeen, volOK = true, volOK || slices.Contains(st.Content, "images")
 			}
+			if snap != "" && st.ID == snap {
+				snapSeen, snapOK = true, snapOK || slices.Contains(st.Content, "images")
+			}
 		}
 	}
 	switch {
@@ -253,6 +264,10 @@ func (s *Service) probe(ctx context.Context, conn pve.Conn, disk, iso, imp, vol 
 		return nil, invalid("volume_storage %q does not exist on any online node", vol)
 	case vol != "" && !volOK:
 		return nil, invalid("volume_storage %q does not allow the images content type", vol)
+	case snap != "" && !snapSeen:
+		return nil, invalid("snapshot_storage %q does not exist on any online node", snap)
+	case snap != "" && !snapOK:
+		return nil, invalid("snapshot_storage %q does not allow the images content type", snap)
 	}
 	return nodes, nil
 }
@@ -274,7 +289,11 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 	if in.VolumeStorage != nil {
 		vol = *in.VolumeStorage
 	}
-	nodes, err := s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage, vol)
+	var snap string
+	if in.SnapshotStorage != nil {
+		snap = *in.SnapshotStorage
+	}
+	nodes, err := s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage, vol, snap)
 	if err != nil {
 		return Location{}, err
 	}
@@ -287,7 +306,7 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 		l, err := tx.Location.Create().SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetTokenSecret(s.box.Seal([]byte(conn.Secret))).SetCaFingerprint(conn.CAFingerprint).
 			SetInsecureTLS(conn.InsecureTLS).SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).
-			SetVolumeStorage(vol).SetBackupStorage(bst).SetBackupWindowStart(wStart).SetBackupWindowEnd(wEnd).Save(ctx)
+			SetVolumeStorage(vol).SetBackupStorage(bst).SetBackupWindowStart(wStart).SetBackupWindowEnd(wEnd).SetSnapshotStorage(snap).Save(ctx)
 		if err != nil {
 			return mapWriteErr(err, "location")
 		}
@@ -327,12 +346,16 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 	if in.VolumeStorage != nil {
 		vol = *in.VolumeStorage
 	}
+	snap := cur.SnapshotStorage
+	if in.SnapshotStorage != nil {
+		snap = *in.SnapshotStorage
+	}
 	changed := newSecret || conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID || conn.CAFingerprint != cur.CaFingerprint ||
 		conn.InsecureTLS != cur.InsecureTLS || in.DiskStorage != cur.DiskStorage || in.ISOStorage != cur.IsoStorage ||
-		in.ImportStorage != cur.ImportStorage || vol != cur.VolumeStorage
+		in.ImportStorage != cur.ImportStorage || vol != cur.VolumeStorage || snap != cur.SnapshotStorage
 	var nodes []pve.Node
 	if changed {
-		if nodes, err = s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage, vol); err != nil {
+		if nodes, err = s.probe(ctx, conn, in.DiskStorage, in.ISOStorage, in.ImportStorage, vol, snap); err != nil {
 			return Location{}, err
 		}
 	}
@@ -344,7 +367,7 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 		u := tx.Location.UpdateOneID(id).SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetCaFingerprint(conn.CAFingerprint).SetInsecureTLS(conn.InsecureTLS).
 			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).SetVolumeStorage(vol).
-			SetBackupStorage(bst).SetBackupWindowStart(wStart).SetBackupWindowEnd(wEnd)
+			SetBackupStorage(bst).SetBackupWindowStart(wStart).SetBackupWindowEnd(wEnd).SetSnapshotStorage(snap)
 		if bst != cur.BackupStorage || newSecret || conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID {
 			u.SetBackupStorageOk(false)
 		}

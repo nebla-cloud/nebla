@@ -473,7 +473,7 @@ func (b *builder) resize(ctx context.Context) error {
 	case disk == "":
 		return permanent("template %d has no boot disk", b.tmpl)
 	}
-	if cur, ok := diskBytes(cfg[disk]); !ok || int64(b.row.DiskGB)<<30 > cur {
+	if cur, ok := DiskBytes(cfg[disk]); !ok || int64(b.row.DiskGB)<<30 > cur {
 		if err := b.pc.ResizeDisk(ctx, b.row.Node, b.vmid(), disk, b.row.DiskGB); err != nil {
 			return err
 		}
