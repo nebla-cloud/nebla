@@ -66,3 +66,12 @@ func TestRemoval(t *testing.T) {
 	require.Empty(t, networks.Removal("ubuntu", 7, false))
 	require.Empty(t, networks.Removal("rocky", 7, true))
 }
+
+func TestGuestMACCaseNormalized(t *testing.T) {
+	require.Equal(t,
+		networks.Guest("ubuntu", 7, mac, addr, 1450, true),
+		networks.Guest("ubuntu", 7, "BC:24:11:34:6F:1C", addr, 1450, true))
+	require.Equal(t,
+		networks.Guest("rocky", 7, mac, addr, 1450, true),
+		networks.Guest("rocky", 7, "BC:24:11:34:6F:1C", addr, 1450, true))
+}

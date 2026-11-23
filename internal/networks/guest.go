@@ -32,6 +32,7 @@ func netplanFile(networkID int64) string {
 
 // Guest returns the apply, persist and remove commands for a private NIC on a guest of the given OS flavor.
 func Guest(flavor string, networkID int64, mac string, addr netip.Prefix, mtu int, persist bool) GuestCommands {
+	mac = strings.ToLower(mac)
 	apply := []string{fmt.Sprintf("IF=$(ip -br link | awk '$3 == \"%s\" {print $1}')", mac)}
 	if mtu > 0 && mtu != 1500 {
 		apply = append(apply, fmt.Sprintf("sudo ip link set \"$IF\" mtu %d", mtu))

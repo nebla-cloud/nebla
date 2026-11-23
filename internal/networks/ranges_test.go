@@ -36,6 +36,10 @@ func TestParseRange(t *testing.T) {
 		{"10.0.0.0/29", "", false},
 		{"10.0.0.0/7", "", false},
 		{"fd00::/64", "", false},
+		{"172.32.0.0/16", "", false},
+		{"172.15.0.0/16", "", false},
+		{"192.169.0.0/16", "", false},
+		{"11.0.0.0/8", "", false},
 		{"nope", "", false},
 	}
 	for _, c := range cases {
