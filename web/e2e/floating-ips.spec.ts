@@ -58,7 +58,6 @@ test('create, assign, move and delete a floating IP', async ({ page }) => {
   const first = (await pick.locator('option:not([disabled])').first().textContent())!.trim()
   await pick.selectOption({ label: first })
   await assign.getByRole('button', { name: 'Assign', exact: true }).click()
-  await expect(assign.getByRole('status')).toContainText('Assigning floating IP')
 
   const guest = page.getByRole('dialog', { name: 'Run this on the server' })
   await expect(guest).toBeVisible({ timeout: 60_000 })

@@ -108,7 +108,8 @@ const rows = computed(() => {
   const list: { label: string; value: string; ip?: boolean; sub?: string; fip?: number }[] = []
   if (s.public_net.ipv4) list.push({ label: 'IPv4', value: s.public_net.ipv4.ip, ip: true })
   if (s.public_net.ipv6) list.push({ label: 'IPv6', value: s.public_net.ipv6.ip, ip: true })
-  for (const f of s.public_net.floating_ips) list.push({ label: 'Floating IP', value: f.ip, fip: f.id })
+  for (const f of s.public_net.floating_ips)
+    list.push({ label: 'Floating IP', value: f.ip, fip: f.id })
   list.push(
     // The slug stays as a second, muted value: e2e reads it from a definition.
     {

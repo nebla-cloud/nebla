@@ -119,7 +119,8 @@ async function remove() {
 
       <Panel title="Delete project">
         <p class="mb-3 text-muted">
-          A project with servers, volumes or floating IPs can't be deleted. Its members need to delete them first.
+          A project with servers, volumes or floating IPs can't be deleted. Its members need to
+          delete them first.
         </p>
         <UButton
           color="error"
