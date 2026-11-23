@@ -504,6 +504,38 @@ func (c *httpClient) StorageContent(ctx context.Context, node, storage string, v
 	return out, nil
 }
 
+func (c *httpClient) Vzdump(ctx context.Context, node string, vmid int, storage, notes string) (UPID, error) {
+	f := url.Values{"vmid": {strconv.Itoa(vmid)}, "storage": {storage}, "mode": {"snapshot"}, "remove": {"0"}, "notes-template": {notes}}
+	return c.task(ctx, http.MethodPost, "/nodes/"+url.PathEscape(node)+"/vzdump", f)
+}
+
+func (c *httpClient) BackupContent(ctx context.Context, node, storage string, vmid int) ([]BackupItem, error) {
+	f := url.Values{"content": {"backup"}}
+	if vmid > 0 {
+		f.Set("vmid", strconv.Itoa(vmid))
+	}
+	var raw []struct {
+		Volid string `json:"volid"`
+		VMID  num    `json:"vmid"`
+		Size  num    `json:"size"`
+		Ctime num    `json:"ctime"`
+		Notes string `json:"notes"`
+	}
+	if err := c.do(ctx, http.MethodGet, contentPath(node, storage), f, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]BackupItem, len(raw))
+	for i, r := range raw {
+		out[i] = BackupItem{Volid: r.Volid, VMID: int(r.VMID), Size: int64(r.Size), Ctime: time.Unix(int64(r.Ctime), 0).UTC(), Notes: r.Notes}
+	}
+	return out, nil
+}
+
+func (c *httpClient) RestoreVM(ctx context.Context, node string, vmid int, archive, storage string) (UPID, error) {
+	f := url.Values{"vmid": {strconv.Itoa(vmid)}, "archive": {archive}, "storage": {storage}, "unique": {"1"}}
+	return c.task(ctx, http.MethodPost, "/nodes/"+url.PathEscape(node)+"/qemu", f)
+}
+
 // ResizeDisk returns once the disk has grown; PVE 8+ may answer with a task to wait for.
 func (c *httpClient) ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error {
 	f := url.Values{"disk": {disk}, "size": {strconv.Itoa(sizeGB) + "G"}}

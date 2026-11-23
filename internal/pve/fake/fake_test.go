@@ -299,3 +299,148 @@ func TestIPSetHolders(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func backupEnv(t *testing.T) (*fake.Server, pve.Client) {
+	t.Helper()
+	s := fake.New(t)
+	s.AddNode("pve1", 4, 8192)
+	s.AddStorage("pve1", "local-lvm", []string{"images"}, false)
+	s.AddStorage("pve1", "nebla-pbs", []string{"backup"}, true)
+	s.AddVM("pve1", 101, "web")
+	s.SetVMConfig(101, "tags", "nebla;nebla-s-1")
+	s.SetVMConfig(101, "description", "hello")
+	s.SetVMConfig(101, "net0", "virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0")
+	s.SetVMConfig(101, "virtio1", "local-lvm:vm-999999999-nb-vol-1,backup=0,size=5G")
+	s.SetVMFirewall(101, map[string]string{"enable": "1"})
+	return s, pve.New(s.Conn())
+}
+
+func TestFakeBackupRestoreDropsExcludedDisk(t *testing.T) {
+	ctx := context.Background()
+	s, c := backupEnv(t)
+	up, err := c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "nebla server 1 backup 2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	items, err := c.BackupContent(ctx, "pve1", "nebla-pbs", 101)
+	if err != nil || len(items) != 1 || items[0].Notes != "nebla server 1 backup 2" || items[0].VMID != 101 || items[0].Size <= 0 || items[0].Ctime.IsZero() {
+		t.Fatalf("items = %+v err=%v", items, err)
+	}
+	if !strings.HasPrefix(items[0].Volid, "nebla-pbs:backup/vm/101/") {
+		t.Fatalf("volid = %q", items[0].Volid)
+	}
+	if other, _ := c.BackupContent(ctx, "pve1", "nebla-pbs", 102); len(other) != 0 {
+		t.Fatalf("filter leaked %+v", other)
+	}
+	up, err = c.RestoreVM(ctx, "pve1", 202, items[0].Volid, "local-lvm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	src, _ := s.VM(101)
+	got, ok := s.VM(202)
+	if !ok {
+		t.Fatal("restored vm missing")
+	}
+	if _, has := got.Config["virtio1"]; has {
+		t.Fatalf("virtio1 kept: %v", got.Config)
+	}
+	if !strings.Contains(got.Config["description"], "virtio1: ") || !strings.HasPrefix(got.Config["description"], "hello") {
+		t.Fatalf("description = %q", got.Config["description"])
+	}
+	if got.Tags != src.Tags || got.Name != src.Name {
+		t.Fatalf("tags/name = %q/%q", got.Tags, got.Name)
+	}
+	if got.Config["net0"] == src.Config["net0"] || !strings.Contains(got.Config["net0"], "bridge=vmbr0") {
+		t.Fatalf("net0 = %q", got.Config["net0"])
+	}
+	if got.Firewall["enable"] != "1" {
+		t.Fatalf("firewall = %v", got.Firewall)
+	}
+	if _, ok := s.VM(101); !ok {
+		t.Fatal("source vm gone")
+	}
+	if _, err := c.RestoreVM(ctx, "pve1", 202, items[0].Volid, "local-lvm"); err == nil {
+		t.Fatal("restore over an existing vmid must fail")
+	}
+}
+
+func TestFakeBackupRestoreCopiesRules(t *testing.T) {
+	ctx := context.Background()
+	s, c := backupEnv(t)
+	if err := c.AddFirewallRule(ctx, "pve1", 101, pve.FirewallRule{Type: "in", Action: "ACCEPT", Proto: "tcp", Dport: "22", Enable: true}); err != nil {
+		t.Fatal(err)
+	}
+	up, _ := c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "n")
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	items, _ := c.BackupContent(ctx, "pve1", "nebla-pbs", 0)
+	up, _ = c.RestoreVM(ctx, "pve1", 203, items[0].Volid, "local-lvm")
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.VM(203)
+	if len(got.Rules) != 1 || got.Rules[0].Dport != "22" {
+		t.Fatalf("rules = %+v", got.Rules)
+	}
+}
+
+func TestFakeDeleteBackup(t *testing.T) {
+	ctx := context.Background()
+	_, c := backupEnv(t)
+	up, _ := c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "n")
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	items, _ := c.BackupContent(ctx, "pve1", "nebla-pbs", 0)
+	if len(items) != 1 {
+		t.Fatalf("items = %+v", items)
+	}
+	if err := c.DeleteVolume(ctx, "pve1", "nebla-pbs", items[0].Volid); err != nil {
+		t.Fatal(err)
+	}
+	if items, _ = c.BackupContent(ctx, "pve1", "nebla-pbs", 0); len(items) != 0 {
+		t.Fatalf("still listed: %+v", items)
+	}
+}
+
+func TestFakeBackupFailures(t *testing.T) {
+	ctx := context.Background()
+	s, c := backupEnv(t)
+	s.FailVzdump = true
+	up, err := c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); !errors.Is(err, pve.ErrTaskFailed) {
+		t.Fatalf("err = %v", err)
+	}
+	s.FailVzdump = false
+	s.SetVMConfig(101, "lock", "backup")
+	if _, err := c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "n"); err == nil {
+		t.Fatal("vzdump on a locked vm must fail")
+	}
+	s.SetVMConfig(101, "lock", "")
+	up, _ = c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "n")
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	items, _ := c.BackupContent(ctx, "pve1", "nebla-pbs", 0)
+	s.FailRestore = true
+	up, err = c.RestoreVM(ctx, "pve1", 204, items[0].Volid, "local-lvm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); !errors.Is(err, pve.ErrTaskFailed) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, ok := s.VM(204); ok {
+		t.Fatal("failed restore left a vm")
+	}
+}

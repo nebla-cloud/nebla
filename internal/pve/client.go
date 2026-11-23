@@ -112,6 +112,15 @@ type StorageItem struct {
 	VMID  int
 }
 
+// BackupItem is one vzdump archive in a storage's content listing.
+type BackupItem struct {
+	Volid string
+	VMID  int
+	Size  int64 // bytes
+	Ctime time.Time
+	Notes string
+}
+
 // PendingItem is one row of a VM's pending config; Pending is the unapplied value.
 type PendingItem struct {
 	Key, Value, Pending string
@@ -142,6 +151,12 @@ type Client interface {
 	AllocVolume(ctx context.Context, node, storage string, ownerVMID int, filename string, sizeGB int) (string, error)
 	// StorageContent lists volumes; vmid <= 0 means no filter.
 	StorageContent(ctx context.Context, node, storage string, vmid int) ([]StorageItem, error)
+	// Vzdump starts a snapshot backup of vmid into storage; the archive is kept (remove=0).
+	Vzdump(ctx context.Context, node string, vmid int, storage, notes string) (UPID, error)
+	// BackupContent lists backup archives; vmid <= 0 means no filter.
+	BackupContent(ctx context.Context, node, storage string, vmid int) ([]BackupItem, error)
+	// RestoreVM creates vmid from archive with fresh unique properties such as MACs.
+	RestoreVM(ctx context.Context, node string, vmid int, archive, storage string) (UPID, error)
 	ResizeDisk(ctx context.Context, node string, vmid int, disk string, sizeGB int) error
 	SetFirewall(ctx context.Context, node string, vmid int, ips []netip.Addr) error
 	// FirewallIPSet lists the IPFilterSet entries; ok is false when the set does not exist.

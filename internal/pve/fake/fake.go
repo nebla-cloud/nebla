@@ -111,6 +111,8 @@ type failure struct {
 type Server struct {
 	// DenyDatastoreAllocate makes volume deletes fail with a 403 like a token without Datastore.Allocate.
 	DenyDatastoreAllocate bool
+	// FailVzdump and FailRestore make the next backup or restore tasks end with an error.
+	FailVzdump, FailRestore bool
 
 	perms map[string]map[string]int // explicit GET /access/permissions answers by path
 
@@ -125,6 +127,7 @@ type Server struct {
 	cts     map[int]string // LXC containers: vmid to node
 	tasks   map[string]*task
 	volumes map[string][]byte
+	backups map[string]*archive // by volid
 	tickets map[string]bool
 	fails   []failure
 	calls   []string
@@ -867,6 +870,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if _, dup := s.vms[id]; dup {
 			return nil, &apiErr{500, fmt.Sprintf("unable to create VM %d: config file already exists", id)}
 		}
+		if f["archive"] != "" {
+			return s.restoreArchive(n, id, f, failed)
+		}
 		if failed {
 			return s.newTask(n.name, "qmcreate", id, failPtr(true), nil), nil
 		}
@@ -900,6 +906,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return "OK"
 		}), nil
 	})
+	s.routesVzdump(mux, form, nodeFor)
 	s.handle(mux, "POST /nodes/{node}/qemu/{vmid}/template", true, func(r *http.Request, failed bool) (any, *apiErr) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -1490,6 +1497,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, &apiErr{500, "storage '" + r.PathValue("storage") + "' does not exist"}
 		}
 		want, _ := strconv.Atoi(r.URL.Query().Get("vmid"))
+		if r.URL.Query().Get("content") == "backup" {
+			return s.listBackups(r.PathValue("storage"), want), nil
+		}
 		out := []map[string]any{}
 		for _, id := range slices.Sorted(maps.Keys(st.vols)) {
 			if vol := st.vols[id]; want <= 0 || vol.vmid == want {
@@ -1508,6 +1518,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 		id := r.PathValue("volid")
 		if !strings.Contains(id, ":") {
 			id = r.PathValue("storage") + ":" + id
+		}
+		if s.backups[id] != nil {
+			delete(s.backups, id)
+			return s.newTask(n.name, "imgdel", 0, nil, nil), nil
 		}
 		if s.DenyDatastoreAllocate {
 			return nil, &apiErr{403, "Permission check failed (/storage/" + r.PathValue("storage") + ", Datastore.Allocate)"}

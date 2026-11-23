@@ -844,3 +844,69 @@ func TestResizeDiskWaitsForTask(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestVzdumpForm(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.Method != http.MethodPost || r.URL.Path != "/api2/json/nodes/pve1/vzdump" {
+			t.Errorf("got %s %s", r.Method, r.URL.Path)
+		}
+		want := "mode=snapshot&notes-template=nebla+server+5+backup+9&remove=0&storage=nebla-pbs&vmid=101"
+		if r.PostForm.Encode() != want {
+			t.Errorf("form = %s", r.PostForm.Encode())
+		}
+		fmt.Fprint(w, `{"data":"UPID:pve1:1"}`)
+	})
+	up, err := c.Vzdump(ctx(t), "pve1", 101, "nebla-pbs", "nebla server 5 backup 9")
+	if err != nil || up != "UPID:pve1:1" {
+		t.Fatalf("up = %q err=%v", up, err)
+	}
+}
+
+func TestBackupContentParses(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api2/json/nodes/pve1/storage/nebla-pbs/content" || r.URL.RawQuery != "content=backup&vmid=7990" {
+			t.Errorf("got %s?%s", r.URL.Path, r.URL.RawQuery)
+		}
+		fmt.Fprint(w, `{"data":[{"volid":"nebla-pbs:backup/vm/7990/2026-11-23T21:14:39Z","vmid":7990,"size":3221225472,"ctime":1795554879,"format":"pbs-vm","content":"backup","notes":"nebla server 1 backup 2"}]}`)
+	})
+	items, err := c.BackupContent(ctx(t), "pve1", "nebla-pbs", 7990)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("items = %+v err=%v", items, err)
+	}
+	it := items[0]
+	if it.Volid != "nebla-pbs:backup/vm/7990/2026-11-23T21:14:39Z" || it.VMID != 7990 || it.Size != 3221225472 ||
+		it.Ctime.Unix() != 1795554879 || it.Notes != "nebla server 1 backup 2" {
+		t.Fatalf("item = %+v", it)
+	}
+}
+
+func TestBackupContentNoVMIDFilter(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "content=backup" {
+			t.Errorf("query = %s", r.URL.RawQuery)
+		}
+		fmt.Fprint(w, `{"data":[]}`)
+	})
+	if _, err := c.BackupContent(ctx(t), "pve1", "nebla-pbs", 0); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRestoreVMForm(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.Method != http.MethodPost || r.URL.Path != "/api2/json/nodes/pve1/qemu" {
+			t.Errorf("got %s %s", r.Method, r.URL.Path)
+		}
+		want := "archive=nebla-pbs%3Abackup%2Fvm%2F7990%2F2026-11-23T21%3A14%3A39Z&storage=local-lvm&unique=1&vmid=8001"
+		if r.PostForm.Encode() != want {
+			t.Errorf("form = %s", r.PostForm.Encode())
+		}
+		fmt.Fprint(w, `{"data":"UPID:pve1:2"}`)
+	})
+	up, err := c.RestoreVM(ctx(t), "pve1", 8001, "nebla-pbs:backup/vm/7990/2026-11-23T21:14:39Z", "local-lvm")
+	if err != nil || up != "UPID:pve1:2" {
+		t.Fatalf("up = %q err=%v", up, err)
+	}
+}
