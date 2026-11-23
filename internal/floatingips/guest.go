@@ -12,6 +12,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package floatingips
 
 import (
@@ -41,7 +42,7 @@ func netplanFile(ip netip.Addr) string {
 func Guest(flavor string, ip netip.Addr) GuestCommands {
 	var apply []string
 	if ip.Is4() {
-		install := "Install arping from iputils with your package manager."
+		install := "# Install arping from iputils with your package manager."
 		if netplanFlavor(flavor) {
 			install = "sudo apt-get install -y iputils-arping"
 		}

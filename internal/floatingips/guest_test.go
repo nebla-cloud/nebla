@@ -12,6 +12,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package floatingips_test
 
 import (
@@ -37,7 +38,7 @@ func TestGuestDebianMatchesUbuntu(t *testing.T) {
 
 func TestGuestGenericV4(t *testing.T) {
 	g := floatingips.Guest("rocky", netip.MustParseAddr("203.0.113.7"))
-	require.Equal(t, "sudo ip addr add 203.0.113.7/32 dev eth0\nInstall arping from iputils with your package manager.\nsudo arping -U -c 3 -I eth0 203.0.113.7", g.Apply)
+	require.Equal(t, "sudo ip addr add 203.0.113.7/32 dev eth0\n# Install arping from iputils with your package manager.\nsudo arping -U -c 3 -I eth0 203.0.113.7", g.Apply)
 	require.Equal(t, "To keep it after a reboot, add 203.0.113.7/32 to eth0 in your network configuration.", g.Persist)
 }
 
