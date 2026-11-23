@@ -42,13 +42,14 @@ func netplanFile(ip netip.Addr) string {
 func Guest(flavor string, ip netip.Addr) GuestCommands {
 	var apply []string
 	if ip.Is4() {
+		// Install first, so the address is announced as soon as it's added.
 		install := "# Install arping from iputils with your package manager."
 		if netplanFlavor(flavor) {
-			install = "sudo apt-get install -y iputils-arping"
+			install = "sudo apt-get update && sudo apt-get install -y iputils-arping"
 		}
 		apply = []string{
-			fmt.Sprintf("sudo ip addr add %s dev eth0", prefix(ip)),
 			install,
+			fmt.Sprintf("sudo ip addr add %s dev eth0", prefix(ip)),
 			fmt.Sprintf("sudo arping -U -c 3 -I eth0 %s", ip),
 		}
 	} else {

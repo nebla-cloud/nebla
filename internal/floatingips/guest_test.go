@@ -27,7 +27,7 @@ const netplanV4 = "/etc/netplan/60-nebla-floating-203-0-113-7.yaml"
 
 func TestGuestUbuntuV4(t *testing.T) {
 	g := floatingips.Guest("ubuntu", netip.MustParseAddr("203.0.113.7"))
-	require.Equal(t, "sudo ip addr add 203.0.113.7/32 dev eth0\nsudo apt-get install -y iputils-arping\nsudo arping -U -c 3 -I eth0 203.0.113.7", g.Apply)
+	require.Equal(t, "sudo apt-get update && sudo apt-get install -y iputils-arping\nsudo ip addr add 203.0.113.7/32 dev eth0\nsudo arping -U -c 3 -I eth0 203.0.113.7", g.Apply)
 	require.Equal(t, `echo 'network: {version: 2, ethernets: {eth0: {addresses: ["203.0.113.7/32"]}}}' | sudo tee `+netplanV4+` >/dev/null && sudo chmod 600 `+netplanV4+` && sudo netplan apply`, g.Persist)
 }
 
@@ -38,7 +38,7 @@ func TestGuestDebianMatchesUbuntu(t *testing.T) {
 
 func TestGuestGenericV4(t *testing.T) {
 	g := floatingips.Guest("rocky", netip.MustParseAddr("203.0.113.7"))
-	require.Equal(t, "sudo ip addr add 203.0.113.7/32 dev eth0\n# Install arping from iputils with your package manager.\nsudo arping -U -c 3 -I eth0 203.0.113.7", g.Apply)
+	require.Equal(t, "# Install arping from iputils with your package manager.\nsudo ip addr add 203.0.113.7/32 dev eth0\nsudo arping -U -c 3 -I eth0 203.0.113.7", g.Apply)
 	require.Equal(t, "To keep it after a reboot, add 203.0.113.7/32 to eth0 in your network configuration.", g.Persist)
 }
 

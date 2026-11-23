@@ -44,8 +44,8 @@ you assign, and `nebla floating-ip assign` and `nebla floating-ip describe` prin
 IPv4 (the panel fills in the address and picks commands that fit the server's operating system):
 
 ```sh
+sudo apt-get update && sudo apt-get install -y iputils-arping
 sudo ip addr add 203.0.113.10/32 dev eth0
-sudo apt-get install -y iputils-arping
 sudo arping -U -c 3 -I eth0 203.0.113.10
 ```
 
