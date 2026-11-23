@@ -22,6 +22,7 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/stretchr/testify/require"
@@ -171,6 +172,62 @@ func TestDiscoverGone(t *testing.T) {
 	require.Equal(t, vnetslot.StateGone, got["nb0002"].State)
 	require.Equal(t, n.ID, *got["nb0002"].NetworkID, "a gone slot keeps its network")
 	require.Equal(t, vnetslot.StateCooling, got["nb0003"].State, "cooling is left to the reconciler")
+
+	st, err := e.svc.Pool(ctx, e.loc)
+	require.NoError(t, err)
+	require.Equal(t, 1, st.InUse, "a gone VNet that still has a network counts as in use")
+	require.Len(t, st.Degraded, 1)
+	require.Equal(t, "nb0002", st.Degraded[0].VNet)
+	require.Equal(t, "n", st.Degraded[0].Network)
+	require.NotEmpty(t, st.Degraded[0].Reason)
+	require.Len(t, st.Unusable, 1)
+	require.Equal(t, "nb0001", st.Unusable[0].VNet)
+}
+
+func TestDiscoverFencedAgainstZoneChange(t *testing.T) {
+	ctx := context.Background()
+	for name, change := range map[string]func(e *sdnEnv){
+		"zone cleared": func(e *sdnEnv) {
+			_, err := e.svc.SetLocationSDN(ctx, e.loc, nil, "nb")
+			require.NoError(t, err)
+		},
+		"prefix changed": func(e *sdnEnv) {
+			require.NoError(t, e.App.Ent.Location.UpdateOneID(e.loc).SetVnetPrefix("zz").Exec(ctx))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newSDNEnv(t, "nb0001", "nb0002")
+			restore := networks.SetDiscoverHook(func(phase string) {
+				if phase == "read" {
+					change(e)
+				}
+			})
+			defer restore()
+			require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+			require.Empty(t, e.slots(t), "a Discover that read the old zone writes nothing")
+		})
+	}
+}
+
+func TestCreateNotBlockedByDiscover(t *testing.T) {
+	ctx := context.Background()
+	e := newSDNEnv(t, "nb0001", "nb0002")
+	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.loc).SetSdnAuditOk(true).SetFirewallEnabled(true).Exec(ctx))
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	e.pv.RemoveSDNVNet("nb0002")
+
+	var created error
+	restore := networks.SetDiscoverHook(func(phase string) {
+		if phase == "write" {
+			_, created = e.svc.Create(ctx, e.Project, networks.CreateInput{Name: "n", Location: "sdn"})
+		}
+	})
+	defer restore()
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	require.NoError(t, created, "a create doesn't wait on, or lose to, a discovery in flight")
+	got := e.slots(t)
+	require.Equal(t, vnetslot.StateInUse, got["nb0001"].State)
+	require.Equal(t, vnetslot.StateGone, got["nb0002"].State)
 }
 
 func TestSetLocationSDNDiscovers(t *testing.T) {

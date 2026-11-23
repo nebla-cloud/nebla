@@ -18,8 +18,12 @@ package networks
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"maps"
+	"slices"
 	"strings"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
@@ -58,9 +62,9 @@ func (s *Service) Pool(ctx context.Context, locationID int64) (PoolStatus, error
 		switch {
 		case sl.State == vnetslot.StateFree && sl.Health == vnetslot.HealthOk:
 			st.Available++
-		case sl.State == vnetslot.StateInUse:
+		case sl.State == vnetslot.StateInUse || (sl.State == vnetslot.StateGone && sl.NetworkID != nil):
 			st.InUse++
-			if sl.Health == vnetslot.HealthDegraded {
+			if sl.Health == vnetslot.HealthDegraded || sl.State == vnetslot.StateGone {
 				st.Degraded = append(st.Degraded, c)
 			}
 		case sl.State == vnetslot.StateCooling:
@@ -81,29 +85,34 @@ func (s *Service) SetLocationSDN(ctx context.Context, locationID int64, zone *st
 		return PoolStatus{}, invalid("vnet_prefix must be 1 to 4 lowercase letters or digits, starting with a letter")
 	}
 	err := s.withTx(ctx, func(_ *sql.Tx, etx *ent.Client) error {
-		loc, err := etx.Location.Get(ctx, locationID)
+		own, err := etx.Location.Get(ctx, locationID)
 		if err != nil {
 			return notFound(err)
 		}
-		if zone != nil {
-			// Locking every location on the cluster keeps two admins from taking one zone together.
-			peers, err := etx.Location.Query().Where(location.PveURL(loc.PveURL)).Order(location.ByID()).ForUpdate().Unique(false).All(ctx)
-			if err != nil {
-				return err
-			}
-			for _, p := range peers {
-				if p.ID != locationID && p.SdnZone != nil && *p.SdnZone == *zone {
-					return errZoneTaken
-				}
-			}
-		}
-		slots, err := etx.VNetSlot.Query().Where(vnetslot.LocationID(locationID)).Order(vnetslot.ByID()).ForUpdate().Unique(false).All(ctx)
+		// Every location on the cluster is locked in id order, so two admins can't take one zone together
+		// and a running Discover of this location sees the change.
+		peers, err := etx.Location.Query().Where(location.PveURL(own.PveURL)).Order(location.ByID()).Unique(false).Modify(noKeyUpdate).All(ctx)
 		if err != nil {
 			return err
+		}
+		var loc *ent.Location
+		for _, p := range peers {
+			if p.ID == locationID {
+				loc = p
+			} else if zone != nil && p.SdnZone != nil && *p.SdnZone == *zone {
+				return errZoneTaken
+			}
+		}
+		if loc == nil {
+			return errNotFound
 		}
 		sameZone := (zone == nil) == (loc.SdnZone == nil) && (zone == nil || *zone == *loc.SdnZone)
 		if sameZone && prefix == loc.VnetPrefix {
 			return nil
+		}
+		slots, err := etx.VNetSlot.Query().Where(vnetslot.LocationID(locationID)).Order(vnetslot.ByID()).ForUpdate().Unique(false).All(ctx)
+		if err != nil {
+			return err
 		}
 		for _, sl := range slots {
 			if sl.State == vnetslot.StateInUse || sl.State == vnetslot.StateCooling || sl.NetworkID != nil {
@@ -176,11 +185,6 @@ func (s *Service) Discover(ctx context.Context, pc pve.Client, locationID int64)
 			zone = &zones[i]
 		}
 	}
-	type found struct {
-		cand    Candidate
-		ok      bool
-		zoneTyp string
-	}
 	seen := map[string]found{}
 	if zone != nil {
 		for _, v := range vnets {
@@ -199,45 +203,109 @@ func (s *Service) Discover(ctx context.Context, pc pve.Client, locationID int64)
 			seen[v.VNet] = found{cand: c, ok: ok, zoneTyp: zone.Type}
 		}
 	}
+	if discoverHook != nil {
+		discoverHook("read")
+	}
 	return s.withTx(ctx, func(_ *sql.Tx, etx *ent.Client) error {
-		slots, err := etx.VNetSlot.Query().Where(vnetslot.LocationID(locationID)).Order(vnetslot.ByID()).ForUpdate().Unique(false).All(ctx)
+		cur, err := etx.Location.Query().Where(location.ID(locationID)).Unique(false).Modify(noKeyUpdate).Only(ctx)
+		if err != nil {
+			return notFound(err)
+		}
+		if cur.SdnZone == nil || *cur.SdnZone != *loc.SdnZone || cur.VnetPrefix != loc.VnetPrefix {
+			return nil
+		}
+		slots, err := etx.VNetSlot.Query().Where(vnetslot.LocationID(locationID)).Order(vnetslot.ByID()).All(ctx)
 		if err != nil {
 			return err
 		}
-		have := map[string]*ent.VNetSlot{}
+		have := map[string]bool{}
+		var dirty []int64
 		for _, sl := range slots {
-			have[sl.Vnet] = sl
-		}
-		for name, f := range seen {
-			sl := have[name]
-			switch {
-			case sl == nil:
-				err = etx.VNetSlot.Create().SetLocationID(locationID).SetVnet(name).SetZone(f.cand.Zone).SetZoneType(f.zoneTyp).
-					SetMtu(f.cand.MTU).SetState(vnetslot.State(f.cand.State)).SetReason(f.cand.Reason).Exec(ctx)
-			case sl.State == vnetslot.StateCooling:
-			case sl.NetworkID != nil:
-				// A handed-out VNet keeps its state and MTU; only its health follows the checks.
-				health := vnetslot.HealthOk
-				if !f.ok {
-					health = vnetslot.HealthDegraded
-				}
-				err = etx.VNetSlot.UpdateOneID(sl.ID).SetState(vnetslot.StateInUse).SetHealth(health).SetReason(f.cand.Reason).Exec(ctx)
-			default:
-				err = etx.VNetSlot.UpdateOneID(sl.ID).SetZone(f.cand.Zone).SetZoneType(f.zoneTyp).SetMtu(f.cand.MTU).
-					SetState(vnetslot.State(f.cand.State)).SetHealth(vnetslot.HealthOk).SetReason(f.cand.Reason).Exec(ctx)
-			}
-			if err != nil {
-				return err
+			have[sl.Vnet] = true
+			if _, ok := wanted(sl, seen[sl.Vnet]); ok {
+				dirty = append(dirty, sl.ID)
 			}
 		}
-		for _, sl := range slots {
-			if _, ok := seen[sl.Vnet]; ok || sl.State == vnetslot.StateCooling || sl.State == vnetslot.StateGone {
+		for _, name := range slices.Sorted(maps.Keys(seen)) {
+			if have[name] {
 				continue
 			}
-			if err := etx.VNetSlot.UpdateOneID(sl.ID).SetState(vnetslot.StateGone).SetReason("not found in Proxmox").Exec(ctx); err != nil {
+			f := seen[name]
+			err := etx.VNetSlot.Create().SetLocationID(locationID).SetVnet(name).SetZone(f.cand.Zone).SetZoneType(f.zoneTyp).
+				SetMtu(f.cand.MTU).SetState(vnetslot.State(f.cand.State)).SetReason(f.cand.Reason).
+				OnConflictColumns(vnetslot.FieldLocationID, vnetslot.FieldVnet).DoNothing().Exec(ctx)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
+		}
+		if len(dirty) == 0 {
+			return nil
+		}
+		// Only rows that change are locked, in id order, and re-read so a claim made since isn't overwritten.
+		fresh, err := etx.VNetSlot.Query().Where(vnetslot.IDIn(dirty...)).Order(vnetslot.ByID()).ForUpdate().Unique(false).All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, sl := range fresh {
+			up, ok := wanted(sl, seen[sl.Vnet])
+			if !ok {
+				continue
+			}
+			if err := up(etx.VNetSlot.UpdateOneID(sl.ID)).Exec(ctx); err != nil {
+				return err
+			}
+		}
+		if discoverHook != nil {
+			discoverHook("write")
 		}
 		return nil
 	})
+}
+
+// noKeyUpdate locks rows without blocking inserts that reference them.
+func noKeyUpdate(s *entsql.Selector) { s.For(entsql.LockNoKeyUpdate) }
+
+// discoverHook lets tests act between Discover's read and write phases and before its commit.
+var discoverHook func(phase string)
+
+type found struct {
+	cand    Candidate
+	ok      bool
+	zoneTyp string
+}
+
+// wanted returns the update that brings an existing slot in line with what Proxmox shows (f is zero when the VNet is gone).
+func wanted(sl *ent.VNetSlot, f found) (func(*ent.VNetSlotUpdateOne) *ent.VNetSlotUpdateOne, bool) {
+	if sl.State == vnetslot.StateCooling {
+		return nil, false
+	}
+	if f.cand.VNet == "" {
+		if sl.State == vnetslot.StateGone {
+			return nil, false
+		}
+		return func(u *ent.VNetSlotUpdateOne) *ent.VNetSlotUpdateOne {
+			return u.SetState(vnetslot.StateGone).SetReason("not found in Proxmox")
+		}, true
+	}
+	if sl.NetworkID != nil {
+		// A handed-out VNet keeps its MTU; only its health follows the checks.
+		health := vnetslot.HealthOk
+		if !f.ok {
+			health = vnetslot.HealthDegraded
+		}
+		if sl.State == vnetslot.StateInUse && sl.Health == health && sl.Reason == f.cand.Reason {
+			return nil, false
+		}
+		return func(u *ent.VNetSlotUpdateOne) *ent.VNetSlotUpdateOne {
+			return u.SetState(vnetslot.StateInUse).SetHealth(health).SetReason(f.cand.Reason)
+		}, true
+	}
+	st := vnetslot.State(f.cand.State)
+	if sl.State == st && sl.Health == vnetslot.HealthOk && sl.Reason == f.cand.Reason && sl.Zone == f.cand.Zone &&
+		sl.ZoneType == f.zoneTyp && sl.Mtu == f.cand.MTU {
+		return nil, false
+	}
+	return func(u *ent.VNetSlotUpdateOne) *ent.VNetSlotUpdateOne {
+		return u.SetZone(f.cand.Zone).SetZoneType(f.zoneTyp).SetMtu(f.cand.MTU).SetState(st).SetHealth(vnetslot.HealthOk).SetReason(f.cand.Reason)
+	}, true
 }
