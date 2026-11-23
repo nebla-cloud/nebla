@@ -249,7 +249,7 @@ func TestAssignRefusals(t *testing.T) {
 	newPool := func(bridge, cidr string, vlan *int) int64 {
 		prefix := strings.TrimSuffix(cidr, "0/24")
 		return e.App.Ent.IPPool.Create().SetLocationID(e.Location).SetFamily("ipv4").SetBridge(bridge).SetNillableVlanTag(vlan).
-			SetCidr(cidr).SetGateway(prefix+"1").SetDNS([]string{prefix + "1"}).SetRangeStart(prefix+"10").SetRangeEnd(prefix+"20").SaveX(ctx).ID
+			SetCidr(cidr).SetGateway(prefix + "1").SetDNS([]string{prefix + "1"}).SetRangeStart(prefix + "10").SetRangeEnd(prefix + "20").SaveX(ctx).ID
 	}
 	vlan := 7
 	e.rawServer(t, e.Project, e.Location, newPool("vmbr1", "10.1.0.0/24", nil), "otherbridge", "10.1.0.10", server.StatusRunning)
