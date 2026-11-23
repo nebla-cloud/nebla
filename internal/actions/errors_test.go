@@ -115,3 +115,8 @@ func TestFirewallUnenforcedMessage(t *testing.T) {
 func TestReleasePendingMessage(t *testing.T) {
 	require.Equal(t, "Couldn't assign the floating IP because the address is still being released from the previous server. It will finish on its own; try again later.", actions.Message("assign_floating_ip", actions.CodeReleasePending))
 }
+
+func TestShutdownTimeoutMessage(t *testing.T) {
+	require.Equal(t, "The server didn't shut down within 3 minutes, so no snapshot was taken. It's still running. Power it off and try again.",
+		actions.Message("create_snapshot", actions.CodeShutdownTimeout))
+}

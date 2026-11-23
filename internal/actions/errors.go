@@ -75,7 +75,7 @@ var templates = map[string]string{
 	CodeFirewallUnenforced: "Firewall rules couldn't be enforced at this location; contact the administrator.",
 	CodePowerOffRequired:   "Power off the server to %s.",
 	CodeReleasePending:     "Couldn't %s because the address is still being released from the previous server. It will finish on its own; try again later.",
-	CodeShutdownTimeout:    "The server didn't shut down within 3 minutes, so no snapshot was taken. It is still running.",
+	CodeShutdownTimeout:    "The server didn't shut down within 3 minutes, so no snapshot was taken. It's still running. Power it off and try again.",
 }
 
 // ValidCode reports whether code is one of the Code* kinds.

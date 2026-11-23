@@ -247,7 +247,7 @@ func (s *Service) bootSizeGB(ctx context.Context, srv *ent.Server) (int, error) 
 	key := catalog.BootDisk(cfg)
 	b, ok := servers.DiskBytes(cfg[key])
 	if key == "" || !ok || b <= 0 {
-		return 0, errNotReady
+		return 0, errNoBootDisk
 	}
 	const gb = int64(1) << 30
 	return int((b + gb - 1) / gb), nil
@@ -307,7 +307,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			return errNotReady
 		}
 		if row.Node != srv.Node || *row.Vmid != *srv.Vmid {
-			return errServerLocked
+			return errServerChanged
 		}
 		if err := s.o.Projects.ReserveQuota(ctx, etx, projectID, projects.Usage{Snapshots: 1, SnapshotGB: sizeGB}); err != nil {
 			return err
@@ -406,7 +406,7 @@ func (s *Service) List(ctx context.Context, projectID int64, f ListFilter, page,
 	}
 	if f.Server != "" {
 		srv, err := serverByRef(ctx, s.o.Ent, projectID, f.Server)
-		if err != nil && err != errServerNotFound {
+		if err != nil && !errors.Is(err, errServerNotFound) {
 			return nil, 0, err
 		}
 		if srv == nil {
