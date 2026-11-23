@@ -381,7 +381,7 @@ func (b *builder) uploadISO(ctx context.Context) error {
 	if !slices.ContainsFunc(sts, func(s pve.Storage) bool { return s.ID == b.loc.ISOStorage && slices.Contains(s.Content, "iso") }) {
 		return permanent("ISO storage %q is not available on node %s", b.loc.ISOStorage, b.row.Node)
 	}
-	fips, err := floatingips.AllowedIPs(ctx, b.o.Ent, b.row.ID)
+	fips, err := floatingips.GuestIPs(ctx, b.o.Ent, b.row.ID)
 	if err != nil {
 		return err
 	}

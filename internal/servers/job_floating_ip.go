@@ -142,6 +142,7 @@ func bumpTarget(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, 
 
 // release writes the old server's allow-set onto every VM it has, waits for the reload, then lets the new server have the address.
 func (w *FloatingIPWorker) release(ctx context.Context, id, oldID int64) error {
+	// Reading before the lease is safe: every ipset write below is fenced by writeAllowSet.
 	old, err := w.o.Ent.Server.Get(ctx, oldID)
 	if err != nil && !ent.IsNotFound(err) {
 		return err

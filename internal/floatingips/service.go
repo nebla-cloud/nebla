@@ -549,7 +549,7 @@ func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Acti
 	})
 }
 
-// ResumeStuck starts an action for each floating IP left mid-change with no running action.
+// ResumeStuck starts an action for each floating IP left mid-change with no running action, backing off after release_pending failures.
 func (s *Service) ResumeStuck(ctx context.Context) error {
 	if s.o.Jobs == nil {
 		return errNoJobs
@@ -567,6 +567,9 @@ func (s *Service) ResumeStuck(ctx context.Context) error {
 			}
 			row, err := lockFIP(ctx, etx, r.ProjectID, r.ID)
 			if err != nil {
+				return err
+			}
+			if cool, err := coolingDown(ctx, etx, row); err != nil || cool {
 				return err
 			}
 			var kind string
@@ -592,6 +595,29 @@ func (s *Service) ResumeStuck(ctx context.Context) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// resumeCooldown is the wait after the nth release_pending failure in a row; the last entry caps it.
+var resumeCooldown = []time.Duration{5 * time.Minute, 15 * time.Minute, time.Hour}
+
+// coolingDown reports a row whose latest action failed with release_pending within the cooldown for its failure streak.
+func coolingDown(ctx context.Context, etx *ent.Client, row *ent.IPAddress) (bool, error) {
+	acts, err := etx.Action.Query().Where(ActionsOf(row.ProjectID, row.ID)).Order(ent.Desc(action.FieldID)).
+		Limit(len(resumeCooldown)).All(ctx)
+	if err != nil {
+		return false, err
+	}
+	n := 0
+	for _, a := range acts {
+		if a.Status != action.StatusError || a.ErrorCode == nil || *a.ErrorCode != actions.CodeReleasePending || a.Finished == nil {
+			break
+		}
+		n++
+	}
+	if n == 0 {
+		return false, nil
+	}
+	return time.Since(*acts[0].Finished) < resumeCooldown[n-1], nil
 }
 
 func (s *Service) get(ctx context.Context, projectID, id int64) (*ent.IPAddress, error) {

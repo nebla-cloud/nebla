@@ -22,11 +22,21 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 )
 
 // AllowedIPs lists the floating IPs the server may use, sorted; ones still releasing from it are excluded.
 func AllowedIPs(ctx context.Context, c *ent.Client, serverID int64) ([]netip.Addr, error) {
-	rows, err := c.IPAddress.Query().Where(ipaddress.ServerID(serverID), ipaddress.ReleasingFromIDIsNil()).All(ctx)
+	return assigned(ctx, c, ipaddress.ServerID(serverID), ipaddress.ReleasingFromIDIsNil())
+}
+
+// GuestIPs lists every floating IP assigned to the server, sorted, including ones still releasing to it; for the guest's own config.
+func GuestIPs(ctx context.Context, c *ent.Client, serverID int64) ([]netip.Addr, error) {
+	return assigned(ctx, c, ipaddress.ServerID(serverID))
+}
+
+func assigned(ctx context.Context, c *ent.Client, where ...predicate.IPAddress) ([]netip.Addr, error) {
+	rows, err := c.IPAddress.Query().Where(where...).All(ctx)
 	if err != nil {
 		return nil, err
 	}

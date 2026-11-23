@@ -490,6 +490,25 @@ func (f *fipEnv) failRelease(t *testing.T, actionID int64) {
 	require.Equal(t, actions.CodeReleasePending, a.Error.Code)
 }
 
+// age moves the finish time of the floating IP's finished actions back by d.
+func (f *fipEnv) age(t *testing.T, id int64, d time.Duration) {
+	t.Helper()
+	ctx := context.Background()
+	acts, err := f.App.Ent.Action.Query().Where(floatingips.ActionsOf(f.Project, id), action.FinishedNotNil()).All(ctx)
+	require.NoError(t, err)
+	for _, a := range acts {
+		require.NoError(t, a.Update().SetFinished(a.Finished.Add(-d)).Exec(ctx))
+	}
+}
+
+// running counts the floating IP's running actions.
+func (f *fipEnv) running(t *testing.T, id int64) int {
+	t.Helper()
+	n, err := f.App.Ent.Action.Query().Where(floatingips.ActionsOf(f.Project, id), action.StatusEQ(action.StatusRunning)).Count(context.Background())
+	require.NoError(t, err)
+	return n
+}
+
 // resumed runs ResumeStuck and returns the one running action it started for the floating IP.
 func (f *fipEnv) resumed(t *testing.T, id int64) actions.Action {
 	t.Helper()
@@ -604,6 +623,9 @@ func TestReleaseFailsThenReconcilerFinishes(t *testing.T) {
 	require.Equal(t, "releasing", floatingips.Status(f.row(t, id)))
 
 	f.App.PVE.SetDown(false)
+	require.NoError(t, f.svc.ResumeStuck(context.Background()))
+	require.Zero(t, f.running(t, id), "a fresh release_pending failure cools down")
+	f.age(t, id, 5*time.Minute)
 	res := f.resumed(t, id)
 	require.Equal(t, floatingips.KindUnassign, res.Command)
 	require.NoError(t, f.work(t, res.ID, 1))
@@ -634,6 +656,7 @@ func TestDeleteWhileReleasing(t *testing.T) {
 	require.Empty(t, f.bus.of(ext.FloatingIPDeleted))
 
 	f.App.PVE.SetDown(false)
+	f.age(t, id, 15*time.Minute)
 	res := f.resumed(t, id)
 	require.Equal(t, floatingips.KindDelete, res.Command)
 	require.NoError(t, f.work(t, res.ID, 1))
@@ -709,4 +732,64 @@ func TestReleaseWaitsForServerDelete(t *testing.T) {
 	r := f.row(t, id)
 	require.Equal(t, &f.b, r.ServerID)
 	require.Nil(t, r.PendingGen)
+}
+
+func TestResumeCoolsDownAfterReleasePending(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	id, _ := f.settled(t)
+	act := f.assign(t, id, f.b)
+	f.App.PVE.SetDown(true)
+	f.failRelease(t, act.ID)
+
+	// Two passes right after the failure start nothing; b stays free for its own actions.
+	require.NoError(t, f.svc.ResumeStuck(ctx))
+	require.NoError(t, f.svc.ResumeStuck(ctx))
+	require.Zero(t, f.running(t, id))
+
+	f.age(t, id, 5*time.Minute)
+	require.NoError(t, f.svc.ResumeStuck(ctx))
+	require.NoError(t, f.svc.ResumeStuck(ctx))
+	require.Equal(t, 1, f.running(t, id), "one action once the first cooldown passed")
+	f.failRelease(t, f.resumed(t, id).ID)
+
+	// Two failures in a row: 15 minutes.
+	f.age(t, id, 5*time.Minute)
+	require.NoError(t, f.svc.ResumeStuck(ctx))
+	require.Zero(t, f.running(t, id))
+	f.age(t, id, 10*time.Minute)
+	f.failRelease(t, f.resumed(t, id).ID)
+
+	// Three or more: an hour.
+	f.age(t, id, 59*time.Minute)
+	require.NoError(t, f.svc.ResumeStuck(ctx))
+	require.Zero(t, f.running(t, id))
+	f.age(t, id, time.Minute)
+	res := f.resumed(t, id)
+
+	// A member's delete is never held back, and stays deleting while the release can't finish.
+	f.failRelease(t, res.ID)
+	del, err := f.svc.Delete(ctx, f.Project, id)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusRunning, f.action(t, del.ID).Status)
+	require.Equal(t, "deleting", floatingips.Status(f.row(t, id)))
+}
+
+func TestRebuildISOHasAddressStillReleasingToIt(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	id, ip := f.settled(t)
+	act := f.assign(t, id, f.b)
+	// The move's job was lost: the address is b's but still releasing from a.
+	require.NoError(t, actions.Fail(ctx, f.App.Ent, act.ID, actions.CodeFailed, "lost"))
+	f.App.PVE.AddTemplate("pve1", 9001, "ceph")
+	f.Admin.CreateImage("debian", f.Location, 9001)
+	rid := startAction(t, f.ServerEnv, f.b, "rebuild", map[string]any{"image": "debian"})
+	w := servers.NewRebuildServerWorker(f.o)
+	require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.RebuildServerArgs](t, f.ServerEnv, rid), 1)))
+	require.Equal(t, actions.StatusSuccess, f.action(t, rid).Status)
+
+	require.Contains(t, netConfig(t, f.ServerEnv, fmt.Sprintf("local:iso/nb-srv-%d-2.iso", f.b)), "- "+ip+"/32\n")
+	require.Equal(t, []int{f.va}, f.holders(ip), "b's new VM is not allowed the address until the release finishes")
+	require.Equal(t, &f.a, f.row(t, id).ReleasingFromID)
 }
