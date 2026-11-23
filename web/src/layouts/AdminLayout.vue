@@ -21,12 +21,15 @@ import { RouterLink } from 'vue-router'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import BrandMark from '@/components/BrandMark.vue'
 import Lockup from '@/components/Lockup.vue'
+import { useChecklistData } from '@/features/admin/getready/checklist'
 import { useProjects } from '@/features/projects/queries'
 import { readLastProject } from '@/lib/project'
 import { useNav } from '@/router/nav'
 import ShellFrame from './ShellFrame.vue'
 import SideNav from './SideNav.vue'
 
+// Loads the checklist on every admin page, so Get ready leaves the nav once the panel is set up.
+useChecklistData()
 const nav = useNav('admin')
 const { data: projects } = useProjects()
 const lastId = readLastProject()

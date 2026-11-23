@@ -134,6 +134,7 @@ describe('nav flag', () => {
     seed([type])
     queryClient.clear()
     await flushPromises()
-    expect(hidden()).toBe(false)
+    // Unknown stays hidden, so the item never flashes in on a ready panel.
+    expect(hidden()).toBe(true)
   })
 })
