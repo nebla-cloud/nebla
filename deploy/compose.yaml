@@ -10,7 +10,7 @@ name: nebla
 
 services:
   panel:
-    image: ${NEBLA_IMAGE:-ghcr.io/nebla-cloud/nebla:0.2}
+    image: ${NEBLA_IMAGE:-ghcr.io/nebla-cloud/nebla:0.3}
     build:
       context: ..
     restart: unless-stopped

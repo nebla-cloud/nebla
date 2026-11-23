@@ -32,7 +32,7 @@ panel ships in the binary, and the `nebla` CLI works from a terminal (see [Statu
    curl -fs localhost:8080/v1/healthz
    ```
 
-   This runs the published image `ghcr.io/nebla-cloud/nebla:0.2`. To upgrade to a later minor release, change the
+   This runs the published image `ghcr.io/nebla-cloud/nebla:0.3`. To upgrade to a later minor release, change the
    tag in `deploy/compose.yaml` (or set `NEBLA_IMAGE` in `deploy/.env`), then run
    `docker compose -f deploy/compose.yaml pull` and `up -d` again. To build from your checkout instead, run
    `NEBLA_IMAGE=nebla:dev docker compose -f deploy/compose.yaml up -d --build`.
