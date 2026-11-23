@@ -147,7 +147,7 @@ const (
 	MinBackupKeep = 1
 	MaxBackupKeep = 14
 	// backupSlotPrime spreads servers over the day: slot = id * prime mod 1440.
-	backupSlotPrime = 7919
+	backupSlotPrime = 887
 )
 
 type CreateInput struct {

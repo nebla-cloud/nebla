@@ -30,6 +30,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/backup"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -53,10 +54,61 @@ func NewCreateBackupWorker(o WorkerOptions) *CreateBackupWorker {
 func (*CreateBackupWorker) Timeout(*river.Job[CreateBackupArgs]) time.Duration { return backupTimeout }
 
 func (w *CreateBackupWorker) Work(ctx context.Context, job *river.Job[CreateBackupArgs]) error {
+	inContract := false
+	err := w.work(ctx, job, &inContract)
+	var snooze *river.JobSnoozeError
+	if err == nil || inContract || errors.As(err, &snooze) || job.Attempt < servers.MaxAttempts {
+		return err
+	}
+	// The contract never ran, so nothing else would end the row; left pending it would block its node and server.
+	w.o.Logger.Error("backup did not start", "backup_id", job.Args.BackupID, "err", err)
+	return w.giveUp(context.WithoutCancel(ctx), job, err)
+}
+
+// giveUp drops the pending row and fails the job's running action, if any.
+// It holds the node slot meanwhile, so it never pulls the row from under a duplicate run that is backing up.
+func (w *CreateBackupWorker) giveUp(ctx context.Context, job *river.Job[CreateBackupArgs], cause error) error {
+	row, err := w.o.Ent.Backup.Get(ctx, job.Args.BackupID)
+	if err != nil && !ent.IsNotFound(err) {
+		return err
+	}
+	if row != nil {
+		release, ok, err := nodeSlot(ctx, w.o.SQL, row.LocationID, row.Node)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return cause
+		}
+		defer release()
+		if err := w.drop(ctx, row.ID); err != nil {
+			return err
+		}
+	}
+	act, err := w.o.Ent.Action.Query().Where(action.RiverJobID(job.ID), action.Command(KindCreateBackup), action.FinishedIsNil()).
+		Order(ent.Desc(action.FieldID)).First(ctx)
+	switch {
+	case ent.IsNotFound(err):
+	case err != nil:
+		return err
+	default:
+		if err := failAction(ctx, w.o.Ent, act.ID, servers.Classify(cause)); err != nil {
+			return err
+		}
+	}
+	return river.JobCancel(cause)
+}
+
+func (w *CreateBackupWorker) work(ctx context.Context, job *river.Job[CreateBackupArgs], inContract *bool) error {
 	act, err := w.o.Ent.Action.Query().Where(action.RiverJobID(job.ID), action.Command(KindCreateBackup)).
 		Order(ent.Desc(action.FieldID)).First(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		return err
+	}
+	if w.o.beforeStart != nil {
+		if err := w.o.beforeStart(); err != nil {
+			return err
+		}
 	}
 	running := act != nil && act.Finished == nil
 	row, err := w.o.Ent.Backup.Get(ctx, job.Args.BackupID)
@@ -127,6 +179,7 @@ func (w *CreateBackupWorker) Work(ctx context.Context, job *river.Job[CreateBack
 			return err
 		}
 	}
+	*inContract = true
 	return w.steps(ctx, job, act, row, srv)
 }
 
@@ -136,13 +189,20 @@ func (w *CreateBackupWorker) drop(ctx context.Context, id int64) error {
 	return err
 }
 
-// firstInLine is whether no older pending backup waits for the same node.
+// firstInLine is whether no older pending backup with a live job waits for the same node.
 func (w *CreateBackupWorker) firstInLine(ctx context.Context, row *ent.Backup, node string) (bool, error) {
 	ahead, err := w.o.Ent.Backup.Query().Where(backup.LocationID(row.LocationID), backup.Node(node),
 		backup.StatusIn(backup.StatusQueued, backup.StatusCreating), backup.IDNEQ(row.ID),
-		backup.Or(backup.CreatedAtLT(row.CreatedAt), backup.And(backup.CreatedAt(row.CreatedAt), backup.IDLT(row.ID)))).Exist(ctx)
+		backup.Or(backup.CreatedAtLT(row.CreatedAt), backup.And(backup.CreatedAt(row.CreatedAt), backup.IDLT(row.ID))),
+		hasLiveJob).Exist(ctx)
 	return !ahead, err
 }
+
+// hasLiveJob matches backups whose create_backup job can still run; a row without one is left to the rescue.
+var hasLiveJob = predicate.Backup(func(s *entsql.Selector) {
+	s.Where(entsql.ExprP(`exists (select 1 from river_job j where j.kind = '` + KindCreateBackup + `'
+		and (j.args->>'backup_id')::bigint = ` + s.C(backup.FieldID) + ` and ` + live + `)`))
+})
 
 // lock takes the server and starts the action on this job; a nil action means the backup was dropped.
 func (w *CreateBackupWorker) lock(ctx context.Context, jobID, id int64, node string) (act *ent.Action, row *ent.Backup, srv *ent.Server, err error) {

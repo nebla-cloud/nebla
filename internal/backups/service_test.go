@@ -110,7 +110,7 @@ func TestEnableBackupsReservesKeep(t *testing.T) {
 	require.Equal(t, 7, a.Backups.Keep)
 	require.Equal(t, 7, e.usage(t).BackupsReserved)
 	row := e.App.Ent.Server.GetX(context.Background(), a.ID)
-	require.Equal(t, int(a.ID*7919%1440), row.BackupSlot)
+	require.Equal(t, int(a.ID*887%1440), row.BackupSlot)
 	require.NotNil(t, row.BackupsEnabledAt)
 
 	_, _, err := e.srv.Create(context.Background(), e.Project, servers.CreateInput{Name: "b", ServerType: "small", Image: "ubuntu",

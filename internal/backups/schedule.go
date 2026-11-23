@@ -99,6 +99,10 @@ func (w *ScheduleWorker) Work(ctx context.Context, _ *river.Job[ScheduleArgs]) e
 	if j == nil {
 		return errNoJobs
 	}
+	// A pending backup whose job died would otherwise hold its server's pending slot until the next restart.
+	if err := db.WithTx(ctx, w.o.SQL, func(tx *sql.Tx, _ *ent.Client) error { return requeueLost(ctx, tx, j) }); err != nil {
+		return err
+	}
 	now := w.o.now().UTC()
 	ids, err := w.o.Ent.Location.Query().Where(location.BackupStorageNEQ(""), location.BackupStorageOk(true)).IDs(ctx)
 	if err != nil {

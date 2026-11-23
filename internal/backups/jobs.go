@@ -77,6 +77,8 @@ type WorkerOptions struct {
 	// pveFor is Catalog.ProxmoxFor unless a test replaces it.
 	pveFor func(ctx context.Context, locationID int64) (pve.Client, error)
 	now    func() time.Time
+	// beforeStart lets a test fail create_backup before its contract runs.
+	beforeStart func() error
 }
 
 // RegisterWorkers adds the backup job workers.

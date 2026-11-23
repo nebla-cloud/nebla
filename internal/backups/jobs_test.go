@@ -18,6 +18,7 @@ package backups_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -548,4 +549,88 @@ func TestDeleteBackupJob(t *testing.T) {
 	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, kept.ID).Status)
 	require.Equal(t, entaction.StatusError, e.App.Ent.Action.GetX(ctx, act.ID).Status)
 	require.Len(t, e.archives(t), 1)
+}
+
+func TestDeadJobDoesNotBlockNode(t *testing.T) {
+	ctx := context.Background()
+	e := newJobEnv(t)
+	a, b := e.running(t, "a"), e.running(t, "b")
+	ba := e.queue(t, a)
+	_, err := e.App.SQL.Exec(`update river_job set state = 'discarded', finalized_at = now() where kind = 'create_backup'
+		and (args->>'backup_id')::bigint = $1`, ba)
+	require.NoError(t, err)
+	bb := e.queue(t, b)
+	require.NoError(t, e.work(t, bb), "an older row whose job died does not hold the line")
+	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, bb).Status)
+
+	// The scheduler pass gives the row a new job.
+	e.schedule(t, at(23, 0, 0))
+	require.Equal(t, 2, e.createJobs(t, ba))
+	require.NoError(t, e.work(t, ba))
+	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, ba).Status)
+}
+
+func TestCreateBackupFinalAttemptDrops(t *testing.T) {
+	ctx := context.Background()
+	e := newJobEnv(t)
+	id := e.running(t, "a")
+	w := backups.NewCreateBackupWorker(backups.SetBeforeStart(e.o, func() error { return errors.New("boom") }))
+
+	bid := e.queue(t, id)
+	job := e.jobFor(t, bid)
+	err := w.Work(ctx, job)
+	require.EqualError(t, err, "boom")
+	require.Equal(t, entbackup.StatusQueued, e.App.Ent.Backup.GetX(ctx, bid).Status)
+	job.Attempt = servers.MaxAttempts
+	err = w.Work(ctx, job)
+	var cancel *river.JobCancelError
+	require.ErrorAs(t, err, &cancel)
+	_, err = e.App.Ent.Backup.Get(ctx, bid)
+	require.True(t, ent.IsNotFound(err))
+	e.noBackupAction(t, id)
+
+	// A started backup also fails its action.
+	bid = e.queue(t, id)
+	job = e.jobFor(t, bid)
+	act, err := actions.Create(ctx, e.App.Ent, e.Project, backups.KindCreateBackup, []actions.Resource{{ID: id, Type: servers.ResourceType}})
+	require.NoError(t, err)
+	require.NoError(t, actions.AttachJob(ctx, e.App.Ent, act.ID, job.ID))
+	require.NoError(t, e.App.Ent.Backup.UpdateOneID(bid).SetStatus(entbackup.StatusCreating).Exec(ctx))
+	job.Attempt = servers.MaxAttempts
+	require.ErrorAs(t, w.Work(ctx, job), &cancel)
+	_, err = e.App.Ent.Backup.Get(ctx, bid)
+	require.True(t, ent.IsNotFound(err))
+	require.Equal(t, entaction.StatusError, e.App.Ent.Action.GetX(ctx, act.ID).Status)
+	e.slotFree(t, "pve1")
+}
+
+func TestCreateBackupDuplicateRun(t *testing.T) {
+	ctx := context.Background()
+	e := newJobEnv(t)
+	id := e.running(t, "a")
+	bid := e.queue(t, id)
+	w := backups.NewCreateBackupWorker(e.o)
+
+	e.App.PVE.SetTaskDelay(time.Hour)
+	done := make(chan error, 1)
+	go func() { done <- w.Work(ctx, e.jobFor(t, bid)) }()
+	require.Eventually(t, func() bool { return e.vzdumps() == 1 }, 10*time.Second, 10*time.Millisecond)
+
+	// River rescued the job while the first run still backs up.
+	dup := e.jobFor(t, bid)
+	dup.Attempt = 2
+	requireSnooze(t, w.Work(ctx, dup))
+	n, err := e.App.Ent.Action.Query().Where(entaction.Command(backups.KindCreateBackup)).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, entbackup.StatusCreating, e.App.Ent.Backup.GetX(ctx, bid).Status)
+
+	e.App.PVE.SetTaskDelay(0)
+	e.App.PVE.FinishTasks()
+	require.NoError(t, <-done)
+	require.NoError(t, w.Work(ctx, dup))
+	require.Equal(t, 1, e.vzdumps())
+	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, bid).Status)
+	require.Equal(t, entaction.StatusSuccess, e.backupAction(t, id).Status)
+	require.Len(t, e.rec.of(ext.BackupCreated), 1)
 }

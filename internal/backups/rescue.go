@@ -32,31 +32,11 @@ const live = `j.state not in ('discarded', 'cancelled', 'completed')`
 // It runs at startup, after the server rescue has failed orphaned actions.
 func RescueOrphaned(ctx context.Context, sqlDB *sql.DB, j *jobs.Jobs) error {
 	return db.WithTx(ctx, sqlDB, func(tx *sql.Tx, _ *ent.Client) error {
-		q, err := tx.QueryContext(ctx, `
-			select b.id from backups b where b.status in ('queued', 'creating') and not exists (
-				select 1 from river_job j where j.kind = $1 and (j.args->>'backup_id')::bigint = b.id and `+live+`)
-			order by b.id for update of b`, KindCreateBackup)
-		if err != nil {
+		if err := requeueLost(ctx, tx, j); err != nil {
 			return err
 		}
-		var ids []int64
-		for q.Next() {
-			var id int64
-			if err := q.Scan(&id); err != nil {
-				q.Close()
-				return err
-			}
-			ids = append(ids, id)
-		}
-		if err := errors.Join(q.Err(), q.Close()); err != nil {
-			return err
-		}
-		for _, id := range ids {
-			if _, err := j.InsertTx(ctx, tx, CreateBackupArgs{BackupID: id}, nil); err != nil {
-				return err
-			}
-		}
-		_, err = tx.ExecContext(ctx, `
+		// Startup only: a running prune also holds rows deleting without an action.
+		_, err := tx.ExecContext(ctx, `
 			update backups b set status = case when b.volid is null then 'error' else 'available' end
 			where b.status = 'deleting' and not exists (
 				select 1 from actions a join river_job j on j.id = a.river_job_id
@@ -64,4 +44,33 @@ func RescueOrphaned(ctx context.Context, sqlDB *sql.DB, j *jobs.Jobs) error {
 			KindDeleteBackup)
 		return err
 	})
+}
+
+// requeueLost enqueues a create_backup job for each pending backup that has no live one.
+func requeueLost(ctx context.Context, tx *sql.Tx, j *jobs.Jobs) error {
+	q, err := tx.QueryContext(ctx, `
+		select b.id from backups b where b.status in ('queued', 'creating') and not exists (
+			select 1 from river_job j where j.kind = $1 and (j.args->>'backup_id')::bigint = b.id and `+live+`)
+		order by b.id for update of b skip locked`, KindCreateBackup)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for q.Next() {
+		var id int64
+		if err := q.Scan(&id); err != nil {
+			q.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := errors.Join(q.Err(), q.Close()); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := j.InsertTx(ctx, tx, CreateBackupArgs{BackupID: id}, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }

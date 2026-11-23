@@ -154,7 +154,7 @@ func TestScheduleRespectsEnabledAt(t *testing.T) {
 func TestScheduleInsideWindow(t *testing.T) {
 	loc := catalog.Location{BackupWindowStart: 120, BackupWindowEnd: 360}
 	for id := int64(1); id <= 2000; id++ {
-		due := backups.NextDue(at(23, 0, 0), loc, int(id*7919%1440))
+		due := backups.NextDue(at(23, 0, 0), loc, int(id*887%1440))
 		require.False(t, due.Before(at(23, 2, 0)), "%d", id)
 		require.True(t, due.Before(at(23, 6, 0)), "%d", id)
 	}

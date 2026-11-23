@@ -20,9 +20,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/backups"
+	entaction "github.com/nebla-cloud/nebla/internal/ent/action"
 	entbackup "github.com/nebla-cloud/nebla/internal/ent/backup"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/riverqueue/river"
@@ -96,4 +100,44 @@ func TestBackupUsageEvents(t *testing.T) {
 	require.Equal(t, "schedule_backups", backups.ScheduleArgs{}.Kind())
 	require.Equal(t, 2*time.Hour, backups.NewCreateBackupWorker(e.o).Timeout(nil))
 	require.Equal(t, servers.InsertOpts(), backups.CreateBackupArgs{}.InsertOpts())
+}
+
+// lostBackup is a creating backup whose job is gone while its action still runs, as after a crash.
+func (e *jenv) lostBackup(t *testing.T, serverID int64) (backupID, actionID int64) {
+	t.Helper()
+	ctx := context.Background()
+	b := e.put(t, serverID, entbackup.StatusCreating)
+	act, err := actions.Create(ctx, e.App.Ent, e.Project, backups.KindCreateBackup, []actions.Resource{{ID: serverID, Type: servers.ResourceType}})
+	require.NoError(t, err)
+	require.NoError(t, actions.AttachJob(ctx, e.App.Ent, act.ID, 999999))
+	return b.ID, act.ID
+}
+
+func TestReconcileFailsLostBackupAction(t *testing.T) {
+	ctx := context.Background()
+	e := newJobEnv(t)
+	rec := reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: quiet()})
+	a, b := e.running(t, "a"), e.running(t, "b")
+	vmidB := *e.App.Ent.Server.GetX(ctx, b).Vmid
+	e.App.PVE.SetVMStatus(vmidB, "stopped")
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(b).SetStatus(server.StatusOff).Exec(ctx))
+
+	// Startup: the server rescue fails the lost action and leaves the server's status alone.
+	ba, actA := e.lostBackup(t, a)
+	require.NoError(t, rec.RescueAll(ctx))
+	require.Equal(t, entaction.StatusError, e.App.Ent.Action.GetX(ctx, actA).Status)
+	require.Equal(t, server.StatusRunning, e.App.Ent.Server.GetX(ctx, a).Status)
+
+	// The periodic pass does the same.
+	bb, actB := e.lostBackup(t, b)
+	require.NoError(t, rec.Run(ctx, e.Location))
+	require.Equal(t, entaction.StatusError, e.App.Ent.Action.GetX(ctx, actB).Status)
+	require.Equal(t, server.StatusOff, e.App.Ent.Server.GetX(ctx, b).Status)
+
+	// Re-enqueued, the backups take the now free server lock and finish.
+	require.NoError(t, backups.RescueOrphaned(ctx, e.App.SQL, e.App.Jobs))
+	for _, id := range []int64{ba, bb} {
+		require.NoError(t, e.work(t, id))
+		require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, id).Status)
+	}
 }

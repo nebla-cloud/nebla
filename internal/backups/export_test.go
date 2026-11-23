@@ -38,3 +38,9 @@ func SetNow(o WorkerOptions, f func() time.Time) WorkerOptions {
 	o.now = f
 	return o
 }
+
+// SetBeforeStart makes create_backup run f before it starts, as if that part failed.
+func SetBeforeStart(o WorkerOptions, f func() error) WorkerOptions {
+	o.beforeStart = f
+	return o
+}
