@@ -300,28 +300,32 @@ func init() {
 	serverDescIsoGeneration := serverFields[13].Descriptor()
 	// server.DefaultIsoGeneration holds the default value on creation for the iso_generation field.
 	server.DefaultIsoGeneration = serverDescIsoGeneration.Default.(int)
+	// serverDescInstanceGeneration is the schema descriptor for instance_generation field.
+	serverDescInstanceGeneration := serverFields[14].Descriptor()
+	// server.DefaultInstanceGeneration holds the default value on creation for the instance_generation field.
+	server.DefaultInstanceGeneration = serverDescInstanceGeneration.Default.(int)
 	// serverDescCreateStep is the schema descriptor for create_step field.
-	serverDescCreateStep := serverFields[16].Descriptor()
+	serverDescCreateStep := serverFields[17].Descriptor()
 	// server.DefaultCreateStep holds the default value on creation for the create_step field.
 	server.DefaultCreateStep = serverDescCreateStep.Default.(int)
 	// serverDescRebuildStep is the schema descriptor for rebuild_step field.
-	serverDescRebuildStep := serverFields[20].Descriptor()
+	serverDescRebuildStep := serverFields[21].Descriptor()
 	// server.DefaultRebuildStep holds the default value on creation for the rebuild_step field.
 	server.DefaultRebuildStep = serverDescRebuildStep.Default.(int)
 	// serverDescUserData is the schema descriptor for user_data field.
-	serverDescUserData := serverFields[24].Descriptor()
+	serverDescUserData := serverFields[25].Descriptor()
 	// server.DefaultUserData holds the default value on creation for the user_data field.
 	server.DefaultUserData = serverDescUserData.Default.(string)
 	// serverDescFirewallGenDesired is the schema descriptor for firewall_gen_desired field.
-	serverDescFirewallGenDesired := serverFields[26].Descriptor()
+	serverDescFirewallGenDesired := serverFields[27].Descriptor()
 	// server.DefaultFirewallGenDesired holds the default value on creation for the firewall_gen_desired field.
 	server.DefaultFirewallGenDesired = serverDescFirewallGenDesired.Default.(int64)
 	// serverDescFirewallGenApplied is the schema descriptor for firewall_gen_applied field.
-	serverDescFirewallGenApplied := serverFields[27].Descriptor()
+	serverDescFirewallGenApplied := serverFields[28].Descriptor()
 	// server.DefaultFirewallGenApplied holds the default value on creation for the firewall_gen_applied field.
 	server.DefaultFirewallGenApplied = serverDescFirewallGenApplied.Default.(int64)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[29].Descriptor()
+	serverDescCreatedAt := serverFields[30].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()

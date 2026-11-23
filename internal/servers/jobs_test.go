@@ -16,7 +16,10 @@
 package servers_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +32,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kdomanski/iso9660"
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
@@ -868,4 +873,64 @@ func TestCloudinitDrives(t *testing.T) {
 	}
 	require.Equal(t, []string{"ide0", "ide2", "sata0"}, servers.CloudinitDrives(cfg))
 	require.Empty(t, servers.CloudinitDrives(map[string]string{"ide2": "none,media=cdrom"}))
+}
+
+// isoFiles returns the files of the seed ISO stored at volid in the fake.
+func isoFiles(t *testing.T, e *testutil.ServerEnv, volid string) map[string]string {
+	t.Helper()
+	data, ok := e.App.PVE.Volume(volid)
+	require.True(t, ok, volid)
+	img, err := iso9660.OpenImage(bytes.NewReader(data))
+	require.NoError(t, err)
+	root, err := img.RootDir()
+	require.NoError(t, err)
+	kids, err := root.GetChildren()
+	require.NoError(t, err)
+	files := map[string]string{}
+	for _, f := range kids {
+		b, err := io.ReadAll(f.Reader())
+		require.NoError(t, err)
+		files[f.Name()] = string(b)
+	}
+	return files
+}
+
+func rebuildWith(t *testing.T, e *testutil.ServerEnv, s testutil.CreatedServer, w *servers.RebuildServerWorker, instGen int) *ent.Server {
+	t.Helper()
+	ctx := context.Background()
+	id := startAction(t, e, s.ServerID, "rebuild", map[string]any{"image": "debian"})
+	args := queuedArgs[servers.RebuildServerArgs](t, e, id)
+	args.InstanceGeneration = instGen
+	require.NoError(t, w.Work(ctx, jobOf(args, 1)))
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	return row
+}
+
+func TestRebuildDefaultInstanceID(t *testing.T) {
+	e, s, w := rebuildEnv(t)
+	row := rebuildWith(t, e, s, w, 0)
+	require.Equal(t, 2, row.IsoGeneration)
+	require.Equal(t, 2, row.InstanceGeneration)
+	require.Contains(t, isoFiles(t, e, *row.IsoVolid)["meta-data"], "instance-id: nb-srv-"+sid(s.ServerID)+"-2\n")
+}
+
+func TestRebuildKeepsInstanceID(t *testing.T) {
+	e, s, w := rebuildEnv(t)
+	row := rebuildWith(t, e, s, w, 1)
+	require.Equal(t, 2, row.IsoGeneration)
+	require.Equal(t, 1, row.InstanceGeneration)
+	require.Equal(t, "local:iso/nb-srv-"+sid(s.ServerID)+"-2.iso", *row.IsoVolid)
+	require.Contains(t, isoFiles(t, e, *row.IsoVolid)["meta-data"], "instance-id: nb-srv-"+sid(s.ServerID)+"-1\n")
+}
+
+func TestServersNetworkFingerprintMatchesBuild(t *testing.T) {
+	ctx := context.Background()
+	e, s, _ := rebuildEnv(t)
+	row, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	sum := sha256.Sum256([]byte(isoFiles(t, e, *row.IsoVolid)["network-config"]))
+	got, err := servers.NetworkFingerprint(ctx, e.App.Ent, row)
+	require.NoError(t, err)
+	require.Equal(t, hex.EncodeToString(sum[:]), got)
 }

@@ -110,6 +110,11 @@ func IsoGeneration(v int) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldIsoGeneration, v))
 }
 
+// InstanceGeneration applies equality check predicate on the "instance_generation" field. It's identical to InstanceGenerationEQ.
+func InstanceGeneration(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldInstanceGeneration, v))
+}
+
 // CloneUpid applies equality check predicate on the "clone_upid" field. It's identical to CloneUpidEQ.
 func CloneUpid(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCloneUpid, v))
@@ -683,6 +688,46 @@ func IsoGenerationLT(v int) predicate.Server {
 // IsoGenerationLTE applies the LTE predicate on the "iso_generation" field.
 func IsoGenerationLTE(v int) predicate.Server {
 	return predicate.Server(sql.FieldLTE(FieldIsoGeneration, v))
+}
+
+// InstanceGenerationEQ applies the EQ predicate on the "instance_generation" field.
+func InstanceGenerationEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldInstanceGeneration, v))
+}
+
+// InstanceGenerationNEQ applies the NEQ predicate on the "instance_generation" field.
+func InstanceGenerationNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldInstanceGeneration, v))
+}
+
+// InstanceGenerationIn applies the In predicate on the "instance_generation" field.
+func InstanceGenerationIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldInstanceGeneration, vs...))
+}
+
+// InstanceGenerationNotIn applies the NotIn predicate on the "instance_generation" field.
+func InstanceGenerationNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldInstanceGeneration, vs...))
+}
+
+// InstanceGenerationGT applies the GT predicate on the "instance_generation" field.
+func InstanceGenerationGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldInstanceGeneration, v))
+}
+
+// InstanceGenerationGTE applies the GTE predicate on the "instance_generation" field.
+func InstanceGenerationGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldInstanceGeneration, v))
+}
+
+// InstanceGenerationLT applies the LT predicate on the "instance_generation" field.
+func InstanceGenerationLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldInstanceGeneration, v))
+}
+
+// InstanceGenerationLTE applies the LTE predicate on the "instance_generation" field.
+func InstanceGenerationLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldInstanceGeneration, v))
 }
 
 // CloneUpidEQ applies the EQ predicate on the "clone_upid" field.

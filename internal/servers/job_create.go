@@ -135,7 +135,7 @@ func (c *createRun) load(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	c.b = &builder{pc: pc, loc: loc, assign: assign, row: c.row, tmpl: c.row.TemplateVmid, isoGen: c.row.IsoGeneration,
+	c.b = &builder{pc: pc, loc: loc, assign: assign, row: c.row, tmpl: c.row.TemplateVmid, isoGen: c.row.IsoGeneration, instGen: InstanceGeneration(c.row),
 		st:   buildState{Vmid: c.row.Vmid, Upid: c.row.CloneUpid, Nonce: c.row.CloneNonce, Step: c.row.CreateStep},
 		save: c.save, afterClonePost: c.w.afterClonePost, poll: c.w.o.PollInterval, o: &c.w.o}
 	return nil

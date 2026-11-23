@@ -197,6 +197,27 @@ func (_u *ServerUpdate) AddIsoGeneration(v int) *ServerUpdate {
 	return _u
 }
 
+// SetInstanceGeneration sets the "instance_generation" field.
+func (_u *ServerUpdate) SetInstanceGeneration(v int) *ServerUpdate {
+	_u.mutation.ResetInstanceGeneration()
+	_u.mutation.SetInstanceGeneration(v)
+	return _u
+}
+
+// SetNillableInstanceGeneration sets the "instance_generation" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableInstanceGeneration(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetInstanceGeneration(*v)
+	}
+	return _u
+}
+
+// AddInstanceGeneration adds value to the "instance_generation" field.
+func (_u *ServerUpdate) AddInstanceGeneration(v int) *ServerUpdate {
+	_u.mutation.AddInstanceGeneration(v)
+	return _u
+}
+
 // SetCloneUpid sets the "clone_upid" field.
 func (_u *ServerUpdate) SetCloneUpid(v string) *ServerUpdate {
 	_u.mutation.SetCloneUpid(v)
@@ -630,6 +651,12 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedIsoGeneration(); ok {
 		_spec.AddField(server.FieldIsoGeneration, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.InstanceGeneration(); ok {
+		_spec.SetField(server.FieldInstanceGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedInstanceGeneration(); ok {
+		_spec.AddField(server.FieldInstanceGeneration, field.TypeInt, value)
+	}
 	if value, ok := _u.mutation.CloneUpid(); ok {
 		_spec.SetField(server.FieldCloneUpid, field.TypeString, value)
 	}
@@ -964,6 +991,27 @@ func (_u *ServerUpdateOne) SetNillableIsoGeneration(v *int) *ServerUpdateOne {
 // AddIsoGeneration adds value to the "iso_generation" field.
 func (_u *ServerUpdateOne) AddIsoGeneration(v int) *ServerUpdateOne {
 	_u.mutation.AddIsoGeneration(v)
+	return _u
+}
+
+// SetInstanceGeneration sets the "instance_generation" field.
+func (_u *ServerUpdateOne) SetInstanceGeneration(v int) *ServerUpdateOne {
+	_u.mutation.ResetInstanceGeneration()
+	_u.mutation.SetInstanceGeneration(v)
+	return _u
+}
+
+// SetNillableInstanceGeneration sets the "instance_generation" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableInstanceGeneration(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetInstanceGeneration(*v)
+	}
+	return _u
+}
+
+// AddInstanceGeneration adds value to the "instance_generation" field.
+func (_u *ServerUpdateOne) AddInstanceGeneration(v int) *ServerUpdateOne {
+	_u.mutation.AddInstanceGeneration(v)
 	return _u
 }
 
@@ -1429,6 +1477,12 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if value, ok := _u.mutation.AddedIsoGeneration(); ok {
 		_spec.AddField(server.FieldIsoGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.InstanceGeneration(); ok {
+		_spec.SetField(server.FieldInstanceGeneration, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedInstanceGeneration(); ok {
+		_spec.AddField(server.FieldInstanceGeneration, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.CloneUpid(); ok {
 		_spec.SetField(server.FieldCloneUpid, field.TypeString, value)

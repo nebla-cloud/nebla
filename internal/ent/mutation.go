@@ -18557,6 +18557,8 @@ type ServerMutation struct {
 	iso_volid               *string
 	iso_generation          *int
 	addiso_generation       *int
+	instance_generation     *int
+	addinstance_generation  *int
 	clone_upid              *string
 	clone_nonce             *string
 	create_step             *int
@@ -19253,6 +19255,62 @@ func (m *ServerMutation) AddedIsoGeneration() (r int, exists bool) {
 func (m *ServerMutation) ResetIsoGeneration() {
 	m.iso_generation = nil
 	m.addiso_generation = nil
+}
+
+// SetInstanceGeneration sets the "instance_generation" field.
+func (m *ServerMutation) SetInstanceGeneration(i int) {
+	m.instance_generation = &i
+	m.addinstance_generation = nil
+}
+
+// InstanceGeneration returns the value of the "instance_generation" field in the mutation.
+func (m *ServerMutation) InstanceGeneration() (r int, exists bool) {
+	v := m.instance_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInstanceGeneration returns the old "instance_generation" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldInstanceGeneration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInstanceGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInstanceGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInstanceGeneration: %w", err)
+	}
+	return oldValue.InstanceGeneration, nil
+}
+
+// AddInstanceGeneration adds i to the "instance_generation" field.
+func (m *ServerMutation) AddInstanceGeneration(i int) {
+	if m.addinstance_generation != nil {
+		*m.addinstance_generation += i
+	} else {
+		m.addinstance_generation = &i
+	}
+}
+
+// AddedInstanceGeneration returns the value that was added to the "instance_generation" field in this mutation.
+func (m *ServerMutation) AddedInstanceGeneration() (r int, exists bool) {
+	v := m.addinstance_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInstanceGeneration resets all changes to the "instance_generation" field.
+func (m *ServerMutation) ResetInstanceGeneration() {
+	m.instance_generation = nil
+	m.addinstance_generation = nil
 }
 
 // SetCloneUpid sets the "clone_upid" field.
@@ -20227,7 +20285,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 29)
+	fields := make([]string, 0, 30)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -20266,6 +20324,9 @@ func (m *ServerMutation) Fields() []string {
 	}
 	if m.iso_generation != nil {
 		fields = append(fields, server.FieldIsoGeneration)
+	}
+	if m.instance_generation != nil {
+		fields = append(fields, server.FieldInstanceGeneration)
 	}
 	if m.clone_upid != nil {
 		fields = append(fields, server.FieldCloneUpid)
@@ -20349,6 +20410,8 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.IsoVolid()
 	case server.FieldIsoGeneration:
 		return m.IsoGeneration()
+	case server.FieldInstanceGeneration:
+		return m.InstanceGeneration()
 	case server.FieldCloneUpid:
 		return m.CloneUpid()
 	case server.FieldCloneNonce:
@@ -20416,6 +20479,8 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldIsoVolid(ctx)
 	case server.FieldIsoGeneration:
 		return m.OldIsoGeneration(ctx)
+	case server.FieldInstanceGeneration:
+		return m.OldInstanceGeneration(ctx)
 	case server.FieldCloneUpid:
 		return m.OldCloneUpid(ctx)
 	case server.FieldCloneNonce:
@@ -20548,6 +20613,13 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIsoGeneration(v)
 		return nil
+	case server.FieldInstanceGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInstanceGeneration(v)
+		return nil
 	case server.FieldCloneUpid:
 		v, ok := value.(string)
 		if !ok {
@@ -20677,6 +20749,9 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.addiso_generation != nil {
 		fields = append(fields, server.FieldIsoGeneration)
 	}
+	if m.addinstance_generation != nil {
+		fields = append(fields, server.FieldInstanceGeneration)
+	}
 	if m.addcreate_step != nil {
 		fields = append(fields, server.FieldCreateStep)
 	}
@@ -20715,6 +20790,8 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedTemplateVmid()
 	case server.FieldIsoGeneration:
 		return m.AddedIsoGeneration()
+	case server.FieldInstanceGeneration:
+		return m.AddedInstanceGeneration()
 	case server.FieldCreateStep:
 		return m.AddedCreateStep()
 	case server.FieldRebuildVmid:
@@ -20760,6 +20837,13 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddIsoGeneration(v)
+		return nil
+	case server.FieldInstanceGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInstanceGeneration(v)
 		return nil
 	case server.FieldCreateStep:
 		v, ok := value.(int)
@@ -20933,6 +21017,9 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldIsoGeneration:
 		m.ResetIsoGeneration()
+		return nil
+	case server.FieldInstanceGeneration:
+		m.ResetInstanceGeneration()
 		return nil
 	case server.FieldCloneUpid:
 		m.ResetCloneUpid()

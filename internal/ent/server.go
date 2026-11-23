@@ -48,6 +48,8 @@ type Server struct {
 	IsoVolid *string `json:"iso_volid,omitempty"`
 	// IsoGeneration holds the value of the "iso_generation" field.
 	IsoGeneration int `json:"iso_generation,omitempty"`
+	// InstanceGeneration holds the value of the "instance_generation" field.
+	InstanceGeneration int `json:"instance_generation,omitempty"`
 	// CloneUpid holds the value of the "clone_upid" field.
 	CloneUpid *string `json:"clone_upid,omitempty"`
 	// CloneNonce holds the value of the "clone_nonce" field.
@@ -152,7 +154,7 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied:
 			values[i] = new(sql.NullInt64)
 		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData:
 			values[i] = new(sql.NullString)
@@ -260,6 +262,12 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field iso_generation", values[i])
 			} else if value.Valid {
 				_m.IsoGeneration = int(value.Int64)
+			}
+		case server.FieldInstanceGeneration:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field instance_generation", values[i])
+			} else if value.Valid {
+				_m.InstanceGeneration = int(value.Int64)
 			}
 		case server.FieldCloneUpid:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -463,6 +471,9 @@ func (_m *Server) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("iso_generation=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsoGeneration))
+	builder.WriteString(", ")
+	builder.WriteString("instance_generation=")
+	builder.WriteString(fmt.Sprintf("%v", _m.InstanceGeneration))
 	builder.WriteString(", ")
 	if v := _m.CloneUpid; v != nil {
 		builder.WriteString("clone_upid=")

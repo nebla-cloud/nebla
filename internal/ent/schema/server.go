@@ -45,6 +45,8 @@ func (Server) Fields() []ent.Field {
 		field.Text("iso_volid").Optional().Nillable(),
 		// iso_generation numbers the cloud-init ISO; rebuild increments it.
 		field.Int("iso_generation").Default(1),
+		// instance_generation numbers the cloud-init instance-id; 0 means the same as iso_generation.
+		field.Int("instance_generation").Default(0),
 		// clone_upid is the clone task, saved before waiting; it proves an untagged VM at vmid is ours.
 		field.Text("clone_upid").Optional().Nillable(),
 		// clone_nonce is sent in the clone description before the request; a match proves the VM is ours.

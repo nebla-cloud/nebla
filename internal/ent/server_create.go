@@ -144,6 +144,20 @@ func (_c *ServerCreate) SetNillableIsoGeneration(v *int) *ServerCreate {
 	return _c
 }
 
+// SetInstanceGeneration sets the "instance_generation" field.
+func (_c *ServerCreate) SetInstanceGeneration(v int) *ServerCreate {
+	_c.mutation.SetInstanceGeneration(v)
+	return _c
+}
+
+// SetNillableInstanceGeneration sets the "instance_generation" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableInstanceGeneration(v *int) *ServerCreate {
+	if v != nil {
+		_c.SetInstanceGeneration(*v)
+	}
+	return _c
+}
+
 // SetCloneUpid sets the "clone_upid" field.
 func (_c *ServerCreate) SetCloneUpid(v string) *ServerCreate {
 	_c.mutation.SetCloneUpid(v)
@@ -409,6 +423,10 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultIsoGeneration
 		_c.mutation.SetIsoGeneration(v)
 	}
+	if _, ok := _c.mutation.InstanceGeneration(); !ok {
+		v := server.DefaultInstanceGeneration
+		_c.mutation.SetInstanceGeneration(v)
+	}
 	if _, ok := _c.mutation.CreateStep(); !ok {
 		v := server.DefaultCreateStep
 		_c.mutation.SetCreateStep(v)
@@ -474,6 +492,9 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsoGeneration(); !ok {
 		return &ValidationError{Name: "iso_generation", err: errors.New(`ent: missing required field "Server.iso_generation"`)}
+	}
+	if _, ok := _c.mutation.InstanceGeneration(); !ok {
+		return &ValidationError{Name: "instance_generation", err: errors.New(`ent: missing required field "Server.instance_generation"`)}
 	}
 	if _, ok := _c.mutation.CreateStep(); !ok {
 		return &ValidationError{Name: "create_step", err: errors.New(`ent: missing required field "Server.create_step"`)}
@@ -582,6 +603,10 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsoGeneration(); ok {
 		_spec.SetField(server.FieldIsoGeneration, field.TypeInt, value)
 		_node.IsoGeneration = value
+	}
+	if value, ok := _c.mutation.InstanceGeneration(); ok {
+		_spec.SetField(server.FieldInstanceGeneration, field.TypeInt, value)
+		_node.InstanceGeneration = value
 	}
 	if value, ok := _c.mutation.CloneUpid(); ok {
 		_spec.SetField(server.FieldCloneUpid, field.TypeString, value)
@@ -914,6 +939,24 @@ func (u *ServerUpsert) UpdateIsoGeneration() *ServerUpsert {
 // AddIsoGeneration adds v to the "iso_generation" field.
 func (u *ServerUpsert) AddIsoGeneration(v int) *ServerUpsert {
 	u.Add(server.FieldIsoGeneration, v)
+	return u
+}
+
+// SetInstanceGeneration sets the "instance_generation" field.
+func (u *ServerUpsert) SetInstanceGeneration(v int) *ServerUpsert {
+	u.Set(server.FieldInstanceGeneration, v)
+	return u
+}
+
+// UpdateInstanceGeneration sets the "instance_generation" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateInstanceGeneration() *ServerUpsert {
+	u.SetExcluded(server.FieldInstanceGeneration)
+	return u
+}
+
+// AddInstanceGeneration adds v to the "instance_generation" field.
+func (u *ServerUpsert) AddInstanceGeneration(v int) *ServerUpsert {
+	u.Add(server.FieldInstanceGeneration, v)
 	return u
 }
 
@@ -1413,6 +1456,27 @@ func (u *ServerUpsertOne) AddIsoGeneration(v int) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateIsoGeneration() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateIsoGeneration()
+	})
+}
+
+// SetInstanceGeneration sets the "instance_generation" field.
+func (u *ServerUpsertOne) SetInstanceGeneration(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetInstanceGeneration(v)
+	})
+}
+
+// AddInstanceGeneration adds v to the "instance_generation" field.
+func (u *ServerUpsertOne) AddInstanceGeneration(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddInstanceGeneration(v)
+	})
+}
+
+// UpdateInstanceGeneration sets the "instance_generation" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateInstanceGeneration() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateInstanceGeneration()
 	})
 }
 
@@ -2122,6 +2186,27 @@ func (u *ServerUpsertBulk) AddIsoGeneration(v int) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateIsoGeneration() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateIsoGeneration()
+	})
+}
+
+// SetInstanceGeneration sets the "instance_generation" field.
+func (u *ServerUpsertBulk) SetInstanceGeneration(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetInstanceGeneration(v)
+	})
+}
+
+// AddInstanceGeneration adds v to the "instance_generation" field.
+func (u *ServerUpsertBulk) AddInstanceGeneration(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddInstanceGeneration(v)
+	})
+}
+
+// UpdateInstanceGeneration sets the "instance_generation" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateInstanceGeneration() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateInstanceGeneration()
 	})
 }
 

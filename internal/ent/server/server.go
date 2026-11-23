@@ -41,6 +41,8 @@ const (
 	FieldIsoVolid = "iso_volid"
 	// FieldIsoGeneration holds the string denoting the iso_generation field in the database.
 	FieldIsoGeneration = "iso_generation"
+	// FieldInstanceGeneration holds the string denoting the instance_generation field in the database.
+	FieldInstanceGeneration = "instance_generation"
 	// FieldCloneUpid holds the string denoting the clone_upid field in the database.
 	FieldCloneUpid = "clone_upid"
 	// FieldCloneNonce holds the string denoting the clone_nonce field in the database.
@@ -129,6 +131,7 @@ var Columns = []string{
 	FieldLabels,
 	FieldIsoVolid,
 	FieldIsoGeneration,
+	FieldInstanceGeneration,
 	FieldCloneUpid,
 	FieldCloneNonce,
 	FieldCreateStep,
@@ -162,6 +165,8 @@ var (
 	DefaultNode string
 	// DefaultIsoGeneration holds the default value on creation for the "iso_generation" field.
 	DefaultIsoGeneration int
+	// DefaultInstanceGeneration holds the default value on creation for the "instance_generation" field.
+	DefaultInstanceGeneration int
 	// DefaultCreateStep holds the default value on creation for the "create_step" field.
 	DefaultCreateStep int
 	// DefaultRebuildStep holds the default value on creation for the "rebuild_step" field.
@@ -275,6 +280,11 @@ func ByIsoVolid(opts ...sql.OrderTermOption) OrderOption {
 // ByIsoGeneration orders the results by the iso_generation field.
 func ByIsoGeneration(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsoGeneration, opts...).ToFunc()
+}
+
+// ByInstanceGeneration orders the results by the instance_generation field.
+func ByInstanceGeneration(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldInstanceGeneration, opts...).ToFunc()
 }
 
 // ByCloneUpid orders the results by the clone_upid field.

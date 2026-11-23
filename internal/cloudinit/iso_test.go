@@ -218,3 +218,23 @@ version: 2
 `
 	require.Equal(t, want, files["network-config"])
 }
+
+func TestNetworkFingerprintStable(t *testing.T) {
+	fp, err := cloudinit.NetworkFingerprint(input())
+	require.NoError(t, err)
+	again, err := cloudinit.NetworkFingerprint(input())
+	require.NoError(t, err)
+	require.Equal(t, fp, again)
+
+	in := input()
+	in.Floating = []netip.Addr{netip.MustParseAddr("203.0.113.5")}
+	withFIP, err := cloudinit.NetworkFingerprint(in)
+	require.NoError(t, err)
+	require.NotEqual(t, fp, withFIP)
+
+	in = input()
+	in.Hostname, in.UserData, in.InstanceID = "other", "#!/bin/sh\necho hi\n", "nb-srv-7-9"
+	same, err := cloudinit.NetworkFingerprint(in)
+	require.NoError(t, err)
+	require.Equal(t, fp, same)
+}

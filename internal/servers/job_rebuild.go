@@ -16,6 +16,7 @@
 package servers
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"fmt"
@@ -53,6 +54,8 @@ type RebuildServerArgs struct {
 	TemplateVMID int   `json:"template_vmid"`
 	// StartAfter is whether the server was running when the rebuild was requested.
 	StartAfter bool `json:"start_after"`
+	// InstanceGeneration pins the cloud-init instance-id generation; 0 uses the new ISO generation.
+	InstanceGeneration int `json:"instance_generation,omitempty"`
 }
 
 func (RebuildServerArgs) Kind() string                 { return KindRebuildServer }
@@ -133,8 +136,9 @@ func (r *rebuildRun) load(ctx context.Context) error {
 		return err
 	}
 	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: r.args.TemplateVMID, isoGen: r.row.IsoGeneration + 1,
-		st:   buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
-		save: r.save, poll: r.w.o.PollInterval, o: &r.w.o}
+		instGen: cmp.Or(r.args.InstanceGeneration, r.row.IsoGeneration+1),
+		st:      buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
+		save:    r.save, poll: r.w.o.PollInterval, o: &r.w.o}
 	return nil
 }
 
@@ -203,7 +207,7 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	err := db.WithTx(ctx, r.w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		u := etx.Server.UpdateOneID(r.row.ID).
 			SetImageID(r.args.ImageID).SetTemplateVmid(r.args.TemplateVMID).
-			SetIsoGeneration(r.b.isoGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap)
+			SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap)
 		setSlot(u.SetVmid, u.ClearVmid, nu.Vmid)
 		setSlot(u.SetCloneUpid, u.ClearCloneUpid, nu.Upid)
 		setSlot(u.SetCloneNonce, u.ClearCloneNonce, nu.Nonce)

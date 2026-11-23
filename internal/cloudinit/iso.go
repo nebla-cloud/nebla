@@ -18,6 +18,8 @@ package cloudinit
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -111,6 +113,16 @@ func networkConfig(in Input) ([]byte, error) {
 		eth.Nameservers = map[string][]string{"addresses": dns}
 	}
 	return yaml.Marshal(map[string]any{"version": 2, "ethernets": map[string]ethernet{"eth0": eth}})
+}
+
+// NetworkFingerprint is the hex sha256 of the network-config the seed ISO carries.
+func NetworkFingerprint(in Input) (string, error) {
+	b, err := networkConfig(in)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func isCloudConfig(ud string) bool {
