@@ -349,7 +349,7 @@ func TestRebuildCancelsQueuedBackups(t *testing.T) {
 	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, kept.ID).Status)
 }
 
-func TestDeleteCancelsQueuedBackups(t *testing.T) {
+func TestDeleteServerCancelsQueuedBackups(t *testing.T) {
 	ctx := context.Background()
 	e, s, _ := rebuildEnv(t)
 	q := queuedBackup(t, e, s.ServerID, entbackup.StatusQueued)

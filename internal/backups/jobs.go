@@ -18,7 +18,6 @@ package backups
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -152,17 +151,4 @@ func findArchive(ctx context.Context, pc pve.Client, node, storage string, vmid 
 		return pve.BackupItem{}, false, nil
 	}
 	return items[i], true, nil
-}
-
-// removeArchive deletes a recorded archive; one that is already gone counts as deleted.
-func removeArchive(ctx context.Context, pc pve.Client, node, storage, volid string) error {
-	err := pc.DeleteVolume(ctx, node, storage, volid)
-	var te *pve.TaskError
-	switch {
-	case err == nil, errors.Is(err, pve.ErrNotFound):
-		return nil
-	case errors.As(err, &te) && strings.Contains(te.ExitStatus, "does not exist"):
-		return nil
-	}
-	return err
 }

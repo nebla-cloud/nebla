@@ -96,6 +96,7 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 			}
 		}
 	}
+	w.deleteBackups(ctx, pc, row)
 	if row.Vmid != nil {
 		if err := destroyOrForget(ctx, pc, row.ID, *row.Vmid, CloneProof{UPID: row.CloneUpid, Nonce: row.CloneNonce}); err != nil {
 			return &stepError{"destroy vm", err}

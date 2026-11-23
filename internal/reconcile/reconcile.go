@@ -216,6 +216,9 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 	if err := r.syncVolumes(ctx, log, locationID, pc, vms); err != nil {
 		errs = append(errs, err)
 	}
+	if err := r.syncBackups(ctx, log, locationID, pc, vms); err != nil {
+		errs = append(errs, err)
+	}
 	fwOn, err := r.recordFirewall(ctx, pc, locationID)
 	if err != nil {
 		log.Warn("reconcile: datacenter firewall", "err", err)

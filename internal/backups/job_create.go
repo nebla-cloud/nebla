@@ -343,7 +343,7 @@ func (w *CreateBackupWorker) removeArchive(ctx context.Context, log *slog.Logger
 	if !ok {
 		return
 	}
-	if err := removeArchive(ctx, pc, row.Node, row.Storage, item.Volid); err != nil {
+	if err := servers.RemoveArchive(ctx, pc, row.Node, row.Storage, item.Volid); err != nil {
 		log.Warn("failed backup: archive left behind", "volid", item.Volid, "err", err)
 	}
 }
@@ -402,7 +402,7 @@ func (o *WorkerOptions) deleteArchive(ctx context.Context, b *ent.Backup) error 
 	if err != nil {
 		return err
 	}
-	if err := removeArchive(ctx, pc, node, b.Storage, *b.Volid); err != nil {
+	if err := servers.RemoveArchive(ctx, pc, node, b.Storage, *b.Volid); err != nil {
 		return servers.StepError("delete backup", err)
 	}
 	return nil
