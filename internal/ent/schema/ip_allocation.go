@@ -18,6 +18,7 @@ package schema
 import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
+	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
@@ -30,9 +31,16 @@ func (IPAllocation) Fields() []ent.Field {
 		field.Int64("id"),
 		field.Int64("pool_id").Immutable(),
 		field.String("ip").Immutable().SchemaType(inet()),
-		// server_id has no FK until the servers table exists.
-		field.Int64("server_id"),
+		// server_id is set exactly when owner is server; floating rows are owned by an ip_addresses row.
+		field.Int64("server_id").Optional().Nillable(),
+		field.Enum("owner").Values("server", "floating").Default("server"),
 		createdAt(),
+	}
+}
+
+func (IPAllocation) Annotations() []schema.Annotation {
+	return []schema.Annotation{
+		entsql.Checks(map[string]string{"ip_allocations_owner_check": "(owner = 'server') = (server_id IS NOT NULL)"}),
 	}
 }
 

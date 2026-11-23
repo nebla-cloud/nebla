@@ -27,6 +27,9 @@ type FirewallResource func(*sql.Selector)
 // FirewallRule is the predicate function for firewallrule builders.
 type FirewallRule func(*sql.Selector)
 
+// IPAddress is the predicate function for ipaddress builders.
+type IPAddress func(*sql.Selector)
+
 // IPAllocation is the predicate function for ipallocation builders.
 type IPAllocation func(*sql.Selector)
 

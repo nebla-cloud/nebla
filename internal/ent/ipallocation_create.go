@@ -41,6 +41,28 @@ func (_c *IPAllocationCreate) SetServerID(v int64) *IPAllocationCreate {
 	return _c
 }
 
+// SetNillableServerID sets the "server_id" field if the given value is not nil.
+func (_c *IPAllocationCreate) SetNillableServerID(v *int64) *IPAllocationCreate {
+	if v != nil {
+		_c.SetServerID(*v)
+	}
+	return _c
+}
+
+// SetOwner sets the "owner" field.
+func (_c *IPAllocationCreate) SetOwner(v ipallocation.Owner) *IPAllocationCreate {
+	_c.mutation.SetOwner(v)
+	return _c
+}
+
+// SetNillableOwner sets the "owner" field if the given value is not nil.
+func (_c *IPAllocationCreate) SetNillableOwner(v *ipallocation.Owner) *IPAllocationCreate {
+	if v != nil {
+		_c.SetOwner(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *IPAllocationCreate) SetCreatedAt(v time.Time) *IPAllocationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -101,6 +123,10 @@ func (_c *IPAllocationCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *IPAllocationCreate) defaults() {
+	if _, ok := _c.mutation.Owner(); !ok {
+		v := ipallocation.DefaultOwner
+		_c.mutation.SetOwner(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := ipallocation.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -115,8 +141,13 @@ func (_c *IPAllocationCreate) check() error {
 	if _, ok := _c.mutation.IP(); !ok {
 		return &ValidationError{Name: "ip", err: errors.New(`ent: missing required field "IPAllocation.ip"`)}
 	}
-	if _, ok := _c.mutation.ServerID(); !ok {
-		return &ValidationError{Name: "server_id", err: errors.New(`ent: missing required field "IPAllocation.server_id"`)}
+	if _, ok := _c.mutation.Owner(); !ok {
+		return &ValidationError{Name: "owner", err: errors.New(`ent: missing required field "IPAllocation.owner"`)}
+	}
+	if v, ok := _c.mutation.Owner(); ok {
+		if err := ipallocation.OwnerValidator(v); err != nil {
+			return &ValidationError{Name: "owner", err: fmt.Errorf(`ent: validator failed for field "IPAllocation.owner": %w`, err)}
+		}
 	}
 	if len(_c.mutation.PoolIDs()) == 0 {
 		return &ValidationError{Name: "pool", err: errors.New(`ent: missing required edge "IPAllocation.pool"`)}
@@ -160,7 +191,11 @@ func (_c *IPAllocationCreate) createSpec() (*IPAllocation, *sqlgraph.CreateSpec)
 	}
 	if value, ok := _c.mutation.ServerID(); ok {
 		_spec.SetField(ipallocation.FieldServerID, field.TypeInt64, value)
-		_node.ServerID = value
+		_node.ServerID = &value
+	}
+	if value, ok := _c.mutation.Owner(); ok {
+		_spec.SetField(ipallocation.FieldOwner, field.TypeEnum, value)
+		_node.Owner = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(ipallocation.FieldCreatedAt, field.TypeTime, value)
@@ -253,6 +288,24 @@ func (u *IPAllocationUpsert) AddServerID(v int64) *IPAllocationUpsert {
 	return u
 }
 
+// ClearServerID clears the value of the "server_id" field.
+func (u *IPAllocationUpsert) ClearServerID() *IPAllocationUpsert {
+	u.SetNull(ipallocation.FieldServerID)
+	return u
+}
+
+// SetOwner sets the "owner" field.
+func (u *IPAllocationUpsert) SetOwner(v ipallocation.Owner) *IPAllocationUpsert {
+	u.Set(ipallocation.FieldOwner, v)
+	return u
+}
+
+// UpdateOwner sets the "owner" field to the value that was provided on create.
+func (u *IPAllocationUpsert) UpdateOwner() *IPAllocationUpsert {
+	u.SetExcluded(ipallocation.FieldOwner)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -328,6 +381,27 @@ func (u *IPAllocationUpsertOne) AddServerID(v int64) *IPAllocationUpsertOne {
 func (u *IPAllocationUpsertOne) UpdateServerID() *IPAllocationUpsertOne {
 	return u.Update(func(s *IPAllocationUpsert) {
 		s.UpdateServerID()
+	})
+}
+
+// ClearServerID clears the value of the "server_id" field.
+func (u *IPAllocationUpsertOne) ClearServerID() *IPAllocationUpsertOne {
+	return u.Update(func(s *IPAllocationUpsert) {
+		s.ClearServerID()
+	})
+}
+
+// SetOwner sets the "owner" field.
+func (u *IPAllocationUpsertOne) SetOwner(v ipallocation.Owner) *IPAllocationUpsertOne {
+	return u.Update(func(s *IPAllocationUpsert) {
+		s.SetOwner(v)
+	})
+}
+
+// UpdateOwner sets the "owner" field to the value that was provided on create.
+func (u *IPAllocationUpsertOne) UpdateOwner() *IPAllocationUpsertOne {
+	return u.Update(func(s *IPAllocationUpsert) {
+		s.UpdateOwner()
 	})
 }
 
@@ -572,6 +646,27 @@ func (u *IPAllocationUpsertBulk) AddServerID(v int64) *IPAllocationUpsertBulk {
 func (u *IPAllocationUpsertBulk) UpdateServerID() *IPAllocationUpsertBulk {
 	return u.Update(func(s *IPAllocationUpsert) {
 		s.UpdateServerID()
+	})
+}
+
+// ClearServerID clears the value of the "server_id" field.
+func (u *IPAllocationUpsertBulk) ClearServerID() *IPAllocationUpsertBulk {
+	return u.Update(func(s *IPAllocationUpsert) {
+		s.ClearServerID()
+	})
+}
+
+// SetOwner sets the "owner" field.
+func (u *IPAllocationUpsertBulk) SetOwner(v ipallocation.Owner) *IPAllocationUpsertBulk {
+	return u.Update(func(s *IPAllocationUpsert) {
+		s.SetOwner(v)
+	})
+}
+
+// UpdateOwner sets the "owner" field to the value that was provided on create.
+func (u *IPAllocationUpsertBulk) UpdateOwner() *IPAllocationUpsertBulk {
+	return u.Update(func(s *IPAllocationUpsert) {
+		s.UpdateOwner()
 	})
 }
 

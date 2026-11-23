@@ -22,6 +22,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
@@ -105,6 +106,7 @@ func checkColumn(t, c string) error {
 			firewall.Table:           firewall.ValidColumn,
 			firewallresource.Table:   firewallresource.ValidColumn,
 			firewallrule.Table:       firewallrule.ValidColumn,
+			ipaddress.Table:          ipaddress.ValidColumn,
 			ipallocation.Table:       ipallocation.ValidColumn,
 			ippool.Table:             ippool.ValidColumn,
 			image.Table:              image.ValidColumn,

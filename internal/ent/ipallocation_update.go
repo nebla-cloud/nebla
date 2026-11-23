@@ -49,6 +49,26 @@ func (_u *IPAllocationUpdate) AddServerID(v int64) *IPAllocationUpdate {
 	return _u
 }
 
+// ClearServerID clears the value of the "server_id" field.
+func (_u *IPAllocationUpdate) ClearServerID() *IPAllocationUpdate {
+	_u.mutation.ClearServerID()
+	return _u
+}
+
+// SetOwner sets the "owner" field.
+func (_u *IPAllocationUpdate) SetOwner(v ipallocation.Owner) *IPAllocationUpdate {
+	_u.mutation.SetOwner(v)
+	return _u
+}
+
+// SetNillableOwner sets the "owner" field if the given value is not nil.
+func (_u *IPAllocationUpdate) SetNillableOwner(v *ipallocation.Owner) *IPAllocationUpdate {
+	if v != nil {
+		_u.SetOwner(*v)
+	}
+	return _u
+}
+
 // Mutation returns the IPAllocationMutation object of the builder.
 func (_u *IPAllocationUpdate) Mutation() *IPAllocationMutation {
 	return _u.mutation
@@ -83,6 +103,11 @@ func (_u *IPAllocationUpdate) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *IPAllocationUpdate) check() error {
+	if v, ok := _u.mutation.Owner(); ok {
+		if err := ipallocation.OwnerValidator(v); err != nil {
+			return &ValidationError{Name: "owner", err: fmt.Errorf(`ent: validator failed for field "IPAllocation.owner": %w`, err)}
+		}
+	}
 	if _u.mutation.PoolCleared() && len(_u.mutation.PoolIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "IPAllocation.pool"`)
 	}
@@ -112,6 +137,12 @@ func (_u *IPAllocationUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.AddedServerID(); ok {
 		_spec.AddField(ipallocation.FieldServerID, field.TypeInt64, value)
+	}
+	if _u.mutation.ServerIDCleared() {
+		_spec.ClearField(ipallocation.FieldServerID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.Owner(); ok {
+		_spec.SetField(ipallocation.FieldOwner, field.TypeEnum, value)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
@@ -153,6 +184,26 @@ func (_u *IPAllocationUpdateOne) SetNillableServerID(v *int64) *IPAllocationUpda
 // AddServerID adds value to the "server_id" field.
 func (_u *IPAllocationUpdateOne) AddServerID(v int64) *IPAllocationUpdateOne {
 	_u.mutation.AddServerID(v)
+	return _u
+}
+
+// ClearServerID clears the value of the "server_id" field.
+func (_u *IPAllocationUpdateOne) ClearServerID() *IPAllocationUpdateOne {
+	_u.mutation.ClearServerID()
+	return _u
+}
+
+// SetOwner sets the "owner" field.
+func (_u *IPAllocationUpdateOne) SetOwner(v ipallocation.Owner) *IPAllocationUpdateOne {
+	_u.mutation.SetOwner(v)
+	return _u
+}
+
+// SetNillableOwner sets the "owner" field if the given value is not nil.
+func (_u *IPAllocationUpdateOne) SetNillableOwner(v *ipallocation.Owner) *IPAllocationUpdateOne {
+	if v != nil {
+		_u.SetOwner(*v)
+	}
 	return _u
 }
 
@@ -203,6 +254,11 @@ func (_u *IPAllocationUpdateOne) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *IPAllocationUpdateOne) check() error {
+	if v, ok := _u.mutation.Owner(); ok {
+		if err := ipallocation.OwnerValidator(v); err != nil {
+			return &ValidationError{Name: "owner", err: fmt.Errorf(`ent: validator failed for field "IPAllocation.owner": %w`, err)}
+		}
+	}
 	if _u.mutation.PoolCleared() && len(_u.mutation.PoolIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "IPAllocation.pool"`)
 	}
@@ -249,6 +305,12 @@ func (_u *IPAllocationUpdateOne) sqlSave(ctx context.Context) (_node *IPAllocati
 	}
 	if value, ok := _u.mutation.AddedServerID(); ok {
 		_spec.AddField(ipallocation.FieldServerID, field.TypeInt64, value)
+	}
+	if _u.mutation.ServerIDCleared() {
+		_spec.ClearField(ipallocation.FieldServerID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.Owner(); ok {
+		_spec.SetField(ipallocation.FieldOwner, field.TypeEnum, value)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	_node = &IPAllocation{config: _u.config}

@@ -3,6 +3,7 @@
 package ipallocation
 
 import (
+	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -20,6 +21,8 @@ const (
 	FieldIP = "ip"
 	// FieldServerID holds the string denoting the server_id field in the database.
 	FieldServerID = "server_id"
+	// FieldOwner holds the string denoting the owner field in the database.
+	FieldOwner = "owner"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgePool holds the string denoting the pool edge name in mutations.
@@ -41,6 +44,7 @@ var Columns = []string{
 	FieldPoolID,
 	FieldIP,
 	FieldServerID,
+	FieldOwner,
 	FieldCreatedAt,
 }
 
@@ -58,6 +62,32 @@ var (
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
+
+// Owner defines the type for the "owner" enum field.
+type Owner string
+
+// OwnerServer is the default value of the Owner enum.
+const DefaultOwner = OwnerServer
+
+// Owner values.
+const (
+	OwnerServer   Owner = "server"
+	OwnerFloating Owner = "floating"
+)
+
+func (o Owner) String() string {
+	return string(o)
+}
+
+// OwnerValidator is a validator for the "owner" field enum values. It is called by the builders before save.
+func OwnerValidator(o Owner) error {
+	switch o {
+	case OwnerServer, OwnerFloating:
+		return nil
+	default:
+		return fmt.Errorf("ipallocation: invalid enum value for owner field: %q", o)
+	}
+}
 
 // OrderOption defines the ordering options for the IPAllocation queries.
 type OrderOption func(*sql.Selector)
@@ -80,6 +110,11 @@ func ByIP(opts ...sql.OrderTermOption) OrderOption {
 // ByServerID orders the results by the server_id field.
 func ByServerID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldServerID, opts...).ToFunc()
+}
+
+// ByOwner orders the results by the owner field.
+func ByOwner(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOwner, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

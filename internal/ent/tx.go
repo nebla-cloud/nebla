@@ -28,6 +28,8 @@ type Tx struct {
 	FirewallResource *FirewallResourceClient
 	// FirewallRule is the client for interacting with the FirewallRule builders.
 	FirewallRule *FirewallRuleClient
+	// IPAddress is the client for interacting with the IPAddress builders.
+	IPAddress *IPAddressClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
 	IPAllocation *IPAllocationClient
 	// IPPool is the client for interacting with the IPPool builders.
@@ -204,6 +206,7 @@ func (tx *Tx) init() {
 	tx.Firewall = NewFirewallClient(tx.config)
 	tx.FirewallResource = NewFirewallResourceClient(tx.config)
 	tx.FirewallRule = NewFirewallRuleClient(tx.config)
+	tx.IPAddress = NewIPAddressClient(tx.config)
 	tx.IPAllocation = NewIPAllocationClient(tx.config)
 	tx.IPPool = NewIPPoolClient(tx.config)
 	tx.Image = NewImageClient(tx.config)

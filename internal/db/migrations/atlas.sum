@@ -1,4 +1,4 @@
-h1:4bXUOdKig5jiomrGctTYim1mwkLKOFZKjMGp/55ysuI=
+h1:C7/Q8GRgSG0Z4YHmY6pvp2qaBcWyz0feCGQ5mPFVoo0=
 20261119105548_init.sql h1:EL0wlRJaIZf26vclFT/BsRYrEFStJzVJhaltQ0wTkz4=
 20261119110230_projects.sql h1:FWVokMkt36i6NSMVGFL2FScgdnpsAMivd1GnRyMlz8o=
 20261119111342_invite_created_by.sql h1:Sp/jQJ0Ph3MBWu6cAp6yetOszMZefiSu3lyEFfFp728=
@@ -21,3 +21,4 @@ h1:4bXUOdKig5jiomrGctTYim1mwkLKOFZKjMGp/55ysuI=
 20261120223826_console_token_principal.sql h1:xkFTebNcXC+B7ciny49fVvvGd1Nb0eEL/BJ0HC8ssaE=
 20261121003233_firewalls.sql h1:ue2T5Wa0hOs1x+LgaPNOkD06FwEyJc3thGkx39/8Ah0=
 20261121051014_volumes.sql h1:u2t5fskdVGnDj+PilYpIiTe48GYRGheYStHDd6IGpJ8=
+20261123035335_floating_ips.sql h1:fbNkmwTzWfJGaiCS/5pFTi1WQZ1KjlQ0M6t4KCeOpRs=

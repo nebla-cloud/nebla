@@ -18,6 +18,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
@@ -280,6 +281,33 @@ func (f TraverseFirewallRule) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.FirewallRuleQuery", q)
+}
+
+// The IPAddressFunc type is an adapter to allow the use of ordinary function as a Querier.
+type IPAddressFunc func(context.Context, *ent.IPAddressQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f IPAddressFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.IPAddressQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.IPAddressQuery", q)
+}
+
+// The TraverseIPAddress type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseIPAddress func(context.Context, *ent.IPAddressQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseIPAddress) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseIPAddress) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.IPAddressQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.IPAddressQuery", q)
 }
 
 // The IPAllocationFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -812,6 +840,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.FirewallResourceQuery, predicate.FirewallResource, firewallresource.OrderOption]{typ: ent.TypeFirewallResource, tq: q}, nil
 	case *ent.FirewallRuleQuery:
 		return &query[*ent.FirewallRuleQuery, predicate.FirewallRule, firewallrule.OrderOption]{typ: ent.TypeFirewallRule, tq: q}, nil
+	case *ent.IPAddressQuery:
+		return &query[*ent.IPAddressQuery, predicate.IPAddress, ipaddress.OrderOption]{typ: ent.TypeIPAddress, tq: q}, nil
 	case *ent.IPAllocationQuery:
 		return &query[*ent.IPAllocationQuery, predicate.IPAllocation, ipallocation.OrderOption]{typ: ent.TypeIPAllocation, tq: q}, nil
 	case *ent.IPPoolQuery:

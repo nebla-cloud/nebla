@@ -93,6 +93,18 @@ func (f FirewallRuleFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FirewallRuleMutation", m)
 }
 
+// The IPAddressFunc type is an adapter to allow the use of ordinary
+// function as IPAddress mutator.
+type IPAddressFunc func(context.Context, *ent.IPAddressMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IPAddressFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IPAddressMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IPAddressMutation", m)
+}
+
 // The IPAllocationFunc type is an adapter to allow the use of ordinary
 // function as IPAllocation mutator.
 type IPAllocationFunc func(context.Context, *ent.IPAllocationMutation) (ent.Value, error)

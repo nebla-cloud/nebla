@@ -22,6 +22,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
@@ -58,6 +59,7 @@ const (
 	TypeFirewall           = "Firewall"
 	TypeFirewallResource   = "FirewallResource"
 	TypeFirewallRule       = "FirewallRule"
+	TypeIPAddress          = "IPAddress"
 	TypeIPAllocation       = "IPAllocation"
 	TypeIPPool             = "IPPool"
 	TypeImage              = "Image"
@@ -7045,6 +7047,1567 @@ func (m *FirewallRuleMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown FirewallRule edge %s", name)
 }
 
+// IPAddressMutation represents an operation that mutates the IPAddress nodes in the graph.
+type IPAddressMutation struct {
+	config
+	op                     Op
+	typ                    string
+	id                     *int64
+	kind                   *ipaddress.Kind
+	family                 *string
+	ip                     *string
+	name                   *string
+	description            *string
+	labels                 *map[string]string
+	pending_gen            *int64
+	addpending_gen         *int64
+	deleting               *bool
+	dns_ptr                *string
+	created_at             *time.Time
+	clearedFields          map[string]struct{}
+	project                *int64
+	clearedproject         bool
+	location               *int64
+	clearedlocation        bool
+	allocation             *int64
+	clearedallocation      bool
+	server                 *int64
+	clearedserver          bool
+	releasing_from         *int64
+	clearedreleasing_from  bool
+	previous_server        *int64
+	clearedprevious_server bool
+	done                   bool
+	oldValue               func(context.Context) (*IPAddress, error)
+	predicates             []predicate.IPAddress
+}
+
+var _ ent.Mutation = (*IPAddressMutation)(nil)
+
+// ipaddressOption allows management of the mutation configuration using functional options.
+type ipaddressOption func(*IPAddressMutation)
+
+// newIPAddressMutation creates new mutation for the IPAddress entity.
+func newIPAddressMutation(c config, op Op, opts ...ipaddressOption) *IPAddressMutation {
+	m := &IPAddressMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeIPAddress,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withIPAddressID sets the ID field of the mutation.
+func withIPAddressID(id int64) ipaddressOption {
+	return func(m *IPAddressMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *IPAddress
+		)
+		m.oldValue = func(ctx context.Context) (*IPAddress, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().IPAddress.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withIPAddress sets the old IPAddress of the mutation.
+func withIPAddress(node *IPAddress) ipaddressOption {
+	return func(m *IPAddressMutation) {
+		m.oldValue = func(context.Context) (*IPAddress, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m IPAddressMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m IPAddressMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of IPAddress entities.
+func (m *IPAddressMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *IPAddressMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *IPAddressMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().IPAddress.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *IPAddressMutation) SetProjectID(i int64) {
+	m.project = &i
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *IPAddressMutation) ProjectID() (r int64, exists bool) {
+	v := m.project
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldProjectID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *IPAddressMutation) ResetProjectID() {
+	m.project = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *IPAddressMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *IPAddressMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *IPAddressMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetAllocationID sets the "allocation_id" field.
+func (m *IPAddressMutation) SetAllocationID(i int64) {
+	m.allocation = &i
+}
+
+// AllocationID returns the value of the "allocation_id" field in the mutation.
+func (m *IPAddressMutation) AllocationID() (r int64, exists bool) {
+	v := m.allocation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllocationID returns the old "allocation_id" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldAllocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllocationID: %w", err)
+	}
+	return oldValue.AllocationID, nil
+}
+
+// ResetAllocationID resets all changes to the "allocation_id" field.
+func (m *IPAddressMutation) ResetAllocationID() {
+	m.allocation = nil
+}
+
+// SetKind sets the "kind" field.
+func (m *IPAddressMutation) SetKind(i ipaddress.Kind) {
+	m.kind = &i
+}
+
+// Kind returns the value of the "kind" field in the mutation.
+func (m *IPAddressMutation) Kind() (r ipaddress.Kind, exists bool) {
+	v := m.kind
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKind returns the old "kind" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldKind(ctx context.Context) (v ipaddress.Kind, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKind is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKind requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKind: %w", err)
+	}
+	return oldValue.Kind, nil
+}
+
+// ResetKind resets all changes to the "kind" field.
+func (m *IPAddressMutation) ResetKind() {
+	m.kind = nil
+}
+
+// SetFamily sets the "family" field.
+func (m *IPAddressMutation) SetFamily(s string) {
+	m.family = &s
+}
+
+// Family returns the value of the "family" field in the mutation.
+func (m *IPAddressMutation) Family() (r string, exists bool) {
+	v := m.family
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFamily returns the old "family" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldFamily(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFamily is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFamily requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFamily: %w", err)
+	}
+	return oldValue.Family, nil
+}
+
+// ResetFamily resets all changes to the "family" field.
+func (m *IPAddressMutation) ResetFamily() {
+	m.family = nil
+}
+
+// SetIP sets the "ip" field.
+func (m *IPAddressMutation) SetIP(s string) {
+	m.ip = &s
+}
+
+// IP returns the value of the "ip" field in the mutation.
+func (m *IPAddressMutation) IP() (r string, exists bool) {
+	v := m.ip
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIP returns the old "ip" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldIP(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIP is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIP requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIP: %w", err)
+	}
+	return oldValue.IP, nil
+}
+
+// ResetIP resets all changes to the "ip" field.
+func (m *IPAddressMutation) ResetIP() {
+	m.ip = nil
+}
+
+// SetName sets the "name" field.
+func (m *IPAddressMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *IPAddressMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *IPAddressMutation) ResetName() {
+	m.name = nil
+}
+
+// SetDescription sets the "description" field.
+func (m *IPAddressMutation) SetDescription(s string) {
+	m.description = &s
+}
+
+// Description returns the value of the "description" field in the mutation.
+func (m *IPAddressMutation) Description() (r string, exists bool) {
+	v := m.description
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDescription returns the old "description" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldDescription(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDescription is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDescription requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDescription: %w", err)
+	}
+	return oldValue.Description, nil
+}
+
+// ResetDescription resets all changes to the "description" field.
+func (m *IPAddressMutation) ResetDescription() {
+	m.description = nil
+}
+
+// SetLabels sets the "labels" field.
+func (m *IPAddressMutation) SetLabels(value map[string]string) {
+	m.labels = &value
+}
+
+// Labels returns the value of the "labels" field in the mutation.
+func (m *IPAddressMutation) Labels() (r map[string]string, exists bool) {
+	v := m.labels
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLabels returns the old "labels" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldLabels(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLabels is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLabels requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLabels: %w", err)
+	}
+	return oldValue.Labels, nil
+}
+
+// ResetLabels resets all changes to the "labels" field.
+func (m *IPAddressMutation) ResetLabels() {
+	m.labels = nil
+}
+
+// SetServerID sets the "server_id" field.
+func (m *IPAddressMutation) SetServerID(i int64) {
+	m.server = &i
+}
+
+// ServerID returns the value of the "server_id" field in the mutation.
+func (m *IPAddressMutation) ServerID() (r int64, exists bool) {
+	v := m.server
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerID returns the old "server_id" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldServerID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerID: %w", err)
+	}
+	return oldValue.ServerID, nil
+}
+
+// ClearServerID clears the value of the "server_id" field.
+func (m *IPAddressMutation) ClearServerID() {
+	m.server = nil
+	m.clearedFields[ipaddress.FieldServerID] = struct{}{}
+}
+
+// ServerIDCleared returns if the "server_id" field was cleared in this mutation.
+func (m *IPAddressMutation) ServerIDCleared() bool {
+	_, ok := m.clearedFields[ipaddress.FieldServerID]
+	return ok
+}
+
+// ResetServerID resets all changes to the "server_id" field.
+func (m *IPAddressMutation) ResetServerID() {
+	m.server = nil
+	delete(m.clearedFields, ipaddress.FieldServerID)
+}
+
+// SetReleasingFromID sets the "releasing_from_id" field.
+func (m *IPAddressMutation) SetReleasingFromID(i int64) {
+	m.releasing_from = &i
+}
+
+// ReleasingFromID returns the value of the "releasing_from_id" field in the mutation.
+func (m *IPAddressMutation) ReleasingFromID() (r int64, exists bool) {
+	v := m.releasing_from
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReleasingFromID returns the old "releasing_from_id" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldReleasingFromID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReleasingFromID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReleasingFromID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReleasingFromID: %w", err)
+	}
+	return oldValue.ReleasingFromID, nil
+}
+
+// ClearReleasingFromID clears the value of the "releasing_from_id" field.
+func (m *IPAddressMutation) ClearReleasingFromID() {
+	m.releasing_from = nil
+	m.clearedFields[ipaddress.FieldReleasingFromID] = struct{}{}
+}
+
+// ReleasingFromIDCleared returns if the "releasing_from_id" field was cleared in this mutation.
+func (m *IPAddressMutation) ReleasingFromIDCleared() bool {
+	_, ok := m.clearedFields[ipaddress.FieldReleasingFromID]
+	return ok
+}
+
+// ResetReleasingFromID resets all changes to the "releasing_from_id" field.
+func (m *IPAddressMutation) ResetReleasingFromID() {
+	m.releasing_from = nil
+	delete(m.clearedFields, ipaddress.FieldReleasingFromID)
+}
+
+// SetPreviousServerID sets the "previous_server_id" field.
+func (m *IPAddressMutation) SetPreviousServerID(i int64) {
+	m.previous_server = &i
+}
+
+// PreviousServerID returns the value of the "previous_server_id" field in the mutation.
+func (m *IPAddressMutation) PreviousServerID() (r int64, exists bool) {
+	v := m.previous_server
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPreviousServerID returns the old "previous_server_id" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldPreviousServerID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPreviousServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPreviousServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPreviousServerID: %w", err)
+	}
+	return oldValue.PreviousServerID, nil
+}
+
+// ClearPreviousServerID clears the value of the "previous_server_id" field.
+func (m *IPAddressMutation) ClearPreviousServerID() {
+	m.previous_server = nil
+	m.clearedFields[ipaddress.FieldPreviousServerID] = struct{}{}
+}
+
+// PreviousServerIDCleared returns if the "previous_server_id" field was cleared in this mutation.
+func (m *IPAddressMutation) PreviousServerIDCleared() bool {
+	_, ok := m.clearedFields[ipaddress.FieldPreviousServerID]
+	return ok
+}
+
+// ResetPreviousServerID resets all changes to the "previous_server_id" field.
+func (m *IPAddressMutation) ResetPreviousServerID() {
+	m.previous_server = nil
+	delete(m.clearedFields, ipaddress.FieldPreviousServerID)
+}
+
+// SetPendingGen sets the "pending_gen" field.
+func (m *IPAddressMutation) SetPendingGen(i int64) {
+	m.pending_gen = &i
+	m.addpending_gen = nil
+}
+
+// PendingGen returns the value of the "pending_gen" field in the mutation.
+func (m *IPAddressMutation) PendingGen() (r int64, exists bool) {
+	v := m.pending_gen
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPendingGen returns the old "pending_gen" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldPendingGen(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPendingGen is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPendingGen requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPendingGen: %w", err)
+	}
+	return oldValue.PendingGen, nil
+}
+
+// AddPendingGen adds i to the "pending_gen" field.
+func (m *IPAddressMutation) AddPendingGen(i int64) {
+	if m.addpending_gen != nil {
+		*m.addpending_gen += i
+	} else {
+		m.addpending_gen = &i
+	}
+}
+
+// AddedPendingGen returns the value that was added to the "pending_gen" field in this mutation.
+func (m *IPAddressMutation) AddedPendingGen() (r int64, exists bool) {
+	v := m.addpending_gen
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearPendingGen clears the value of the "pending_gen" field.
+func (m *IPAddressMutation) ClearPendingGen() {
+	m.pending_gen = nil
+	m.addpending_gen = nil
+	m.clearedFields[ipaddress.FieldPendingGen] = struct{}{}
+}
+
+// PendingGenCleared returns if the "pending_gen" field was cleared in this mutation.
+func (m *IPAddressMutation) PendingGenCleared() bool {
+	_, ok := m.clearedFields[ipaddress.FieldPendingGen]
+	return ok
+}
+
+// ResetPendingGen resets all changes to the "pending_gen" field.
+func (m *IPAddressMutation) ResetPendingGen() {
+	m.pending_gen = nil
+	m.addpending_gen = nil
+	delete(m.clearedFields, ipaddress.FieldPendingGen)
+}
+
+// SetDeleting sets the "deleting" field.
+func (m *IPAddressMutation) SetDeleting(b bool) {
+	m.deleting = &b
+}
+
+// Deleting returns the value of the "deleting" field in the mutation.
+func (m *IPAddressMutation) Deleting() (r bool, exists bool) {
+	v := m.deleting
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeleting returns the old "deleting" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldDeleting(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeleting is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeleting requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeleting: %w", err)
+	}
+	return oldValue.Deleting, nil
+}
+
+// ResetDeleting resets all changes to the "deleting" field.
+func (m *IPAddressMutation) ResetDeleting() {
+	m.deleting = nil
+}
+
+// SetDNSPtr sets the "dns_ptr" field.
+func (m *IPAddressMutation) SetDNSPtr(s string) {
+	m.dns_ptr = &s
+}
+
+// DNSPtr returns the value of the "dns_ptr" field in the mutation.
+func (m *IPAddressMutation) DNSPtr() (r string, exists bool) {
+	v := m.dns_ptr
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDNSPtr returns the old "dns_ptr" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldDNSPtr(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDNSPtr is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDNSPtr requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDNSPtr: %w", err)
+	}
+	return oldValue.DNSPtr, nil
+}
+
+// ClearDNSPtr clears the value of the "dns_ptr" field.
+func (m *IPAddressMutation) ClearDNSPtr() {
+	m.dns_ptr = nil
+	m.clearedFields[ipaddress.FieldDNSPtr] = struct{}{}
+}
+
+// DNSPtrCleared returns if the "dns_ptr" field was cleared in this mutation.
+func (m *IPAddressMutation) DNSPtrCleared() bool {
+	_, ok := m.clearedFields[ipaddress.FieldDNSPtr]
+	return ok
+}
+
+// ResetDNSPtr resets all changes to the "dns_ptr" field.
+func (m *IPAddressMutation) ResetDNSPtr() {
+	m.dns_ptr = nil
+	delete(m.clearedFields, ipaddress.FieldDNSPtr)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *IPAddressMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *IPAddressMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *IPAddressMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (m *IPAddressMutation) ClearProject() {
+	m.clearedproject = true
+	m.clearedFields[ipaddress.FieldProjectID] = struct{}{}
+}
+
+// ProjectCleared reports if the "project" edge to the Project entity was cleared.
+func (m *IPAddressMutation) ProjectCleared() bool {
+	return m.clearedproject
+}
+
+// ProjectIDs returns the "project" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ProjectID instead. It exists only for internal usage by the builders.
+func (m *IPAddressMutation) ProjectIDs() (ids []int64) {
+	if id := m.project; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetProject resets all changes to the "project" edge.
+func (m *IPAddressMutation) ResetProject() {
+	m.project = nil
+	m.clearedproject = false
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *IPAddressMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[ipaddress.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *IPAddressMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *IPAddressMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *IPAddressMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// ClearAllocation clears the "allocation" edge to the IPAllocation entity.
+func (m *IPAddressMutation) ClearAllocation() {
+	m.clearedallocation = true
+	m.clearedFields[ipaddress.FieldAllocationID] = struct{}{}
+}
+
+// AllocationCleared reports if the "allocation" edge to the IPAllocation entity was cleared.
+func (m *IPAddressMutation) AllocationCleared() bool {
+	return m.clearedallocation
+}
+
+// AllocationIDs returns the "allocation" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AllocationID instead. It exists only for internal usage by the builders.
+func (m *IPAddressMutation) AllocationIDs() (ids []int64) {
+	if id := m.allocation; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAllocation resets all changes to the "allocation" edge.
+func (m *IPAddressMutation) ResetAllocation() {
+	m.allocation = nil
+	m.clearedallocation = false
+}
+
+// ClearServer clears the "server" edge to the Server entity.
+func (m *IPAddressMutation) ClearServer() {
+	m.clearedserver = true
+	m.clearedFields[ipaddress.FieldServerID] = struct{}{}
+}
+
+// ServerCleared reports if the "server" edge to the Server entity was cleared.
+func (m *IPAddressMutation) ServerCleared() bool {
+	return m.ServerIDCleared() || m.clearedserver
+}
+
+// ServerIDs returns the "server" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServerID instead. It exists only for internal usage by the builders.
+func (m *IPAddressMutation) ServerIDs() (ids []int64) {
+	if id := m.server; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetServer resets all changes to the "server" edge.
+func (m *IPAddressMutation) ResetServer() {
+	m.server = nil
+	m.clearedserver = false
+}
+
+// ClearReleasingFrom clears the "releasing_from" edge to the Server entity.
+func (m *IPAddressMutation) ClearReleasingFrom() {
+	m.clearedreleasing_from = true
+	m.clearedFields[ipaddress.FieldReleasingFromID] = struct{}{}
+}
+
+// ReleasingFromCleared reports if the "releasing_from" edge to the Server entity was cleared.
+func (m *IPAddressMutation) ReleasingFromCleared() bool {
+	return m.ReleasingFromIDCleared() || m.clearedreleasing_from
+}
+
+// ReleasingFromIDs returns the "releasing_from" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ReleasingFromID instead. It exists only for internal usage by the builders.
+func (m *IPAddressMutation) ReleasingFromIDs() (ids []int64) {
+	if id := m.releasing_from; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetReleasingFrom resets all changes to the "releasing_from" edge.
+func (m *IPAddressMutation) ResetReleasingFrom() {
+	m.releasing_from = nil
+	m.clearedreleasing_from = false
+}
+
+// ClearPreviousServer clears the "previous_server" edge to the Server entity.
+func (m *IPAddressMutation) ClearPreviousServer() {
+	m.clearedprevious_server = true
+	m.clearedFields[ipaddress.FieldPreviousServerID] = struct{}{}
+}
+
+// PreviousServerCleared reports if the "previous_server" edge to the Server entity was cleared.
+func (m *IPAddressMutation) PreviousServerCleared() bool {
+	return m.PreviousServerIDCleared() || m.clearedprevious_server
+}
+
+// PreviousServerIDs returns the "previous_server" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PreviousServerID instead. It exists only for internal usage by the builders.
+func (m *IPAddressMutation) PreviousServerIDs() (ids []int64) {
+	if id := m.previous_server; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPreviousServer resets all changes to the "previous_server" edge.
+func (m *IPAddressMutation) ResetPreviousServer() {
+	m.previous_server = nil
+	m.clearedprevious_server = false
+}
+
+// Where appends a list predicates to the IPAddressMutation builder.
+func (m *IPAddressMutation) Where(ps ...predicate.IPAddress) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the IPAddressMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *IPAddressMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.IPAddress, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *IPAddressMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *IPAddressMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (IPAddress).
+func (m *IPAddressMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *IPAddressMutation) Fields() []string {
+	fields := make([]string, 0, 16)
+	if m.project != nil {
+		fields = append(fields, ipaddress.FieldProjectID)
+	}
+	if m.location != nil {
+		fields = append(fields, ipaddress.FieldLocationID)
+	}
+	if m.allocation != nil {
+		fields = append(fields, ipaddress.FieldAllocationID)
+	}
+	if m.kind != nil {
+		fields = append(fields, ipaddress.FieldKind)
+	}
+	if m.family != nil {
+		fields = append(fields, ipaddress.FieldFamily)
+	}
+	if m.ip != nil {
+		fields = append(fields, ipaddress.FieldIP)
+	}
+	if m.name != nil {
+		fields = append(fields, ipaddress.FieldName)
+	}
+	if m.description != nil {
+		fields = append(fields, ipaddress.FieldDescription)
+	}
+	if m.labels != nil {
+		fields = append(fields, ipaddress.FieldLabels)
+	}
+	if m.server != nil {
+		fields = append(fields, ipaddress.FieldServerID)
+	}
+	if m.releasing_from != nil {
+		fields = append(fields, ipaddress.FieldReleasingFromID)
+	}
+	if m.previous_server != nil {
+		fields = append(fields, ipaddress.FieldPreviousServerID)
+	}
+	if m.pending_gen != nil {
+		fields = append(fields, ipaddress.FieldPendingGen)
+	}
+	if m.deleting != nil {
+		fields = append(fields, ipaddress.FieldDeleting)
+	}
+	if m.dns_ptr != nil {
+		fields = append(fields, ipaddress.FieldDNSPtr)
+	}
+	if m.created_at != nil {
+		fields = append(fields, ipaddress.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *IPAddressMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case ipaddress.FieldProjectID:
+		return m.ProjectID()
+	case ipaddress.FieldLocationID:
+		return m.LocationID()
+	case ipaddress.FieldAllocationID:
+		return m.AllocationID()
+	case ipaddress.FieldKind:
+		return m.Kind()
+	case ipaddress.FieldFamily:
+		return m.Family()
+	case ipaddress.FieldIP:
+		return m.IP()
+	case ipaddress.FieldName:
+		return m.Name()
+	case ipaddress.FieldDescription:
+		return m.Description()
+	case ipaddress.FieldLabels:
+		return m.Labels()
+	case ipaddress.FieldServerID:
+		return m.ServerID()
+	case ipaddress.FieldReleasingFromID:
+		return m.ReleasingFromID()
+	case ipaddress.FieldPreviousServerID:
+		return m.PreviousServerID()
+	case ipaddress.FieldPendingGen:
+		return m.PendingGen()
+	case ipaddress.FieldDeleting:
+		return m.Deleting()
+	case ipaddress.FieldDNSPtr:
+		return m.DNSPtr()
+	case ipaddress.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *IPAddressMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case ipaddress.FieldProjectID:
+		return m.OldProjectID(ctx)
+	case ipaddress.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case ipaddress.FieldAllocationID:
+		return m.OldAllocationID(ctx)
+	case ipaddress.FieldKind:
+		return m.OldKind(ctx)
+	case ipaddress.FieldFamily:
+		return m.OldFamily(ctx)
+	case ipaddress.FieldIP:
+		return m.OldIP(ctx)
+	case ipaddress.FieldName:
+		return m.OldName(ctx)
+	case ipaddress.FieldDescription:
+		return m.OldDescription(ctx)
+	case ipaddress.FieldLabels:
+		return m.OldLabels(ctx)
+	case ipaddress.FieldServerID:
+		return m.OldServerID(ctx)
+	case ipaddress.FieldReleasingFromID:
+		return m.OldReleasingFromID(ctx)
+	case ipaddress.FieldPreviousServerID:
+		return m.OldPreviousServerID(ctx)
+	case ipaddress.FieldPendingGen:
+		return m.OldPendingGen(ctx)
+	case ipaddress.FieldDeleting:
+		return m.OldDeleting(ctx)
+	case ipaddress.FieldDNSPtr:
+		return m.OldDNSPtr(ctx)
+	case ipaddress.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown IPAddress field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IPAddressMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case ipaddress.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
+		return nil
+	case ipaddress.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case ipaddress.FieldAllocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllocationID(v)
+		return nil
+	case ipaddress.FieldKind:
+		v, ok := value.(ipaddress.Kind)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKind(v)
+		return nil
+	case ipaddress.FieldFamily:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFamily(v)
+		return nil
+	case ipaddress.FieldIP:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIP(v)
+		return nil
+	case ipaddress.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case ipaddress.FieldDescription:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDescription(v)
+		return nil
+	case ipaddress.FieldLabels:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLabels(v)
+		return nil
+	case ipaddress.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerID(v)
+		return nil
+	case ipaddress.FieldReleasingFromID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReleasingFromID(v)
+		return nil
+	case ipaddress.FieldPreviousServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPreviousServerID(v)
+		return nil
+	case ipaddress.FieldPendingGen:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPendingGen(v)
+		return nil
+	case ipaddress.FieldDeleting:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeleting(v)
+		return nil
+	case ipaddress.FieldDNSPtr:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDNSPtr(v)
+		return nil
+	case ipaddress.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IPAddress field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *IPAddressMutation) AddedFields() []string {
+	var fields []string
+	if m.addpending_gen != nil {
+		fields = append(fields, ipaddress.FieldPendingGen)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *IPAddressMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case ipaddress.FieldPendingGen:
+		return m.AddedPendingGen()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *IPAddressMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case ipaddress.FieldPendingGen:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPendingGen(v)
+		return nil
+	}
+	return fmt.Errorf("unknown IPAddress numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *IPAddressMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(ipaddress.FieldServerID) {
+		fields = append(fields, ipaddress.FieldServerID)
+	}
+	if m.FieldCleared(ipaddress.FieldReleasingFromID) {
+		fields = append(fields, ipaddress.FieldReleasingFromID)
+	}
+	if m.FieldCleared(ipaddress.FieldPreviousServerID) {
+		fields = append(fields, ipaddress.FieldPreviousServerID)
+	}
+	if m.FieldCleared(ipaddress.FieldPendingGen) {
+		fields = append(fields, ipaddress.FieldPendingGen)
+	}
+	if m.FieldCleared(ipaddress.FieldDNSPtr) {
+		fields = append(fields, ipaddress.FieldDNSPtr)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *IPAddressMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *IPAddressMutation) ClearField(name string) error {
+	switch name {
+	case ipaddress.FieldServerID:
+		m.ClearServerID()
+		return nil
+	case ipaddress.FieldReleasingFromID:
+		m.ClearReleasingFromID()
+		return nil
+	case ipaddress.FieldPreviousServerID:
+		m.ClearPreviousServerID()
+		return nil
+	case ipaddress.FieldPendingGen:
+		m.ClearPendingGen()
+		return nil
+	case ipaddress.FieldDNSPtr:
+		m.ClearDNSPtr()
+		return nil
+	}
+	return fmt.Errorf("unknown IPAddress nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *IPAddressMutation) ResetField(name string) error {
+	switch name {
+	case ipaddress.FieldProjectID:
+		m.ResetProjectID()
+		return nil
+	case ipaddress.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case ipaddress.FieldAllocationID:
+		m.ResetAllocationID()
+		return nil
+	case ipaddress.FieldKind:
+		m.ResetKind()
+		return nil
+	case ipaddress.FieldFamily:
+		m.ResetFamily()
+		return nil
+	case ipaddress.FieldIP:
+		m.ResetIP()
+		return nil
+	case ipaddress.FieldName:
+		m.ResetName()
+		return nil
+	case ipaddress.FieldDescription:
+		m.ResetDescription()
+		return nil
+	case ipaddress.FieldLabels:
+		m.ResetLabels()
+		return nil
+	case ipaddress.FieldServerID:
+		m.ResetServerID()
+		return nil
+	case ipaddress.FieldReleasingFromID:
+		m.ResetReleasingFromID()
+		return nil
+	case ipaddress.FieldPreviousServerID:
+		m.ResetPreviousServerID()
+		return nil
+	case ipaddress.FieldPendingGen:
+		m.ResetPendingGen()
+		return nil
+	case ipaddress.FieldDeleting:
+		m.ResetDeleting()
+		return nil
+	case ipaddress.FieldDNSPtr:
+		m.ResetDNSPtr()
+		return nil
+	case ipaddress.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown IPAddress field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *IPAddressMutation) AddedEdges() []string {
+	edges := make([]string, 0, 6)
+	if m.project != nil {
+		edges = append(edges, ipaddress.EdgeProject)
+	}
+	if m.location != nil {
+		edges = append(edges, ipaddress.EdgeLocation)
+	}
+	if m.allocation != nil {
+		edges = append(edges, ipaddress.EdgeAllocation)
+	}
+	if m.server != nil {
+		edges = append(edges, ipaddress.EdgeServer)
+	}
+	if m.releasing_from != nil {
+		edges = append(edges, ipaddress.EdgeReleasingFrom)
+	}
+	if m.previous_server != nil {
+		edges = append(edges, ipaddress.EdgePreviousServer)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *IPAddressMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case ipaddress.EdgeProject:
+		if id := m.project; id != nil {
+			return []ent.Value{*id}
+		}
+	case ipaddress.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	case ipaddress.EdgeAllocation:
+		if id := m.allocation; id != nil {
+			return []ent.Value{*id}
+		}
+	case ipaddress.EdgeServer:
+		if id := m.server; id != nil {
+			return []ent.Value{*id}
+		}
+	case ipaddress.EdgeReleasingFrom:
+		if id := m.releasing_from; id != nil {
+			return []ent.Value{*id}
+		}
+	case ipaddress.EdgePreviousServer:
+		if id := m.previous_server; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *IPAddressMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 6)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *IPAddressMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *IPAddressMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 6)
+	if m.clearedproject {
+		edges = append(edges, ipaddress.EdgeProject)
+	}
+	if m.clearedlocation {
+		edges = append(edges, ipaddress.EdgeLocation)
+	}
+	if m.clearedallocation {
+		edges = append(edges, ipaddress.EdgeAllocation)
+	}
+	if m.clearedserver {
+		edges = append(edges, ipaddress.EdgeServer)
+	}
+	if m.clearedreleasing_from {
+		edges = append(edges, ipaddress.EdgeReleasingFrom)
+	}
+	if m.clearedprevious_server {
+		edges = append(edges, ipaddress.EdgePreviousServer)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *IPAddressMutation) EdgeCleared(name string) bool {
+	switch name {
+	case ipaddress.EdgeProject:
+		return m.clearedproject
+	case ipaddress.EdgeLocation:
+		return m.clearedlocation
+	case ipaddress.EdgeAllocation:
+		return m.clearedallocation
+	case ipaddress.EdgeServer:
+		return m.clearedserver
+	case ipaddress.EdgeReleasingFrom:
+		return m.clearedreleasing_from
+	case ipaddress.EdgePreviousServer:
+		return m.clearedprevious_server
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *IPAddressMutation) ClearEdge(name string) error {
+	switch name {
+	case ipaddress.EdgeProject:
+		m.ClearProject()
+		return nil
+	case ipaddress.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	case ipaddress.EdgeAllocation:
+		m.ClearAllocation()
+		return nil
+	case ipaddress.EdgeServer:
+		m.ClearServer()
+		return nil
+	case ipaddress.EdgeReleasingFrom:
+		m.ClearReleasingFrom()
+		return nil
+	case ipaddress.EdgePreviousServer:
+		m.ClearPreviousServer()
+		return nil
+	}
+	return fmt.Errorf("unknown IPAddress unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *IPAddressMutation) ResetEdge(name string) error {
+	switch name {
+	case ipaddress.EdgeProject:
+		m.ResetProject()
+		return nil
+	case ipaddress.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	case ipaddress.EdgeAllocation:
+		m.ResetAllocation()
+		return nil
+	case ipaddress.EdgeServer:
+		m.ResetServer()
+		return nil
+	case ipaddress.EdgeReleasingFrom:
+		m.ResetReleasingFrom()
+		return nil
+	case ipaddress.EdgePreviousServer:
+		m.ResetPreviousServer()
+		return nil
+	}
+	return fmt.Errorf("unknown IPAddress edge %s", name)
+}
+
 // IPAllocationMutation represents an operation that mutates the IPAllocation nodes in the graph.
 type IPAllocationMutation struct {
 	config
@@ -7054,6 +8617,7 @@ type IPAllocationMutation struct {
 	ip            *string
 	server_id     *int64
 	addserver_id  *int64
+	owner         *ipallocation.Owner
 	created_at    *time.Time
 	clearedFields map[string]struct{}
 	pool          *int64
@@ -7257,7 +8821,7 @@ func (m *IPAllocationMutation) ServerID() (r int64, exists bool) {
 // OldServerID returns the old "server_id" field's value of the IPAllocation entity.
 // If the IPAllocation object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *IPAllocationMutation) OldServerID(ctx context.Context) (v int64, err error) {
+func (m *IPAllocationMutation) OldServerID(ctx context.Context) (v *int64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
 	}
@@ -7289,10 +8853,60 @@ func (m *IPAllocationMutation) AddedServerID() (r int64, exists bool) {
 	return *v, true
 }
 
+// ClearServerID clears the value of the "server_id" field.
+func (m *IPAllocationMutation) ClearServerID() {
+	m.server_id = nil
+	m.addserver_id = nil
+	m.clearedFields[ipallocation.FieldServerID] = struct{}{}
+}
+
+// ServerIDCleared returns if the "server_id" field was cleared in this mutation.
+func (m *IPAllocationMutation) ServerIDCleared() bool {
+	_, ok := m.clearedFields[ipallocation.FieldServerID]
+	return ok
+}
+
 // ResetServerID resets all changes to the "server_id" field.
 func (m *IPAllocationMutation) ResetServerID() {
 	m.server_id = nil
 	m.addserver_id = nil
+	delete(m.clearedFields, ipallocation.FieldServerID)
+}
+
+// SetOwner sets the "owner" field.
+func (m *IPAllocationMutation) SetOwner(i ipallocation.Owner) {
+	m.owner = &i
+}
+
+// Owner returns the value of the "owner" field in the mutation.
+func (m *IPAllocationMutation) Owner() (r ipallocation.Owner, exists bool) {
+	v := m.owner
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOwner returns the old "owner" field's value of the IPAllocation entity.
+// If the IPAllocation object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAllocationMutation) OldOwner(ctx context.Context) (v ipallocation.Owner, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOwner is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOwner requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOwner: %w", err)
+	}
+	return oldValue.Owner, nil
+}
+
+// ResetOwner resets all changes to the "owner" field.
+func (m *IPAllocationMutation) ResetOwner() {
+	m.owner = nil
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -7392,7 +9006,7 @@ func (m *IPAllocationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *IPAllocationMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
 	if m.pool != nil {
 		fields = append(fields, ipallocation.FieldPoolID)
 	}
@@ -7401,6 +9015,9 @@ func (m *IPAllocationMutation) Fields() []string {
 	}
 	if m.server_id != nil {
 		fields = append(fields, ipallocation.FieldServerID)
+	}
+	if m.owner != nil {
+		fields = append(fields, ipallocation.FieldOwner)
 	}
 	if m.created_at != nil {
 		fields = append(fields, ipallocation.FieldCreatedAt)
@@ -7419,6 +9036,8 @@ func (m *IPAllocationMutation) Field(name string) (ent.Value, bool) {
 		return m.IP()
 	case ipallocation.FieldServerID:
 		return m.ServerID()
+	case ipallocation.FieldOwner:
+		return m.Owner()
 	case ipallocation.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -7436,6 +9055,8 @@ func (m *IPAllocationMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldIP(ctx)
 	case ipallocation.FieldServerID:
 		return m.OldServerID(ctx)
+	case ipallocation.FieldOwner:
+		return m.OldOwner(ctx)
 	case ipallocation.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -7467,6 +9088,13 @@ func (m *IPAllocationMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetServerID(v)
+		return nil
+	case ipallocation.FieldOwner:
+		v, ok := value.(ipallocation.Owner)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOwner(v)
 		return nil
 	case ipallocation.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -7519,7 +9147,11 @@ func (m *IPAllocationMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *IPAllocationMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(ipallocation.FieldServerID) {
+		fields = append(fields, ipallocation.FieldServerID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -7532,6 +9164,11 @@ func (m *IPAllocationMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *IPAllocationMutation) ClearField(name string) error {
+	switch name {
+	case ipallocation.FieldServerID:
+		m.ClearServerID()
+		return nil
+	}
 	return fmt.Errorf("unknown IPAllocation nullable field %s", name)
 }
 
@@ -7547,6 +9184,9 @@ func (m *IPAllocationMutation) ResetField(name string) error {
 		return nil
 	case ipallocation.FieldServerID:
 		m.ResetServerID()
+		return nil
+	case ipallocation.FieldOwner:
+		m.ResetOwner()
 		return nil
 	case ipallocation.FieldCreatedAt:
 		m.ResetCreatedAt()

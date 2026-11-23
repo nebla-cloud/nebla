@@ -434,12 +434,65 @@ func Allocate(ctx context.Context, tx *ent.Client, locationID int64, family stri
 		if !ok {
 			continue
 		}
-		if _, err := tx.IPAllocation.Create().SetPoolID(p.ID).SetIP(ip.String()).SetServerID(serverID).Save(ctx); err != nil {
+		if _, err := tx.IPAllocation.Create().SetPoolID(p.ID).SetIP(ip.String()).SetServerID(serverID).SetOwner(ipallocation.OwnerServer).Save(ctx); err != nil {
 			return Assignment{}, err
 		}
 		return assignment(p, ip)
 	}
 	return Assignment{}, conflict("ip_pool_exhausted", "no free "+family+" address in this location")
+}
+
+// Segment is the bridge and VLAN a floating address is reachable on.
+type Segment struct {
+	Bridge string
+	VLAN   *int
+}
+
+// SegmentOf returns the segment an assignment sits on.
+func SegmentOf(a Assignment) Segment { return Segment{Bridge: a.Bridge, VLAN: a.VLAN} }
+
+func (s Segment) matches(p *ent.IPPool) bool {
+	if p.Bridge != s.Bridge {
+		return false
+	}
+	if s.VLAN == nil || p.VlanTag == nil {
+		return s.VLAN == nil && p.VlanTag == nil
+	}
+	return *s.VLAN == *p.VlanTag
+}
+
+// AllocateFloating takes the lowest free address of the family on a matching segment (nil means any) and returns its allocation id; call it inside a transaction.
+func AllocateFloating(ctx context.Context, tx *ent.Client, locationID int64, family string, seg *Segment) (Assignment, int64, error) {
+	pools, err := tx.IPPool.Query().Where(ippool.LocationID(locationID), ippool.Family(family)).
+		Order(ent.Asc(ippool.FieldID)).ForUpdate().All(ctx)
+	if err != nil {
+		return Assignment{}, 0, err
+	}
+	for _, p := range pools {
+		if seg != nil && !seg.matches(p) {
+			continue
+		}
+		ip, ok, err := freeAddr(ctx, tx, p)
+		if err != nil {
+			return Assignment{}, 0, err
+		}
+		if !ok {
+			continue
+		}
+		row, err := tx.IPAllocation.Create().SetPoolID(p.ID).SetIP(ip.String()).SetOwner(ipallocation.OwnerFloating).Save(ctx)
+		if err != nil {
+			return Assignment{}, 0, err
+		}
+		a, err := assignment(p, ip)
+		return a, row.ID, err
+	}
+	return Assignment{}, 0, conflict("ip_pool_exhausted", "no free "+family+" address in this location")
+}
+
+// FreeAllocation deletes one floating allocation; it is idempotent.
+func FreeAllocation(ctx context.Context, tx *ent.Client, id int64) error {
+	_, err := tx.IPAllocation.Delete().Where(ipallocation.ID(id), ipallocation.OwnerEQ(ipallocation.OwnerFloating)).Exec(ctx)
+	return err
 }
 
 func assignment(p *ent.IPPool, ip netip.Addr) (Assignment, error) {
@@ -461,7 +514,7 @@ func assignment(p *ent.IPPool, ip netip.Addr) (Assignment, error) {
 
 // Assignments returns a server's addresses with their pool settings, ipv4 first.
 func Assignments(ctx context.Context, c *ent.Client, serverID int64) ([]Assignment, error) {
-	rows, err := c.IPAllocation.Query().Where(ipallocation.ServerID(serverID)).WithPool().All(ctx)
+	rows, err := c.IPAllocation.Query().Where(ipallocation.ServerID(serverID), ipallocation.OwnerEQ(ipallocation.OwnerServer)).WithPool().All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -500,6 +553,6 @@ func firstErr(errs ...error) error {
 
 // Release frees every address held by a server; it is idempotent.
 func Release(ctx context.Context, tx *ent.Client, serverID int64) error {
-	_, err := tx.IPAllocation.Delete().Where(ipallocation.ServerID(serverID)).Exec(ctx)
+	_, err := tx.IPAllocation.Delete().Where(ipallocation.ServerID(serverID), ipallocation.OwnerEQ(ipallocation.OwnerServer)).Exec(ctx)
 	return err
 }

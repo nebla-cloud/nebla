@@ -491,10 +491,13 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 		if err != nil {
 			return nil, err
 		}
-		e := byServer[a.ServerID]
+		if a.ServerID == nil {
+			continue
+		}
+		e := byServer[*a.ServerID]
 		if e == nil {
 			e = &ips{}
-			byServer[a.ServerID] = e
+			byServer[*a.ServerID] = e
 		}
 		if a.Edges.Pool.Family == "ipv6" {
 			e.v6 = ip

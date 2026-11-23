@@ -14,6 +14,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
@@ -105,10 +106,24 @@ func init() {
 	firewallruleDescDescription := firewallruleFields[7].Descriptor()
 	// firewallrule.DefaultDescription holds the default value on creation for the description field.
 	firewallrule.DefaultDescription = firewallruleDescDescription.Default.(string)
+	ipaddressFields := schema.IPAddress{}.Fields()
+	_ = ipaddressFields
+	// ipaddressDescDescription is the schema descriptor for description field.
+	ipaddressDescDescription := ipaddressFields[8].Descriptor()
+	// ipaddress.DefaultDescription holds the default value on creation for the description field.
+	ipaddress.DefaultDescription = ipaddressDescDescription.Default.(string)
+	// ipaddressDescDeleting is the schema descriptor for deleting field.
+	ipaddressDescDeleting := ipaddressFields[14].Descriptor()
+	// ipaddress.DefaultDeleting holds the default value on creation for the deleting field.
+	ipaddress.DefaultDeleting = ipaddressDescDeleting.Default.(bool)
+	// ipaddressDescCreatedAt is the schema descriptor for created_at field.
+	ipaddressDescCreatedAt := ipaddressFields[16].Descriptor()
+	// ipaddress.DefaultCreatedAt holds the default value on creation for the created_at field.
+	ipaddress.DefaultCreatedAt = ipaddressDescCreatedAt.Default.(func() time.Time)
 	ipallocationFields := schema.IPAllocation{}.Fields()
 	_ = ipallocationFields
 	// ipallocationDescCreatedAt is the schema descriptor for created_at field.
-	ipallocationDescCreatedAt := ipallocationFields[4].Descriptor()
+	ipallocationDescCreatedAt := ipallocationFields[5].Descriptor()
 	// ipallocation.DefaultCreatedAt holds the default value on creation for the created_at field.
 	ipallocation.DefaultCreatedAt = ipallocationDescCreatedAt.Default.(func() time.Time)
 	ippoolFields := schema.IPPool{}.Fields()

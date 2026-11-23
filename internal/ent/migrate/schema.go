@@ -297,11 +297,93 @@ var (
 			},
 		},
 	}
+	// IPAddressesColumns holds the columns for the "ip_addresses" table.
+	IPAddressesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"floating"}, Default: "floating"},
+		{Name: "family", Type: field.TypeString, Size: 2147483647},
+		{Name: "ip", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
+		{Name: "name", Type: field.TypeString, Size: 2147483647},
+		{Name: "description", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "labels", Type: field.TypeJSON},
+		{Name: "pending_gen", Type: field.TypeInt64, Nullable: true},
+		{Name: "deleting", Type: field.TypeBool, Default: false},
+		{Name: "dns_ptr", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+		{Name: "allocation_id", Type: field.TypeInt64},
+		{Name: "server_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "releasing_from_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "previous_server_id", Type: field.TypeInt64, Nullable: true},
+	}
+	// IPAddressesTable holds the schema information for the "ip_addresses" table.
+	IPAddressesTable = &schema.Table{
+		Name:       "ip_addresses",
+		Columns:    IPAddressesColumns,
+		PrimaryKey: []*schema.Column{IPAddressesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "ip_addresses_projects_project",
+				Columns:    []*schema.Column{IPAddressesColumns[11]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "ip_addresses_locations_location",
+				Columns:    []*schema.Column{IPAddressesColumns[12]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "ip_addresses_ip_allocations_allocation",
+				Columns:    []*schema.Column{IPAddressesColumns[13]},
+				RefColumns: []*schema.Column{IPAllocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "ip_addresses_servers_server",
+				Columns:    []*schema.Column{IPAddressesColumns[14]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "ip_addresses_servers_releasing_from",
+				Columns:    []*schema.Column{IPAddressesColumns[15]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "ip_addresses_servers_previous_server",
+				Columns:    []*schema.Column{IPAddressesColumns[16]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ip_addresses_project_name_key",
+				Unique:  true,
+				Columns: []*schema.Column{IPAddressesColumns[11], IPAddressesColumns[4]},
+			},
+			{
+				Name:    "ip_addresses_server_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{IPAddressesColumns[14]},
+			},
+			{
+				Name:    "ip_addresses_releasing_from_id_idx",
+				Unique:  false,
+				Columns: []*schema.Column{IPAddressesColumns[15]},
+			},
+		},
+	}
 	// IPAllocationsColumns holds the columns for the "ip_allocations" table.
 	IPAllocationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "ip", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
-		{Name: "server_id", Type: field.TypeInt64},
+		{Name: "server_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "owner", Type: field.TypeEnum, Enums: []string{"server", "floating"}, Default: "server"},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "pool_id", Type: field.TypeInt64},
 	}
@@ -313,7 +395,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "ip_allocations_ip_pools_pool",
-				Columns:    []*schema.Column{IPAllocationsColumns[4]},
+				Columns:    []*schema.Column{IPAllocationsColumns[5]},
 				RefColumns: []*schema.Column{IPPoolsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -322,7 +404,7 @@ var (
 			{
 				Name:    "ip_allocations_pool_ip_key",
 				Unique:  true,
-				Columns: []*schema.Column{IPAllocationsColumns[4], IPAllocationsColumns[1]},
+				Columns: []*schema.Column{IPAllocationsColumns[5], IPAllocationsColumns[1]},
 			},
 			{
 				Name:    "ip_allocations_server_id_idx",
@@ -1054,6 +1136,7 @@ var (
 		FirewallsTable,
 		FirewallResourcesTable,
 		FirewallRulesTable,
+		IPAddressesTable,
 		IPAllocationsTable,
 		IPPoolsTable,
 		ImagesTable,
@@ -1090,7 +1173,17 @@ func init() {
 	FirewallResourcesTable.ForeignKeys[0].RefTable = FirewallsTable
 	FirewallResourcesTable.ForeignKeys[1].RefTable = ServersTable
 	FirewallRulesTable.ForeignKeys[0].RefTable = FirewallsTable
+	IPAddressesTable.ForeignKeys[0].RefTable = ProjectsTable
+	IPAddressesTable.ForeignKeys[1].RefTable = LocationsTable
+	IPAddressesTable.ForeignKeys[2].RefTable = IPAllocationsTable
+	IPAddressesTable.ForeignKeys[3].RefTable = ServersTable
+	IPAddressesTable.ForeignKeys[4].RefTable = ServersTable
+	IPAddressesTable.ForeignKeys[5].RefTable = ServersTable
 	IPAllocationsTable.ForeignKeys[0].RefTable = IPPoolsTable
+	IPAllocationsTable.Annotation = &entsql.Annotation{}
+	IPAllocationsTable.Annotation.Checks = map[string]string{
+		"ip_allocations_owner_check": "(owner = 'server') = (server_id IS NOT NULL)",
+	}
 	IPPoolsTable.ForeignKeys[0].RefTable = LocationsTable
 	ImageTemplatesTable.ForeignKeys[0].RefTable = ImagesTable
 	ImageTemplatesTable.ForeignKeys[1].RefTable = LocationsTable

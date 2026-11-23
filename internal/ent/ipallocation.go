@@ -23,7 +23,9 @@ type IPAllocation struct {
 	// IP holds the value of the "ip" field.
 	IP string `json:"ip,omitempty"`
 	// ServerID holds the value of the "server_id" field.
-	ServerID int64 `json:"server_id,omitempty"`
+	ServerID *int64 `json:"server_id,omitempty"`
+	// Owner holds the value of the "owner" field.
+	Owner ipallocation.Owner `json:"owner,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -59,7 +61,7 @@ func (*IPAllocation) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case ipallocation.FieldID, ipallocation.FieldPoolID, ipallocation.FieldServerID:
 			values[i] = new(sql.NullInt64)
-		case ipallocation.FieldIP:
+		case ipallocation.FieldIP, ipallocation.FieldOwner:
 			values[i] = new(sql.NullString)
 		case ipallocation.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -100,7 +102,14 @@ func (_m *IPAllocation) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field server_id", values[i])
 			} else if value.Valid {
-				_m.ServerID = value.Int64
+				_m.ServerID = new(int64)
+				*_m.ServerID = value.Int64
+			}
+		case ipallocation.FieldOwner:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field owner", values[i])
+			} else if value.Valid {
+				_m.Owner = ipallocation.Owner(value.String)
 			}
 		case ipallocation.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -155,8 +164,13 @@ func (_m *IPAllocation) String() string {
 	builder.WriteString("ip=")
 	builder.WriteString(_m.IP)
 	builder.WriteString(", ")
-	builder.WriteString("server_id=")
-	builder.WriteString(fmt.Sprintf("%v", _m.ServerID))
+	if v := _m.ServerID; v != nil {
+		builder.WriteString("server_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("owner=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Owner))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

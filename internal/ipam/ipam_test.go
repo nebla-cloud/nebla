@@ -353,3 +353,70 @@ func TestAvailable(t *testing.T) {
 	require.NoError(t, err)
 	check(false, false)
 }
+
+func (e env) allocateFloating(ctx context.Context, family string, seg *ipam.Segment) (ipam.Assignment, int64, error) {
+	var a ipam.Assignment
+	var id int64
+	err := db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) (err error) {
+		a, id, err = ipam.AllocateFloating(ctx, tx, e.loc, family, seg)
+		return err
+	})
+	return a, id, err
+}
+
+func TestAllocateFloatingSkipsPrimaries(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
+	require.NoError(t, err)
+	a, err := e.allocate(ctx, "ipv4", 1)
+	require.NoError(t, err)
+	require.Equal(t, netip.MustParseAddr("10.0.0.10"), a.IP)
+	f, id, err := e.allocateFloating(ctx, "ipv4", nil)
+	require.NoError(t, err)
+	require.NotZero(t, id)
+	require.Equal(t, netip.MustParseAddr("10.0.0.11"), f.IP)
+	p, err := e.allocate(ctx, "ipv4", 2)
+	require.NoError(t, err)
+	require.Equal(t, netip.MustParseAddr("10.0.0.12"), p.IP)
+	require.Equal(t, ipam.Segment{Bridge: "vmbr0"}, ipam.SegmentOf(f))
+}
+
+func TestAllocateFloatingSegment(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
+	require.NoError(t, err)
+	in := v4(e.loc, "10.1.0.10", "10.1.0.12")
+	in.Bridge, in.CIDR, in.Gateway = "vmbr1", "10.1.0.0/24", "10.1.0.1"
+	_, err = e.svc.Create(ctx, in)
+	require.NoError(t, err)
+	a, _, err := e.allocateFloating(ctx, "ipv4", &ipam.Segment{Bridge: "vmbr1"})
+	require.NoError(t, err)
+	require.Equal(t, netip.MustParseAddr("10.1.0.10"), a.IP)
+	require.Equal(t, "vmbr1", a.Bridge)
+	_, _, err = e.allocateFloating(ctx, "ipv4", &ipam.Segment{Bridge: "vmbr2"})
+	requireCode(t, err, 409, "ip_pool_exhausted")
+	vlan := 5
+	_, _, err = e.allocateFloating(ctx, "ipv4", &ipam.Segment{Bridge: "vmbr1", VLAN: &vlan})
+	requireCode(t, err, 409, "ip_pool_exhausted")
+}
+
+func TestReleaseKeepsFloating(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
+	require.NoError(t, err)
+	_, err = e.allocate(ctx, "ipv4", 1)
+	require.NoError(t, err)
+	_, id, err := e.allocateFloating(ctx, "ipv4", nil)
+	require.NoError(t, err)
+	require.NoError(t, e.release(ctx, 1))
+	n, err := e.ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.NoError(t, db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error { return ipam.FreeAllocation(ctx, tx, id) }))
+	n, err = e.ent.IPAllocation.Query().Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+}

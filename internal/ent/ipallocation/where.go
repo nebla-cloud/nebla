@@ -200,6 +200,36 @@ func ServerIDLTE(v int64) predicate.IPAllocation {
 	return predicate.IPAllocation(sql.FieldLTE(FieldServerID, v))
 }
 
+// ServerIDIsNil applies the IsNil predicate on the "server_id" field.
+func ServerIDIsNil() predicate.IPAllocation {
+	return predicate.IPAllocation(sql.FieldIsNull(FieldServerID))
+}
+
+// ServerIDNotNil applies the NotNil predicate on the "server_id" field.
+func ServerIDNotNil() predicate.IPAllocation {
+	return predicate.IPAllocation(sql.FieldNotNull(FieldServerID))
+}
+
+// OwnerEQ applies the EQ predicate on the "owner" field.
+func OwnerEQ(v Owner) predicate.IPAllocation {
+	return predicate.IPAllocation(sql.FieldEQ(FieldOwner, v))
+}
+
+// OwnerNEQ applies the NEQ predicate on the "owner" field.
+func OwnerNEQ(v Owner) predicate.IPAllocation {
+	return predicate.IPAllocation(sql.FieldNEQ(FieldOwner, v))
+}
+
+// OwnerIn applies the In predicate on the "owner" field.
+func OwnerIn(vs ...Owner) predicate.IPAllocation {
+	return predicate.IPAllocation(sql.FieldIn(FieldOwner, vs...))
+}
+
+// OwnerNotIn applies the NotIn predicate on the "owner" field.
+func OwnerNotIn(vs ...Owner) predicate.IPAllocation {
+	return predicate.IPAllocation(sql.FieldNotIn(FieldOwner, vs...))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.IPAllocation {
 	return predicate.IPAllocation(sql.FieldEQ(FieldCreatedAt, v))

@@ -25,6 +25,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/imagetemplate"
 	"github.com/nebla-cloud/nebla/internal/ent/invite"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
@@ -64,6 +65,8 @@ type Client struct {
 	FirewallResource *FirewallResourceClient
 	// FirewallRule is the client for interacting with the FirewallRule builders.
 	FirewallRule *FirewallRuleClient
+	// IPAddress is the client for interacting with the IPAddress builders.
+	IPAddress *IPAddressClient
 	// IPAllocation is the client for interacting with the IPAllocation builders.
 	IPAllocation *IPAllocationClient
 	// IPPool is the client for interacting with the IPPool builders.
@@ -120,6 +123,7 @@ func (c *Client) init() {
 	c.Firewall = NewFirewallClient(c.config)
 	c.FirewallResource = NewFirewallResourceClient(c.config)
 	c.FirewallRule = NewFirewallRuleClient(c.config)
+	c.IPAddress = NewIPAddressClient(c.config)
 	c.IPAllocation = NewIPAllocationClient(c.config)
 	c.IPPool = NewIPPoolClient(c.config)
 	c.Image = NewImageClient(c.config)
@@ -238,6 +242,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Firewall:           NewFirewallClient(cfg),
 		FirewallResource:   NewFirewallResourceClient(cfg),
 		FirewallRule:       NewFirewallRuleClient(cfg),
+		IPAddress:          NewIPAddressClient(cfg),
 		IPAllocation:       NewIPAllocationClient(cfg),
 		IPPool:             NewIPPoolClient(cfg),
 		Image:              NewImageClient(cfg),
@@ -283,6 +288,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Firewall:           NewFirewallClient(cfg),
 		FirewallResource:   NewFirewallResourceClient(cfg),
 		FirewallRule:       NewFirewallRuleClient(cfg),
+		IPAddress:          NewIPAddressClient(cfg),
 		IPAllocation:       NewIPAllocationClient(cfg),
 		IPPool:             NewIPPoolClient(cfg),
 		Image:              NewImageClient(cfg),
@@ -332,10 +338,10 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.Firewall,
-		c.FirewallResource, c.FirewallRule, c.IPAllocation, c.IPPool, c.Image,
-		c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node, c.Project,
-		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
-		c.User, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
+		c.FirewallResource, c.FirewallRule, c.IPAddress, c.IPAllocation, c.IPPool,
+		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
+		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
+		c.Setting, c.User, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
 	} {
 		n.Use(hooks...)
 	}
@@ -346,10 +352,10 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.Firewall,
-		c.FirewallResource, c.FirewallRule, c.IPAllocation, c.IPPool, c.Image,
-		c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node, c.Project,
-		c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session, c.Setting,
-		c.User, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
+		c.FirewallResource, c.FirewallRule, c.IPAddress, c.IPAllocation, c.IPPool,
+		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
+		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
+		c.Setting, c.User, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -372,6 +378,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.FirewallResource.mutate(ctx, m)
 	case *FirewallRuleMutation:
 		return c.FirewallRule.mutate(ctx, m)
+	case *IPAddressMutation:
+		return c.IPAddress.mutate(ctx, m)
 	case *IPAllocationMutation:
 		return c.IPAllocation.mutate(ctx, m)
 	case *IPPoolMutation:
@@ -1519,6 +1527,235 @@ func (c *FirewallRuleClient) mutate(ctx context.Context, m *FirewallRuleMutation
 		return (&FirewallRuleDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown FirewallRule mutation op: %q", m.Op())
+	}
+}
+
+// IPAddressClient is a client for the IPAddress schema.
+type IPAddressClient struct {
+	config
+}
+
+// NewIPAddressClient returns a client for the IPAddress from the given config.
+func NewIPAddressClient(c config) *IPAddressClient {
+	return &IPAddressClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ipaddress.Hooks(f(g(h())))`.
+func (c *IPAddressClient) Use(hooks ...Hook) {
+	c.hooks.IPAddress = append(c.hooks.IPAddress, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ipaddress.Intercept(f(g(h())))`.
+func (c *IPAddressClient) Intercept(interceptors ...Interceptor) {
+	c.inters.IPAddress = append(c.inters.IPAddress, interceptors...)
+}
+
+// Create returns a builder for creating a IPAddress entity.
+func (c *IPAddressClient) Create() *IPAddressCreate {
+	mutation := newIPAddressMutation(c.config, OpCreate)
+	return &IPAddressCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of IPAddress entities.
+func (c *IPAddressClient) CreateBulk(builders ...*IPAddressCreate) *IPAddressCreateBulk {
+	return &IPAddressCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *IPAddressClient) MapCreateBulk(slice any, setFunc func(*IPAddressCreate, int)) *IPAddressCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &IPAddressCreateBulk{err: fmt.Errorf("calling to IPAddressClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*IPAddressCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &IPAddressCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for IPAddress.
+func (c *IPAddressClient) Update() *IPAddressUpdate {
+	mutation := newIPAddressMutation(c.config, OpUpdate)
+	return &IPAddressUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *IPAddressClient) UpdateOne(_m *IPAddress) *IPAddressUpdateOne {
+	mutation := newIPAddressMutation(c.config, OpUpdateOne, withIPAddress(_m))
+	return &IPAddressUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *IPAddressClient) UpdateOneID(id int64) *IPAddressUpdateOne {
+	mutation := newIPAddressMutation(c.config, OpUpdateOne, withIPAddressID(id))
+	return &IPAddressUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for IPAddress.
+func (c *IPAddressClient) Delete() *IPAddressDelete {
+	mutation := newIPAddressMutation(c.config, OpDelete)
+	return &IPAddressDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *IPAddressClient) DeleteOne(_m *IPAddress) *IPAddressDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *IPAddressClient) DeleteOneID(id int64) *IPAddressDeleteOne {
+	builder := c.Delete().Where(ipaddress.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &IPAddressDeleteOne{builder}
+}
+
+// Query returns a query builder for IPAddress.
+func (c *IPAddressClient) Query() *IPAddressQuery {
+	return &IPAddressQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeIPAddress},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a IPAddress entity by its id.
+func (c *IPAddressClient) Get(ctx context.Context, id int64) (*IPAddress, error) {
+	return c.Query().Where(ipaddress.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *IPAddressClient) GetX(ctx context.Context, id int64) *IPAddress {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a IPAddress.
+func (c *IPAddressClient) QueryProject(_m *IPAddress) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ipaddress.Table, ipaddress.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ipaddress.ProjectTable, ipaddress.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryLocation queries the location edge of a IPAddress.
+func (c *IPAddressClient) QueryLocation(_m *IPAddress) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ipaddress.Table, ipaddress.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ipaddress.LocationTable, ipaddress.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAllocation queries the allocation edge of a IPAddress.
+func (c *IPAddressClient) QueryAllocation(_m *IPAddress) *IPAllocationQuery {
+	query := (&IPAllocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ipaddress.Table, ipaddress.FieldID, id),
+			sqlgraph.To(ipallocation.Table, ipallocation.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ipaddress.AllocationTable, ipaddress.AllocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryServer queries the server edge of a IPAddress.
+func (c *IPAddressClient) QueryServer(_m *IPAddress) *ServerQuery {
+	query := (&ServerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ipaddress.Table, ipaddress.FieldID, id),
+			sqlgraph.To(server.Table, server.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ipaddress.ServerTable, ipaddress.ServerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryReleasingFrom queries the releasing_from edge of a IPAddress.
+func (c *IPAddressClient) QueryReleasingFrom(_m *IPAddress) *ServerQuery {
+	query := (&ServerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ipaddress.Table, ipaddress.FieldID, id),
+			sqlgraph.To(server.Table, server.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ipaddress.ReleasingFromTable, ipaddress.ReleasingFromColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPreviousServer queries the previous_server edge of a IPAddress.
+func (c *IPAddressClient) QueryPreviousServer(_m *IPAddress) *ServerQuery {
+	query := (&ServerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ipaddress.Table, ipaddress.FieldID, id),
+			sqlgraph.To(server.Table, server.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ipaddress.PreviousServerTable, ipaddress.PreviousServerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *IPAddressClient) Hooks() []Hook {
+	return c.hooks.IPAddress
+}
+
+// Interceptors returns the client interceptors.
+func (c *IPAddressClient) Interceptors() []Interceptor {
+	return c.inters.IPAddress
+}
+
+func (c *IPAddressClient) mutate(ctx context.Context, m *IPAddressMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&IPAddressCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&IPAddressUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&IPAddressUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&IPAddressDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown IPAddress mutation op: %q", m.Op())
 	}
 }
 
@@ -4549,16 +4786,16 @@ func (c *WebauthnCredentialClient) mutate(ctx context.Context, m *WebauthnCreden
 type (
 	hooks struct {
 		APIToken, Action, CatalogBuild, ConsoleToken, Firewall, FirewallResource,
-		FirewallRule, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
-		LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server, ServerType,
-		Session, Setting, User, Volume, WebauthnChallenge,
+		FirewallRule, IPAddress, IPAllocation, IPPool, Image, ImageTemplate, Invite,
+		Location, LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server,
+		ServerType, Session, Setting, User, Volume, WebauthnChallenge,
 		WebauthnCredential []ent.Hook
 	}
 	inters struct {
 		APIToken, Action, CatalogBuild, ConsoleToken, Firewall, FirewallResource,
-		FirewallRule, IPAllocation, IPPool, Image, ImageTemplate, Invite, Location,
-		LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server, ServerType,
-		Session, Setting, User, Volume, WebauthnChallenge,
+		FirewallRule, IPAddress, IPAllocation, IPPool, Image, ImageTemplate, Invite,
+		Location, LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server,
+		ServerType, Session, Setting, User, Volume, WebauthnChallenge,
 		WebauthnCredential []ent.Interceptor
 	}
 )
