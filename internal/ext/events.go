@@ -33,6 +33,8 @@ const (
 	VolumeResized     EventKind = "volume.resized"
 	VolumeDeleted     EventKind = "volume.deleted"
 	VolumeUsage       EventKind = "volume.usage"
+	FloatingIPCreated EventKind = "floating_ip.created"
+	FloatingIPDeleted EventKind = "floating_ip.deleted"
 )
 
 type Event struct {

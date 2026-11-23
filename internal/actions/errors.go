@@ -29,24 +29,29 @@ const (
 	CodeFirewallUnenforced = "firewall_unenforced"
 	// CodePowerOffRequired means the change needs the server powered off first.
 	CodePowerOffRequired = "power_off_required"
+	// CodeReleasePending means the address is still being released from its previous server.
+	CodeReleasePending = "release_pending"
 )
 
 var verbs = map[string]string{
-	"create_server":      "create the server",
-	"delete_server":      "delete the server",
-	"rebuild_server":     "rebuild the server",
-	"change_server_type": "change the server type",
-	"start_server":       "start the server",
-	"stop_server":        "stop the server",
-	"shutdown_server":    "shut down the server",
-	"reboot_server":      "reboot the server",
-	"reset_server":       "reset the server",
-	"apply_firewalls":    "apply the firewall rules",
-	"create_volume":      "create the volume",
-	"attach_volume":      "attach the volume",
-	"detach_volume":      "detach the volume",
-	"resize_volume":      "resize the volume",
-	"delete_volume":      "delete the volume",
+	"create_server":        "create the server",
+	"delete_server":        "delete the server",
+	"rebuild_server":       "rebuild the server",
+	"change_server_type":   "change the server type",
+	"start_server":         "start the server",
+	"stop_server":          "stop the server",
+	"shutdown_server":      "shut down the server",
+	"reboot_server":        "reboot the server",
+	"reset_server":         "reset the server",
+	"apply_firewalls":      "apply the firewall rules",
+	"create_volume":        "create the volume",
+	"attach_volume":        "attach the volume",
+	"detach_volume":        "detach the volume",
+	"resize_volume":        "resize the volume",
+	"delete_volume":        "delete the volume",
+	"assign_floating_ip":   "assign the floating IP",
+	"unassign_floating_ip": "unassign the floating IP",
+	"delete_floating_ip":   "delete the floating IP",
 }
 
 var templates = map[string]string{
@@ -58,6 +63,7 @@ var templates = map[string]string{
 	CodeOrphaned:           "Couldn't %s because the request was interrupted. Try again.",
 	CodeFirewallUnenforced: "Firewall rules couldn't be enforced at this location; contact the administrator.",
 	CodePowerOffRequired:   "Power off the server to %s.",
+	CodeReleasePending:     "Couldn't %s yet because the address is still being released from its previous server. Try again shortly.",
 }
 
 // ValidCode reports whether code is one of the Code* kinds.

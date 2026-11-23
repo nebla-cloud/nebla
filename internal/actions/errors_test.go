@@ -26,11 +26,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var codes = []string{actions.CodeFailed, actions.CodeTimedOut, actions.CodeUnreachable, actions.CodeServerMissing, actions.CodeServerGone, actions.CodeOrphaned, actions.CodeFirewallUnenforced, actions.CodePowerOffRequired}
+var codes = []string{actions.CodeFailed, actions.CodeTimedOut, actions.CodeUnreachable, actions.CodeServerMissing, actions.CodeServerGone, actions.CodeOrphaned, actions.CodeFirewallUnenforced, actions.CodePowerOffRequired, actions.CodeReleasePending}
 
 func TestMessageTable(t *testing.T) {
 	commands := []string{"create_server", "delete_server", "rebuild_server", "change_server_type", "start_server",
-		"stop_server", "shutdown_server", "reboot_server", "reset_server", "create_volume", "attach_volume", "detach_volume", "resize_volume", "delete_volume",
+		"stop_server", "shutdown_server", "reboot_server", "reset_server", "create_volume", "attach_volume", "detach_volume", "resize_volume", "delete_volume", "assign_floating_ip", "unassign_floating_ip", "delete_floating_ip",
 		"something_new"}
 	digit := regexp.MustCompile(`\d`)
 	banned := []string{"vm", "vmid", "node", "storage", "proxmox", "pve", "template", "iso"}
