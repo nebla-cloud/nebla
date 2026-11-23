@@ -76,6 +76,7 @@ func RegisterWorkers(w *river.Workers, o WorkerOptions) {
 	river.AddWorker(w, NewPowerServerWorker(o))
 	river.AddWorker(w, NewDeleteServerWorker(o))
 	river.AddWorker(w, NewRebuildServerWorker(o))
+	river.AddWorker(w, NewRestoreServerWorker(o))
 	river.AddWorker(w, NewUsageWorker(o))
 	river.AddWorker(w, NewChangeTypeWorker(o))
 	river.AddWorker(w, NewApplyFirewallsWorker(o))

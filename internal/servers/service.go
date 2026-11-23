@@ -839,10 +839,19 @@ func (s *Service) queueAfter(ctx context.Context, projectID, id int64, command s
 	return act, err
 }
 
+// dropQueuedBackups deletes the server's queued backups; their jobs find no row and stop.
+func dropQueuedBackups(ctx context.Context, etx *ent.Client, serverID int64) error {
+	_, err := etx.Backup.Delete().Where(backup.ServerID(serverID), backup.StatusEQ(backup.StatusQueued)).Exec(ctx)
+	return err
+}
+
 // Delete marks the server deleting and queues delete_server; a running action on it gives 409 locked.
 func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Action, error) {
 	return s.queue(ctx, projectID, id, KindDeleteServer, func(etx *ent.Client, _ *ent.Server) (func(int64) river.JobArgs, error) {
 		if err := etx.Server.UpdateOneID(id).SetStatus(StatusDeleting).Exec(ctx); err != nil {
+			return nil, err
+		}
+		if err := dropQueuedBackups(ctx, etx, id); err != nil {
 			return nil, err
 		}
 		return func(actionID int64) river.JobArgs { return DeleteServerArgs{ServerID: id, ActionID: actionID} }, nil

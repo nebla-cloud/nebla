@@ -75,3 +75,12 @@ func ApplyFirewallsNow(ctx context.Context, o WorkerOptions, pc pve.Client, id i
 
 // SetFloatingIPBeforeOutcome runs f before the assign wait checks for an unfinished apply.
 func SetFloatingIPBeforeOutcome(w *FloatingIPWorker, f func()) { w.beforeOutcome = f }
+
+// SetRestoreAfterStep installs a hook called after each restore step is persisted.
+func SetRestoreAfterStep(w *RestoreServerWorker, f func(step int)) { w.afterStep = f }
+
+// SetRestoreAfterPost installs a hook between the restore request and saving its UPID.
+func SetRestoreAfterPost(w *RestoreServerWorker, f func()) { w.afterPost = f }
+
+// RestoreSteps are the restore job's steps in order.
+var RestoreSteps = []int{stepVMID, stepClone, stepConfig, stepResize, stepISO, stepFirewall, stepSwap, stepRetire, stepRestart}

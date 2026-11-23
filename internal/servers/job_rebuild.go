@@ -90,6 +90,9 @@ func (s *Service) Rebuild(ctx context.Context, projectID, id int64, imageRef str
 		if err := etx.Server.UpdateOneID(id).SetStatus(StatusRebuilding).SetRebuildStep(0).Exec(ctx); err != nil {
 			return nil, err
 		}
+		if err := dropQueuedBackups(ctx, etx, id); err != nil {
+			return nil, err
+		}
 		running := row.Status == StatusRunning
 		return func(actionID int64) river.JobArgs {
 			return RebuildServerArgs{ServerID: id, ActionID: actionID, ImageID: img.ID, TemplateVMID: tmpl, StartAfter: running}
@@ -113,11 +116,30 @@ func (*RebuildServerWorker) Timeout(*river.Job[RebuildServerArgs]) time.Duration
 	return rebuildTimeout
 }
 
+// rebuildRun builds a new VM beside the server's and swaps it in; rebuild and restore differ in source and bookkeeping.
 type rebuildRun struct {
-	w    *RebuildServerWorker
-	args RebuildServerArgs
-	row  *ent.Server
-	b    *builder
+	o          *WorkerOptions
+	afterStep  func(int)
+	afterPost  func()
+	name       string
+	actionID   int64
+	startAfter bool
+	instGen    int
+	// image is the rebuild's new image; nil keeps the server's.
+	image *rebuildImage
+	// archive, when set, restores this backup instead of cloning the image's template.
+	archive string
+	// finishTx runs in finish's transaction, afterFinish once it commits; onFail runs in cleanup before the action fails.
+	finishTx    func(context.Context, *ent.Client) error
+	afterFinish func(context.Context)
+	onFail      func(context.Context) error
+	row         *ent.Server
+	b           *builder
+}
+
+type rebuildImage struct {
+	id   int64
+	tmpl int
 }
 
 func (w *RebuildServerWorker) Work(ctx context.Context, job *river.Job[RebuildServerArgs]) error {
@@ -125,26 +147,32 @@ func (w *RebuildServerWorker) Work(ctx context.Context, job *river.Job[RebuildSe
 	if stop {
 		return ret
 	}
-	r := &rebuildRun{w: w, args: job.Args, row: row}
+	a := job.Args
+	r := &rebuildRun{o: &w.o, afterStep: w.afterStep, name: "rebuild", actionID: a.ActionID, startAfter: a.StartAfter,
+		instGen: a.InstanceGeneration, image: &rebuildImage{a.ImageID, a.TemplateVMID}, row: row}
 	return contract{job: job.JobRow, name: "rebuild", finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: r.run, fail: r.cleanup}.work(ctx)
 }
 
 func (r *rebuildRun) load(ctx context.Context) error {
-	loc, pc, assign, err := r.w.o.loadTarget(ctx, r.row)
+	loc, pc, assign, err := r.o.loadTarget(ctx, r.row)
 	if err != nil {
 		return err
 	}
-	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: r.args.TemplateVMID, isoGen: r.row.IsoGeneration + 1,
-		instGen: cmp.Or(r.args.InstanceGeneration, r.row.IsoGeneration+1),
+	tmpl := r.row.TemplateVmid
+	if r.image != nil {
+		tmpl = r.image.tmpl
+	}
+	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: tmpl, archive: r.archive, isoGen: r.row.IsoGeneration + 1,
+		instGen: cmp.Or(r.instGen, r.row.IsoGeneration+1),
 		st:      buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
-		save:    r.save, poll: r.w.o.PollInterval, o: &r.w.o}
+		save:    r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost}
 	return nil
 }
 
 // save writes the build state to the rebuild columns.
 func (r *rebuildRun) save(ctx context.Context, st buildState) error {
-	u := r.w.o.Ent.Server.UpdateOneID(r.row.ID).SetRebuildStep(st.Step)
+	u := r.o.Ent.Server.UpdateOneID(r.row.ID).SetRebuildStep(st.Step)
 	setSlot(u.SetRebuildVmid, u.ClearRebuildVmid, st.Vmid)
 	setSlot(u.SetRebuildCloneUpid, u.ClearRebuildCloneUpid, st.Upid)
 	setSlot(u.SetRebuildCloneNonce, u.ClearRebuildCloneNonce, st.Nonce)
@@ -185,11 +213,11 @@ func (r *rebuildRun) run(ctx context.Context) error {
 		step{stepRebuilt, "finish", r.finish})
 	progress := func(ctx context.Context, n int) error {
 		if p, ok := rebuildProgress[n]; ok {
-			return actions.Progress(ctx, r.w.o.Ent, r.args.ActionID, p)
+			return actions.Progress(ctx, r.o.Ent, r.actionID, p)
 		}
 		return nil
 	}
-	return runSteps(ctx, func() int { return r.b.st.Step }, steps, progress, r.w.afterStep)
+	return runSteps(ctx, func() int { return r.b.st.Step }, steps, progress, r.afterStep)
 }
 
 // swap makes the new VM the server's in one UPDATE and keeps the old one in rebuild_* to retire.
@@ -204,10 +232,12 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	old := buildState{Vmid: r.row.Vmid, Upid: r.row.CloneUpid, Nonce: r.row.CloneNonce, Step: stepSwap}
 	nu := r.b.st
 	var row *ent.Server
-	err := db.WithTx(ctx, r.w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
-		u := etx.Server.UpdateOneID(r.row.ID).
-			SetImageID(r.args.ImageID).SetTemplateVmid(r.args.TemplateVMID).
-			SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap)
+	err := db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		u := etx.Server.UpdateOneID(r.row.ID)
+		if r.image != nil {
+			u.SetImageID(r.image.id).SetTemplateVmid(r.image.tmpl)
+		}
+		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap)
 		setSlot(u.SetVmid, u.ClearVmid, nu.Vmid)
 		setSlot(u.SetCloneUpid, u.ClearCloneUpid, nu.Upid)
 		setSlot(u.SetCloneNonce, u.ClearCloneNonce, nu.Nonce)
@@ -248,8 +278,8 @@ func (r *rebuildRun) restart(ctx context.Context) error {
 	if err := r.b.protect(ctx, *r.row.Vmid); err != nil {
 		return err
 	}
-	if r.args.StartAfter {
-		if err := startVM(ctx, r.b.pc, *r.row.Vmid, r.w.o.PollInterval); err != nil {
+	if r.startAfter {
+		if err := startVM(ctx, r.b.pc, *r.row.Vmid, r.o.PollInterval); err != nil {
 			return err
 		}
 	}
@@ -258,25 +288,34 @@ func (r *rebuildRun) restart(ctx context.Context) error {
 
 func (r *rebuildRun) finish(ctx context.Context) error {
 	status := StatusOff
-	if r.args.StartAfter {
+	if r.startAfter {
 		status = StatusRunning
 	}
-	return db.WithTx(ctx, r.w.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+	err := db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		if err := etx.Server.UpdateOneID(r.row.ID).SetStatus(server.Status(status)).SetRebuildStep(0).Exec(ctx); err != nil {
 			return err
 		}
 		if err := r.b.raiseApplied(ctx, tx); err != nil {
 			return err
 		}
-		return actions.Succeed(ctx, etx, r.args.ActionID)
+		if r.finishTx != nil {
+			if err := r.finishTx(ctx, etx); err != nil {
+				return err
+			}
+		}
+		return actions.Succeed(ctx, etx, r.actionID)
 	})
+	if err == nil && r.afterFinish != nil {
+		r.afterFinish(ctx)
+	}
+	return err
 }
 
 // cleanup removes whichever VM rebuild_* holds: the new one before the swap, the old one after.
 func (r *rebuildRun) cleanup(ctx context.Context, f failure) error {
-	log := r.w.o.Logger.With("server_id", r.row.ID, "action_id", r.args.ActionID)
-	log.Warn("rebuild server failed", "err", f.detail, "code", f.code)
-	cur, err := r.w.o.Ent.Server.Get(ctx, r.row.ID)
+	log := r.o.Logger.With("server_id", r.row.ID, "action_id", r.actionID)
+	log.Warn(r.name+" server failed", "err", f.detail, "code", f.code)
+	cur, err := r.o.Ent.Server.Get(ctx, r.row.ID)
 	if err != nil {
 		return err
 	}
@@ -290,14 +329,14 @@ func (r *rebuildRun) cleanup(ctx context.Context, f failure) error {
 	if !gone && r.b != nil {
 		err := destroyOrForget(ctx, r.b.pc, cur.ID, *cur.RebuildVmid, CloneProof{UPID: cur.RebuildCloneUpid, Nonce: cur.RebuildCloneNonce})
 		if gone = err == nil; !gone {
-			log.Error("rebuild cleanup: destroy vm", "vmid", *cur.RebuildVmid, "err", err)
+			log.Error(r.name+" cleanup: destroy vm", "vmid", *cur.RebuildVmid, "err", err)
 		}
 	}
 	swapped := cur.RebuildStep >= stepSwap
 	if !swapped && r.b != nil {
 		gen := cur.IsoGeneration + 1
 		if err := deleteISO(ctx, r.b.pc, cur.Node, r.b.loc.ISOStorage, isoVolid(r.b.loc.ISOStorage, cur.ID, gen)); err != nil {
-			log.Error("rebuild cleanup: delete iso", "err", err)
+			log.Error(r.name+" cleanup: delete iso", "err", err)
 		}
 	}
 	switch {
@@ -307,7 +346,7 @@ func (r *rebuildRun) cleanup(ctx context.Context, f failure) error {
 		f.detail += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *cur.RebuildVmid)
 	}
 	fallback := StatusOff
-	if r.args.StartAfter {
+	if r.startAfter {
 		fallback = StatusRunning
 	}
 	var st string
@@ -316,12 +355,17 @@ func (r *rebuildRun) cleanup(ctx context.Context, f failure) error {
 	} else {
 		st = fallback
 	}
-	u := r.w.o.Ent.Server.UpdateOneID(cur.ID).SetStatus(server.Status(st)).SetRebuildStep(0)
+	u := r.o.Ent.Server.UpdateOneID(cur.ID).SetStatus(server.Status(st)).SetRebuildStep(0)
 	if gone {
 		u.ClearRebuildVmid().ClearRebuildCloneUpid().ClearRebuildCloneNonce()
 	}
 	if err := u.Exec(ctx); err != nil {
 		return err
 	}
-	return failAction(ctx, r.w.o.Ent, r.args.ActionID, f)
+	if r.onFail != nil {
+		if err := r.onFail(ctx); err != nil {
+			return err
+		}
+	}
+	return failAction(ctx, r.o.Ent, r.actionID, f)
 }

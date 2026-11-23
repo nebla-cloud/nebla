@@ -130,7 +130,7 @@ func unplugServerVolumes(ctx context.Context, pc pve.Client, log *slog.Logger, s
 
 // plugNewVM puts the server's volumes into the new VM before it becomes the server's.
 func (r *rebuildRun) plugNewVM(ctx context.Context) error {
-	vols, err := attachedVolumes(ctx, r.w.o.Ent, r.row.ID)
+	vols, err := attachedVolumes(ctx, r.o.Ent, r.row.ID)
 	if err != nil || r.b.st.Vmid == nil {
 		return err
 	}
@@ -139,11 +139,11 @@ func (r *rebuildRun) plugNewVM(ctx context.Context) error {
 
 // unplugOldVM takes the server's volumes out of the old VM before it is destroyed.
 func (r *rebuildRun) unplugOldVM(ctx context.Context) error {
-	vols, err := attachedVolumes(ctx, r.w.o.Ent, r.row.ID)
+	vols, err := attachedVolumes(ctx, r.o.Ent, r.row.ID)
 	if err != nil || r.b.st.Vmid == nil {
 		return err
 	}
-	return unplugServerVolumes(ctx, r.b.pc, r.w.o.Logger, r.row.ID, *r.b.st.Vmid, vols)
+	return unplugServerVolumes(ctx, r.b.pc, r.o.Logger, r.row.ID, *r.b.st.Vmid, vols)
 }
 
 // detachVolumesTx frees the server's volumes in the tx that deletes it; the server row is locked first.

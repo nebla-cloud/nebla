@@ -34,7 +34,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
-// VM build steps shared by create and rebuild, persisted in that job's step column.
+// VM build steps shared by create, rebuild and restore, persisted in that job's step column.
 const (
 	stepVMID = iota + 1
 	stepClone
@@ -53,13 +53,15 @@ type buildState struct {
 
 func (s buildState) proof() CloneProof { return CloneProof{UPID: s.Upid, Nonce: s.Nonce} }
 
-// builder clones and configures a VM for row from template tmpl, saving progress through save.
+// builder clones and configures a VM for row from template tmpl, or restores it from archive, saving progress through save.
 type builder struct {
-	pc             pve.Client
-	loc            catalog.Location
-	assign         []ipam.Assignment
-	row            *ent.Server
-	tmpl           int
+	pc     pve.Client
+	loc    catalog.Location
+	assign []ipam.Assignment
+	row    *ent.Server
+	tmpl   int
+	// archive, when set, makes the VM by restoring this backup instead of cloning tmpl.
+	archive        string
 	isoGen         int
 	instGen        int
 	st             buildState
@@ -103,7 +105,7 @@ func runSteps(ctx context.Context, cur func() int, steps []step, progress func(c
 func (b *builder) steps() []step {
 	return []step{
 		{stepVMID, "pick vmid", b.pickVMID},
-		{stepClone, "clone template", b.clone},
+		b.sourceStep(),
 		{stepConfig, "configure vm", b.configure},
 		{stepResize, "resize disk", b.resize},
 		{stepISO, "upload cloud-init iso", b.uploadISO},
@@ -136,6 +138,22 @@ func (b *builder) pickVMID(ctx context.Context) error {
 		return err
 	}
 	return b.update(ctx, func(s *buildState) { s.Vmid, s.Step = &vmid, stepVMID })
+}
+
+// sourceStep makes the VM: a template clone, or a backup restore.
+func (b *builder) sourceStep() step {
+	if b.archive != "" {
+		return step{stepClone, "restore backup", b.restore}
+	}
+	return step{stepClone, "clone template", b.clone}
+}
+
+// sourceConfig is the config the VM was made from: the template's, or the restored VM's own.
+func (b *builder) sourceConfig(ctx context.Context) (map[string]string, error) {
+	if b.archive != "" {
+		return b.pc.Config(ctx, b.row.Node, b.vmid())
+	}
+	return b.templateConfig(ctx)
 }
 
 func (b *builder) templateNode(ctx context.Context) (string, error) {
@@ -279,7 +297,7 @@ func (b *builder) awaitOrMove(ctx context.Context, upid string) (moved bool, err
 	return true, b.newVMID(ctx)
 }
 
-// awaitClone waits on our saved clone task; success proves the VM at vmid is ours.
+// awaitClone waits on our saved clone or restore task; success proves the VM at vmid is ours.
 func (b *builder) awaitClone(ctx context.Context, upid string) error {
 	if err := b.pc.WaitTask(ctx, upidNode(upid), pve.UPID(upid)); err != nil {
 		if ctx.Err() != nil || retryable(err) {
@@ -288,7 +306,13 @@ func (b *builder) awaitClone(ctx context.Context, upid string) error {
 		if lostVMIDRace(err, b.vmid()) {
 			return errVMIDTaken
 		}
+		if b.archive != "" {
+			return permanent("restore task failed: %s", err)
+		}
 		return permanent("clone task failed: %s", err)
+	}
+	if b.archive != "" {
+		return b.sanitize(ctx)
 	}
 	return b.tag(ctx)
 }
@@ -315,7 +339,7 @@ func (b *builder) net0(ctx context.Context) (string, error) {
 	if len(b.assign) > 0 {
 		bridge, vlan = b.assign[0].Bridge, b.assign[0].VLAN
 	} else {
-		cfg, err := b.templateConfig(ctx)
+		cfg, err := b.sourceConfig(ctx)
 		if err != nil {
 			return "", err
 		}
@@ -355,12 +379,15 @@ func (b *builder) configure(ctx context.Context) error {
 }
 
 func (b *builder) resize(ctx context.Context) error {
-	cfg, err := b.templateConfig(ctx)
+	cfg, err := b.sourceConfig(ctx)
 	if err != nil {
 		return err
 	}
 	disk := catalog.BootDisk(cfg)
-	if disk == "" {
+	switch {
+	case disk == "" && b.archive != "":
+		return permanent("restored vm %d has no boot disk", b.vmid())
+	case disk == "":
 		return permanent("template %d has no boot disk", b.tmpl)
 	}
 	if cur, ok := diskBytes(cfg[disk]); !ok || int64(b.row.DiskGB)<<30 > cur {
