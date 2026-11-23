@@ -31,6 +31,7 @@ type Quota struct {
 	MaxServers, MaxVCPU, MaxMemoryMB, MaxDiskGB, MaxIPs int
 	MaxVolumes, MaxVolumeGB                             int
 	MaxBackups                                          int
+	MaxNetworks                                         int
 }
 
 // Usage is an amount of project resources, current or requested.
@@ -38,20 +39,21 @@ type Usage struct {
 	Servers, VCPU, MemoryMB, DiskGB, IPs int
 	Volumes, VolumeGB                    int
 	Backups, BackupsReserved             int
+	Networks                             int
 }
 
 func quotaOf(p *ent.Project) Quota {
 	return Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps,
-		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB, MaxBackups: p.MaxBackups}
+		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB, MaxBackups: p.MaxBackups, MaxNetworks: p.MaxNetworks}
 }
 
 func (s *Service) SetQuota(ctx context.Context, projectID int64, q Quota) (Quota, error) {
-	return s.UpdateQuota(ctx, projectID, q, &q.MaxVolumes, &q.MaxVolumeGB, &q.MaxBackups)
+	return s.UpdateQuota(ctx, projectID, q, &q.MaxVolumes, &q.MaxVolumeGB, &q.MaxBackups, &q.MaxNetworks)
 }
 
-// UpdateQuota sets the server quota fields from q and each volume and backup field that is not nil; q's own are ignored.
-func (s *Service) UpdateQuota(ctx context.Context, projectID int64, q Quota, maxVolumes, maxVolumeGB, maxBackups *int) (Quota, error) {
-	for _, v := range []*int{&q.MaxServers, &q.MaxVCPU, &q.MaxMemoryMB, &q.MaxDiskGB, &q.MaxIPs, maxVolumes, maxVolumeGB, maxBackups} {
+// UpdateQuota sets the server quota fields from q and each volume, backup and network field that is not nil; q's own are ignored.
+func (s *Service) UpdateQuota(ctx context.Context, projectID int64, q Quota, maxVolumes, maxVolumeGB, maxBackups, maxNetworks *int) (Quota, error) {
+	for _, v := range []*int{&q.MaxServers, &q.MaxVCPU, &q.MaxMemoryMB, &q.MaxDiskGB, &q.MaxIPs, maxVolumes, maxVolumeGB, maxBackups, maxNetworks} {
 		if v != nil && *v < 0 {
 			return Quota{}, apierr.New(http.StatusUnprocessableEntity, "invalid_input", "quota values must be 0 or more")
 		}
@@ -59,7 +61,7 @@ func (s *Service) UpdateQuota(ctx context.Context, projectID int64, q Quota, max
 	p, err := s.db.Project.UpdateOneID(projectID).
 		SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).SetMaxMemoryMB(q.MaxMemoryMB).
 		SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
-		SetNillableMaxVolumes(maxVolumes).SetNillableMaxVolumeGB(maxVolumeGB).SetNillableMaxBackups(maxBackups).Save(ctx)
+		SetNillableMaxVolumes(maxVolumes).SetNillableMaxVolumeGB(maxVolumeGB).SetNillableMaxBackups(maxBackups).SetNillableMaxNetworks(maxNetworks).Save(ctx)
 	if err != nil {
 		return Quota{}, notFound(err)
 	}
@@ -102,6 +104,7 @@ func (s *Service) ReserveQuota(ctx context.Context, tx *ent.Client, projectID in
 		{"max_volumes", q.MaxVolumes, delta.Volumes, cur.Volumes + delta.Volumes},
 		{"max_volume_gb", q.MaxVolumeGB, delta.VolumeGB, cur.VolumeGB + delta.VolumeGB},
 		{"max_backups", q.MaxBackups, delta.BackupsReserved, cur.BackupsReserved + delta.BackupsReserved},
+		{"max_networks", q.MaxNetworks, delta.Networks, cur.Networks + delta.Networks},
 	}
 	// Only growing dimensions are checked, so shrinking an over-quota project still works.
 	for _, c := range checks {

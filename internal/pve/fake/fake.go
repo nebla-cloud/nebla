@@ -216,7 +216,7 @@ func (s *Server) AddStorage(nodeName, id string, content []string, shared bool) 
 
 // allPrivs is what the fake grants on a path without an explicit answer.
 var allPrivs = []string{"Datastore.Allocate", "Datastore.AllocateSpace", "Datastore.AllocateTemplate", "Datastore.Audit",
-	"Sys.Audit", "VM.Allocate", "VM.Audit", "VM.Backup", "VM.Config.Disk"}
+	"SDN.Audit", "Sys.Audit", "VM.Allocate", "VM.Audit", "VM.Backup", "VM.Config.Disk"}
 
 // SetPermissions fixes the privileges the fake reports for path; nil restores the default (everything).
 func (s *Server) SetPermissions(path string, privs map[string]int) {
@@ -319,6 +319,14 @@ func (s *Server) AddSDN(zone pve.SDNZone, vnets ...pve.SDNVNet) {
 	s.vnets = append(s.vnets, vnets...)
 }
 
+// RemoveSDNVNet drops a vnet and its subnets, as an admin deleting it would.
+func (s *Server) RemoveSDNVNet(vnet string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.vnets = slices.DeleteFunc(s.vnets, func(v pve.SDNVNet) bool { return v.VNet == vnet })
+	delete(s.subnets, vnet)
+}
+
 // SetSDNSubnets sets the CIDRs a vnet lists.
 func (s *Server) SetSDNSubnets(vnet string, cidrs ...string) {
 	s.mu.Lock()
@@ -326,7 +334,7 @@ func (s *Server) SetSDNSubnets(vnet string, cidrs ...string) {
 	s.subnets[vnet] = slices.Clone(cidrs)
 }
 
-// DenySDNAudit makes SDN reads answer empty lists, as PVE does without SDN.Audit.
+// DenySDNAudit makes SDN reads answer empty lists and drops SDN.Audit from /sdn, as PVE does without it.
 func (s *Server) DenySDNAudit(deny bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -878,6 +886,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 					out[path][p] = 1
 				}
 			}
+		}
+		if s.sdnDeny && strings.HasPrefix(path, "/sdn") {
+			delete(out[path], "SDN.Audit")
 		}
 		if p, ok := s.perms["/"]; ok && path != "/" {
 			out["/"] = maps.Clone(p)

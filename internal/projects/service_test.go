@@ -133,6 +133,42 @@ func TestQuotaVolumes(t *testing.T) {
 	}
 }
 
+func TestQuotaNetworks(t *testing.T) {
+	ctx := context.Background()
+	existing := projects.Usage{Networks: 1}
+	svc, _, sqlDB, u := setup(t, projects.Options{Hooks: projects.Hooks{
+		Usage: func(context.Context, *ent.Client, int64) (projects.Usage, error) { return existing, nil },
+	}})
+	p, err := svc.Create(ctx, u.ID, false, "Web")
+	require.NoError(t, err)
+	q, err := svc.SetQuota(ctx, p.ID, projects.Quota{MaxNetworks: 1})
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxNetworks: 1}, q)
+
+	reserve := func(d projects.Usage) error {
+		return db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+			return svc.ReserveQuota(ctx, etx, p.ID, d)
+		})
+	}
+	var e apierr.E
+	err = reserve(projects.Usage{Networks: 1})
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, "quota_exceeded", e.Code)
+	require.Contains(t, e.Msg, "max_networks")
+
+	keep := 5
+	q, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, &keep)
+	require.NoError(t, err)
+	require.Equal(t, 5, q.MaxNetworks)
+	q, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, 5, q.MaxNetworks, "nil keeps the current value")
+	bad := -1
+	_, err = svc.UpdateQuota(ctx, p.ID, projects.Quota{}, nil, nil, nil, &bad)
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, 422, e.Status)
+}
+
 func inviteToken(t *testing.T, link string) string {
 	t.Helper()
 	i := strings.LastIndex(link, "/")

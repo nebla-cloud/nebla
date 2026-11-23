@@ -153,6 +153,13 @@ func run() error {
 	if filledBackup > 0 {
 		log.Info("backfilled backup project quota", "count", filledBackup)
 	}
+	filledNet, err := projects.BackfillNetworkQuota(ctx, client, cfg.DefaultQuota)
+	if err != nil {
+		return err
+	}
+	if filledNet > 0 {
+		log.Info("backfilled network project quota", "count", filledNet)
+	}
 	filledSlots, err := servers.BackfillBackupSlots(ctx, sqlDB)
 	if err != nil {
 		return err

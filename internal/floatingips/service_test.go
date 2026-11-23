@@ -485,5 +485,5 @@ func TestProjectNotEmpty(t *testing.T) {
 	_, _, err := e.svc.Create(ctx, p, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
 	require.NoError(t, err)
 	err = e.proj.AdminDelete(ctx, p)
-	requireAPIErr(t, err, http.StatusConflict, "project_not_empty", "Delete the project's servers, volumes and floating IPs first.")
+	requireAPIErr(t, err, http.StatusConflict, "project_not_empty", "Delete the project's servers, volumes, floating IPs and networks first.")
 }

@@ -463,6 +463,15 @@ func TestFakeSDNDenied(t *testing.T) {
 	if len(z) != 0 || len(n) != 0 || err1 != nil || err2 != nil {
 		t.Fatalf("denied: z=%v n=%v %v %v", z, n, err1, err2)
 	}
+	perms, err := c.Permissions(context.Background(), "/sdn")
+	if err != nil || perms["/sdn"]["SDN.Audit"] != 0 {
+		t.Fatalf("denied perms: %v %v", perms, err)
+	}
+	s.DenySDNAudit(false)
+	perms, err = c.Permissions(context.Background(), "/sdn")
+	if err != nil || perms["/sdn"]["SDN.Audit"] != 1 {
+		t.Fatalf("allowed perms: %v %v", perms, err)
+	}
 }
 
 func TestFakePendingUnplug(t *testing.T) {

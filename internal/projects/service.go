@@ -227,7 +227,7 @@ func (s *Service) Create(ctx context.Context, userID int64, isAdmin bool, name s
 			}
 			q := s.opts.DefaultQuota
 			c.SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).SetMaxMemoryMB(q.MaxMemoryMB).SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
-				SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).SetMaxBackups(q.MaxBackups)
+				SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).SetMaxBackups(q.MaxBackups).SetMaxNetworks(q.MaxNetworks)
 		}
 		if p, err = c.Save(ctx); err != nil {
 			return err
@@ -287,7 +287,7 @@ func (s *Service) Rename(ctx context.Context, userID, projectID int64, name stri
 	return toProject(p, r), nil
 }
 
-// Delete removes a project; it fails with project_not_empty while servers, volumes or floating IPs exist.
+// Delete removes a project; it fails with project_not_empty while servers, volumes, floating IPs or networks exist.
 func (s *Service) Delete(ctx context.Context, userID, projectID int64) error {
 	if _, err := s.require(ctx, userID, projectID, RoleOwner); err != nil {
 		return err
@@ -306,7 +306,7 @@ func (s *Service) deleteProject(ctx context.Context, projectID int64) error {
 			return err
 		}
 		if busy {
-			return apierr.New(http.StatusConflict, "project_not_empty", "Delete the project's servers, volumes and floating IPs first.")
+			return apierr.New(http.StatusConflict, "project_not_empty", "Delete the project's servers, volumes, floating IPs and networks first.")
 		}
 		return tx.Project.DeleteOneID(projectID).Exec(ctx)
 	})
