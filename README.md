@@ -132,6 +132,7 @@ The API, jobs, reconciler, console proxy and metrics are done, and the web panel
 - projects, members and invites, API tokens and SSH keys
 - servers: create, power actions, rebuild, change type, the web console, metrics graphs and activity
 - firewalls: inbound and outbound rules, applied to servers directly or by label
+- floating IPs: addresses that belong to the project and move between servers ([guide](docs/floating-ips.md))
 - the admin area: one-line Proxmox setup, locations, OS images, server types, IP pools, users, projects, settings and
   activity
 

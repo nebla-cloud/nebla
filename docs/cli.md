@@ -97,6 +97,15 @@ nebla firewall apply-to-resource web --type server --server web2
 nebla firewall apply-to-resource web --type label_selector --label-selector role=web
 nebla firewall delete web
 
+# Floating IPs
+nebla floating-ip create --type ipv4 --location home --name web-vip
+nebla floating-ip create --type ipv6 --server web1
+nebla floating-ip list --server web1
+nebla floating-ip assign web-vip web2      # prints the commands to run on the server
+nebla floating-ip describe web-vip
+nebla floating-ip unassign web-vip
+nebla floating-ip delete web-vip
+
 nebla version
 nebla completion zsh              # also: bash, fish, powershell
 ```
@@ -106,6 +115,9 @@ Servers, keys and other objects can be named by id or by name. A number is tried
 Firewalls are allow-lists that filter the public network only. A server can have up to five firewalls and
 250 rules across them. IPv4 and IPv6 portions of a rule count separately, and long address lists can
 split into multiple rules.
+
+A floating IP is one address that you can move between servers in its location. `assign` and `create --server` wait,
+then print the commands to run inside the server; see [Floating IPs](floating-ips.md).
 
 `server create` also takes `--user-data-from-file`, `--label key=value`, `--without-ipv4`, `--with-ipv6` and
 `--start-after-create=false`. `server list` takes `--selector key=value`.

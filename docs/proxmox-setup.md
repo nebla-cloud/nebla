@@ -244,6 +244,9 @@ security groups and needs no extra privileges. The location page in the admin ar
 datacenter firewall is off. Proxmox loads rule changes on a cycle of about 10 seconds, so Nebla waits about 12 seconds
 before the first start of a server that has firewalls, so the rules are in place when it boots.
 
+Floating IPs can move between servers. IPv4 moves rely on Proxmox's ebtables ARP filtering, which is on by default
+(`ebtables: 1` in the datacenter firewall options). Keep it on.
+
 ## 8. Built-in OS images
 
 Nebla can build its own cloud-init templates from official cloud images, so you don't have to run step 5 by hand. An
