@@ -410,6 +410,33 @@ func TestSnapshotJobResumesEveryStep(t *testing.T) {
 	})
 }
 
+// The process dies after the create POST returned but before its upid was saved: the retry POSTs again and claims the VM.
+func TestSnapshotCrashBeforeUpidSaved(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s, vmid := e.bootServer(t, "web1")
+	snap, act := e.take(t, "web1", false)
+	crashCtx, crash := context.WithCancel(ctx)
+	defer crash()
+	o := snapshots.SetAfterCreatePost(e.opts(nil), crash)
+	err := e.work(crashCtx, t, o, act.ID, 1)
+	require.Error(t, err)
+	var cancel *river.JobCancelError
+	require.False(t, errors.As(err, &cancel), "%v", err)
+	row := e.App.Ent.Snapshot.GetX(ctx, snap.ID)
+	require.Equal(t, 3, row.Step)
+	require.Nil(t, row.Upid, "crashed before the upid was saved")
+
+	require.NoError(t, e.work(ctx, t, e.opts(nil), act.ID, 2))
+	require.Equal(t, actions.StatusSuccess, e.action(t, act.ID).Status)
+	require.Equal(t, 2, e.countExact("POST /nodes/pve1/qemu"), "the create was posted again")
+	require.Equal(t, 1, e.countCalls("GET /cluster/nextid"), "the VM was claimed, not given up")
+	tpls := e.templates(t, snap.ID)
+	require.Len(t, tpls, 1)
+	require.Equal(t, *e.App.Ent.Snapshot.GetX(ctx, snap.ID).Vmid, tpls[0].VMID)
+	e.requireServer(t, s.ServerID, vmid, servers.StatusRunning)
+}
+
 func TestSnapshotShutdownTimeout(t *testing.T) {
 	t.Run("without force the server keeps running", func(t *testing.T) {
 		ctx := context.Background()
@@ -495,7 +522,7 @@ func TestSnapshotCompensationDestroysHalfMadeVM(t *testing.T) {
 func TestSnapshotCompensationUnreachableKeepsRow(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
-	_, vmid := e.bootServer(t, "web1")
+	s, vmid := e.bootServer(t, "web1")
 	snap, act := e.take(t, "web1", false)
 	o := snapshots.SetAfterStep(e.opts(nil), func(n int) {
 		if n == 3 {
@@ -515,6 +542,9 @@ func TestSnapshotCompensationUnreachableKeepsRow(t *testing.T) {
 	require.Equal(t, 10, gb)
 	v, _ := e.App.PVE.VM(vmid)
 	require.Equal(t, "stopped", v.Status)
+	srv, err := e.App.Ent.Server.Get(ctx, s.ServerID)
+	require.NoError(t, err)
+	require.Equal(t, servers.StatusOff, string(srv.Status), "not left stopping or starting when its VM can't be read")
 }
 
 func TestSnapshotLostVMIDRace(t *testing.T) {
@@ -652,4 +682,81 @@ func TestDeleteSnapshotJob(t *testing.T) {
 		require.Empty(t, rec.all())
 		require.Zero(t, e.countCalls(fmt.Sprintf("DELETE /nodes/pve1/qemu/%d", r.VMID)))
 	})
+}
+
+// errorSnapshot is an available snapshot turned into a failed create's leftover: error, with its server left off.
+func (e *env) errorSnapshot(t *testing.T, wasRunning bool) (*snapshotRow, int64, int) {
+	t.Helper()
+	ctx := context.Background()
+	s, vmid := e.bootServer(t, "web1")
+	snap, act := e.take(t, "web1", false)
+	a := e.finish(t, e.opts(nil), act.ID)
+	require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+	row := e.App.Ent.Snapshot.UpdateOneID(snap.ID).SetStatus(snapshot.StatusError).SetWasRunning(wasRunning).SaveX(ctx)
+	e.App.PVE.SetVMStatus(vmid, "stopped")
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetStatus(server.StatusOff).Exec(ctx))
+	return &snapshotRow{ID: row.ID, VMID: *row.Vmid}, s.ServerID, vmid
+}
+
+func TestDeleteErrorSnapshotRestartsServer(t *testing.T) {
+	t.Run("the server starts, then the snapshot goes", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, srvID, vmid := e.errorSnapshot(t, true)
+		act, err := e.svc.Delete(ctx, e.Project, r.ID)
+		require.NoError(t, err)
+		a := e.finish(t, e.opts(nil), act.ID)
+		require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+		e.requireServer(t, srvID, vmid, servers.StatusRunning)
+		require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(r.ID)).ExistX(ctx))
+		_, ok := e.App.PVE.VM(r.VMID)
+		require.False(t, ok)
+	})
+	t.Run("a failed start stops the delete", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, srvID, vmid := e.errorSnapshot(t, true)
+		act, err := e.svc.Delete(ctx, e.Project, r.ID)
+		require.NoError(t, err)
+		e.App.PVE.FailNext("/status/start", 500)
+		a := e.finish(t, e.opts(nil), act.ID)
+		require.Equal(t, actions.StatusError, a.Status)
+		e.requireServer(t, srvID, vmid, servers.StatusOff)
+		row := e.App.Ent.Snapshot.GetX(ctx, r.ID)
+		require.Equal(t, snapshot.StatusError, row.Status)
+		require.True(t, row.WasRunning, "kept for the next try")
+		_, ok := e.App.PVE.VM(r.VMID)
+		require.True(t, ok, "the template is kept while the server is off")
+	})
+	t.Run("a server that was off stays off", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, srvID, vmid := e.errorSnapshot(t, false)
+		start := fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/start", vmid)
+		before := e.countCalls(start)
+		act, err := e.svc.Delete(ctx, e.Project, r.ID)
+		require.NoError(t, err)
+		a := e.finish(t, e.opts(nil), act.ID)
+		require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+		e.requireServer(t, srvID, vmid, servers.StatusOff)
+		require.Equal(t, before, e.countCalls(start), "no start")
+	})
+}
+
+func TestDeleteFailureRestoresStatus(t *testing.T) {
+	for _, st := range []snapshot.Status{snapshot.StatusError, snapshot.StatusMissing, snapshot.StatusAvailable} {
+		t.Run(string(st), func(t *testing.T) {
+			ctx := context.Background()
+			e := newEnv(t)
+			r := e.available(t, "web1")
+			e.App.Ent.Snapshot.UpdateOneID(r.ID).SetStatus(st).ExecX(ctx)
+			act, err := e.svc.Delete(ctx, e.Project, r.ID)
+			require.NoError(t, err)
+			e.App.PVE.SetDown(true)
+			_ = e.work(ctx, t, e.opts(nil), act.ID, servers.MaxAttempts)
+			e.App.PVE.SetDown(false)
+			require.Equal(t, actions.StatusError, e.action(t, act.ID).Status)
+			require.Equal(t, st, e.App.Ent.Snapshot.GetX(ctx, r.ID).Status)
+		})
+	}
 }

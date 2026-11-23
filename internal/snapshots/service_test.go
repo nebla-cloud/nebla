@@ -73,15 +73,19 @@ func (e *env) settle(t *testing.T) {
 	e.App.Ent.Action.Update().SetStatus(action.StatusSuccess).ExecX(context.Background())
 }
 
-// requireJob asserts the action's river job has kind and args.
-func (e *env) requireJob(t *testing.T, act actions.Action, kind string, snapshotID int64) {
+// requireJob asserts the action's river job has kind and args; extra are further "key":value pairs.
+func (e *env) requireJob(t *testing.T, act actions.Action, kind string, snapshotID int64, extra ...string) {
 	t.Helper()
 	require.NotNil(t, act.RiverJobID)
 	var gotKind string
 	var args []byte
 	require.NoError(t, e.App.SQL.QueryRow(`SELECT kind, args FROM river_job WHERE id = $1`, *act.RiverJobID).Scan(&gotKind, &args))
 	require.Equal(t, kind, gotKind)
-	require.JSONEq(t, fmt.Sprintf(`{"snapshot_id":%d,"action_id":%d}`, snapshotID, act.ID), string(args))
+	want := fmt.Sprintf(`{"snapshot_id":%d,"action_id":%d`, snapshotID, act.ID)
+	for _, kv := range extra {
+		want += "," + kv
+	}
+	require.JSONEq(t, want+"}", string(args))
 }
 
 func TestCreateSnapshotReservesRealSize(t *testing.T) {
@@ -272,7 +276,7 @@ func TestDeleteSnapshotLocked(t *testing.T) {
 	act, err := e.svc.Delete(ctx, e.Project, snap.ID)
 	require.NoError(t, err)
 	require.Equal(t, "delete_snapshot", act.Command)
-	e.requireJob(t, act, "delete_snapshot", snap.ID)
+	e.requireJob(t, act, "delete_snapshot", snap.ID, `"prev_status":"available"`)
 	require.Equal(t, []actions.Resource{{ID: snap.ID, Type: snapshots.ResourceType}}, act.Resources)
 	require.Equal(t, snapshot.StatusDeleting, e.App.Ent.Snapshot.GetX(ctx, snap.ID).Status)
 

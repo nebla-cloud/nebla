@@ -88,6 +88,8 @@ type WorkerOptions struct {
 	pveFor func(ctx context.Context, locationID int64) (pve.Client, error)
 	// afterStep runs once a create step is saved; tests use it to crash.
 	afterStep func(step int)
+	// afterCreatePost runs once the create POST returns, before its upid is saved.
+	afterCreatePost func()
 }
 
 // RegisterWorkers adds the snapshot job workers; they follow the jobs.StartAction worker contract.
@@ -231,18 +233,67 @@ func (o *WorkerOptions) startServer(ctx context.Context, pc pve.Client, srv *ent
 		if err := o.setServerStatus(ctx, srv.ID, servers.StatusStarting); err != nil {
 			return err
 		}
-		if err := o.power(ctx, pc, v.Node, v.VMID, pve.PowerStart); err != nil {
+		if err := o.awaitStart(ctx, pc, v); err != nil {
+			o.syncServerStatus(ctx, pc, srv.ID, v.VMID)
 			return err
-		}
-		ok, err := o.waitState(ctx, pc, v.VMID, "running", o.PowerWait)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return servers.PermanentCode(actions.CodeTimedOut, "vm %d did not start within %s", v.VMID, o.PowerWait)
 		}
 	}
 	return o.setServerStatus(ctx, srv.ID, servers.StatusRunning)
+}
+
+func (o *WorkerOptions) awaitStart(ctx context.Context, pc pve.Client, v pve.VM) error {
+	if err := o.power(ctx, pc, v.Node, v.VMID, pve.PowerStart); err != nil {
+		return err
+	}
+	ok, err := o.waitState(ctx, pc, v.VMID, "running", o.PowerWait)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return servers.PermanentCode(actions.CodeTimedOut, "vm %d did not start within %s", v.VMID, o.PowerWait)
+	}
+	return nil
+}
+
+// syncServerStatus sets the server's status from its VM's listed state, or off when that can't be read.
+func (o *WorkerOptions) syncServerStatus(ctx context.Context, pc pve.Client, serverID int64, vmid int) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	st := servers.StatusOff
+	if v, found, err := findVM(ctx, pc, vmid); err == nil && found && v.Status == "running" {
+		st = servers.StatusRunning
+	}
+	if err := o.setServerStatus(ctx, serverID, st); err != nil {
+		o.Logger.Error("snapshots: set server status", "server_id", serverID, "err", err)
+	}
+}
+
+// restartSource starts the snapshot's source server if it was running, then clears was_running; it returns the updated row.
+func (o *WorkerOptions) restartSource(ctx context.Context, pc pve.Client, row *ent.Snapshot) (*ent.Snapshot, error) {
+	if !row.WasRunning || row.ServerID == nil {
+		return nil, nil
+	}
+	srv, err := o.Ent.Server.Get(ctx, *row.ServerID)
+	if ent.IsNotFound(err) || (err == nil && srv.Vmid == nil) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	v, err := servers.OwnedVM(ctx, pc, srv.ID, *srv.Vmid)
+	if errors.Is(err, servers.ErrMissing) {
+		o.Logger.Warn("snapshots: source server vm is gone; nothing to start", "snapshot_id", row.ID, "server_id", srv.ID)
+		return nil, nil
+	}
+	if err != nil {
+		// Unreachable: a status left at stopping or starting would never settle.
+		o.syncServerStatus(ctx, pc, srv.ID, *srv.Vmid)
+		return nil, err
+	}
+	if err := o.startServer(ctx, pc, srv, v); err != nil {
+		return nil, err
+	}
+	return o.Ent.Snapshot.UpdateOneID(row.ID).SetWasRunning(false).Save(ctx)
 }
 
 // upidNode is the node field of a UPID ("UPID:node:...").

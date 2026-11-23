@@ -66,10 +66,11 @@ type CreateSnapshotArgs struct {
 func (CreateSnapshotArgs) Kind() string                 { return KindCreateSnapshot }
 func (CreateSnapshotArgs) InsertOpts() river.InsertOpts { return servers.InsertOpts() }
 
-// DeleteSnapshotArgs is the delete_snapshot job.
+// DeleteSnapshotArgs is the delete_snapshot job; PrevStatus is the status a failed delete restores.
 type DeleteSnapshotArgs struct {
-	SnapshotID int64 `json:"snapshot_id"`
-	ActionID   int64 `json:"action_id"`
+	SnapshotID int64  `json:"snapshot_id"`
+	ActionID   int64  `json:"action_id"`
+	PrevStatus string `json:"prev_status,omitempty"`
 }
 
 func (DeleteSnapshotArgs) Kind() string                 { return KindDeleteSnapshot }
@@ -361,7 +362,7 @@ func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Acti
 		}
 		res := []actions.Resource{{ID: id, Type: ResourceType}}
 		act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindDeleteSnapshot, res, func(actionID int64) river.JobArgs {
-			return DeleteSnapshotArgs{SnapshotID: id, ActionID: actionID}
+			return DeleteSnapshotArgs{SnapshotID: id, ActionID: actionID, PrevStatus: string(row.Status)}
 		}, nil)
 		return err
 	})

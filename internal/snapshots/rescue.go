@@ -47,7 +47,7 @@ func RescueOrphaned(ctx context.Context, c *ent.Client, sqlDB *sql.DB, _ servers
 			return err
 		}
 		q, err := tx.QueryContext(ctx, `
-			select a.id, a.command, a.resources from actions a
+			select a.id, a.command, a.resources, (select j.args from river_job j where j.id = a.river_job_id) from actions a
 			where a.command = any($1) and `+jobs.Orphaned+`
 			order by a.id for update of a`, Commands)
 		if err != nil {
@@ -57,12 +57,13 @@ func RescueOrphaned(ctx context.Context, c *ent.Client, sqlDB *sql.DB, _ servers
 			id       int64
 			command  string
 			snapshot int64
+			args     []byte
 		}
 		var found []lost
 		for q.Next() {
 			var l lost
 			var doc []byte
-			if err := q.Scan(&l.id, &l.command, &doc); err != nil {
+			if err := q.Scan(&l.id, &l.command, &doc, &l.args); err != nil {
 				q.Close()
 				return err
 			}
@@ -80,7 +81,7 @@ func RescueOrphaned(ctx context.Context, c *ent.Client, sqlDB *sql.DB, _ servers
 			return err
 		}
 		for _, l := range found {
-			if err := rescueOne(ctx, tx, etx, ins, l.id, l.command, l.snapshot); err != nil {
+			if err := rescueOne(ctx, tx, etx, ins, l.id, l.command, l.snapshot, l.args); err != nil {
 				return fmt.Errorf("rescue action %d: %w", l.id, err)
 			}
 			n++
@@ -90,7 +91,8 @@ func RescueOrphaned(ctx context.Context, c *ent.Client, sqlDB *sql.DB, _ servers
 	return n, err
 }
 
-func rescueOne(ctx context.Context, tx *sql.Tx, etx *ent.Client, ins *river.Client[*sql.Tx], actionID int64, command string, snapshotID int64) error {
+func rescueOne(ctx context.Context, tx *sql.Tx, etx *ent.Client, ins *river.Client[*sql.Tx], actionID int64, command string,
+	snapshotID int64, prevArgs []byte) error {
 	var args river.JobArgs
 	switch command {
 	case KindCreateSnapshot:
@@ -102,7 +104,11 @@ func rescueOne(ctx context.Context, tx *sql.Tx, etx *ent.Client, ins *river.Clie
 		}
 		args = CreateSnapshotArgs{SnapshotID: snapshotID, ActionID: actionID}
 	case KindDeleteSnapshot:
-		args = DeleteSnapshotArgs{SnapshotID: snapshotID, ActionID: actionID}
+		var prev DeleteSnapshotArgs
+		if prevArgs != nil {
+			_ = json.Unmarshal(prevArgs, &prev)
+		}
+		args = DeleteSnapshotArgs{SnapshotID: snapshotID, ActionID: actionID, PrevStatus: prev.PrevStatus}
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}

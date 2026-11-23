@@ -364,6 +364,9 @@ func (c *create) createOnce(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if c.o.afterCreatePost != nil {
+			c.o.afterCreatePost()
+		}
 		if err := c.save(ctx, func(u *ent.SnapshotUpdateOne) { u.SetUpid(string(up)).SetBootKey(bootKey) }); err != nil {
 			return err
 		}
@@ -396,7 +399,8 @@ func (c *create) claim(ctx context.Context) (bool, error) {
 		case !c.ours(cfg) && cfg["tags"] != "":
 			return false, nil
 		case time.Now().After(deadline):
-			return false, servers.Transient("VM %d is still locked (%s)", vmid, cfg["lock"])
+			// Locked and ours or untagged: it may be our create, so come back like a long import wait.
+			return false, river.JobSnooze(snoozeFor)
 		}
 		select {
 		case <-ctx.Done():
@@ -555,33 +559,11 @@ func (c *create) undo(ctx context.Context) error {
 
 // restart starts the source server again when it was running, then forgets that it did.
 func (c *create) restart(ctx context.Context, pc pve.Client) error {
-	if !c.row.WasRunning || c.row.ServerID == nil {
-		return nil
+	row, err := c.o.restartSource(ctx, pc, c.row)
+	if row != nil {
+		c.row = row
 	}
-	srv, err := c.o.Ent.Server.Get(ctx, *c.row.ServerID)
-	if ent.IsNotFound(err) || (err == nil && srv.Vmid == nil) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	v, err := servers.OwnedVM(ctx, pc, srv.ID, *srv.Vmid)
-	if errors.Is(err, servers.ErrMissing) {
-		c.log.Warn("source server vm is gone; nothing to start", "server_id", srv.ID)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if err := c.o.startServer(ctx, pc, srv, v); err != nil {
-		return err
-	}
-	row, err := c.o.Ent.Snapshot.UpdateOneID(c.row.ID).SetWasRunning(false).Save(ctx)
-	if err != nil {
-		return err
-	}
-	c.row = row
-	return nil
+	return err
 }
 
 // destroy removes vmid when it is this snapshot's VM; any other VM there is left alone.

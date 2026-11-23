@@ -51,10 +51,28 @@ func (w *DeleteSnapshotWorker) Work(ctx context.Context, job *river.Job[DeleteSn
 		return ret
 	}
 	run := func(ctx context.Context) error {
+		var pc pve.Client
+		connect := func() error {
+			var err error
+			if pc == nil {
+				if pc, err = w.o.pveFor(ctx, row.LocationID); err != nil {
+					return servers.StepError("connect to proxmox", err)
+				}
+			}
+			return nil
+		}
+		if a.PrevStatus == string(snapshot.StatusError) && row.WasRunning && row.ServerID != nil {
+			// A failed create's cleanup never started the server again; that comes first.
+			if err := connect(); err != nil {
+				return err
+			}
+			if _, err := w.o.restartSource(ctx, pc, row); err != nil {
+				return servers.StepError("start server", err)
+			}
+		}
 		if row.Vmid != nil {
-			pc, err := w.o.pveFor(ctx, row.LocationID)
-			if err != nil {
-				return servers.StepError("connect to proxmox", err)
+			if err := connect(); err != nil {
+				return err
 			}
 			if err := w.destroy(ctx, pc, row); err != nil {
 				return err
@@ -73,9 +91,13 @@ func (w *DeleteSnapshotWorker) Work(ctx context.Context, job *river.Job[DeleteSn
 		return nil
 	}
 	fail := func(ctx context.Context, f servers.Failure) error {
-		// The template is still ours and in place; a foreign VM already set the row missing.
+		// Back to the status before the delete; a foreign VM already set the row missing.
+		prev := snapshot.Status(a.PrevStatus)
+		if snapshot.StatusValidator(prev) != nil || prev == snapshot.StatusDeleting {
+			prev = snapshot.StatusAvailable
+		}
 		err := w.o.Ent.Snapshot.Update().Where(snapshot.ID(row.ID), snapshot.StatusEQ(snapshot.StatusDeleting)).
-			SetStatus(snapshot.StatusAvailable).Exec(ctx)
+			SetStatus(prev).Exec(ctx)
 		if err != nil {
 			return err
 		}

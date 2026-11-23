@@ -20,3 +20,9 @@ func SetAfterStep(o WorkerOptions, f func(step int)) WorkerOptions {
 	o.afterStep = f
 	return o
 }
+
+// SetAfterCreatePost makes the create workers built from o call f once the create POST returns.
+func SetAfterCreatePost(o WorkerOptions, f func()) WorkerOptions {
+	o.afterCreatePost = f
+	return o
+}
