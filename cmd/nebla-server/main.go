@@ -44,6 +44,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/settings"
+	"github.com/nebla-cloud/nebla/internal/snapshots"
 	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/riverqueue/river"
 )
@@ -93,14 +94,16 @@ func run() error {
 	volumes.RegisterWorkers(workers, volumes.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	backups.RegisterWorkers(workers, backups.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log,
 		Jobs: func() *jobs.Jobs { return runner }})
+	snapshots.RegisterWorkers(workers, snapshots.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
 	var fips *floatingips.Service
 	var nets *networks.Service
 	var pips *primaryips.Service
 	resumeIPs := func(ctx context.Context) error { return errors.Join(fips.ResumeStuck(ctx), pips.ResumeStuck(ctx)) }
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
 		VolumeRescue: func(ctx context.Context) error {
-			_, err := volumes.RescueOrphaned(ctx, client, sqlDB, bus)
-			return err
+			_, verr := volumes.RescueOrphaned(ctx, client, sqlDB, bus)
+			_, serr := snapshots.RescueOrphaned(ctx, client, sqlDB, bus)
+			return errors.Join(verr, serr)
 		},
 		FloatingIPResume: resumeIPs,
 		NetworkPool: func(ctx context.Context, pc pve.Client, locationID int64) error {
@@ -115,7 +118,7 @@ func run() error {
 	}
 	auth.RegisterPasskeyJobs(workers, passkeys)
 	runner, err = jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
-		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), volumes.UsagePeriodicJob(), enroll.SweepPeriodicJob(),
+		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), volumes.UsagePeriodicJob(), snapshots.UsagePeriodicJob(), enroll.SweepPeriodicJob(),
 			auth.ChallengeCleanupPeriodicJob(), backups.SchedulePeriodicJob(), backups.UsagePeriodicJob()))
 	if err != nil {
 		return err
@@ -140,6 +143,14 @@ func run() error {
 	// After the server rescue, so a lost backup's action is failed before its job is re-enqueued.
 	if err := backups.RescueOrphaned(ctx, sqlDB, runner); err != nil {
 		return err
+	}
+	// Before the orphan sweep, which would fail lost delete_snapshot actions outright.
+	rescuedSnap, err := snapshots.RescueOrphaned(ctx, client, sqlDB, bus)
+	if err != nil {
+		return err
+	}
+	if rescuedSnap > 0 {
+		log.Warn("requeued orphaned snapshot actions", "count", rescuedSnap)
 	}
 	if _, err := projects.BackfillCreatedBy(ctx, client); err != nil {
 		return err
