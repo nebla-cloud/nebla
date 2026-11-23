@@ -10,7 +10,7 @@ You can manage floating IPs on the Floating IPs page, on a server's page, with t
 ## What it is
 
 - Each floating IP is one address: an IPv4 address (`/32`) or an IPv6 address (`/128`).
-- It comes from the same pool as the primary IPs of the location you pick.
+- It comes from the same addresses as the primary IPs of the location you pick.
 - It counts against your project's IP quota (`max_ips`) together with primary IPs, whether or not it is assigned.
 - Deleting a server doesn't delete its floating IPs. They stay in your project, unassigned, and keep counting toward
   the quota.
@@ -19,7 +19,7 @@ You can manage floating IPs on the Floating IPs page, on a server's page, with t
 
 On the Floating IPs page, choose Create, pick IPv4 or IPv6, and pick either a location or a server. With a server, the
 floating IP is created in the server's location and assigned to it right away. Name, description and labels are
-optional; without a name, one is made from the address.
+optional; without a name, it is named `fip-<id>`.
 
 ```sh
 nebla floating-ip create --type ipv4 --location home --name web-vip
@@ -81,14 +81,23 @@ nebla floating-ip unassign web-vip
 ```
 
 Delete works on assigned and unassigned floating IPs. It unassigns first, waits for the release, and then gives the
-address back to the pool. Until then the floating IP shows status `deleting`.
+address back to the location. Until then the floating IP shows status `deleting`.
 
 ```sh
 nebla floating-ip delete web-vip
 ```
 
-After you unassign or delete, run the removal commands on the server so it stops using the address. A project that
-still has floating IPs can't be deleted.
+After you unassign, run the removal commands on the server so it stops using the address. The panel shows them, and
+`nebla floating-ip unassign` prints them. A delete doesn't show them, so remove the address from the server yourself:
+
+```sh
+sudo ip addr del 203.0.113.10/32 dev eth0
+```
+
+For IPv6, use `sudo ip -6 addr del 2001:db8::10/128 dev eth0`. If you made the address permanent with netplan, also
+delete its file under `/etc/netplan/` and run `sudo netplan apply`.
+
+A project that still has floating IPs can't be deleted.
 
 ## Limits
 
