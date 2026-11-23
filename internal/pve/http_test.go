@@ -966,6 +966,32 @@ func TestGuestBridgesIncludesPendingAndSnapshots(t *testing.T) {
 	}
 }
 
+func TestGuestNetRefsSaysWhere(t *testing.T) {
+	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch strings.TrimPrefix(r.URL.Path, "/api2/json/nodes/pve1/qemu/101") {
+		case "/config":
+			fmt.Fprint(w, `{"data":{"net0":"virtio=BC:24:11:00:00:01,bridge=vmbr0","net1":"virtio=BC:24:11:00:00:02,bridge=nbs1"}}`)
+		case "/pending":
+			fmt.Fprint(w, `{"data":[{"key":"net1","value":"virtio=BC:24:11:00:00:02,bridge=nbs1","pending":"virtio=BC:24:11:00:00:02,bridge=nbs2"}]}`)
+		case "/snapshot":
+			fmt.Fprint(w, `{"data":[{"name":"pre"},{"name":"current"}]}`)
+		case "/snapshot/pre/config":
+			fmt.Fprint(w, `{"data":{"net0":"virtio=BC:24:11:00:00:01,bridge=nbs4"}}`)
+		default:
+			w.WriteHeader(404)
+		}
+	})
+	got, err := c.GuestNetRefs(ctx(t), pve.GuestRef{VMID: 101, Node: "pve1", Kind: "qemu"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []pve.NetRef{{Bridge: "nbs1", Where: "config"}, {Bridge: "nbs2", Where: "pending"}, {Bridge: "nbs4", Where: "snapshot pre"}} {
+		if !slices.Contains(got, w) {
+			t.Errorf("missing %v in %v", w, got)
+		}
+	}
+}
+
 func TestGuestsKeepsBothKinds(t *testing.T) {
 	c := stubClient(t, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"data":[{"type":"qemu","vmid":100,"node":"a","template":1},{"type":"lxc","vmid":200,"node":"b"},{"type":"storage","id":"storage/a/local"}]}`)

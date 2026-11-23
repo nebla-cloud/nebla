@@ -1135,10 +1135,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 	// lxcFor returns the container on the path's node; caller holds s.mu.
 	lxcFor := func(r *http.Request) (*lxcGuest, *apiErr) {
 		id, _ := strconv.Atoi(r.PathValue("vmid"))
-		if g, ok := s.lxc[id]; ok && s.cts[id] == r.PathValue("node") {
+		if s.cts[id] != r.PathValue("node") {
+			return nil, notExist(id, r.PathValue("node"))
+		}
+		if g, ok := s.lxc[id]; ok {
 			return g, nil
 		}
-		return nil, notExist(id, r.PathValue("node"))
+		return &lxcGuest{config: map[string]string{}, snaps: map[string]map[string]string{}}, nil
 	}
 	snapList := func(snaps map[string]map[string]string) []map[string]any {
 		out := []map[string]any{}

@@ -36,8 +36,10 @@ import (
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/mail"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/osimages"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/settings"
@@ -91,12 +93,16 @@ func run() error {
 	backups.RegisterWorkers(workers, backups.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log,
 		Jobs: func() *jobs.Jobs { return runner }})
 	var fips *floatingips.Service
+	var nets *networks.Service
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
 		VolumeRescue: func(ctx context.Context) error {
 			_, err := volumes.RescueOrphaned(ctx, client, sqlDB, bus)
 			return err
 		},
-		FloatingIPResume: func(ctx context.Context) error { return fips.ResumeStuck(ctx) }})
+		FloatingIPResume: func(ctx context.Context) error { return fips.ResumeStuck(ctx) },
+		NetworkPool: func(ctx context.Context, pc pve.Client, locationID int64) error {
+			return nets.Reconcile(ctx, pc, locationID)
+		}})
 	reconcile.Register(workers, rec)
 	enr := enroll.New(sqlDB, client, enroll.Options{SecretKey: cfg.SecretKey, BaseURL: cfg.BaseURL, Catalog: cat, Logger: log})
 	enroll.Register(workers, enr)
@@ -114,6 +120,7 @@ func run() error {
 	osi.SetJobs(runner)
 	rec.SetJobs(runner)
 	fips = floatingips.New(floatingips.Options{SQL: sqlDB, Ent: client, Catalog: cat, Jobs: runner, Logger: log, Bus: bus})
+	nets = networks.New(networks.Options{SQL: sqlDB, Ent: client, Catalog: cat, Jobs: runner, Logger: log, Bus: bus})
 	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
 	if err := rec.RescueAll(ctx); err != nil {
 		return err

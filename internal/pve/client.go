@@ -139,6 +139,9 @@ type SDNVNet struct {
 	VLANAware  bool
 }
 
+// NetRef is a bridge named by one net key, and the place that names it.
+type NetRef struct{ Bridge, Where string }
+
 // GuestRef names one guest; Kind is "qemu" or "lxc".
 type GuestRef struct {
 	VMID       int
@@ -196,6 +199,8 @@ type Client interface {
 	Guests(ctx context.Context) ([]GuestRef, error)
 	// GuestBridges lists the bridge of every net key in the guest's config, pending changes and snapshots.
 	GuestBridges(ctx context.Context, g GuestRef) ([]string, error)
+	// GuestNetRefs is GuestBridges with where each bridge appears: "config", "pending" or "snapshot <name>".
+	GuestNetRefs(ctx context.Context, g GuestRef) ([]NetRef, error)
 	FirewallOptions(ctx context.Context, node string, vmid int) (map[string]string, error)
 	SetFirewallOptions(ctx context.Context, node string, vmid int, kv map[string]string) error
 	FirewallRules(ctx context.Context, node string, vmid int) ([]FirewallRule, error)

@@ -56,6 +56,9 @@ var ErrProxmoxState = errors.New("reconcile: implausible proxmox state")
 
 const pveTimeout = 30 * time.Second
 
+// networkPoolTimeout bounds the pool pass, which reads every guest config on the cluster.
+const networkPoolTimeout = 5 * time.Minute
+
 type Options struct {
 	SQL     *sql.DB
 	Ent     *ent.Client
@@ -67,6 +70,8 @@ type Options struct {
 	VolumeRescue func(ctx context.Context) error
 	// FloatingIPResume restarts floating IP changes left without an action; it runs once per pass.
 	FloatingIPResume func(ctx context.Context) error
+	// NetworkPool discovers private network slots, thaws cooling ones and resumes stuck attachments for one location; errors are logged.
+	NetworkPool func(ctx context.Context, pc pve.Client, locationID int64) error
 }
 
 type Reconciler struct {
@@ -224,6 +229,14 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 	if err != nil {
 		log.Warn("reconcile: datacenter firewall", "err", err)
 		errs = append(errs, fmt.Errorf("datacenter firewall: %w", err))
+	}
+	if r.o.NetworkPool != nil {
+		nctx, cancel := context.WithTimeout(ctx, networkPoolTimeout)
+		err := r.o.NetworkPool(nctx, pc, locationID)
+		cancel()
+		if err != nil {
+			log.Error("reconcile: network pool", "err", err)
+		}
 	}
 	if !r.driftDue(locationID) {
 		return errors.Join(errs...)

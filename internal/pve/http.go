@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"mime/multipart"
 	"net"
@@ -803,35 +804,35 @@ func guestPath(g GuestRef) string {
 
 var netKey = regexp.MustCompile(`^net\d+$`)
 
-// bridgesIn appends the bridge of every net key in cfg to out.
-func bridgesIn(out []string, cfg map[string]string) []string {
-	for k, v := range cfg {
+// bridgesIn appends the bridge of every net key in cfg to out, tagged with where.
+func bridgesIn(out []NetRef, cfg map[string]string, where string) []NetRef {
+	for _, k := range slices.Sorted(maps.Keys(cfg)) {
 		if !netKey.MatchString(k) {
 			continue
 		}
-		for p := range strings.SplitSeq(v, ",") {
+		for p := range strings.SplitSeq(cfg[k], ",") {
 			if b, ok := strings.CutPrefix(p, "bridge="); ok {
-				out = append(out, b)
+				out = append(out, NetRef{Bridge: b, Where: where})
 			}
 		}
 	}
 	return out
 }
 
-func (c *httpClient) GuestBridges(ctx context.Context, g GuestRef) ([]string, error) {
+func (c *httpClient) GuestNetRefs(ctx context.Context, g GuestRef) ([]NetRef, error) {
 	base := guestPath(g)
 	cfg, err := c.getMap(ctx, base+"/config")
 	if err != nil {
 		return nil, fmt.Errorf("guest %d config: %w", g.VMID, err)
 	}
-	out := bridgesIn(nil, cfg)
+	out := bridgesIn(nil, cfg, "config")
 	pend, err := c.pendingAt(ctx, base)
 	if err != nil {
 		return nil, fmt.Errorf("guest %d pending: %w", g.VMID, err)
 	}
 	for _, p := range pend {
-		out = bridgesIn(out, map[string]string{p.Key: p.Value})
-		out = bridgesIn(out, map[string]string{p.Key: p.Pending})
+		out = bridgesIn(out, map[string]string{p.Key: p.Value}, "pending")
+		out = bridgesIn(out, map[string]string{p.Key: p.Pending}, "pending")
 	}
 	var snaps []struct {
 		Name string `json:"name"`
@@ -847,7 +848,19 @@ func (c *httpClient) GuestBridges(ctx context.Context, g GuestRef) ([]string, er
 		if err != nil {
 			return nil, fmt.Errorf("guest %d snapshot %s: %w", g.VMID, s.Name, err)
 		}
-		out = bridgesIn(out, sc)
+		out = bridgesIn(out, sc, "snapshot "+s.Name)
+	}
+	return out, nil
+}
+
+func (c *httpClient) GuestBridges(ctx context.Context, g GuestRef) ([]string, error) {
+	refs, err := c.GuestNetRefs(ctx, g)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(refs))
+	for i, r := range refs {
+		out[i] = r.Bridge
 	}
 	return slices.Compact(slices.Sorted(slices.Values(out))), nil
 }

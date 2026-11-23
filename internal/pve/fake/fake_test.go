@@ -555,3 +555,13 @@ func TestFakeForeignGuestAndNamedIPSet(t *testing.T) {
 		t.Fatalf("missing set: %v", err)
 	}
 }
+
+func TestFakeContainerWithoutConfigHasEmptyOne(t *testing.T) {
+	s := fake.New(t)
+	s.AddNode("pve1", 8, 32768)
+	s.AddContainer("pve1", 400)
+	b, err := pve.New(s.Conn()).GuestBridges(context.Background(), pve.GuestRef{VMID: 400, Node: "pve1", Kind: "lxc"})
+	if err != nil || len(b) != 0 {
+		t.Fatalf("bridges = %v, %v", b, err)
+	}
+}

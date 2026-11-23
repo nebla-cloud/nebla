@@ -1277,6 +1277,20 @@ func TestReconcileRunsFloatingIPResume(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
+func TestReconcileRunsNetworkPool(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	var gotLoc []int64
+	r := reconcile.New(reconcile.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: quiet(),
+		NetworkPool: func(_ context.Context, pc pve.Client, loc int64) error {
+			require.NotNil(t, pc)
+			gotLoc = append(gotLoc, loc)
+			return errors.New("boom")
+		}})
+	require.NoError(t, r.Run(ctx, e.Location), "a pool error is logged, not returned")
+	require.Equal(t, []int64{e.Location}, gotLoc)
+}
+
 func TestReconcilePassResumesFloatingIPsOnce(t *testing.T) {
 	ctx := context.Background()
 	var calls atomic.Int32
