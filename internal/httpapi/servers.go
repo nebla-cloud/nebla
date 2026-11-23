@@ -38,7 +38,7 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref, pn []priv
 		pn = []privateNetItem{}
 	}
 	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apigen.LocationRef{Id: s.Location.ID, Name: s.Location.Name, Description: s.Location.Description},
-		ServerType: apiServerType(s.Type), Image: serverImage(s), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, PrivateNet: pn, Created: s.CreatedAt,
+		ServerType: apiServerType(s.Type), Image: serverImage(s), OsFlavor: s.OSFlavor, OsVersion: s.OSVersion, Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, PrivateNet: pn, Created: s.CreatedAt,
 		Backups: apigen.ServerBackups{Enabled: s.Backups.Enabled, Keep: s.Backups.Keep, Count: s.Backups.Count,
 			LastBackupAt: s.Backups.LastBackupAt, NextBackupAt: s.Backups.NextBackupAt},
 		IpChangeRerunsCloudInit: s.IPChangeRerunsCloudInit,
@@ -49,6 +49,12 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref, pn []priv
 	}, len(fips))
 	for i, f := range fips {
 		out.PublicNet.FloatingIps[i].Id, out.PublicNet.FloatingIps[i].Ip = f.ID, f.IP
+	}
+	if s.Snapshot != nil {
+		out.Snapshot = &struct {
+			Id   int64  `json:"id"`
+			Name string `json:"name"`
+		}{Id: s.Snapshot.ID, Name: s.Snapshot.Name}
 	}
 	for i, f := range s.Firewalls {
 		out.Firewalls[i] = apigen.ServerFirewall{Id: f.FirewallID, Name: f.Name, Via: f.Via}
@@ -155,7 +161,7 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 		return nil, err
 	}
 	b := req.Body
-	in := servers.CreateInput{Name: b.Name, ServerType: b.ServerType, Image: b.Image, Location: b.Location,
+	in := servers.CreateInput{Name: b.Name, ServerType: b.ServerType, Image: deref(b.Image), Snapshot: deref(b.Snapshot), Location: b.Location,
 		SSHKeys: deref(b.SshKeys), UserData: deref(b.UserData), IPv4: servers.IPChoice{New: true}, StartAfter: true}
 	if b.Labels != nil {
 		in.Labels = *b.Labels
@@ -321,7 +327,7 @@ func (s *server) RebuildServer(ctx context.Context, req apigen.RebuildServerRequ
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.servers.Rebuild(ctx, sc.ProjectID, req.Id, servers.RebuildSource{Image: req.Body.Image})
+	a, err := s.servers.Rebuild(ctx, sc.ProjectID, req.Id, servers.RebuildSource{Image: deref(req.Body.Image), Snapshot: deref(req.Body.Snapshot)})
 	if err != nil {
 		return nil, err
 	}
@@ -340,10 +346,11 @@ func (s *server) ChangeServerType(ctx context.Context, req apigen.ChangeServerTy
 	return apigen.ChangeServerType201JSONResponse{ActionCreatedJSONResponse: apigen.ActionCreatedJSONResponse{Action: apiAction(a)}}, nil
 }
 
-// serverImage is the image shape of a server; without an image it carries the server's own OS facts.
-func serverImage(s servers.Server) apigen.Image {
+// serverImage is the server's image, nil when it was built from a snapshot whose image is gone.
+func serverImage(s servers.Server) *apigen.Image {
 	if s.Image == nil {
-		return apigen.Image{OsFlavor: s.OSFlavor, OsVersion: s.OSVersion, Locations: []int64{}}
+		return nil
 	}
-	return apiImage(*s.Image)
+	img := apiImage(*s.Image)
+	return &img
 }

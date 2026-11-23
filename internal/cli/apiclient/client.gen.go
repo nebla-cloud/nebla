@@ -442,6 +442,33 @@ func (e ServerStatus) Valid() bool {
 	}
 }
 
+// Defines values for SnapshotStatus.
+const (
+	SnapshotStatusAvailable SnapshotStatus = "available"
+	SnapshotStatusCreating  SnapshotStatus = "creating"
+	SnapshotStatusDeleting  SnapshotStatus = "deleting"
+	SnapshotStatusError     SnapshotStatus = "error"
+	SnapshotStatusMissing   SnapshotStatus = "missing"
+)
+
+// Valid indicates whether the value is a known member of the SnapshotStatus enum.
+func (e SnapshotStatus) Valid() bool {
+	switch e {
+	case SnapshotStatusAvailable:
+		return true
+	case SnapshotStatusCreating:
+		return true
+	case SnapshotStatusDeleting:
+		return true
+	case SnapshotStatusError:
+		return true
+	case SnapshotStatusMissing:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TokenPermission.
 const (
 	Read      TokenPermission = "read"
@@ -542,7 +569,7 @@ func (e GetPrimaryIpsParamsType) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required or release_pending
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required, release_pending or shutdown_timeout
 		Code string `json:"code"`
 
 		// Message Plain text safe to show members
@@ -631,9 +658,12 @@ type AdminLocation struct {
 	Pve             PveConnection      `json:"pve"`
 
 	// SdnZone The SDN zone holding the private network VNets; null when private networks are off
-	SdnZone    *string   `json:"sdn_zone"`
-	Updated    time.Time `json:"updated"`
-	VnetPrefix string    `json:"vnet_prefix"`
+	SdnZone *string `json:"sdn_zone"`
+
+	// SnapshotStorage Empty uses each node's disk storage
+	SnapshotStorage string    `json:"snapshot_storage"`
+	Updated         time.Time `json:"updated"`
+	VnetPrefix      string    `json:"vnet_prefix"`
 
 	// VolumeStorage Empty uses each node's disk storage
 	VolumeStorage string `json:"volume_storage"`
@@ -838,6 +868,7 @@ type EnrollmentReportStorage struct {
 // Error defines model for Error.
 type Error struct {
 	Error struct {
+		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, locked, server_changed, project_not_empty and invalid_input are reused.
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
@@ -1106,6 +1137,9 @@ type Location struct {
 	// PrivateNetworksAvailable Whether private networks can be created here
 	PrivateNetworksAvailable bool `json:"private_networks_available"`
 
+	// SnapshotsAvailable Whether snapshots can be taken here
+	SnapshotsAvailable bool `json:"snapshots_available"`
+
 	// VolumesAvailable Whether volumes can be created here
 	VolumesAvailable bool `json:"volumes_available"`
 }
@@ -1180,6 +1214,9 @@ type LocationInput struct {
 
 	// SdnZone The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omitting only sdn_zone keeps the current zone; omitting both sdn_zone and vnet_prefix changes nothing. Turning it off, or changing the zone or prefix, is refused with 409 while networks are in use or cooling
 	SdnZone *string `json:"sdn_zone,omitempty"`
+
+	// SnapshotStorage Storage with the images content type for snapshots; empty uses each node's disk storage. Omitted on update keeps the current value
+	SnapshotStorage *string `json:"snapshot_storage,omitempty"`
 
 	// VnetPrefix Prefix of the VNet names Nebla uses; default nb
 	VnetPrefix *string `json:"vnet_prefix,omitempty"`
@@ -1480,6 +1517,8 @@ type ProjectUsage struct {
 	MemoryMb        int `json:"memory_mb"`
 	Networks        int `json:"networks"`
 	Servers         int `json:"servers"`
+	SnapshotGb      int `json:"snapshot_gb"`
+	Snapshots       int `json:"snapshots"`
 	Vcpu            int `json:"vcpu"`
 	VolumeGb        int `json:"volume_gb"`
 	Volumes         int `json:"volumes"`
@@ -1517,30 +1556,37 @@ type Quota struct {
 	MaxMemoryMb int `json:"max_memory_mb"`
 
 	// MaxNetworks Private networks; 0 is unlimited
-	MaxNetworks int `json:"max_networks"`
-	MaxServers  int `json:"max_servers"`
-	MaxVcpu     int `json:"max_vcpu"`
-	MaxVolumeGb int `json:"max_volume_gb"`
-	MaxVolumes  int `json:"max_volumes"`
+	MaxNetworks   int `json:"max_networks"`
+	MaxServers    int `json:"max_servers"`
+	MaxSnapshotGb int `json:"max_snapshot_gb"`
+	MaxSnapshots  int `json:"max_snapshots"`
+	MaxVcpu       int `json:"max_vcpu"`
+	MaxVolumeGb   int `json:"max_volume_gb"`
+	MaxVolumes    int `json:"max_volumes"`
 }
 
-// QuotaInput An omitted max_volumes, max_volume_gb, max_backups or max_networks keeps the current value
+// QuotaInput An omitted max_volumes, max_volume_gb, max_backups, max_networks, max_snapshots or max_snapshot_gb keeps the current value
 type QuotaInput struct {
-	MaxBackups  *int `json:"max_backups,omitempty"`
-	MaxDiskGb   int  `json:"max_disk_gb"`
-	MaxIps      int  `json:"max_ips"`
-	MaxMemoryMb int  `json:"max_memory_mb"`
-	MaxNetworks *int `json:"max_networks,omitempty"`
-	MaxServers  int  `json:"max_servers"`
-	MaxVcpu     int  `json:"max_vcpu"`
-	MaxVolumeGb *int `json:"max_volume_gb,omitempty"`
-	MaxVolumes  *int `json:"max_volumes,omitempty"`
+	MaxBackups    *int `json:"max_backups,omitempty"`
+	MaxDiskGb     int  `json:"max_disk_gb"`
+	MaxIps        int  `json:"max_ips"`
+	MaxMemoryMb   int  `json:"max_memory_mb"`
+	MaxNetworks   *int `json:"max_networks,omitempty"`
+	MaxServers    int  `json:"max_servers"`
+	MaxSnapshotGb *int `json:"max_snapshot_gb,omitempty"`
+	MaxSnapshots  *int `json:"max_snapshots,omitempty"`
+	MaxVcpu       int  `json:"max_vcpu"`
+	MaxVolumeGb   *int `json:"max_volume_gb,omitempty"`
+	MaxVolumes    *int `json:"max_volumes,omitempty"`
 }
 
-// RebuildInput defines model for RebuildInput.
+// RebuildInput Give image or snapshot, not both
 type RebuildInput struct {
 	// Image Image id or name
-	Image string `json:"image"`
+	Image *string `json:"image,omitempty"`
+
+	// Snapshot Snapshot id or name
+	Snapshot *string `json:"snapshot,omitempty"`
 }
 
 // RestoreBackupInput defines model for RestoreBackupInput.
@@ -1560,15 +1606,19 @@ type Server struct {
 	// Firewalls Firewalls in effect on the server and why each applies
 	Firewalls []ServerFirewall `json:"firewalls"`
 	Id        int64            `json:"id"`
-	Image     Image            `json:"image"`
+
+	// Image The image the server was built from; null when it was built from a snapshot whose image is gone
+	Image *Image `json:"image"`
 
 	// IpChangeRerunsCloudInit True for a server created before IP changes were supported; its first IP change re-runs its cloud-init user data and gives it new SSH host keys, and later changes do not
 	IpChangeRerunsCloudInit bool `json:"ip_change_reruns_cloud_init"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels   Labels      `json:"labels"`
-	Location LocationRef `json:"location"`
-	Name     string      `json:"name"`
+	Labels    Labels      `json:"labels"`
+	Location  LocationRef `json:"location"`
+	Name      string      `json:"name"`
+	OsFlavor  string      `json:"os_flavor"`
+	OsVersion string      `json:"os_version"`
 
 	// PrivateNet The private networks the server is on
 	PrivateNet []struct {
@@ -1586,8 +1636,14 @@ type Server struct {
 		Ipv4 *ServerIp `json:"ipv4"`
 		Ipv6 *ServerIp `json:"ipv6"`
 	} `json:"public_net"`
-	ServerType ServerType   `json:"server_type"`
-	Status     ServerStatus `json:"status"`
+	ServerType ServerType `json:"server_type"`
+
+	// Snapshot The snapshot the server was built from, if any
+	Snapshot *struct {
+		Id   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"snapshot"`
+	Status ServerStatus `json:"status"`
 
 	// Volumes Ids of the attached volumes
 	Volumes []int64 `json:"volumes"`
@@ -1626,8 +1682,8 @@ type ServerInput struct {
 		Firewall int64 `json:"firewall"`
 	} `json:"firewalls,omitempty"`
 
-	// Image Image id or name
-	Image string `json:"image"`
+	// Image Image id or name; give this or snapshot
+	Image *string `json:"image,omitempty"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
@@ -1654,6 +1710,9 @@ type ServerInput struct {
 
 	// ServerType Server type id or name
 	ServerType string `json:"server_type"`
+
+	// Snapshot Snapshot id or name; give this or image
+	Snapshot *string `json:"snapshot,omitempty"`
 
 	// SshKeys The project's SSH key ids or names
 	SshKeys          *[]string `json:"ssh_keys,omitempty"`
@@ -1726,6 +1785,68 @@ type ServerTypeList struct {
 // ServerUpdate defines model for ServerUpdate.
 type ServerUpdate struct {
 	Backups *BackupSettings `json:"backups,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
+}
+
+// Snapshot defines model for Snapshot.
+type Snapshot struct {
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	Id          int64     `json:"id"`
+
+	// Image The source server's image; null when none or it was deleted
+	Image *struct {
+		Id   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"image"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels    Labels      `json:"labels"`
+	Location  LocationRef `json:"location"`
+	Name      string      `json:"name"`
+	OsFlavor  string      `json:"os_flavor"`
+	OsVersion string      `json:"os_version"`
+
+	// RestoreKeepsIdentity Whether restoring keeps the server's identity; null when the source server is gone, false when its network has changed since
+	RestoreKeepsIdentity *bool `json:"restore_keeps_identity"`
+
+	// Server The source server's id; null once it is deleted
+	Server *int64 `json:"server"`
+
+	// ServerName The source server's name when the snapshot was taken
+	ServerName string `json:"server_name"`
+
+	// Size Size in GB
+	Size   int            `json:"size"`
+	Status SnapshotStatus `json:"status"`
+}
+
+// SnapshotStatus defines model for Snapshot.Status.
+type SnapshotStatus string
+
+// SnapshotInput defines model for SnapshotInput.
+type SnapshotInput struct {
+	Description *string `json:"description,omitempty"`
+
+	// ForceStop Power the server off if it doesn't shut down in time
+	ForceStop *bool `json:"force_stop,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Name Defaults to <server>-<YYYYMMDD-HHMM> in UTC
+	Name *string `json:"name,omitempty"`
+
+	// Server Server id or name
+	Server string `json:"server"`
+}
+
+// SnapshotUpdate defines model for SnapshotUpdate.
+type SnapshotUpdate struct {
+	Description *string `json:"description,omitempty"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
@@ -2210,6 +2331,39 @@ type GetServerMetricsParams struct {
 	Timeframe *string `form:"timeframe,omitempty" json:"timeframe,omitempty"`
 }
 
+// GetSnapshotsParams defines parameters for GetSnapshots.
+type GetSnapshotsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact snapshot name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Status Only snapshots in this status
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Server Only snapshots of this server id or name
+	Server *string `form:"server,omitempty" json:"server,omitempty"`
+
+	// Location Only snapshots in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
+// GetSnapshotActionsParams defines parameters for GetSnapshotActions.
+type GetSnapshotActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetSshKeysParams defines parameters for GetSshKeys.
 type GetSshKeysParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -2427,6 +2581,12 @@ type PostSetupJSONRequestBody = Credentials
 
 // PostSignupJSONRequestBody defines body for PostSignup for application/json ContentType.
 type PostSignupJSONRequestBody = Credentials
+
+// PostSnapshotsJSONRequestBody defines body for PostSnapshots for application/json ContentType.
+type PostSnapshotsJSONRequestBody = SnapshotInput
+
+// PutSnapshotJSONRequestBody defines body for PutSnapshot for application/json ContentType.
+type PutSnapshotJSONRequestBody = SnapshotUpdate
 
 // PostSshKeysJSONRequestBody defines body for PostSshKeys for application/json ContentType.
 type PostSshKeysJSONRequestBody PostSshKeysJSONBody
@@ -3797,14 +3957,14 @@ type ClientInterface interface {
 	// Corresponds with POST /servers/{id}/actions/reboot (the `RebootServer` operationId).
 	RebootServer(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RebuildServerWithBody Reinstall a server from an image, keeping its IPs and MAC
+	// RebuildServerWithBody Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /servers/{id}/actions/rebuild (the `RebuildServer` operationId).
 	RebuildServerWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+	// RebuildServer Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3896,6 +4056,60 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /signup (the `PostSignup` operationId).
 	PostSignup(ctx context.Context, body PostSignupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSnapshots List the project's snapshots
+	//
+	// Corresponds with GET /snapshots (the `GetSnapshots` operationId).
+	GetSnapshots(ctx context.Context, params *GetSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostSnapshotsWithBody Snapshot a server's boot disk
+	//
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+	PostSnapshotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostSnapshots Snapshot a server's boot disk
+	//
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+	PostSnapshots(ctx context.Context, body PostSnapshotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteSnapshot Delete a snapshot
+	//
+	// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+	//
+	// Corresponds with DELETE /snapshots/{id} (the `DeleteSnapshot` operationId).
+	DeleteSnapshot(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSnapshot Get a snapshot
+	//
+	// Corresponds with GET /snapshots/{id} (the `GetSnapshot` operationId).
+	GetSnapshot(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutSnapshotWithBody Rename a snapshot, change its description or replace its labels
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+	PutSnapshotWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutSnapshot Rename a snapshot, change its description or replace its labels
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+	PutSnapshot(ctx context.Context, id ID, body PutSnapshotJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSnapshotActions List a snapshot's actions
+	//
+	// Corresponds with GET /snapshots/{id}/actions (the `GetSnapshotActions` operationId).
+	GetSnapshotActions(ctx context.Context, id ID, params *GetSnapshotActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSshKeys List the project's SSH keys
 	//
@@ -7050,7 +7264,7 @@ func (c *Client) RebootServer(ctx context.Context, id ID, reqEditors ...RequestE
 	return c.Client.Do(req)
 }
 
-// RebuildServerWithBody Reinstall a server from an image, keeping its IPs and MAC
+// RebuildServerWithBody Reinstall a server from an image or snapshot, keeping its IPs and MAC
 //
 // Takes any type of body and a specified content type.
 //
@@ -7067,7 +7281,7 @@ func (c *Client) RebuildServerWithBody(ctx context.Context, id ID, contentType s
 	return c.Client.Do(req)
 }
 
-// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+// RebuildServer Reinstall a server from an image or snapshot, keeping its IPs and MAC
 //
 // Takes a body of the `application/json` content type.
 //
@@ -7300,6 +7514,140 @@ func (c *Client) PostSignupWithBody(ctx context.Context, contentType string, bod
 // Corresponds with POST /signup (the `PostSignup` operationId).
 func (c *Client) PostSignup(ctx context.Context, body PostSignupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostSignupRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSnapshots List the project's snapshots
+//
+// Corresponds with GET /snapshots (the `GetSnapshots` operationId).
+func (c *Client) GetSnapshots(ctx context.Context, params *GetSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSnapshotsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostSnapshotsWithBody Snapshot a server's boot disk
+//
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+func (c *Client) PostSnapshotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSnapshotsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostSnapshots Snapshot a server's boot disk
+//
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+func (c *Client) PostSnapshots(ctx context.Context, body PostSnapshotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSnapshotsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteSnapshot Delete a snapshot
+//
+// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+//
+// Corresponds with DELETE /snapshots/{id} (the `DeleteSnapshot` operationId).
+func (c *Client) DeleteSnapshot(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteSnapshotRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSnapshot Get a snapshot
+//
+// Corresponds with GET /snapshots/{id} (the `GetSnapshot` operationId).
+func (c *Client) GetSnapshot(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSnapshotRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutSnapshotWithBody Rename a snapshot, change its description or replace its labels
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+func (c *Client) PutSnapshotWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutSnapshotRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutSnapshot Rename a snapshot, change its description or replace its labels
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+func (c *Client) PutSnapshot(ctx context.Context, id ID, body PutSnapshotJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutSnapshotRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSnapshotActions List a snapshot's actions
+//
+// Corresponds with GET /snapshots/{id}/actions (the `GetSnapshotActions` operationId).
+func (c *Client) GetSnapshotActions(ctx context.Context, id ID, params *GetSnapshotActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSnapshotActionsRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -14420,6 +14768,384 @@ func NewPostSignupRequestWithBody(server string, contentType string, body io.Rea
 	return req, nil
 }
 
+// NewGetSnapshotsRequest constructs an http.Request for the GetSnapshots method
+func NewGetSnapshotsRequest(server string, params *GetSnapshotsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/snapshots")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "label_selector", *params.LabelSelector, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Server != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "server", *params.Server, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "location", *params.Location, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostSnapshotsRequest calls the generic PostSnapshots builder with application/json body
+func NewPostSnapshotsRequest(server string, body PostSnapshotsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostSnapshotsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostSnapshotsRequestWithBody constructs an http.Request for the PostSnapshots method, with any body, and a specified content type
+func NewPostSnapshotsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/snapshots")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteSnapshotRequest constructs an http.Request for the DeleteSnapshot method
+func NewDeleteSnapshotRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/snapshots/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetSnapshotRequest constructs an http.Request for the GetSnapshot method
+func NewGetSnapshotRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/snapshots/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutSnapshotRequest calls the generic PutSnapshot builder with application/json body
+func NewPutSnapshotRequest(server string, id ID, body PutSnapshotJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutSnapshotRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutSnapshotRequestWithBody constructs an http.Request for the PutSnapshot method, with any body, and a specified content type
+func NewPutSnapshotRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/snapshots/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetSnapshotActionsRequest constructs an http.Request for the GetSnapshotActions method
+func NewGetSnapshotActionsRequest(server string, id ID, params *GetSnapshotActionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/snapshots/%s/actions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetSshKeysRequest constructs an http.Request for the GetSshKeys method
 func NewGetSshKeysRequest(server string, params *GetSshKeysParams) (*http.Request, error) {
 	var err error
@@ -16537,14 +17263,14 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /servers/{id}/actions/reboot (the `RebootServer` operationId).
 	RebootServerWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*RebootServerResponse, error)
 
-	// RebuildServerWithBodyWithResponse Reinstall a server from an image, keeping its IPs and MAC
+	// RebuildServerWithBodyWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /servers/{id}/actions/rebuild (the `RebuildServer` operationId).
 	RebuildServerWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RebuildServerResponse, error)
 
-	// RebuildServerWithResponse Reinstall a server from an image, keeping its IPs and MAC
+	// RebuildServerWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -16652,6 +17378,68 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /signup (the `PostSignup` operationId).
 	PostSignupWithResponse(ctx context.Context, body PostSignupJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSignupResponse, error)
+
+	// GetSnapshotsWithResponse List the project's snapshots
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /snapshots (the `GetSnapshots` operationId).
+	GetSnapshotsWithResponse(ctx context.Context, params *GetSnapshotsParams, reqEditors ...RequestEditorFn) (*GetSnapshotsResponse, error)
+
+	// PostSnapshotsWithBodyWithResponse Snapshot a server's boot disk
+	//
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+	PostSnapshotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSnapshotsResponse, error)
+
+	// PostSnapshotsWithResponse Snapshot a server's boot disk
+	//
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+	PostSnapshotsWithResponse(ctx context.Context, body PostSnapshotsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSnapshotsResponse, error)
+
+	// DeleteSnapshotWithResponse Delete a snapshot
+	//
+	// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /snapshots/{id} (the `DeleteSnapshot` operationId).
+	DeleteSnapshotWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteSnapshotResponse, error)
+
+	// GetSnapshotWithResponse Get a snapshot
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /snapshots/{id} (the `GetSnapshot` operationId).
+	GetSnapshotWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetSnapshotResponse, error)
+
+	// PutSnapshotWithBodyWithResponse Rename a snapshot, change its description or replace its labels
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+	PutSnapshotWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSnapshotResponse, error)
+
+	// PutSnapshotWithResponse Rename a snapshot, change its description or replace its labels
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+	PutSnapshotWithResponse(ctx context.Context, id ID, body PutSnapshotJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSnapshotResponse, error)
+
+	// GetSnapshotActionsWithResponse List a snapshot's actions
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /snapshots/{id}/actions (the `GetSnapshotActions` operationId).
+	GetSnapshotActionsWithResponse(ctx context.Context, id ID, params *GetSnapshotActionsParams, reqEditors ...RequestEditorFn) (*GetSnapshotActionsResponse, error)
 
 	// GetSshKeysWithResponse List the project's SSH keys
 	//
@@ -27707,6 +28495,484 @@ func (r PostSignupResponse) ContentType() string {
 	return ""
 }
 
+type GetSnapshotsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Meta      Meta       `json:"meta"`
+		Snapshots []Snapshot `json:"snapshots"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSnapshotsResponse) GetJSON200() *struct {
+	Meta      Meta       `json:"meta"`
+	Snapshots []Snapshot `json:"snapshots"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSnapshotsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetSnapshotsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetSnapshotsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetSnapshotsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSnapshotsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSnapshotsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSnapshotsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSnapshotsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostSnapshotsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *struct {
+		Action   Action   `json:"action"`
+		Snapshot Snapshot `json:"snapshot"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostSnapshotsResponse) GetJSON201() *struct {
+	Action   Action   `json:"action"`
+	Snapshot Snapshot `json:"snapshot"`
+} {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostSnapshotsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostSnapshotsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostSnapshotsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostSnapshotsResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostSnapshotsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PostSnapshotsResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostSnapshotsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostSnapshotsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostSnapshotsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostSnapshotsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostSnapshotsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Action Action `json:"action"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteSnapshotResponse) GetJSON200() *struct {
+	Action Action `json:"action"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteSnapshotResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteSnapshotResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteSnapshotResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteSnapshotResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteSnapshotResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteSnapshotResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteSnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Snapshot
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSnapshotResponse) GetJSON200() *Snapshot {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSnapshotResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetSnapshotResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetSnapshotResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Snapshot
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutSnapshotResponse) GetJSON200() *Snapshot {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutSnapshotResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PutSnapshotResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PutSnapshotResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PutSnapshotResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutSnapshotResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutSnapshotResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutSnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetSnapshotActionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Actions []Action `json:"actions"`
+		Meta    Meta     `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSnapshotActionsResponse) GetJSON200() *struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSnapshotActionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetSnapshotActionsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetSnapshotActionsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetSnapshotActionsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSnapshotActionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSnapshotActionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSnapshotActionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSnapshotActionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSshKeysResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -31295,7 +32561,7 @@ func (c *ClientWithResponses) RebootServerWithResponse(ctx context.Context, id I
 	return ParseRebootServerResponse(rsp)
 }
 
-// RebuildServerWithBodyWithResponse Reinstall a server from an image, keeping its IPs and MAC
+// RebuildServerWithBodyWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -31308,7 +32574,7 @@ func (c *ClientWithResponses) RebuildServerWithBodyWithResponse(ctx context.Cont
 	return ParseRebuildServerResponse(rsp)
 }
 
-// RebuildServerWithResponse Reinstall a server from an image, keeping its IPs and MAC
+// RebuildServerWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -31505,6 +32771,116 @@ func (c *ClientWithResponses) PostSignupWithResponse(ctx context.Context, body P
 		return nil, err
 	}
 	return ParsePostSignupResponse(rsp)
+}
+
+// GetSnapshotsWithResponse List the project's snapshots
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /snapshots (the `GetSnapshots` operationId).
+func (c *ClientWithResponses) GetSnapshotsWithResponse(ctx context.Context, params *GetSnapshotsParams, reqEditors ...RequestEditorFn) (*GetSnapshotsResponse, error) {
+	rsp, err := c.GetSnapshots(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSnapshotsResponse(rsp)
+}
+
+// PostSnapshotsWithBodyWithResponse Snapshot a server's boot disk
+//
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+func (c *ClientWithResponses) PostSnapshotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSnapshotsResponse, error) {
+	rsp, err := c.PostSnapshotsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSnapshotsResponse(rsp)
+}
+
+// PostSnapshotsWithResponse Snapshot a server's boot disk
+//
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /snapshots (the `PostSnapshots` operationId).
+func (c *ClientWithResponses) PostSnapshotsWithResponse(ctx context.Context, body PostSnapshotsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSnapshotsResponse, error) {
+	rsp, err := c.PostSnapshots(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSnapshotsResponse(rsp)
+}
+
+// DeleteSnapshotWithResponse Delete a snapshot
+//
+// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /snapshots/{id} (the `DeleteSnapshot` operationId).
+func (c *ClientWithResponses) DeleteSnapshotWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteSnapshotResponse, error) {
+	rsp, err := c.DeleteSnapshot(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteSnapshotResponse(rsp)
+}
+
+// GetSnapshotWithResponse Get a snapshot
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /snapshots/{id} (the `GetSnapshot` operationId).
+func (c *ClientWithResponses) GetSnapshotWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetSnapshotResponse, error) {
+	rsp, err := c.GetSnapshot(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSnapshotResponse(rsp)
+}
+
+// PutSnapshotWithBodyWithResponse Rename a snapshot, change its description or replace its labels
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+func (c *ClientWithResponses) PutSnapshotWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSnapshotResponse, error) {
+	rsp, err := c.PutSnapshotWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutSnapshotResponse(rsp)
+}
+
+// PutSnapshotWithResponse Rename a snapshot, change its description or replace its labels
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /snapshots/{id} (the `PutSnapshot` operationId).
+func (c *ClientWithResponses) PutSnapshotWithResponse(ctx context.Context, id ID, body PutSnapshotJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSnapshotResponse, error) {
+	rsp, err := c.PutSnapshot(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutSnapshotResponse(rsp)
+}
+
+// GetSnapshotActionsWithResponse List a snapshot's actions
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /snapshots/{id}/actions (the `GetSnapshotActions` operationId).
+func (c *ClientWithResponses) GetSnapshotActionsWithResponse(ctx context.Context, id ID, params *GetSnapshotActionsParams, reqEditors ...RequestEditorFn) (*GetSnapshotActionsResponse, error) {
+	rsp, err := c.GetSnapshotActions(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSnapshotActionsResponse(rsp)
 }
 
 // GetSshKeysWithResponse List the project's SSH keys
@@ -40460,6 +41836,383 @@ func ParsePostSignupResponse(rsp *http.Response) (*PostSignupResponse, error) {
 			headers.SetCookie = &value
 		}
 		response.Headers201 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetSnapshotsResponse parses an HTTP response from a GetSnapshotsWithResponse call
+func ParseGetSnapshotsResponse(rsp *http.Response) (*GetSnapshotsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSnapshotsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Meta      Meta       `json:"meta"`
+			Snapshots []Snapshot `json:"snapshots"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostSnapshotsResponse parses an HTTP response from a PostSnapshotsWithResponse call
+func ParsePostSnapshotsResponse(rsp *http.Response) (*PostSnapshotsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostSnapshotsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Action   Action   `json:"action"`
+			Snapshot Snapshot `json:"snapshot"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteSnapshotResponse parses an HTTP response from a DeleteSnapshotWithResponse call
+func ParseDeleteSnapshotResponse(rsp *http.Response) (*DeleteSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Action Action `json:"action"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSnapshotResponse parses an HTTP response from a GetSnapshotWithResponse call
+func ParseGetSnapshotResponse(rsp *http.Response) (*GetSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Snapshot
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutSnapshotResponse parses an HTTP response from a PutSnapshotWithResponse call
+func ParsePutSnapshotResponse(rsp *http.Response) (*PutSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Snapshot
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSnapshotActionsResponse parses an HTTP response from a GetSnapshotActionsWithResponse call
+func ParseGetSnapshotActionsResponse(rsp *http.Response) (*GetSnapshotActionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSnapshotActionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Actions []Action `json:"actions"`
+			Meta    Meta     `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
 	}
 
 	return response, nil

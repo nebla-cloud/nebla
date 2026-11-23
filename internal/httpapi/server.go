@@ -105,6 +105,7 @@ type server struct {
 	firewalls   *firewalls.Service
 	volumes     *volumes.Service
 	backups     *backups.Service
+	snapshots   *snapshots.Service
 	floatingIPs *floatingips.Service
 	networks    *networks.Service
 	primaryIPs  *primaryips.Service
@@ -184,6 +185,7 @@ func New(deps Deps) http.Handler {
 		firewalls:   firewalls.New(firewalls.Options{Ent: deps.Ent, SQL: deps.SQL, Jobs: deps.Jobs}),
 		backups:     bk,
 		volumes:     volumes.New(volumes.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
+		snapshots:   snapshots.New(snapshots.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
 		floatingIPs: newFloatingIPs(deps, proj, log),
 		networks:    nets,
 		primaryIPs:  newPrimaryIPs(deps, proj, log),

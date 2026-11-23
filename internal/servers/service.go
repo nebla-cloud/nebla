@@ -47,6 +47,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
+	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
@@ -131,7 +132,9 @@ type Server struct {
 	Location      catalog.Location
 	Type          catalog.ServerType
 	// Image is nil when the server was built from a snapshot whose image is gone.
-	Image      *catalog.Image
+	Image *catalog.Image
+	// Snapshot is the snapshot the server was built from, if it still exists.
+	Snapshot   *SnapshotRef
 	OSFlavor   string
 	OSVersion  string
 	Node       string
@@ -168,6 +171,12 @@ const (
 	// backupSlotPrime spreads servers over the day: slot = id * prime mod 1440.
 	backupSlotPrime = 887
 )
+
+// SnapshotRef names a snapshot.
+type SnapshotRef struct {
+	ID   int64
+	Name string
+}
 
 type CreateInput struct {
 	Name, ServerType, Image, Snapshot, Location string
@@ -766,6 +775,22 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 	types := map[int64]catalog.ServerType{}
 	imgs := map[int64]catalog.Image{}
 	locs := map[int64]catalog.Location{}
+	var snapIDs []int64
+	for _, r := range rows {
+		if r.SnapshotID != nil {
+			snapIDs = append(snapIDs, *r.SnapshotID)
+		}
+	}
+	snaps := map[int64]string{}
+	if len(snapIDs) > 0 {
+		ss, err := s.o.Ent.Snapshot.Query().Where(snapshot.IDIn(snapIDs...)).Select(snapshot.FieldID, snapshot.FieldName).All(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, sn := range ss {
+			snaps[sn.ID] = sn.Name
+		}
+	}
 	out := make([]Server, len(rows))
 	for i, r := range rows {
 		t, ok := types[r.ServerTypeID]
@@ -801,6 +826,11 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			Node: r.Node, Labels: r.Labels, DiskGB: r.DiskGB, CreatedAt: r.CreatedAt, IPChangeRerunsCloudInit: !r.NetRefresh}
 		if out[i].Labels == nil {
 			out[i].Labels = map[string]string{}
+		}
+		if r.SnapshotID != nil {
+			if name, ok := snaps[*r.SnapshotID]; ok {
+				out[i].Snapshot = &SnapshotRef{ID: *r.SnapshotID, Name: name}
+			}
 		}
 		if e := byServer[r.ID]; e != nil {
 			out[i].IPv4, out[i].IPv6, out[i].IPv4ID, out[i].IPv6ID = e.v4, e.v6, e.id4, e.id6

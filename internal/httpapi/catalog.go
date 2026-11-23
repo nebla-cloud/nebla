@@ -60,7 +60,7 @@ func apiNode(n catalog.Node) apigen.Node {
 func apiAdminLocation(l catalog.Location, onOtherStorage int, pool networks.PoolStatus) apigen.AdminLocation {
 	out := apigen.AdminLocation{Id: l.ID, Name: l.Name, Description: l.Description, DiskStorage: l.DiskStorage, IsoStorage: l.ISOStorage, ImportStorage: l.ImportStorage,
 		FirewallEnabled: l.FirewallEnabled, SdnZone: pool.Zone, VnetPrefix: pool.Prefix, PrivateNetworks: apiPool(pool),
-		VolumeStorage: l.VolumeStorage, VolumeStorageOk: l.VolumeStorageOK,
+		VolumeStorage: l.VolumeStorage, VolumeStorageOk: l.VolumeStorageOK, SnapshotStorage: l.SnapshotStorage,
 		BackupStorage: l.BackupStorage, BackupStorageOk: l.BackupStorageOK, BackupsOnOtherStorage: onOtherStorage,
 		BackupWindow: apigen.BackupWindow{Start: hhmm(l.BackupWindowStart), End: hhmm(l.BackupWindowEnd)},
 		Pve:          apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
@@ -84,9 +84,9 @@ func (s *server) adminLocation(ctx context.Context, l catalog.Location) (apigen.
 	return apiAdminLocation(l, n, pool), nil
 }
 
-func apiLocation(l catalog.Location, ipv4, ipv6, volumes, backups, private bool) apigen.Location {
+func apiLocation(l catalog.Location, ipv4, ipv6, volumes, backups, private, snaps bool) apigen.Location {
 	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description, VolumesAvailable: volumes, BackupsAvailable: backups,
-		PrivateNetworksAvailable: private}
+		PrivateNetworksAvailable: private, SnapshotsAvailable: snaps}
 	out.Networks.Ipv4, out.Networks.Ipv6 = ipv4, ipv6
 	return out
 }
@@ -109,12 +109,28 @@ func (s *server) locationWithNetworks(ctx context.Context, l catalog.Location) (
 		s.log.WarnContext(ctx, "private networks availability", "location", l.ID, "err", err)
 		private = false
 	}
-	return apiLocation(l, v4, v6, vols, s.catalog.BackupsAvailable(l), private), nil
+	snaps := s.snapshotsAvailable(ctx, l.ID)
+	return apiLocation(l, v4, v6, vols, s.catalog.BackupsAvailable(l), private, snaps), nil
+}
+
+// snapshotAvailableTimeout bounds the live Proxmox check so a slow node can't stall location reads.
+const snapshotAvailableTimeout = 2 * time.Second
+
+// snapshotsAvailable is false when Proxmox is slow, unreachable or fails.
+func (s *server) snapshotsAvailable(ctx context.Context, locationID int64) bool {
+	cctx, cancel := context.WithTimeout(ctx, snapshotAvailableTimeout)
+	defer cancel()
+	ok, err := s.snapshots.Available(cctx, locationID)
+	if err != nil {
+		s.log.WarnContext(ctx, "snapshots availability", "location", locationID, "err", err)
+		return false
+	}
+	return ok
 }
 
 func locationInput(b *apigen.LocationInput) (catalog.LocationInput, error) {
 	in := catalog.LocationInput{Name: b.Name, Description: deref(b.Description), DiskStorage: b.DiskStorage, ISOStorage: b.IsoStorage, ImportStorage: deref(b.ImportStorage),
-		VolumeStorage: b.VolumeStorage, BackupStorage: b.BackupStorage,
+		VolumeStorage: b.VolumeStorage, BackupStorage: b.BackupStorage, SnapshotStorage: b.SnapshotStorage,
 		PVE: catalog.PVEInput{URL: b.Pve.Url, TokenID: b.Pve.TokenId, TokenSecret: b.Pve.TokenSecret,
 			CAFingerprint: deref(b.Pve.CaFingerprint), InsecureTLS: deref(b.Pve.InsecureTls)}}
 	if w := b.BackupWindow; w != nil {

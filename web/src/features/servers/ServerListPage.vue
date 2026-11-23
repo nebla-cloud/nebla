@@ -35,7 +35,7 @@ import { useCurrentProject } from '@/lib/project'
 import { serverStatus } from '@/lib/status'
 import LabelChips from './LabelChips.vue'
 import OsBadge from './OsBadge.vue'
-import { osLabel } from './osLabel'
+import { serverOsLabel } from './osLabel'
 import { useServers } from './queries'
 import RowSparkline from './RowSparkline.vue'
 import { availableImages, availableTypes, type Image } from '../servers-create/createServer'
@@ -279,9 +279,9 @@ onBeforeUnmount(() => clearTimeout(timer))
             <LabelChips :labels="s.labels" :max="3" />
           </span>
           <span :class="[cols, 'flex flex-wrap gap-x-4 text-sm font-normal text-default']">
-            <span class="flex items-center gap-2" :title="s.image.name">
-              <OsBadge :name="s.image.os_flavor" />
-              <span class="truncate">{{ osLabel(s.image) }}</span>
+            <span class="flex items-center gap-2" :title="s.image?.name ?? serverOsLabel(s)">
+              <OsBadge :name="s.os_flavor" />
+              <span class="truncate">{{ serverOsLabel(s) }}</span>
             </span>
             <span
               >{{ s.server_type.name }}

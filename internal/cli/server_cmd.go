@@ -148,7 +148,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 			return errors.New("--backup-keep needs --backups")
 		}
 		body := apiclient.PostServersJSONRequestBody{
-			Name: name, ServerType: typ, Image: image, Location: location,
+			Name: name, ServerType: typ, Image: &image, Location: location,
 			StartAfterCreate: &start,
 		}
 		fl := cmd.Flags()
@@ -322,7 +322,7 @@ func serverListCmd(a *app) *cobra.Command {
 		},
 		func(s apiclient.Server) []string {
 			return []string{id64(s.Id), s.Name, string(s.Status), ipString(s.PublicNet.Ipv4), ipString(s.PublicNet.Ipv6),
-				s.ServerType.Name, s.Image.Name, s.Location.Name, age(s.Created, time.Now())}
+				s.ServerType.Name, serverImageName(s), s.Location.Name, age(s.Created, time.Now())}
 		})
 }
 
@@ -354,7 +354,7 @@ func serverDescribeCmd(a *app) *cobra.Command {
 				{"IPv4", ipWithName(s.PublicNet.Ipv4, names)},
 				{"IPv6", ipWithName(s.PublicNet.Ipv6, names)},
 				{"Type", fmt.Sprintf("%s (%d cores, %s, %d GB)", t.Name, t.Cores, memoryString(t.MemoryMb), t.DiskGb)},
-				{"Image", s.Image.Name},
+				{"Image", serverImageName(s)},
 				{"Location", s.Location.Name},
 				{"Disk", fmt.Sprintf("%d GB", s.DiskGb)},
 				{"Labels", labelString(s.Labels)},
@@ -516,4 +516,12 @@ func serverRenameCmd(a *app) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// serverImageName is the server's image, or "-" when it was built from a snapshot whose image is gone.
+func serverImageName(s apiclient.Server) string {
+	if s.Image == nil {
+		return "-"
+	}
+	return s.Image.Name
 }

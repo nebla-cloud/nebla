@@ -72,6 +72,8 @@ const dataKey: Record<keyof Quota, string> = {
   max_volume_gb: 'volume_gb',
   max_backups: 'backups',
   max_networks: 'networks',
+  max_snapshots: 'snapshots',
+  max_snapshot_gb: 'snapshot_gb',
 }
 
 const num = (n: number) => String(Number(n.toFixed(2)))

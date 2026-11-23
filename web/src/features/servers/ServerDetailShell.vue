@@ -37,7 +37,7 @@ import { formatDate } from '@/lib/format'
 import { useCurrentProject, parseProjectId } from '@/lib/project'
 import { useActionPoll } from '@/lib/useActionPoll'
 import LabelChips from './LabelChips.vue'
-import { osLabel } from './osLabel'
+import { serverOsLabel } from './osLabel'
 import PowerActions from './PowerActions.vue'
 import { useServer } from './queries'
 import { serverBusyKey } from './shell'
@@ -142,7 +142,7 @@ watch(
 const subtitle = computed(() => {
   const s = server.value
   if (!s) return undefined
-  return `${osLabel(s.image)} on ${s.server_type.name} in ${s.location.name}, created ${formatDate(s.created)}`
+  return `${serverOsLabel(s)} on ${s.server_type.name} in ${s.location.name}, created ${formatDate(s.created)}`
 })
 
 const notFound = computed(

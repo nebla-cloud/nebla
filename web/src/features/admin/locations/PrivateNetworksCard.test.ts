@@ -57,6 +57,7 @@ const loc = (over: Partial<AdminLocation> = {}): AdminLocation => ({
   backup_storage_ok: false,
   backup_window: { start: '02:00', end: '06:00' },
   backups_on_other_storage: 0,
+  snapshot_storage: '',
   sdn_zone: 'nebula',
   vnet_prefix: 'nb',
   private_networks: pool(),

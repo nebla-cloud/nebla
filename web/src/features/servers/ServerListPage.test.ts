@@ -66,7 +66,7 @@ describe('ServerListPage', () => {
     server.use(
       http.get('*/v1/servers', () =>
         json(200, {
-          servers: [makeServer({ image: { ...makeServer().image, name: 'debian-13' } })],
+          servers: [makeServer({ image: { ...makeServer().image!, name: 'debian-13' } })],
           meta,
         }),
       ),

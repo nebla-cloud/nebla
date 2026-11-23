@@ -397,7 +397,7 @@ describe('ServerDetailShell', () => {
   })
 
   it('a subtitle names the OS, type, location and created date', async () => {
-    serve(makeServer({ image: { ...makeServer().image, name: 'debian-13' } }))
+    serve(makeServer({ image: { ...makeServer().image!, name: 'debian-13' } }))
     const { wrapper } = await mountDetail()
     const header = wrapper.findAll('header').find((h) => h.find('h1').exists())!
     expect(header.find('p').text()).toBe('Debian 13 on small-2 in home, created 18 Nov 2026')

@@ -712,13 +712,13 @@ func TestServerOSFactsSurviveImageAndSnapshotDelete(t *testing.T) {
 	require.Equal(t, "13", version)
 
 	got, _ := expect[struct {
-		Image struct {
-			OsFlavor  string `json:"os_flavor"`
-			OsVersion string `json:"os_version"`
-		} `json:"image"`
+		Image     *struct{} `json:"image"`
+		OsFlavor  string    `json:"os_flavor"`
+		OsVersion string    `json:"os_version"`
 	}](t, e.C.Get("/v1/servers/"+sid(made.ServerID)), http.StatusOK)
-	require.Equal(t, "debian", got.Image.OsFlavor)
-	require.Equal(t, "13", got.Image.OsVersion)
+	require.Nil(t, got.Image)
+	require.Equal(t, "debian", got.OsFlavor)
+	require.Equal(t, "13", got.OsVersion)
 }
 
 func TestImageDeleteRefusedWhileServerUsesIt(t *testing.T) {

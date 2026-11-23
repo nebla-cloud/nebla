@@ -442,6 +442,33 @@ func (e ServerStatus) Valid() bool {
 	}
 }
 
+// Defines values for SnapshotStatus.
+const (
+	SnapshotStatusAvailable SnapshotStatus = "available"
+	SnapshotStatusCreating  SnapshotStatus = "creating"
+	SnapshotStatusDeleting  SnapshotStatus = "deleting"
+	SnapshotStatusError     SnapshotStatus = "error"
+	SnapshotStatusMissing   SnapshotStatus = "missing"
+)
+
+// Valid indicates whether the value is a known member of the SnapshotStatus enum.
+func (e SnapshotStatus) Valid() bool {
+	switch e {
+	case SnapshotStatusAvailable:
+		return true
+	case SnapshotStatusCreating:
+		return true
+	case SnapshotStatusDeleting:
+		return true
+	case SnapshotStatusError:
+		return true
+	case SnapshotStatusMissing:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TokenPermission.
 const (
 	Read      TokenPermission = "read"
@@ -542,7 +569,7 @@ func (e GetPrimaryIpsParamsType) Valid() bool {
 type Action struct {
 	Command string `json:"command"`
 	Error   *struct {
-		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required or release_pending
+		// Code Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required, release_pending or shutdown_timeout
 		Code string `json:"code"`
 
 		// Message Plain text safe to show members
@@ -631,9 +658,12 @@ type AdminLocation struct {
 	Pve             PveConnection      `json:"pve"`
 
 	// SdnZone The SDN zone holding the private network VNets; null when private networks are off
-	SdnZone    *string   `json:"sdn_zone"`
-	Updated    time.Time `json:"updated"`
-	VnetPrefix string    `json:"vnet_prefix"`
+	SdnZone *string `json:"sdn_zone"`
+
+	// SnapshotStorage Empty uses each node's disk storage
+	SnapshotStorage string    `json:"snapshot_storage"`
+	Updated         time.Time `json:"updated"`
+	VnetPrefix      string    `json:"vnet_prefix"`
 
 	// VolumeStorage Empty uses each node's disk storage
 	VolumeStorage string `json:"volume_storage"`
@@ -838,6 +868,7 @@ type EnrollmentReportStorage struct {
 // Error defines model for Error.
 type Error struct {
 	Error struct {
+		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, locked, server_changed, project_not_empty and invalid_input are reused.
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
@@ -1106,6 +1137,9 @@ type Location struct {
 	// PrivateNetworksAvailable Whether private networks can be created here
 	PrivateNetworksAvailable bool `json:"private_networks_available"`
 
+	// SnapshotsAvailable Whether snapshots can be taken here
+	SnapshotsAvailable bool `json:"snapshots_available"`
+
 	// VolumesAvailable Whether volumes can be created here
 	VolumesAvailable bool `json:"volumes_available"`
 }
@@ -1180,6 +1214,9 @@ type LocationInput struct {
 
 	// SdnZone The Proxmox SDN zone holding the private network VNets; empty turns private networks off. Omitting only sdn_zone keeps the current zone; omitting both sdn_zone and vnet_prefix changes nothing. Turning it off, or changing the zone or prefix, is refused with 409 while networks are in use or cooling
 	SdnZone *string `json:"sdn_zone,omitempty"`
+
+	// SnapshotStorage Storage with the images content type for snapshots; empty uses each node's disk storage. Omitted on update keeps the current value
+	SnapshotStorage *string `json:"snapshot_storage,omitempty"`
 
 	// VnetPrefix Prefix of the VNet names Nebla uses; default nb
 	VnetPrefix *string `json:"vnet_prefix,omitempty"`
@@ -1480,6 +1517,8 @@ type ProjectUsage struct {
 	MemoryMb        int `json:"memory_mb"`
 	Networks        int `json:"networks"`
 	Servers         int `json:"servers"`
+	SnapshotGb      int `json:"snapshot_gb"`
+	Snapshots       int `json:"snapshots"`
 	Vcpu            int `json:"vcpu"`
 	VolumeGb        int `json:"volume_gb"`
 	Volumes         int `json:"volumes"`
@@ -1517,30 +1556,37 @@ type Quota struct {
 	MaxMemoryMb int `json:"max_memory_mb"`
 
 	// MaxNetworks Private networks; 0 is unlimited
-	MaxNetworks int `json:"max_networks"`
-	MaxServers  int `json:"max_servers"`
-	MaxVcpu     int `json:"max_vcpu"`
-	MaxVolumeGb int `json:"max_volume_gb"`
-	MaxVolumes  int `json:"max_volumes"`
+	MaxNetworks   int `json:"max_networks"`
+	MaxServers    int `json:"max_servers"`
+	MaxSnapshotGb int `json:"max_snapshot_gb"`
+	MaxSnapshots  int `json:"max_snapshots"`
+	MaxVcpu       int `json:"max_vcpu"`
+	MaxVolumeGb   int `json:"max_volume_gb"`
+	MaxVolumes    int `json:"max_volumes"`
 }
 
-// QuotaInput An omitted max_volumes, max_volume_gb, max_backups or max_networks keeps the current value
+// QuotaInput An omitted max_volumes, max_volume_gb, max_backups, max_networks, max_snapshots or max_snapshot_gb keeps the current value
 type QuotaInput struct {
-	MaxBackups  *int `json:"max_backups,omitempty"`
-	MaxDiskGb   int  `json:"max_disk_gb"`
-	MaxIps      int  `json:"max_ips"`
-	MaxMemoryMb int  `json:"max_memory_mb"`
-	MaxNetworks *int `json:"max_networks,omitempty"`
-	MaxServers  int  `json:"max_servers"`
-	MaxVcpu     int  `json:"max_vcpu"`
-	MaxVolumeGb *int `json:"max_volume_gb,omitempty"`
-	MaxVolumes  *int `json:"max_volumes,omitempty"`
+	MaxBackups    *int `json:"max_backups,omitempty"`
+	MaxDiskGb     int  `json:"max_disk_gb"`
+	MaxIps        int  `json:"max_ips"`
+	MaxMemoryMb   int  `json:"max_memory_mb"`
+	MaxNetworks   *int `json:"max_networks,omitempty"`
+	MaxServers    int  `json:"max_servers"`
+	MaxSnapshotGb *int `json:"max_snapshot_gb,omitempty"`
+	MaxSnapshots  *int `json:"max_snapshots,omitempty"`
+	MaxVcpu       int  `json:"max_vcpu"`
+	MaxVolumeGb   *int `json:"max_volume_gb,omitempty"`
+	MaxVolumes    *int `json:"max_volumes,omitempty"`
 }
 
-// RebuildInput defines model for RebuildInput.
+// RebuildInput Give image or snapshot, not both
 type RebuildInput struct {
 	// Image Image id or name
-	Image string `json:"image"`
+	Image *string `json:"image,omitempty"`
+
+	// Snapshot Snapshot id or name
+	Snapshot *string `json:"snapshot,omitempty"`
 }
 
 // RestoreBackupInput defines model for RestoreBackupInput.
@@ -1560,15 +1606,19 @@ type Server struct {
 	// Firewalls Firewalls in effect on the server and why each applies
 	Firewalls []ServerFirewall `json:"firewalls"`
 	Id        int64            `json:"id"`
-	Image     Image            `json:"image"`
+
+	// Image The image the server was built from; null when it was built from a snapshot whose image is gone
+	Image *Image `json:"image"`
 
 	// IpChangeRerunsCloudInit True for a server created before IP changes were supported; its first IP change re-runs its cloud-init user data and gives it new SSH host keys, and later changes do not
 	IpChangeRerunsCloudInit bool `json:"ip_change_reruns_cloud_init"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels   Labels      `json:"labels"`
-	Location LocationRef `json:"location"`
-	Name     string      `json:"name"`
+	Labels    Labels      `json:"labels"`
+	Location  LocationRef `json:"location"`
+	Name      string      `json:"name"`
+	OsFlavor  string      `json:"os_flavor"`
+	OsVersion string      `json:"os_version"`
 
 	// PrivateNet The private networks the server is on
 	PrivateNet []struct {
@@ -1586,8 +1636,14 @@ type Server struct {
 		Ipv4 *ServerIp `json:"ipv4"`
 		Ipv6 *ServerIp `json:"ipv6"`
 	} `json:"public_net"`
-	ServerType ServerType   `json:"server_type"`
-	Status     ServerStatus `json:"status"`
+	ServerType ServerType `json:"server_type"`
+
+	// Snapshot The snapshot the server was built from, if any
+	Snapshot *struct {
+		Id   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"snapshot"`
+	Status ServerStatus `json:"status"`
 
 	// Volumes Ids of the attached volumes
 	Volumes []int64 `json:"volumes"`
@@ -1626,8 +1682,8 @@ type ServerInput struct {
 		Firewall int64 `json:"firewall"`
 	} `json:"firewalls,omitempty"`
 
-	// Image Image id or name
-	Image string `json:"image"`
+	// Image Image id or name; give this or snapshot
+	Image *string `json:"image,omitempty"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
@@ -1654,6 +1710,9 @@ type ServerInput struct {
 
 	// ServerType Server type id or name
 	ServerType string `json:"server_type"`
+
+	// Snapshot Snapshot id or name; give this or image
+	Snapshot *string `json:"snapshot,omitempty"`
 
 	// SshKeys The project's SSH key ids or names
 	SshKeys          *[]string `json:"ssh_keys,omitempty"`
@@ -1726,6 +1785,68 @@ type ServerTypeList struct {
 // ServerUpdate defines model for ServerUpdate.
 type ServerUpdate struct {
 	Backups *BackupSettings `json:"backups,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
+}
+
+// Snapshot defines model for Snapshot.
+type Snapshot struct {
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	Id          int64     `json:"id"`
+
+	// Image The source server's image; null when none or it was deleted
+	Image *struct {
+		Id   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"image"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels    Labels      `json:"labels"`
+	Location  LocationRef `json:"location"`
+	Name      string      `json:"name"`
+	OsFlavor  string      `json:"os_flavor"`
+	OsVersion string      `json:"os_version"`
+
+	// RestoreKeepsIdentity Whether restoring keeps the server's identity; null when the source server is gone, false when its network has changed since
+	RestoreKeepsIdentity *bool `json:"restore_keeps_identity"`
+
+	// Server The source server's id; null once it is deleted
+	Server *int64 `json:"server"`
+
+	// ServerName The source server's name when the snapshot was taken
+	ServerName string `json:"server_name"`
+
+	// Size Size in GB
+	Size   int            `json:"size"`
+	Status SnapshotStatus `json:"status"`
+}
+
+// SnapshotStatus defines model for Snapshot.Status.
+type SnapshotStatus string
+
+// SnapshotInput defines model for SnapshotInput.
+type SnapshotInput struct {
+	Description *string `json:"description,omitempty"`
+
+	// ForceStop Power the server off if it doesn't shut down in time
+	ForceStop *bool `json:"force_stop,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Name Defaults to <server>-<YYYYMMDD-HHMM> in UTC
+	Name *string `json:"name,omitempty"`
+
+	// Server Server id or name
+	Server string `json:"server"`
+}
+
+// SnapshotUpdate defines model for SnapshotUpdate.
+type SnapshotUpdate struct {
+	Description *string `json:"description,omitempty"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
@@ -2210,6 +2331,39 @@ type GetServerMetricsParams struct {
 	Timeframe *string `form:"timeframe,omitempty" json:"timeframe,omitempty"`
 }
 
+// GetSnapshotsParams defines parameters for GetSnapshots.
+type GetSnapshotsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact snapshot name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Status Only snapshots in this status
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Server Only snapshots of this server id or name
+	Server *string `form:"server,omitempty" json:"server,omitempty"`
+
+	// Location Only snapshots in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+}
+
+// GetSnapshotActionsParams defines parameters for GetSnapshotActions.
+type GetSnapshotActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
 // GetSshKeysParams defines parameters for GetSshKeys.
 type GetSshKeysParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
@@ -2427,6 +2581,12 @@ type PostSetupJSONRequestBody = Credentials
 
 // PostSignupJSONRequestBody defines body for PostSignup for application/json ContentType.
 type PostSignupJSONRequestBody = Credentials
+
+// PostSnapshotsJSONRequestBody defines body for PostSnapshots for application/json ContentType.
+type PostSnapshotsJSONRequestBody = SnapshotInput
+
+// PutSnapshotJSONRequestBody defines body for PutSnapshot for application/json ContentType.
+type PutSnapshotJSONRequestBody = SnapshotUpdate
 
 // PostSshKeysJSONRequestBody defines body for PostSshKeys for application/json ContentType.
 type PostSshKeysJSONRequestBody PostSshKeysJSONBody
@@ -2977,7 +3137,7 @@ type ServerInterface interface {
 	// RebootServer Reboot a server gracefully
 	// (POST /servers/{id}/actions/reboot)
 	RebootServer(w http.ResponseWriter, r *http.Request, id ID)
-	// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+	// RebuildServer Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	// (POST /servers/{id}/actions/rebuild)
 	RebuildServer(w http.ResponseWriter, r *http.Request, id ID)
 	// RequestServerConsole Get a one-time VNC console URL for a running server
@@ -3013,6 +3173,24 @@ type ServerInterface interface {
 	// PostSignup Self-service signup (when enabled)
 	// (POST /signup)
 	PostSignup(w http.ResponseWriter, r *http.Request)
+	// GetSnapshots List the project's snapshots
+	// (GET /snapshots)
+	GetSnapshots(w http.ResponseWriter, r *http.Request, params GetSnapshotsParams)
+	// PostSnapshots Snapshot a server's boot disk
+	// (POST /snapshots)
+	PostSnapshots(w http.ResponseWriter, r *http.Request)
+	// DeleteSnapshot Delete a snapshot
+	// (DELETE /snapshots/{id})
+	DeleteSnapshot(w http.ResponseWriter, r *http.Request, id ID)
+	// GetSnapshot Get a snapshot
+	// (GET /snapshots/{id})
+	GetSnapshot(w http.ResponseWriter, r *http.Request, id ID)
+	// PutSnapshot Rename a snapshot, change its description or replace its labels
+	// (PUT /snapshots/{id})
+	PutSnapshot(w http.ResponseWriter, r *http.Request, id ID)
+	// GetSnapshotActions List a snapshot's actions
+	// (GET /snapshots/{id}/actions)
+	GetSnapshotActions(w http.ResponseWriter, r *http.Request, id ID, params GetSnapshotActionsParams)
 	// GetSshKeys List the project's SSH keys
 	// (GET /ssh_keys)
 	GetSshKeys(w http.ResponseWriter, r *http.Request, params GetSshKeysParams)
@@ -3874,7 +4052,7 @@ func (_ Unimplemented) RebootServer(w http.ResponseWriter, r *http.Request, id I
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+// RebuildServer Reinstall a server from an image or snapshot, keeping its IPs and MAC
 // (POST /servers/{id}/actions/rebuild)
 func (_ Unimplemented) RebuildServer(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -3943,6 +4121,42 @@ func (_ Unimplemented) PostSetup(w http.ResponseWriter, r *http.Request) {
 // PostSignup Self-service signup (when enabled)
 // (POST /signup)
 func (_ Unimplemented) PostSignup(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSnapshots List the project's snapshots
+// (GET /snapshots)
+func (_ Unimplemented) GetSnapshots(w http.ResponseWriter, r *http.Request, params GetSnapshotsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostSnapshots Snapshot a server's boot disk
+// (POST /snapshots)
+func (_ Unimplemented) PostSnapshots(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteSnapshot Delete a snapshot
+// (DELETE /snapshots/{id})
+func (_ Unimplemented) DeleteSnapshot(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSnapshot Get a snapshot
+// (GET /snapshots/{id})
+func (_ Unimplemented) GetSnapshot(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutSnapshot Rename a snapshot, change its description or replace its labels
+// (PUT /snapshots/{id})
+func (_ Unimplemented) PutSnapshot(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSnapshotActions List a snapshot's actions
+// (GET /snapshots/{id}/actions)
+func (_ Unimplemented) GetSnapshotActions(w http.ResponseWriter, r *http.Request, id ID, params GetSnapshotActionsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -8515,6 +8729,290 @@ func (siw *ServerInterfaceWrapper) PostSignup(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetSnapshots operation middleware
+func (siw *ServerInterfaceWrapper) GetSnapshots(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSnapshotsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "label_selector" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label_selector", r.URL.Query(), &params.LabelSelector, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label_selector"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label_selector", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "server" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "server", r.URL.Query(), &params.Server, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "server"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "server", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location", r.URL.Query(), &params.Location, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "location"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSnapshots(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostSnapshots operation middleware
+func (siw *ServerInterfaceWrapper) PostSnapshots(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostSnapshots(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSnapshot(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) GetSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSnapshot(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) PutSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSnapshot(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSnapshotActions operation middleware
+func (siw *ServerInterfaceWrapper) GetSnapshotActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSnapshotActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSnapshotActions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSshKeys operation middleware
 func (siw *ServerInterfaceWrapper) GetSshKeys(w http.ResponseWriter, r *http.Request) {
 
@@ -9555,6 +10053,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/volumes/{id}/actions/resize", wrapper.ResizeVolume)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/snapshots", wrapper.GetSnapshots)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/snapshots", wrapper.PostSnapshots)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/snapshots/{id}", wrapper.DeleteSnapshot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/snapshots/{id}", wrapper.GetSnapshot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/snapshots/{id}", wrapper.PutSnapshot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/snapshots/{id}/actions", wrapper.GetSnapshotActions)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/floating_ips", wrapper.GetFloatingIps)
@@ -22970,6 +23486,589 @@ func (response PostSignupdefaultJSONResponse) VisitPostSignupResponse(w http.Res
 	return err
 }
 
+type GetSnapshotsRequestObject struct {
+	Params GetSnapshotsParams
+}
+
+type GetSnapshotsResponseObject interface {
+	VisitGetSnapshotsResponse(w http.ResponseWriter) error
+}
+
+type GetSnapshots200JSONResponse struct {
+	Meta      Meta       `json:"meta"`
+	Snapshots []Snapshot `json:"snapshots"`
+}
+
+func (response GetSnapshots200JSONResponse) VisitGetSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshots401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetSnapshots401JSONResponse) VisitGetSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshots404JSONResponse Error
+
+func (response GetSnapshots404JSONResponse) VisitGetSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshots422JSONResponse Error
+
+func (response GetSnapshots422JSONResponse) VisitGetSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetSnapshotsdefaultJSONResponse) VisitGetSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshotsRequestObject struct {
+	Body *PostSnapshotsJSONRequestBody
+}
+
+type PostSnapshotsResponseObject interface {
+	VisitPostSnapshotsResponse(w http.ResponseWriter) error
+}
+
+type PostSnapshots201JSONResponse struct {
+	Action   Action   `json:"action"`
+	Snapshot Snapshot `json:"snapshot"`
+}
+
+func (response PostSnapshots201JSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshots401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostSnapshots401JSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshots403JSONResponse Error
+
+func (response PostSnapshots403JSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshots404JSONResponse Error
+
+func (response PostSnapshots404JSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshots409JSONResponse Error
+
+func (response PostSnapshots409JSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshots422JSONResponse Error
+
+func (response PostSnapshots422JSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshots503JSONResponse Error
+
+func (response PostSnapshots503JSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSnapshotsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostSnapshotsdefaultJSONResponse) VisitPostSnapshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSnapshotRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteSnapshotResponseObject interface {
+	VisitDeleteSnapshotResponse(w http.ResponseWriter) error
+}
+
+type DeleteSnapshot200JSONResponse struct {
+	Action Action `json:"action"`
+}
+
+func (response DeleteSnapshot200JSONResponse) VisitDeleteSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSnapshot401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteSnapshot401JSONResponse) VisitDeleteSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSnapshot403JSONResponse Error
+
+func (response DeleteSnapshot403JSONResponse) VisitDeleteSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSnapshot404JSONResponse Error
+
+func (response DeleteSnapshot404JSONResponse) VisitDeleteSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSnapshot409JSONResponse Error
+
+func (response DeleteSnapshot409JSONResponse) VisitDeleteSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSnapshot503JSONResponse Error
+
+func (response DeleteSnapshot503JSONResponse) VisitDeleteSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSnapshotdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteSnapshotdefaultJSONResponse) VisitDeleteSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetSnapshotResponseObject interface {
+	VisitGetSnapshotResponse(w http.ResponseWriter) error
+}
+
+type GetSnapshot200JSONResponse Snapshot
+
+func (response GetSnapshot200JSONResponse) VisitGetSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshot401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetSnapshot401JSONResponse) VisitGetSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshot404JSONResponse Error
+
+func (response GetSnapshot404JSONResponse) VisitGetSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetSnapshotdefaultJSONResponse) VisitGetSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSnapshotRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutSnapshotJSONRequestBody
+}
+
+type PutSnapshotResponseObject interface {
+	VisitPutSnapshotResponse(w http.ResponseWriter) error
+}
+
+type PutSnapshot200JSONResponse Snapshot
+
+func (response PutSnapshot200JSONResponse) VisitPutSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSnapshot401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutSnapshot401JSONResponse) VisitPutSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSnapshot403JSONResponse Error
+
+func (response PutSnapshot403JSONResponse) VisitPutSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSnapshot404JSONResponse Error
+
+func (response PutSnapshot404JSONResponse) VisitPutSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSnapshot409JSONResponse Error
+
+func (response PutSnapshot409JSONResponse) VisitPutSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSnapshot422JSONResponse Error
+
+func (response PutSnapshot422JSONResponse) VisitPutSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSnapshotdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutSnapshotdefaultJSONResponse) VisitPutSnapshotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotActionsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetSnapshotActionsParams
+}
+
+type GetSnapshotActionsResponseObject interface {
+	VisitGetSnapshotActionsResponse(w http.ResponseWriter) error
+}
+
+type GetSnapshotActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetSnapshotActions200JSONResponse) VisitGetSnapshotActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetSnapshotActions401JSONResponse) VisitGetSnapshotActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotActions404JSONResponse Error
+
+func (response GetSnapshotActions404JSONResponse) VisitGetSnapshotActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotActions422JSONResponse Error
+
+func (response GetSnapshotActions422JSONResponse) VisitGetSnapshotActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetSnapshotActionsdefaultJSONResponse) VisitGetSnapshotActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSshKeysRequestObject struct {
 	Params GetSshKeysParams
 }
@@ -24786,7 +25885,7 @@ type StrictServerInterface interface {
 	// RebootServer Reboot a server gracefully
 	// (POST /servers/{id}/actions/reboot)
 	RebootServer(ctx context.Context, request RebootServerRequestObject) (RebootServerResponseObject, error)
-	// RebuildServer Reinstall a server from an image, keeping its IPs and MAC
+	// RebuildServer Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	// (POST /servers/{id}/actions/rebuild)
 	RebuildServer(ctx context.Context, request RebuildServerRequestObject) (RebuildServerResponseObject, error)
 	// RequestServerConsole Get a one-time VNC console URL for a running server
@@ -24822,6 +25921,24 @@ type StrictServerInterface interface {
 	// PostSignup Self-service signup (when enabled)
 	// (POST /signup)
 	PostSignup(ctx context.Context, request PostSignupRequestObject) (PostSignupResponseObject, error)
+	// GetSnapshots List the project's snapshots
+	// (GET /snapshots)
+	GetSnapshots(ctx context.Context, request GetSnapshotsRequestObject) (GetSnapshotsResponseObject, error)
+	// PostSnapshots Snapshot a server's boot disk
+	// (POST /snapshots)
+	PostSnapshots(ctx context.Context, request PostSnapshotsRequestObject) (PostSnapshotsResponseObject, error)
+	// DeleteSnapshot Delete a snapshot
+	// (DELETE /snapshots/{id})
+	DeleteSnapshot(ctx context.Context, request DeleteSnapshotRequestObject) (DeleteSnapshotResponseObject, error)
+	// GetSnapshot Get a snapshot
+	// (GET /snapshots/{id})
+	GetSnapshot(ctx context.Context, request GetSnapshotRequestObject) (GetSnapshotResponseObject, error)
+	// PutSnapshot Rename a snapshot, change its description or replace its labels
+	// (PUT /snapshots/{id})
+	PutSnapshot(ctx context.Context, request PutSnapshotRequestObject) (PutSnapshotResponseObject, error)
+	// GetSnapshotActions List a snapshot's actions
+	// (GET /snapshots/{id}/actions)
+	GetSnapshotActions(ctx context.Context, request GetSnapshotActionsRequestObject) (GetSnapshotActionsResponseObject, error)
 	// GetSshKeys List the project's SSH keys
 	// (GET /ssh_keys)
 	GetSshKeys(ctx context.Context, request GetSshKeysRequestObject) (GetSshKeysResponseObject, error)
@@ -29065,6 +30182,175 @@ func (sh *strictHandler) PostSignup(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostSignupResponseObject); ok {
 		if err := validResponse.VisitPostSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSnapshots operation middleware
+func (sh *strictHandler) GetSnapshots(w http.ResponseWriter, r *http.Request, params GetSnapshotsParams) {
+	var request GetSnapshotsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSnapshots(ctx, request.(GetSnapshotsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSnapshots")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSnapshotsResponseObject); ok {
+		if err := validResponse.VisitGetSnapshotsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostSnapshots operation middleware
+func (sh *strictHandler) PostSnapshots(w http.ResponseWriter, r *http.Request) {
+	var request PostSnapshotsRequestObject
+
+	var body PostSnapshotsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostSnapshots(ctx, request.(PostSnapshotsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostSnapshots")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostSnapshotsResponseObject); ok {
+		if err := validResponse.VisitPostSnapshotsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSnapshot operation middleware
+func (sh *strictHandler) DeleteSnapshot(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteSnapshotRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSnapshot(ctx, request.(DeleteSnapshotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSnapshot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSnapshotResponseObject); ok {
+		if err := validResponse.VisitDeleteSnapshotResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSnapshot operation middleware
+func (sh *strictHandler) GetSnapshot(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetSnapshotRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSnapshot(ctx, request.(GetSnapshotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSnapshot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSnapshotResponseObject); ok {
+		if err := validResponse.VisitGetSnapshotResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutSnapshot operation middleware
+func (sh *strictHandler) PutSnapshot(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutSnapshotRequestObject
+
+	request.Id = id
+
+	var body PutSnapshotJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutSnapshot(ctx, request.(PutSnapshotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutSnapshot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutSnapshotResponseObject); ok {
+		if err := validResponse.VisitPutSnapshotResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSnapshotActions operation middleware
+func (sh *strictHandler) GetSnapshotActions(w http.ResponseWriter, r *http.Request, id ID, params GetSnapshotActionsParams) {
+	var request GetSnapshotActionsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSnapshotActions(ctx, request.(GetSnapshotActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSnapshotActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSnapshotActionsResponseObject); ok {
+		if err := validResponse.VisitGetSnapshotActionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

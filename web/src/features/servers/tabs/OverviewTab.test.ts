@@ -209,7 +209,7 @@ describe('OverviewTab', () => {
   })
 
   it('shows the OS name with the image slug as a second, muted value', async () => {
-    const w = await mountTab(makeServer({ image: { ...makeServer().image, name: 'debian-13' } }))
+    const w = await mountTab(makeServer({ image: { ...makeServer().image!, name: 'debian-13' } }))
     const dds = w.findAll('dd').map((d) => d.text())
     expect(dds).toContain('Debian 13')
     expect(dds).toContain('debian-13')

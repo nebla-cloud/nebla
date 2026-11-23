@@ -68,6 +68,12 @@ var projectScopedOps = map[string]bool{
 	"AttachVolume":        true,
 	"DetachVolume":        true,
 	"ResizeVolume":        true,
+	"GetSnapshots":        true,
+	"PostSnapshots":       true,
+	"GetSnapshot":         true,
+	"PutSnapshot":         true,
+	"DeleteSnapshot":      true,
+	"GetSnapshotActions":  true,
 
 	"GetFloatingIps":       true,
 	"PostFloatingIps":      true,

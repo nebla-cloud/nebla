@@ -122,7 +122,7 @@ func serverRebuildCmd(a *app) *cobra.Command {
 	_ = cmd.MarkFlagRequired("image")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		call := func(api *API, c *cobra.Command, id int64) (*apiclient.ActionCreated, error) {
-			r, err := api.C.RebuildServerWithResponse(c.Context(), id, apiclient.RebuildInput{Image: image})
+			r, err := api.C.RebuildServerWithResponse(c.Context(), id, apiclient.RebuildInput{Image: &image})
 			if err != nil {
 				return nil, err
 			}

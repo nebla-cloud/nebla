@@ -41,7 +41,7 @@ import LabelChips from '../LabelChips.vue'
 import LabelEditor from '../LabelEditor.vue'
 import { formatPercent, formatRate } from '../metrics/metrics'
 import { useLiveMetrics } from '../metrics/useLiveMetrics'
-import { osLabel } from '../osLabel'
+import { osLabel, serverOsLabel } from '../osLabel'
 import { serverBusyKey } from '../shell'
 
 const NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
@@ -116,8 +116,8 @@ const rows = computed(() => {
     // The slug stays as a second, muted value: e2e reads it from a definition.
     {
       label: 'Image',
-      value: osLabel(s.image),
-      sub: osLabel(s.image) === s.image.name ? undefined : s.image.name,
+      value: serverOsLabel(s),
+      sub: s.image && osLabel(s.image) !== s.image.name ? s.image.name : undefined,
     },
     { label: 'Type', value: `${s.server_type.name}: ${typeSpec(s.server_type)}` },
     { label: 'Location', value: s.location.name },

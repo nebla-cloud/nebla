@@ -29,6 +29,15 @@ export function osParts(image: OsImage): { name: string; version: string } | nul
   return name ? { name, version: image.os_version.trim() } : null
 }
 
+// A server's OS label; it has no image when built from a snapshot whose image is gone.
+export function serverOsLabel(s: {
+  image: OsImage | null
+  os_flavor: string
+  os_version: string
+}): string {
+  return osLabel(s.image ?? { name: '', os_flavor: s.os_flavor, os_version: s.os_version })
+}
+
 export function osLabel(image: OsImage): string {
   const p = osParts(image)
   if (!p) return image.name

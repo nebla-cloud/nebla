@@ -55,7 +55,7 @@ watch(
   (list) => {
     if (picked.value === null)
       picked.value =
-        list.find((c) => !c.disabledReason && c.image.id === props.server.image.id)?.image.id ??
+        list.find((c) => !c.disabledReason && c.image.id === props.server.image?.id)?.image.id ??
         list.find((c) => !c.disabledReason)?.image.id ??
         null
   },

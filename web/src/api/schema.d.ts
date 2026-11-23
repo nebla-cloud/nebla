@@ -1583,7 +1583,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reinstall a server from an image, keeping its IPs and MAC */
+        /** Reinstall a server from an image or snapshot, keeping its IPs and MAC */
         post: operations["rebuildServer"];
         delete?: never;
         options?: never;
@@ -1823,6 +1823,70 @@ export interface paths {
         put?: never;
         /** Grow a volume; a detached volume grows on its next attach */
         post: operations["resizeVolume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the project's snapshots */
+        get: operations["getSnapshots"];
+        put?: never;
+        /**
+         * Snapshot a server's boot disk
+         * @description A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+         */
+        post: operations["postSnapshots"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/snapshots/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get a snapshot */
+        get: operations["getSnapshot"];
+        /** Rename a snapshot, change its description or replace its labels */
+        put: operations["putSnapshot"];
+        post?: never;
+        /**
+         * Delete a snapshot
+         * @description Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+         */
+        delete: operations["deleteSnapshot"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/snapshots/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** List a snapshot's actions */
+        get: operations["getSnapshotActions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2137,8 +2201,10 @@ export interface components {
             max_backups: number;
             /** @description Private networks; 0 is unlimited */
             max_networks: number;
+            max_snapshots: number;
+            max_snapshot_gb: number;
         };
-        /** @description An omitted max_volumes, max_volume_gb, max_backups or max_networks keeps the current value */
+        /** @description An omitted max_volumes, max_volume_gb, max_backups, max_networks, max_snapshots or max_snapshot_gb keeps the current value */
         QuotaInput: {
             max_servers: number;
             max_vcpu: number;
@@ -2149,6 +2215,8 @@ export interface components {
             max_volume_gb?: number;
             max_backups?: number;
             max_networks?: number;
+            max_snapshots?: number;
+            max_snapshot_gb?: number;
         };
         ProjectInput: {
             name: string;
@@ -2176,6 +2244,8 @@ export interface components {
             /** @description Backup slots held: each server's stored count, and at least its keep while backups are on */
             backups_reserved: number;
             networks: number;
+            snapshots: number;
+            snapshot_gb: number;
         };
         AdminProject: {
             /** Format: int64 */
@@ -2337,6 +2407,7 @@ export interface components {
         };
         Error: {
             error: {
+                /** @description Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, locked, server_changed, project_not_empty and invalid_input are reused. */
                 code: string;
                 message: string;
             };
@@ -2354,7 +2425,7 @@ export interface components {
                 type: string;
             }[];
             error: {
-                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required or release_pending */
+                /** @description Stable kind: failed, timed_out, unreachable, server_missing, server_gone, orphaned firewall_unenforced, power_off_required, release_pending or shutdown_timeout */
                 code: string;
                 /** @description Plain text safe to show members */
                 message: string;
@@ -2431,6 +2502,8 @@ export interface components {
             sdn_zone?: string;
             /** @description Prefix of the VNet names Nebla uses; default nb */
             vnet_prefix?: string;
+            /** @description Storage with the images content type for snapshots; empty uses each node's disk storage. Omitted on update keeps the current value */
+            snapshot_storage?: string;
         };
         /** @description When scheduled backups start, as HH:MM UTC; the window may cross midnight */
         BackupWindow: {
@@ -2497,6 +2570,8 @@ export interface components {
             sdn_zone: string | null;
             vnet_prefix: string;
             private_networks: components["schemas"]["PrivateNetworkPool"];
+            /** @description Empty uses each node's disk storage */
+            snapshot_storage: string;
             nodes: components["schemas"]["Node"][];
             /** Format: date-time */
             created: string;
@@ -2617,6 +2692,8 @@ export interface components {
             backups_available: boolean;
             /** @description Whether private networks can be created here */
             private_networks_available: boolean;
+            /** @description Whether snapshots can be taken here */
+            snapshots_available: boolean;
         };
         ServerTypeInput: {
             name: string;
@@ -2867,8 +2944,10 @@ export interface components {
             name: string;
             /** @description Server type id or name */
             server_type: string;
-            /** @description Image id or name */
-            image: string;
+            /** @description Image id or name; give this or snapshot */
+            image?: string;
+            /** @description Snapshot id or name; give this or image */
+            snapshot?: string;
             /** @description Location id or name */
             location: string;
             /** @description The project's SSH key ids or names */
@@ -2909,9 +2988,12 @@ export interface components {
             labels?: components["schemas"]["Labels"];
             backups?: components["schemas"]["BackupSettings"];
         };
+        /** @description Give image or snapshot, not both */
         RebuildInput: {
             /** @description Image id or name */
-            image: string;
+            image?: string;
+            /** @description Snapshot id or name */
+            snapshot?: string;
         };
         ConsoleGrant: {
             wss_url: string;
@@ -2951,7 +3033,16 @@ export interface components {
             status: "initializing" | "starting" | "running" | "stopping" | "off" | "rebuilding" | "deleting" | "missing" | "error";
             location: components["schemas"]["LocationRef"];
             server_type: components["schemas"]["ServerType"];
-            image: components["schemas"]["Image"];
+            /** @description The image the server was built from; null when it was built from a snapshot whose image is gone */
+            image: components["schemas"]["Image"] | null;
+            /** @description The snapshot the server was built from, if any */
+            snapshot: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+            } | null;
+            os_flavor: string;
+            os_version: string;
             public_net: {
                 ipv4: components["schemas"]["ServerIp"];
                 ipv6: components["schemas"]["ServerIp"];
@@ -3071,6 +3162,52 @@ export interface components {
                 name: string;
                 ip: string;
             }[];
+            /** Format: date-time */
+            created: string;
+        };
+        SnapshotInput: {
+            /** @description Server id or name */
+            server: string;
+            /** @description Defaults to <server>-<YYYYMMDD-HHMM> in UTC */
+            name?: string;
+            description?: string;
+            labels?: components["schemas"]["Labels"];
+            /** @description Power the server off if it doesn't shut down in time */
+            force_stop?: boolean;
+        };
+        SnapshotUpdate: {
+            name?: string;
+            description?: string;
+            labels?: components["schemas"]["Labels"];
+        };
+        Snapshot: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            description: string;
+            labels: components["schemas"]["Labels"];
+            /** @description Size in GB */
+            size: number;
+            location: components["schemas"]["LocationRef"];
+            /**
+             * Format: int64
+             * @description The source server's id; null once it is deleted
+             */
+            server: number | null;
+            /** @description The source server's name when the snapshot was taken */
+            server_name: string;
+            /** @description The source server's image; null when none or it was deleted */
+            image: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+            } | null;
+            os_flavor: string;
+            os_version: string;
+            /** @enum {string} */
+            status: "creating" | "available" | "deleting" | "missing" | "error";
+            /** @description Whether restoring keeps the server's identity; null when the source server is gone, false when its network has changed since */
+            restore_keeps_identity: boolean | null;
             /** Format: date-time */
             created: string;
         };
@@ -7125,6 +7262,203 @@ export interface operations {
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
             503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getSnapshots: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key) */
+                label_selector?: string;
+                /** @description Exact snapshot name */
+                name?: string;
+                /** @description Only snapshots in this status */
+                status?: string;
+                /** @description Only snapshots of this server id or name */
+                server?: string;
+                /** @description Only snapshots in this location id or name */
+                location?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        snapshots: components["schemas"]["Snapshot"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postSnapshots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnapshotInput"];
+            };
+        };
+        responses: {
+            /** @description Created; the create_snapshot action runs in the background */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        snapshot: components["schemas"]["Snapshot"];
+                        action: components["schemas"]["Action"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Snapshot"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    putSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnapshotUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Snapshot"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The delete_snapshot action */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        action: components["schemas"]["Action"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getSnapshotActions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Only actions in these statuses (running, success, error); repeat the parameter or separate with commas */
+                status?: string[];
+                /** @description id, id:asc or id:desc (default) */
+                sort?: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        actions: components["schemas"]["Action"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

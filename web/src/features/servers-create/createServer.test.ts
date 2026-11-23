@@ -38,6 +38,7 @@ const loc = (id: number, name: string, ipv4 = true, ipv6 = true): Location => ({
   volumes_available: false,
   backups_available: false,
   private_networks_available: false,
+  snapshots_available: false,
 })
 const img = (id: number, name: string, locations: number[]): Image => ({
   id,
@@ -90,6 +91,8 @@ const quota = (over: Partial<Quota> = {}): Quota => ({
   max_volume_gb: 100,
   max_backups: 35,
   max_networks: 3,
+  max_snapshots: 5,
+  max_snapshot_gb: 100,
   ...over,
 })
 const usage = (over: Partial<ProjectUsage> = {}): ProjectUsage => ({
@@ -103,6 +106,8 @@ const usage = (over: Partial<ProjectUsage> = {}): ProjectUsage => ({
   backups: 0,
   backups_reserved: 0,
   networks: 0,
+  snapshots: 0,
+  snapshot_gb: 0,
   ...over,
 })
 
