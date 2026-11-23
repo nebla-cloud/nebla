@@ -63,9 +63,11 @@ type builder struct {
 	row    *ent.Server
 	tmpl   int
 	// archive, when set, makes the VM by restoring this backup instead of cloning tmpl.
-	archive        string
-	isoGen         int
-	instGen        int
+	archive string
+	isoGen  int
+	instGen int
+	// keepFP, when set, is the network fingerprint instGen was pinned for.
+	keepFP         string
 	st             buildState
 	save           func(context.Context, buildState) error
 	afterClonePost func()
@@ -500,6 +502,11 @@ func (b *builder) uploadISO(ctx context.Context) error {
 			b.isoGen = cur.IsoGeneration + 1
 			b.instGen = cmp.Or(b.pinInst, b.isoGen)
 		}
+		if b.keepFP != "" {
+			if err := b.dropStalePin(ctx); err != nil {
+				return err
+			}
+		}
 		in, err := renderISO(ctx, b.o.Ent, b.row, b.instGen, !b.staleNet)
 		if err != nil {
 			return err
@@ -523,6 +530,18 @@ func (b *builder) uploadISO(ctx context.Context) error {
 		b.netHash = cloudinit.NetHash(in)
 		return b.done(ctx, stepISO)
 	})
+}
+
+// dropStalePin takes a new instance-id when the network changed since instGen was pinned for keepFP.
+func (b *builder) dropStalePin(ctx context.Context) error {
+	fp, err := NetworkFingerprint(ctx, b.o.Ent, b.row)
+	if err != nil {
+		return err
+	}
+	if fp != b.keepFP {
+		b.instGen, b.pinInst, b.keepFP, b.staleNet = b.isoGen, 0, "", false
+	}
+	return nil
 }
 
 func (b *builder) firewall(ctx context.Context) error {

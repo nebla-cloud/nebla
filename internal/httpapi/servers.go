@@ -321,7 +321,7 @@ func (s *server) RebuildServer(ctx context.Context, req apigen.RebuildServerRequ
 	if err != nil {
 		return nil, err
 	}
-	a, err := s.servers.Rebuild(ctx, sc.ProjectID, req.Id, req.Body.Image)
+	a, err := s.servers.Rebuild(ctx, sc.ProjectID, req.Id, servers.RebuildSource{Image: req.Body.Image})
 	if err != nil {
 		return nil, err
 	}

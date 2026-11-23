@@ -170,7 +170,7 @@ const (
 )
 
 type CreateInput struct {
-	Name, ServerType, Image, Location string
+	Name, ServerType, Image, Snapshot, Location string
 	// SSHKeys are the project's key ids or names.
 	SSHKeys    []string
 	UserData   string
@@ -285,26 +285,52 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	if err != nil {
 		return Server{}, actions.Action{}, err
 	}
-	img, err := s.o.Catalog.ImageByRef(ctx, in.Image)
-	if err != nil {
-		return Server{}, actions.Action{}, err
+	if (in.Image == "") == (in.Snapshot == "") {
+		return Server{}, actions.Action{}, invalid("give either image or snapshot")
 	}
-	loc, err := s.o.Catalog.LocationByRef(ctx, in.Location)
-	if err != nil {
-		return Server{}, actions.Action{}, err
+	var img catalog.Image
+	var pre *ent.Snapshot
+	var loc catalog.Location
+	if in.Snapshot != "" {
+		if pre, err = readSnapshot(ctx, s.o.Ent, projectID, in.Snapshot, false); err != nil {
+			return Server{}, actions.Action{}, err
+		}
+		if loc, err = s.snapshotLocation(ctx, pre); err != nil {
+			return Server{}, actions.Action{}, err
+		}
+		if in.Location != "" {
+			want, err := s.o.Catalog.LocationByRef(ctx, in.Location)
+			if err != nil {
+				return Server{}, actions.Action{}, err
+			}
+			if want.ID != loc.ID {
+				return Server{}, actions.Action{}, invalid("This snapshot is in location %s", loc.Name)
+			}
+		}
+	} else {
+		if img, err = s.o.Catalog.ImageByRef(ctx, in.Image); err != nil {
+			return Server{}, actions.Action{}, err
+		}
+		if loc, err = s.o.Catalog.LocationByRef(ctx, in.Location); err != nil {
+			return Server{}, actions.Action{}, err
+		}
 	}
 	switch {
 	case typ.Deprecated:
 		return Server{}, actions.Action{}, invalid("server type %s is deprecated", typ.Name)
 	case !typ.AvailableIn(loc.ID):
 		return Server{}, actions.Action{}, invalid("server type %s is not offered in location %s", typ.Name, loc.Name)
+	case pre != nil && typ.DiskGB < pre.SizeGB:
+		return Server{}, actions.Action{}, errSnapshotTooLarge(pre.SizeGB)
 	}
-	tmpls, err := s.o.Catalog.TemplatesFor(ctx, img.ID, loc.ID)
-	if err != nil {
-		return Server{}, actions.Action{}, err
-	}
-	if len(tmpls) == 0 {
-		return Server{}, actions.Action{}, invalid("image %s is not available in location %s", img.Name, loc.Name)
+	var tmpls []catalog.Template
+	if pre == nil {
+		if tmpls, err = s.o.Catalog.TemplatesFor(ctx, img.ID, loc.ID); err != nil {
+			return Server{}, actions.Action{}, err
+		}
+		if len(tmpls) == 0 {
+			return Server{}, actions.Action{}, invalid("image %s is not available in location %s", img.Name, loc.Name)
+		}
 	}
 	keys, err := s.resolveKeys(ctx, projectID, in.SSHKeys)
 	if err != nil {
@@ -367,7 +393,19 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			if err != nil {
 				return err
 			}
+			src := sourceFacts{imageID: &img.ID, flavor: img.OSFlavor, version: img.OSVersion}
+			if pre != nil {
+				snap, err := lockSnapshot(ctx, etx, projectID, strconv.FormatInt(pre.ID, 10))
+				if err != nil {
+					return err
+				}
+				tmpls = []catalog.Template{{Node: snap.Node, VMID: *snap.Vmid}}
+				src = sourceFacts{imageID: snap.ImageID, flavor: snap.OsFlavor, version: snap.OsVersion, snapshotID: &snap.ID}
+			}
 			nodeName, vmid, err := Place(loads, tmpls, typ)
+			if errors.Is(err, errNoCapacity) && pre != nil && tmpls[0].Node != "" {
+				err = errSnapshotHostFull
+			}
 			if err != nil {
 				return err
 			}
@@ -376,7 +414,8 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 				return err
 			}
 			create := etx.Server.Create().SetProjectID(projectID).SetName(in.Name).SetLocationID(loc.ID).SetNode(nodeName).
-				SetTemplateVmid(vmid).SetServerTypeID(typ.ID).SetImageID(img.ID).SetOsFlavor(img.OSFlavor).SetOsVersion(img.OSVersion).SetMAC(mac).SetLabels(labels).
+				SetTemplateVmid(vmid).SetServerTypeID(typ.ID).SetNillableImageID(src.imageID).SetNillableSnapshotID(src.snapshotID).
+				SetOsFlavor(src.flavor).SetOsVersion(src.version).SetMAC(mac).SetLabels(labels).
 				SetCores(typ.Cores).SetMemoryMB(typ.MemoryMB).SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys)
 			if in.Backups != nil {
 				create.SetBackupsEnabled(in.Backups.Enabled).SetBackupKeep(in.Backups.Keep)

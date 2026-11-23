@@ -206,6 +206,15 @@ func CheckDeletable(ctx context.Context, etx *ent.Client, row *ent.Snapshot) err
 	if busy {
 		return errLocked
 	}
+	building, err := etx.Server.Query().Where(server.Or(
+		server.And(server.SnapshotID(row.ID), server.StatusEQ(servers.StatusInitializing)),
+		server.RebuildSnapshotID(row.ID))).Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if building {
+		return errInUse
+	}
 	switch row.Status {
 	case snapshot.StatusAvailable, snapshot.StatusMissing, snapshot.StatusError:
 		return nil

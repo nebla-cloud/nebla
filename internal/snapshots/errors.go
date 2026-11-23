@@ -30,6 +30,7 @@ var (
 	errServerNotFound = apierr.New(http.StatusNotFound, "not_found", "server not found")
 	errNoJobs         = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
 	errLocked         = apierr.New(http.StatusConflict, "locked", "the snapshot has a running action")
+	errInUse          = apierr.New(http.StatusConflict, "snapshot_in_use", "This snapshot is being used to build a server. Try again when it's done.")
 	errServerChanged  = apierr.New(http.StatusConflict, "server_changed", "The server changed while the snapshot was requested. Try again.")
 	errNoBootDisk     = apierr.New(http.StatusInternalServerError, "internal_error", "Couldn't read the server's boot disk. Contact your admin.")
 	errNameTaken      = apierr.New(http.StatusConflict, "uniqueness_error", "snapshot name is already taken")

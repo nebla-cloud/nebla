@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
@@ -48,9 +49,11 @@ var rebuildProgress = map[int]int{stepVMID: 10, stepClone: 40, stepConfig: 50, s
 
 // RebuildServerArgs is the rebuild_server job; the template was chosen at request time.
 type RebuildServerArgs struct {
-	ServerID     int64  `json:"server_id"`
-	ActionID     int64  `json:"action_id"`
+	ServerID int64 `json:"server_id"`
+	ActionID int64 `json:"action_id"`
+	// ImageID is 0 for a snapshot whose image is gone.
 	ImageID      int64  `json:"image_id"`
+	SnapshotID   int64  `json:"snapshot_id,omitempty"`
 	OSFlavor     string `json:"os_flavor,omitempty"`
 	OSVersion    string `json:"os_version,omitempty"`
 	TemplateVMID int    `json:"template_vmid"`
@@ -58,16 +61,27 @@ type RebuildServerArgs struct {
 	StartAfter bool `json:"start_after"`
 	// InstanceGeneration pins the cloud-init instance-id generation; 0 uses the new ISO generation.
 	InstanceGeneration int `json:"instance_generation,omitempty"`
+	// KeepFingerprint is the network fingerprint InstanceGeneration was chosen for; a change before the ISO is written drops the pin.
+	KeepFingerprint string `json:"keep_fingerprint,omitempty"`
 }
 
 func (RebuildServerArgs) Kind() string                 { return KindRebuildServer }
 func (RebuildServerArgs) InsertOpts() river.InsertOpts { return insertOpts() }
 
-// Rebuild queues a reinstall from image onto a new VM with the same name, MAC and IPs.
-func (s *Service) Rebuild(ctx context.Context, projectID, id int64, imageRef string) (actions.Action, error) {
-	img, err := s.o.Catalog.ImageByRef(ctx, imageRef)
-	if err != nil {
-		return actions.Action{}, err
+// RebuildSource is what a rebuild installs: exactly one of an image or a snapshot, by id or name.
+type RebuildSource struct{ Image, Snapshot string }
+
+// Rebuild queues a reinstall from an image or snapshot onto a new VM with the same name, MAC and IPs.
+func (s *Service) Rebuild(ctx context.Context, projectID, id int64, src RebuildSource) (actions.Action, error) {
+	if (src.Image == "") == (src.Snapshot == "") {
+		return actions.Action{}, invalid("give either image or snapshot")
+	}
+	var img catalog.Image
+	if src.Image != "" {
+		var err error
+		if img, err = s.o.Catalog.ImageByRef(ctx, src.Image); err != nil {
+			return actions.Action{}, err
+		}
 	}
 	return s.queue(ctx, projectID, id, KindRebuildServer, func(etx *ent.Client, row *ent.Server) (func(int64) river.JobArgs, error) {
 		switch {
@@ -76,28 +90,59 @@ func (s *Service) Rebuild(ctx context.Context, projectID, id int64, imageRef str
 		case row.Vmid == nil || (row.Status != StatusRunning && row.Status != StatusOff):
 			return nil, errNotReady
 		}
-		tmpls, err := s.o.Catalog.TemplatesFor(ctx, img.ID, row.LocationID)
-		if err != nil {
-			return nil, err
-		}
-		tmpl := 0
-		for _, t := range tmpls {
-			if t.Node == row.Node || (t.Node == "" && tmpl == 0) {
-				tmpl = t.VMID
+		args := RebuildServerArgs{ServerID: id, StartAfter: row.Status == StatusRunning}
+		upd := etx.Server.UpdateOneID(id).SetStatus(StatusRebuilding).SetRebuildStep(0)
+		if src.Snapshot == "" {
+			tmpls, err := s.o.Catalog.TemplatesFor(ctx, img.ID, row.LocationID)
+			if err != nil {
+				return nil, err
 			}
+			for _, t := range tmpls {
+				if t.Node == row.Node || (t.Node == "" && args.TemplateVMID == 0) {
+					args.TemplateVMID = t.VMID
+				}
+			}
+			if args.TemplateVMID == 0 {
+				return nil, invalid("image %s is not available on this server's node", img.Name)
+			}
+			args.ImageID, args.OSFlavor, args.OSVersion = img.ID, img.OSFlavor, img.OSVersion
+		} else {
+			snap, err := lockSnapshot(ctx, etx, row.ProjectID, src.Snapshot)
+			if err != nil {
+				return nil, err
+			}
+			switch {
+			case snap.LocationID != row.LocationID:
+				return nil, invalid("This snapshot is in a different location")
+			case snap.Node != "" && snap.Node != row.Node:
+				return nil, errSnapshotMismatch
+			case row.DiskGB < snap.SizeGB:
+				return nil, errSnapshotTooLarge(snap.SizeGB)
+			}
+			args.TemplateVMID, args.OSFlavor, args.OSVersion, args.SnapshotID = *snap.Vmid, snap.OsFlavor, snap.OsVersion, snap.ID
+			if snap.ImageID != nil {
+				args.ImageID = *snap.ImageID
+			}
+			if snap.ServerID != nil && *snap.ServerID == id && snap.InstanceGeneration > 0 {
+				fp, err := NetworkFingerprint(ctx, etx, row)
+				if err != nil {
+					return nil, err
+				}
+				if fp == snap.NetworkFingerprint {
+					args.InstanceGeneration, args.KeepFingerprint = snap.InstanceGeneration, fp
+				}
+			}
+			upd.SetRebuildSnapshotID(snap.ID)
 		}
-		if tmpl == 0 {
-			return nil, invalid("image %s is not available on this server's node", img.Name)
-		}
-		if err := etx.Server.UpdateOneID(id).SetStatus(StatusRebuilding).SetRebuildStep(0).Exec(ctx); err != nil {
+		if err := upd.Exec(ctx); err != nil {
 			return nil, err
 		}
 		if err := dropQueuedBackups(ctx, etx, id); err != nil {
 			return nil, err
 		}
-		running := row.Status == StatusRunning
 		return func(actionID int64) river.JobArgs {
-			return RebuildServerArgs{ServerID: id, ActionID: actionID, ImageID: img.ID, OSFlavor: img.OSFlavor, OSVersion: img.OSVersion, TemplateVMID: tmpl, StartAfter: running}
+			args.ActionID = actionID
+			return args
 		}, nil
 	})
 }
@@ -128,6 +173,8 @@ type rebuildRun struct {
 	actionID   int64
 	startAfter bool
 	instGen    int
+	// keepFP is the network fingerprint instGen was pinned for.
+	keepFP string
 	// image is the rebuild's new image; nil keeps the server's.
 	image *rebuildImage
 	// archive, when set, restores this backup instead of cloning the image's template.
@@ -141,7 +188,7 @@ type rebuildRun struct {
 }
 
 type rebuildImage struct {
-	id                  int64
+	id, snapshotID      int64
 	tmpl                int
 	osFlavor, osVersion string
 }
@@ -153,7 +200,8 @@ func (w *RebuildServerWorker) Work(ctx context.Context, job *river.Job[RebuildSe
 	}
 	a := job.Args
 	r := &rebuildRun{o: &w.o, afterStep: w.afterStep, name: "rebuild", actionID: a.ActionID, startAfter: a.StartAfter,
-		instGen: a.InstanceGeneration, image: &rebuildImage{a.ImageID, a.TemplateVMID, a.OSFlavor, a.OSVersion}, row: row}
+		instGen: a.InstanceGeneration, image: &rebuildImage{id: a.ImageID, snapshotID: a.SnapshotID, tmpl: a.TemplateVMID, osFlavor: a.OSFlavor, osVersion: a.OSVersion},
+		keepFP: a.KeepFingerprint, row: row}
 	return contract{job: job.JobRow, name: "rebuild", finished: act.Finished != nil, log: actionLog(w.o.Logger, act, row.ID),
 		run: r.run, fail: r.cleanup}.work(ctx)
 }
@@ -168,7 +216,7 @@ func (r *rebuildRun) load(ctx context.Context) error {
 		tmpl = r.image.tmpl
 	}
 	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: tmpl, archive: r.archive, isoGen: r.row.IsoGeneration + 1, nextGen: true,
-		instGen: cmp.Or(r.instGen, r.row.IsoGeneration+1), pinInst: r.instGen,
+		instGen: cmp.Or(r.instGen, r.row.IsoGeneration+1), pinInst: r.instGen, keepFP: r.keepFP,
 		st:   buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
 		save: r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost, afterUpidSave: r.afterUpid,
 		staleNet: r.staleNet()}
@@ -200,6 +248,14 @@ func (r *rebuildRun) save(ctx context.Context, st buildState) error {
 	}
 	r.row, r.b.row = row, row
 	return nil
+}
+
+// zeroNil maps 0 to nil, so a nillable setter clears the column.
+func zeroNil(v int64) *int64 {
+	if v == 0 {
+		return nil
+	}
+	return &v
 }
 
 // setSlot sets a nillable column from v, clearing it when v is nil.
@@ -251,9 +307,11 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	nu := r.b.st
 	var row *ent.Server
 	err := db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
-		u := etx.Server.UpdateOneID(r.row.ID)
+		u := etx.Server.UpdateOneID(r.row.ID).ClearRebuildSnapshotID()
 		if r.image != nil {
-			u.SetImageID(r.image.id).SetOsFlavor(r.image.osFlavor).SetOsVersion(r.image.osVersion).SetTemplateVmid(r.image.tmpl)
+			u.SetOsFlavor(r.image.osFlavor).SetOsVersion(r.image.osVersion).SetTemplateVmid(r.image.tmpl)
+			setSlot(u.SetImageID, u.ClearImageID, zeroNil(r.image.id))
+			setSlot(u.SetSnapshotID, u.ClearSnapshotID, zeroNil(r.image.snapshotID))
 		}
 		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap).
 			SetNetRefresh(!r.b.staleNet).SetInstanceBumpPending(false).SetIsoNetHash(r.b.netHash)
@@ -381,7 +439,7 @@ func (r *rebuildRun) cleanup(ctx context.Context, f failure) error {
 	} else {
 		st = fallback
 	}
-	u := r.o.Ent.Server.UpdateOneID(cur.ID).SetStatus(server.Status(st)).SetRebuildStep(0)
+	u := r.o.Ent.Server.UpdateOneID(cur.ID).SetStatus(server.Status(st)).SetRebuildStep(0).ClearRebuildSnapshotID()
 	if gone {
 		u.ClearRebuildVmid().ClearRebuildCloneUpid().ClearRebuildCloneNonce()
 	}
