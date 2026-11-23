@@ -499,3 +499,38 @@ func (a *API) FloatingIP(ctx context.Context, ref string) (apiclient.FloatingIp,
 		return named(all, func(f apiclient.FloatingIp) string { return f.Ip }, name), nil
 	})
 }
+
+// Networks lists every private network matching params.
+func (a *API) Networks(ctx context.Context, params apiclient.GetNetworksParams) ([]apiclient.Network, error) {
+	pp := perPage
+	params.PerPage = &pp
+	return pageAll(func(page *int) ([]apiclient.Network, apiclient.Meta, error) {
+		params.Page = page
+		res, err := a.C.GetNetworksWithResponse(ctx, &params)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		v, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		return v.Networks, v.Meta, nil
+	})
+}
+
+// Network finds a private network by id or name.
+func (a *API) Network(ctx context.Context, ref string) (apiclient.Network, error) {
+	return resolve(ref, "network", func(id int64) (*apiclient.Network, *http.Response, []byte, error) {
+		res, err := a.C.GetNetworkWithResponse(ctx, id)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return res.JSON200, res.HTTPResponse, res.Body, nil
+	}, func(name string) (*apiclient.Network, error) {
+		list, err := a.Networks(ctx, apiclient.GetNetworksParams{Name: &name})
+		if err != nil {
+			return nil, err
+		}
+		return named(list, func(n apiclient.Network) string { return n.Name }, name), nil
+	})
+}

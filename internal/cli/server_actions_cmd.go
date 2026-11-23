@@ -109,7 +109,9 @@ func serverActionCmds(a *app) []*cobra.Command {
 		}
 		cmds = append(cmds, cmd)
 	}
-	return append(cmds, serverRebuildCmd(a), serverChangeTypeCmd(a))
+	return append(cmds, serverRebuildCmd(a), serverChangeTypeCmd(a),
+		serverNetworkCmd(a, "attach-to-network", "Attach a server to a private network", "attached to", true),
+		serverNetworkCmd(a, "detach-from-network", "Detach a server from a private network", "detached from", false))
 }
 
 func serverRebuildCmd(a *app) *cobra.Command {
