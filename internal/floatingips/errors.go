@@ -59,10 +59,10 @@ func writeErr(err error) error {
 	return notFound(err)
 }
 
-// lockErr turns a lock timeout into the busy error.
+// lockErr turns a lock timeout or deadlock into the busy error.
 func lockErr(err error) error {
 	var pe *pgconn.PgError
-	if errors.As(err, &pe) && pe.Code == "55P03" {
+	if errors.As(err, &pe) && (pe.Code == "55P03" || pe.Code == "40P01") {
 		return errBusy
 	}
 	return err

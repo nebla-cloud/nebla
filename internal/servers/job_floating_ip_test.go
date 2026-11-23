@@ -614,6 +614,44 @@ func TestServerDeleteKeepsFloatingIPs(t *testing.T) {
 	require.Equal(t, "quota_exceeded", ae.Code)
 }
 
+// TestServerDeleteWaitsForFloatingIPLock holds a floating IP row, then its server, the way Assign does; the delete must wait, not deadlock.
+func TestServerDeleteWaitsForFloatingIPLock(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	id, _ := f.settled(t)
+	del, _ := expect[actionBody](t, f.C.Send(http.MethodDelete, spath(f.a), nil), http.StatusOK)
+	job := jobOf(queuedArgs[servers.DeleteServerArgs](t, f.ServerEnv, del.Action.ID), 1)
+
+	tx, err := f.App.SQL.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, "SET LOCAL lock_timeout = '5s'")
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, "SELECT 1 FROM ip_addresses WHERE id = $1 FOR UPDATE", id)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() { done <- servers.NewDeleteServerWorker(f.o).Work(ctx, job) }()
+	require.Eventually(t, func() bool {
+		var n int
+		err := f.App.SQL.QueryRowContext(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`).Scan(&n)
+		return err == nil && n > 0
+	}, 10*time.Second, 20*time.Millisecond, "the delete waits on the floating IP row")
+
+	_, err = tx.ExecContext(ctx, "SELECT 1 FROM servers WHERE id = $1 FOR NO KEY UPDATE", f.a)
+	require.NoError(t, err, "the delete must not hold the server row while it waits")
+	require.NoError(t, tx.Commit())
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(15 * time.Second):
+		t.Fatal("the delete never finished")
+	}
+	require.Equal(t, actions.StatusSuccess, f.action(t, del.Action.ID).Status)
+	require.Nil(t, f.row(t, id).ServerID)
+}
+
 func TestReleaseFailsThenReconcilerFinishes(t *testing.T) {
 	f := newFIPEnv(t)
 	id, ip := f.settled(t)
