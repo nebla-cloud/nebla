@@ -565,3 +565,130 @@ func TestFakeContainerWithoutConfigHasEmptyOne(t *testing.T) {
 		t.Fatalf("bridges = %v, %v", b, err)
 	}
 }
+
+// importEnv is a server whose scsi0 is a 32G volume and virtio1 a 5G data volume, plus an empty snap storage.
+func importEnv(t *testing.T) (*fake.Server, pve.Client, string) {
+	t.Helper()
+	ctx := context.Background()
+	s, c := volEnv(t)
+	s.AddStorage("pve1", "snap", []string{"images"}, false)
+	boot, err := c.AllocVolume(ctx, "pve1", "local-lvm", 101, "vm-101-disk-0", 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := c.AllocVolume(ctx, "pve1", "local-lvm", 101, "vm-101-disk-1", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetVMConfig(101, "scsi0", boot+",size=32G")
+	s.SetVMConfig(101, "virtio1", data+",size=5G")
+	return s, c, boot
+}
+
+func waitCreate(t *testing.T, c pve.Client, vmid int, kv map[string]string) error {
+	t.Helper()
+	up, err := c.CreateVM(context.Background(), "pve1", vmid, kv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c.WaitTask(context.Background(), "pve1", up)
+}
+
+func TestFakeImportFrom(t *testing.T) {
+	ctx := context.Background()
+	s, c, boot := importEnv(t)
+	if err := waitCreate(t, c, 200, map[string]string{"name": "snap", "scsi0": "snap:0,import-from=" + boot}); err != nil {
+		t.Fatal(err)
+	}
+	v, ok := s.VM(200)
+	if !ok || v.Config["scsi0"] != "snap:vm-200-disk-0,size=32G" {
+		t.Fatalf("vm = %+v", v)
+	}
+	items, err := c.StorageContent(ctx, "pve1", "snap", 200)
+	if err != nil || len(items) != 1 || items[0].Volid != "snap:vm-200-disk-0" || items[0].Size != 32<<30 {
+		t.Fatalf("items = %+v err=%v", items, err)
+	}
+	if src, _ := c.StorageContent(ctx, "pve1", "local-lvm", 101); len(src) != 2 {
+		t.Fatalf("source disturbed: %+v", src)
+	}
+	if err := waitCreate(t, c, 201, map[string]string{"scsi0": "snap:0,import-from=snap:nope"}); err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("missing source err = %v", err)
+	}
+	if _, ok := s.VM(201); ok {
+		t.Fatal("failed import left a VM")
+	}
+	if err := waitCreate(t, c, 202, map[string]string{"efidisk0": "snap:0,import-from=" + boot + ",efitype=4m", "scsi0": "snap:0,import-from=" + boot}); err != nil {
+		t.Fatal(err)
+	}
+	v, _ = s.VM(202)
+	if !strings.HasPrefix(v.Config["efidisk0"], "snap:vm-202-disk-") || !strings.HasPrefix(v.Config["scsi0"], "snap:vm-202-disk-") || v.Config["efidisk0"] == v.Config["scsi0"] {
+		t.Fatalf("config = %v", v.Config)
+	}
+}
+
+func TestFakeImportThenTemplateThenDestroy(t *testing.T) {
+	ctx := context.Background()
+	s, c, boot := importEnv(t)
+	if err := waitCreate(t, c, 200, map[string]string{"scsi0": "snap:0,import-from=" + boot}); err != nil {
+		t.Fatal(err)
+	}
+	up, err := c.ConvertToTemplate(ctx, "pve1", 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.VM(200); !v.Template {
+		t.Fatalf("not a template: %+v", v)
+	}
+	up, _ = c.Destroy(ctx, "pve1", 200)
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if items, _ := c.StorageContent(ctx, "pve1", "snap", 0); len(items) != 0 {
+		t.Fatalf("template disks survived: %+v", items)
+	}
+	if src, _ := c.StorageContent(ctx, "pve1", "local-lvm", 101); len(src) != 2 {
+		t.Fatalf("source disturbed: %+v", src)
+	}
+}
+
+func TestFakeHangShutdown(t *testing.T) {
+	ctx := context.Background()
+	s, c, _ := importEnv(t)
+	s.SetVMStatus(101, "running")
+	s.HangShutdown = map[int]bool{101: true}
+	up, err := c.Power(ctx, "pve1", 101, pve.PowerShutdown)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.VM(101); v.Status != "running" {
+		t.Fatalf("status = %q, want running", v.Status)
+	}
+	up, _ = c.Power(ctx, "pve1", 101, pve.PowerStop)
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.VM(101); v.Status != "stopped" {
+		t.Fatalf("stop status = %q", v.Status)
+	}
+}
+
+func TestFakeFailImport(t *testing.T) {
+	s, c, boot := importEnv(t)
+	s.FailImport = map[int]error{200: errors.New("storage offline")}
+	err := waitCreate(t, c, 200, map[string]string{"scsi0": "snap:0,import-from=" + boot})
+	if err == nil || !strings.Contains(err.Error(), "storage offline") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, ok := s.VM(200); ok {
+		t.Fatal("failed import left a VM")
+	}
+	if err := waitCreate(t, c, 200, map[string]string{"scsi0": "snap:0,import-from=" + boot}); err != nil {
+		t.Fatalf("retry after one failure: %v", err)
+	}
+}

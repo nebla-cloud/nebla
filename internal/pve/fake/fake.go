@@ -121,6 +121,10 @@ type Server struct {
 	DenyDatastoreAllocate bool
 	// FailVzdump and FailRestore make the next backup or restore tasks end with an error.
 	FailVzdump, FailRestore bool
+	// HangShutdown makes a shutdown task on that VMID finish OK without stopping the VM.
+	HangShutdown map[int]bool
+	// FailImport fails the next create task importing a disk into that VMID, once.
+	FailImport map[int]error
 
 	perms map[string]map[string]int // explicit GET /access/permissions answers by path
 
@@ -839,6 +843,92 @@ func (s *Server) storageOf(nodeName, volid string) (*storage, bool) {
 	return st, true
 }
 
+// isDiskKey reports whether k is a VM disk config key.
+func isDiskKey(k string) bool {
+	for _, p := range []string{"scsi", "virtio", "sata", "ide"} {
+		if n, ok := strings.CutPrefix(k, p); ok {
+			_, err := strconv.Atoi(n)
+			return err == nil
+		}
+	}
+	return k == "efidisk0" || k == "tpmstate0"
+}
+
+// importDisks turns every "<storage>:0,import-from=<volid>" disk in full into a new volume
+// vm-<vmid>-disk-N and returns an ERROR exitstatus, or "" when all imported. Caller holds s.mu.
+func (s *Server) importDisks(nodeName string, vmid int, full map[string]string) string {
+	type imp struct {
+		key, store, opts string
+		size             int64
+	}
+	var imps []imp
+	for _, k := range slices.Sorted(maps.Keys(full)) {
+		if !isDiskKey(k) {
+			continue
+		}
+		disk, rest, _ := strings.Cut(full[k], ",")
+		var src string
+		var opts []string
+		for _, p := range strings.Split(rest, ",") {
+			if v, ok := strings.CutPrefix(p, "import-from="); ok {
+				src = v
+			} else if p != "" && !strings.HasPrefix(p, "size=") {
+				opts = append(opts, p)
+			}
+		}
+		if src == "" {
+			continue
+		}
+		store, _, _ := strings.Cut(disk, ":")
+		size := int64(3) << 30 // ISO-storage sources carry no size
+		if st, ok := s.storageOf(nodeName, src); ok {
+			size = st.vols[src].size
+		} else if _, ok := s.volumes[src]; !ok {
+			return fmt.Sprintf("ERROR: volume '%s' does not exist", src)
+		}
+		imps = append(imps, imp{k, store, strings.Join(opts, ","), size})
+	}
+	if len(imps) == 0 {
+		return ""
+	}
+	if err := s.FailImport[vmid]; err != nil {
+		delete(s.FailImport, vmid)
+		return "ERROR: " + err.Error()
+	}
+	next := 0
+	for _, im := range imps {
+		st := s.nodes[nodeName].storages[im.store]
+		var volid string
+		for ; ; next++ {
+			name := fmt.Sprintf("vm-%d-disk-%d", vmid, next)
+			volid = im.store + ":" + name
+			if st != nil && st.file() {
+				volid = fmt.Sprintf("%s:%d/%s.raw", im.store, vmid, name)
+			}
+			if st == nil || st.vols[volid] == nil {
+				break
+			}
+		}
+		next++
+		if st != nil {
+			if st.vols == nil {
+				st.vols = map[string]*volume{}
+			}
+			st.vols[volid] = &volume{size: im.size, vmid: vmid}
+		}
+		sz := fmt.Sprintf("%dG", im.size>>30)
+		if im.size%(1<<30) != 0 {
+			sz = fmt.Sprintf("%dM", im.size>>20)
+		}
+		val := volid
+		if im.opts != "" {
+			val += "," + im.opts
+		}
+		full[im.key] = val + ",size=" + sz
+	}
+	return ""
+}
+
 // file reports whether the storage keeps disks as files under a vmid directory.
 func (st *storage) file() bool {
 	switch st.typ {
@@ -997,18 +1087,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 					full[k] = val
 				}
 			}
-			if sc, ok := full["scsi0"]; ok {
-				disk, rest, _ := strings.Cut(sc, ",")
-				for _, p := range strings.Split(rest, ",") {
-					if vol, ok := strings.CutPrefix(p, "import-from="); ok {
-						if _, ok := s.volumes[vol]; !ok {
-							delete(s.vms, id)
-							return fmt.Sprintf("ERROR: volume '%s' does not exist", vol)
-						}
-					}
-				}
-				store, _, _ := strings.Cut(disk, ":")
-				full["scsi0"] = fmt.Sprintf("%s:vm-%d-disk-0,size=3G", store, id)
+			if msg := s.importDisks(n.name, id, full); msg != "" {
+				delete(s.vms, id)
+				return msg
 			}
 			nv.config = full
 			return "OK"
@@ -1651,6 +1732,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 					return fmt.Sprintf("ERROR: VM %d already running", id)
 				case op != "start" && v.status != "running":
 					return fmt.Sprintf("ERROR: VM %d not running", id)
+				case op == "shutdown" && s.HangShutdown[id]:
 				case op == "stop" || op == "shutdown":
 					v.status = "stopped"
 				default:
