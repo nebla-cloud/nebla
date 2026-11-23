@@ -58,9 +58,14 @@ type Location struct {
 	// VolumeStorage "" means each node's disk storage.
 	VolumeStorage   string
 	VolumeStorageOK bool
-	Nodes           []Node
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// BackupStorage "" means backups are off.
+	BackupStorage     string
+	BackupStorageOK   bool
+	BackupWindowStart int
+	BackupWindowEnd   int
+	Nodes             []Node
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // LocationRef is the member-facing reference to a location.
@@ -116,6 +121,10 @@ type LocationInput struct {
 	ImportStorage string
 	// VolumeStorage nil keeps the current value on update; when set it must allow images.
 	VolumeStorage *string
+	// BackupStorage nil keeps the current value; when set it must be a PBS storage with backup content.
+	BackupStorage *string
+	// BackupWindowStart and BackupWindowEnd are minutes from 00:00 UTC (0-1439); nil keeps the current value.
+	BackupWindowStart, BackupWindowEnd *int
 }
 
 type NodeUpdate struct {
@@ -135,7 +144,9 @@ func toLocation(l *ent.Location) Location {
 	out := Location{ID: l.ID, Name: l.Name, Description: l.Description, PVEURL: l.PveURL, TokenID: l.TokenID,
 		HasSecret: len(l.TokenSecret) > 0, CAFingerprint: l.CaFingerprint, InsecureTLS: l.InsecureTLS,
 		DiskStorage: l.DiskStorage, ISOStorage: l.IsoStorage, ImportStorage: l.ImportStorage,
-		FirewallEnabled: l.FirewallEnabled, VolumeStorage: l.VolumeStorage, VolumeStorageOK: l.VolumeStorageOk, Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
+		FirewallEnabled: l.FirewallEnabled, VolumeStorage: l.VolumeStorage, VolumeStorageOK: l.VolumeStorageOk,
+		BackupStorage: l.BackupStorage, BackupStorageOK: l.BackupStorageOk, BackupWindowStart: l.BackupWindowStart, BackupWindowEnd: l.BackupWindowEnd,
+		Nodes: []Node{}, CreatedAt: l.CreatedAt, UpdatedAt: l.UpdatedAt}
 	for _, n := range l.Edges.Nodes {
 		out.Nodes = append(out.Nodes, toNode(n))
 	}
@@ -153,6 +164,14 @@ func (s *Service) validLocation(in *LocationInput) (pve.Conn, error) {
 	in.ImportStorage = strings.TrimSpace(in.ImportStorage)
 	if in.VolumeStorage != nil {
 		in.VolumeStorage = new(strings.TrimSpace(*in.VolumeStorage))
+	}
+	if in.BackupStorage != nil {
+		in.BackupStorage = new(strings.TrimSpace(*in.BackupStorage))
+	}
+	for _, m := range []*int{in.BackupWindowStart, in.BackupWindowEnd} {
+		if m != nil && (*m < 0 || *m > 1439) {
+			return pve.Conn{}, invalid("backup window times must be between 0 and 1439 minutes")
+		}
 	}
 	in.PVE.TokenID = strings.TrimSpace(in.PVE.TokenID)
 	in.PVE.CAFingerprint = strings.TrimSpace(in.PVE.CAFingerprint)
@@ -258,12 +277,16 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 	if err != nil {
 		return Location{}, err
 	}
+	bst, wStart, wEnd, err := s.backupSettings(ctx, conn, in, 0, 120, 360, "", nodes)
+	if err != nil {
+		return Location{}, err
+	}
 	var id int64
 	err = s.withTx(ctx, func(tx *ent.Client) error {
 		l, err := tx.Location.Create().SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetTokenSecret(s.box.Seal([]byte(conn.Secret))).SetCaFingerprint(conn.CAFingerprint).
 			SetInsecureTLS(conn.InsecureTLS).SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).
-			SetVolumeStorage(vol).Save(ctx)
+			SetVolumeStorage(vol).SetBackupStorage(bst).SetBackupWindowStart(wStart).SetBackupWindowEnd(wEnd).Save(ctx)
 		if err != nil {
 			return mapWriteErr(err, "location")
 		}
@@ -273,7 +296,7 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (Locatio
 	if err != nil {
 		return Location{}, err
 	}
-	return s.refreshVolumeStorage(ctx, s.opts.NewClient(conn), id)
+	return s.refreshStorages(ctx, s.opts.NewClient(conn), id)
 }
 
 // UpdateLocation re-verifies Proxmox when connection or storage settings change.
@@ -312,10 +335,18 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 			return Location{}, err
 		}
 	}
+	bst, wStart, wEnd, err := s.backupSettings(ctx, conn, in, id, cur.BackupWindowStart, cur.BackupWindowEnd, cur.BackupStorage, nodes)
+	if err != nil {
+		return Location{}, err
+	}
 	err = s.withTx(ctx, func(tx *ent.Client) error {
 		u := tx.Location.UpdateOneID(id).SetName(in.Name).SetDescription(in.Description).SetPveURL(conn.BaseURL).
 			SetTokenID(conn.TokenID).SetCaFingerprint(conn.CAFingerprint).SetInsecureTLS(conn.InsecureTLS).
-			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).SetVolumeStorage(vol)
+			SetDiskStorage(in.DiskStorage).SetIsoStorage(in.ISOStorage).SetImportStorage(in.ImportStorage).SetVolumeStorage(vol).
+			SetBackupStorage(bst).SetBackupWindowStart(wStart).SetBackupWindowEnd(wEnd)
+		if bst != cur.BackupStorage || newSecret || conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID {
+			u.SetBackupStorageOk(false)
+		}
 		if vol != cur.VolumeStorage || (vol == "" && in.DiskStorage != cur.DiskStorage) ||
 			newSecret || conn.BaseURL != cur.PveURL || conn.TokenID != cur.TokenID {
 			// Fail closed until the new storage or token is re-checked.
@@ -336,7 +367,7 @@ func (s *Service) UpdateLocation(ctx context.Context, id int64, in LocationInput
 		return Location{}, err
 	}
 	s.forget(id)
-	return s.refreshVolumeStorage(ctx, s.opts.NewClient(conn), id)
+	return s.refreshStorages(ctx, s.opts.NewClient(conn), id)
 }
 
 func (s *Service) GetLocation(ctx context.Context, id int64) (Location, error) {
@@ -464,7 +495,15 @@ func (s *Service) SyncNodes(ctx context.Context, id int64) (Location, error) {
 	if err := s.withTx(ctx, func(tx *ent.Client) error { return syncNodes(ctx, tx, id, nodes) }); err != nil {
 		return Location{}, err
 	}
-	return s.refreshVolumeStorage(ctx, c, id)
+	return s.refreshStorages(ctx, c, id)
+}
+
+// refreshStorages re-checks the volume and backup storage flags.
+func (s *Service) refreshStorages(ctx context.Context, c pve.Client, id int64) (Location, error) {
+	if _, err := s.refreshVolumeStorage(ctx, c, id); err != nil {
+		return Location{}, err
+	}
+	return s.refreshBackupStorage(ctx, c, id)
 }
 
 // refreshVolumeStorage re-checks and stores volume_storage_ok; a failed check keeps the stored value.
@@ -529,6 +568,117 @@ func volumeStorageCheck(ctx context.Context, c pve.Client, loc Location) (bool, 
 		usable = true
 	}
 	return usable, nil
+}
+
+// refreshBackupStorage re-checks and stores backup_storage_ok; a failed check keeps the stored value.
+func (s *Service) refreshBackupStorage(ctx context.Context, c pve.Client, id int64) (Location, error) {
+	loc, err := s.GetLocation(ctx, id)
+	if err != nil {
+		return Location{}, err
+	}
+	tctx, cancel := context.WithTimeout(ctx, pveTimeout)
+	defer cancel()
+	ok, err := backupStorageCheck(tctx, c, loc)
+	if err != nil {
+		slog.WarnContext(ctx, "catalog: backup storage check", "location_id", id, "err", err)
+		return loc, nil
+	}
+	if ok == loc.BackupStorageOK {
+		return loc, nil
+	}
+	// Skipped if backup_storage changed meanwhile; that change reset the flag.
+	err = s.db.Location.Update().Where(location.ID(id), location.BackupStorage(loc.BackupStorage)).
+		SetBackupStorageOk(ok).Exec(ctx)
+	if err != nil {
+		return Location{}, err
+	}
+	return s.GetLocation(ctx, id)
+}
+
+// backupStorageCheck reports whether the token holds Datastore.AllocateSpace and Datastore.Audit on the backup
+// storage and VM.Backup on "/".
+func backupStorageCheck(ctx context.Context, c pve.Client, loc Location) (bool, error) {
+	if loc.BackupStorage == "" {
+		return false, nil
+	}
+	path := "/storage/" + loc.BackupStorage
+	perms, err := c.Permissions(ctx, path)
+	if err != nil {
+		return false, fmt.Errorf("permissions on %s: %w", path, err)
+	}
+	have := perms[path]
+	if len(have) == 0 {
+		have = perms["/"]
+	}
+	_, space := have["Datastore.AllocateSpace"]
+	_, audit := have["Datastore.Audit"]
+	if !space || !audit {
+		return false, nil
+	}
+	root, err := c.Permissions(ctx, "/")
+	if err != nil {
+		return false, fmt.Errorf("permissions on /: %w", err)
+	}
+	return root["/"]["VM.Backup"] != 0, nil
+}
+
+// BackupsAvailable reports whether members may use backups at loc.
+func (s *Service) BackupsAvailable(loc Location) bool {
+	return loc.BackupStorage != "" && loc.BackupStorageOK
+}
+
+// backupSettings resolves the backup storage and window for a save and validates them. cur* are the stored
+// values (the defaults on create); nodes, if set, are the freshly probed nodes.
+func (s *Service) backupSettings(ctx context.Context, conn pve.Conn, in LocationInput, locationID int64,
+	curStart, curEnd int, curStorage string, nodes []pve.Node) (storage string, start, end int, err error) {
+	start, end, storage = curStart, curEnd, curStorage
+	if in.BackupWindowStart != nil {
+		start = *in.BackupWindowStart
+	}
+	if in.BackupWindowEnd != nil {
+		end = *in.BackupWindowEnd
+	}
+	if start == end {
+		return "", 0, 0, invalid("backup window start and end must differ")
+	}
+	if in.BackupStorage == nil || *in.BackupStorage == curStorage {
+		return storage, start, end, nil
+	}
+	storage = *in.BackupStorage
+	if storage == "" {
+		return storage, start, end, nil
+	}
+	var names []string
+	if nodes != nil {
+		for _, n := range nodes {
+			if n.Status == "online" {
+				names = append(names, n.Name)
+			}
+		}
+	} else {
+		var ns []*ent.Node
+		if ns, err = s.db.Node.Query().Where(node.LocationID(locationID), node.Enabled(true)).All(ctx); err != nil {
+			return "", 0, 0, err
+		}
+		for _, n := range ns {
+			names = append(names, n.Name)
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, pveTimeout)
+	defer cancel()
+	c := s.opts.NewClient(conn)
+	for _, n := range names {
+		sts, err := c.Storages(ctx, n)
+		if err != nil {
+			return "", 0, 0, unreachable(fmt.Errorf("list storages on %s: %w", n, err))
+		}
+		if slices.ContainsFunc(sts, func(st pve.Storage) bool {
+			return st.ID == storage && st.Type == "pbs" && slices.Contains(st.Content, "backup")
+		}) {
+			return storage, start, end, nil
+		}
+	}
+	return "", 0, 0, invalid("backup storage must be a Proxmox Backup Server storage with backup content")
 }
 
 // canAllocate checks Datastore.Allocate on path, falling back to a propagated grant on "/".
@@ -624,7 +774,7 @@ func (s *Service) UpdateNode(ctx context.Context, locationID, nodeID int64, in N
 		if err != nil {
 			return Node{}, err
 		}
-		if _, err := s.refreshVolumeStorage(ctx, c, locationID); err != nil {
+		if _, err := s.refreshStorages(ctx, c, locationID); err != nil {
 			return Node{}, err
 		}
 	}

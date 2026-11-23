@@ -106,7 +106,24 @@ main() {
     local offline=${NEBLA_OFFLINE:-}
     local panel=${PANEL_URL%/}
     local token=${NEBLA_TOKEN:-}
-    local t tools pv ver token_name rc resp code body
+    local t tools pv ver token_name rc resp code body backup=""
+    while [ $# -gt 0 ]; do
+        case $1 in
+        --backup-storage=*)
+            backup=${1#*=}
+            shift
+            ;;
+        --backup-storage)
+            [ $# -ge 2 ] || die "--backup-storage needs a storage id"
+            backup=$2
+            shift 2
+            ;;
+        *) die "unknown option '$1'" ;;
+        esac
+    done
+    if [ -n "$backup" ] && ! [[ $backup =~ $re_storage ]]; then
+        die "unexpected storage id '$backup'"
+    fi
 
     [ "$(id -u)" = 0 ] || die "run this as root"
     tools="pveum pvesh pveversion openssl base64"
@@ -126,6 +143,12 @@ main() {
     *) die "Nebla supports Proxmox VE 8 and 9; this node runs $ver" ;;
     esac
     say "Proxmox VE $ver"
+
+    if [ -n "$backup" ]; then
+        local bcfg
+        bcfg=$(pvesh get "/storage/$backup" --output-format json) || die "storage $backup not found"
+        [ "$(field "$bcfg" type)" = pbs ] || die "$backup is not a Proxmox Backup Server storage"
+    fi
 
     if [ -n "$offline" ]; then
         token_name=${NEBLA_TOKEN_NAME:-}
@@ -157,9 +180,9 @@ main() {
 
     local privs admin roles
     if [ "${ver%%.*}" = 8 ]; then
-        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
     else
-        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
     fi
     admin=$(pvesh get /access/roles/Administrator --output-format json)
     case $admin in *'"Sys.AccessNetwork"'*) privs="$privs Sys.AccessNetwork" ;; esac
@@ -167,6 +190,9 @@ main() {
     roles=$(pveum role list --output-format json)
     set_role Nebla "$privs" "$roles"
     set_role NeblaISO "Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit" "$roles"
+    if [ -n "$backup" ]; then
+        set_role NeblaBackup "Datastore.AllocateSpace Datastore.Audit" "$roles"
+    fi
 
     local storage line id content isos=""
     if has_val "$users" userid nebla@pve; then
@@ -194,6 +220,10 @@ main() {
         say "granted NeblaISO on /storage/$id"
     done < <(printf '%s\n' "$storage" | tr '{}' '\n\n')
     grant_volume_storages "$storage"
+    if [ -n "$backup" ]; then
+        pveum acl modify "/storage/$backup" --users nebla@pve --roles NeblaBackup
+        say "granted NeblaBackup on /storage/$backup"
+    fi
 
     local tok secret tid
     tok=$(pveum user token add nebla@pve "$token_name" --privsep 0 --comment "Nebla panel" --output-format json)
@@ -230,14 +260,15 @@ main() {
     done
     say "read the cluster:$nodes"
 
-    local iso_json="" report blob
+    local iso_json="" report blob extra=""
     sep=""
     for id in $isos; do
         iso_json="$iso_json$sep\"$id\""
         sep=,
     done
-    report=$(printf '{"v":1,"pve_version":"%s","node":"%s","token":%s,"cluster":%s,"storage":%s,"fingerprints":{%s},"nebla_iso":[%s]}' \
-        "$ver" "$node" "$tok" "$cluster" "$storage" "$fps" "$iso_json")
+    [ -z "$backup" ] || extra=",\"backup_storage\":\"$backup\""
+    report=$(printf '{"v":1,"pve_version":"%s","node":"%s","token":%s,"cluster":%s,"storage":%s,"fingerprints":{%s},"nebla_iso":[%s]%s}' \
+        "$ver" "$node" "$tok" "$cluster" "$storage" "$fps" "$iso_json" "$extra")
 
     if [ -z "$offline" ]; then
         resp=$(printf '%s' "$report" | curl -sS --max-time 20 --config <(auth "$token") -H 'Content-Type: application/json' \

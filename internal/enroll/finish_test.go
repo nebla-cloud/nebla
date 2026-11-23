@@ -17,6 +17,7 @@ package enroll_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -258,4 +259,51 @@ func TestFinishStoresVolumeStorage(t *testing.T) {
 	in.VolumeStorage = new("local")
 	_, err = e.svc.Finish(ctx, c3.ID, in)
 	requireCode(t, err, 422, "invalid_input")
+}
+
+// withBackupStorage adds a reported PBS storage and names it as the report's backup storage.
+func withBackupStorage(t *testing.T, raw []byte, id string) []byte {
+	t.Helper()
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(raw, &m))
+	m["storage"] = append(m["storage"].([]any), map[string]any{"storage": id, "type": "pbs", "content": "backup", "shared": 1})
+	m["backup_storage"] = id
+	out, err := json.Marshal(m)
+	require.NoError(t, err)
+	return out
+}
+
+func TestFinishStoresBackupStorage(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	for _, n := range []string{"pve1", "pve2"} {
+		e.pv.AddStorage(n, "pbs", []string{"backup"}, true)
+		e.pv.SetStorageType(n, "pbs", "pbs")
+	}
+	c, err := e.svc.Create(ctx, enroll.CreateInput{Name: "home"}, e.userID)
+	require.NoError(t, err)
+	raw := withBackupStorage(t, reportJSON(t, c.TokenName, e.pv.Conn().CAFingerprint), "pbs")
+	require.NoError(t, e.svc.Report(ctx, c.Token, raw))
+	e.pv.AddToken("nebla@pve!"+c.TokenName, testSecret)
+	f, err := e.svc.Finish(ctx, c.ID, e.finishInput())
+	require.NoError(t, err)
+	require.Equal(t, "pbs", f.Location.BackupStorage)
+	require.True(t, f.Location.BackupStorageOK)
+
+	// A re-run without the flag keeps the storage.
+	c2 := e.reported(t, enroll.CreateInput{LocationID: &f.Location.ID})
+	f2, err := e.svc.Finish(ctx, c2.ID, e.finishInput())
+	require.NoError(t, err)
+	require.Equal(t, "pbs", f2.Location.BackupStorage)
+}
+
+func TestReportRejectsUnknownBackupStorage(t *testing.T) {
+	e := setup(t)
+	c := e.create(t, "home")
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(reportJSON(t, c.TokenName, e.pv.Conn().CAFingerprint), &m))
+	m["backup_storage"] = "ghost"
+	raw, err := json.Marshal(m)
+	require.NoError(t, err)
+	requireCode(t, e.svc.Report(context.Background(), c.Token, raw), 400, "invalid_report")
 }

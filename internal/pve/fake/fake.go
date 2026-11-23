@@ -203,7 +203,7 @@ func (s *Server) AddStorage(nodeName, id string, content []string, shared bool) 
 
 // allPrivs is what the fake grants on a path without an explicit answer.
 var allPrivs = []string{"Datastore.Allocate", "Datastore.AllocateSpace", "Datastore.AllocateTemplate", "Datastore.Audit",
-	"Sys.Audit", "VM.Allocate", "VM.Audit", "VM.Config.Disk"}
+	"Sys.Audit", "VM.Allocate", "VM.Audit", "VM.Backup", "VM.Config.Disk"}
 
 // SetPermissions fixes the privileges the fake reports for path; nil restores the default (everything).
 func (s *Server) SetPermissions(path string, privs map[string]int) {

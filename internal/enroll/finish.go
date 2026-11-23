@@ -166,6 +166,9 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 	li := catalog.LocationInput{Name: r.Name, Description: r.Description, DiskStorage: in.DiskStorage,
 		ISOStorage: in.ISOStorage, ImportStorage: in.ImportStorage, VolumeStorage: in.VolumeStorage,
 		PVE: catalog.PVEInput{URL: u.String(), TokenID: r.TokenID, TokenSecret: &sec, CAFingerprint: seen}}
+	if rep.BackupStorage != "" {
+		li.BackupStorage = &rep.BackupStorage
+	}
 	var cleanup []string
 	for _, st := range rep.Storages {
 		if st.NeblaISO && st.ID != in.ISOStorage && st.ID != in.ImportStorage && !slices.Contains(vols, st.ID) {

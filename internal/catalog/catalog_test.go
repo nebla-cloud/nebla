@@ -695,3 +695,137 @@ func TestVolumeStorageOKPermissionShapes(t *testing.T) {
 	pv.SetPermissions("/storage/ceph", map[string]int{"Datastore.Allocate": 0, "Datastore.Audit": 1})
 	require.True(t, sync())
 }
+
+func addPBS(pv *fake.Server, id string) {
+	for _, n := range []string{"pve1", "pve2"} {
+		pv.AddStorage(n, id, []string{"backup"}, true)
+		pv.SetStorageType(n, id, "pbs")
+	}
+}
+
+func TestUpdateLocationBackupStorageValidates(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	require.Empty(t, loc.BackupStorage)
+	require.Equal(t, 120, loc.BackupWindowStart)
+	require.Equal(t, 360, loc.BackupWindowEnd)
+	in := testutil.LocationInput(pv, "eu-1")
+	in.PVE.TokenSecret = nil
+
+	in.BackupStorage = new("local-lvm")
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+	in.BackupStorage = new("nope")
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+
+	addPBS(pv, "pbs")
+	pv.AddStorage("pve1", "pbs-noback", []string{"images"}, true)
+	pv.SetStorageType("pve1", "pbs-noback", "pbs")
+	in.BackupStorage = new("pbs-noback")
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+
+	// Withhold the privilege so the flag stays false after the save.
+	pv.SetPermissions("/storage/pbs", map[string]int{"Datastore.Audit": 1})
+	in.BackupStorage = new("pbs")
+	got, err := svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, "pbs", got.BackupStorage)
+	require.False(t, got.BackupStorageOK)
+	require.False(t, svc.BackupsAvailable(got))
+
+	pv.SetPermissions("/storage/pbs", nil)
+	got, err = svc.SyncNodes(ctx, loc.ID)
+	require.NoError(t, err)
+	require.True(t, got.BackupStorageOK)
+	require.True(t, svc.BackupsAvailable(got))
+
+	// Changing the storage resets the flag; a failing re-check leaves it false.
+	addPBS(pv, "pbs2")
+	pv.FailNext("GET /access/permissions", 403) // volume check
+	pv.FailNext("GET /access/permissions", 403) // backup check
+	in.BackupStorage = new("pbs2")
+	got, err = svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.False(t, got.BackupStorageOK)
+
+	in.BackupStorage = new("")
+	got, err = svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.Empty(t, got.BackupStorage)
+	require.False(t, svc.BackupsAvailable(got))
+}
+
+func TestBackupStorageCheck(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	addPBS(pv, "pbs")
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	in := testutil.LocationInput(pv, "eu-1")
+	in.PVE.TokenSecret = nil
+	in.BackupStorage = new("pbs")
+	loc, err = svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.True(t, loc.BackupStorageOK, "the fake grants everything by default")
+	sync := func() bool {
+		t.Helper()
+		l, err := svc.SyncNodes(ctx, loc.ID)
+		require.NoError(t, err)
+		return l.BackupStorageOK
+	}
+
+	// VM.Backup is missing on "/".
+	pv.SetPermissions("/", map[string]int{"Datastore.Allocate": 1})
+	require.False(t, sync())
+	pv.SetPermissions("/", map[string]int{"VM.Backup": 1})
+	require.True(t, sync())
+	pv.SetPermissions("/", map[string]int{"VM.Backup": 0})
+	require.False(t, sync(), "a grant that does not propagate does not reach the VMs")
+	pv.SetPermissions("/", nil)
+	require.True(t, sync())
+
+	pv.SetPermissions("/storage/pbs", map[string]int{"Datastore.Audit": 1})
+	require.False(t, sync(), "AllocateSpace missing")
+	pv.SetPermissions("/storage/pbs", map[string]int{"Datastore.AllocateSpace": 1})
+	require.False(t, sync(), "Audit missing")
+	pv.SetPermissions("/storage/pbs", map[string]int{"Datastore.AllocateSpace": 1, "Datastore.Audit": 0})
+	require.True(t, sync())
+}
+
+func TestBackupWindowValidation(t *testing.T) {
+	ctx := context.Background()
+	svc, pv, _ := setup(t)
+	loc, err := svc.CreateLocation(ctx, testutil.LocationInput(pv, "eu-1"))
+	require.NoError(t, err)
+	in := testutil.LocationInput(pv, "eu-1")
+	in.PVE.TokenSecret = nil
+
+	in.BackupWindowStart, in.BackupWindowEnd = new(60), new(60)
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+	in.BackupWindowStart, in.BackupWindowEnd = new(-1), new(60)
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+	in.BackupWindowStart, in.BackupWindowEnd = new(60), new(1440)
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+	// Only the end given: it must differ from the stored start (120).
+	in.BackupWindowStart, in.BackupWindowEnd = nil, new(120)
+	_, err = svc.UpdateLocation(ctx, loc.ID, in)
+	requireCode(t, err, 422, "invalid_input")
+
+	in.BackupWindowStart, in.BackupWindowEnd = new(1380), new(120)
+	got, err := svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, 1380, got.BackupWindowStart)
+	require.Equal(t, 120, got.BackupWindowEnd)
+
+	in.BackupWindowStart, in.BackupWindowEnd = nil, nil
+	got, err = svc.UpdateLocation(ctx, loc.ID, in)
+	require.NoError(t, err)
+	require.Equal(t, 1380, got.BackupWindowStart, "nil keeps the stored window")
+}

@@ -35,8 +35,8 @@ const (
 )
 
 const (
-	privs8   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
-	privs9   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+	privs8   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+	privs9   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
 	privsISO = "Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit"
 )
 
@@ -448,4 +448,46 @@ func TestScriptNeverPrintsSecretOnline(t *testing.T) {
 	require.False(t, strings.Contains(r.stdout, stubSecret), "secret on stdout")
 	require.False(t, strings.Contains(r.stderr, stubSecret), "secret on stderr")
 	require.False(t, strings.Contains(r.stdout+r.stderr, testToken), "enrollment token printed")
+}
+
+const pbsStorage = `[{"content":"iso","storage":"local","type":"dir"},{"content":"backup","storage":"pbs","type":"pbs"}]`
+
+func runScriptArgs(t *testing.T, env map[string]string, args ...string) scriptRun {
+	t.Helper()
+	f := filepath.Join(t.TempDir(), "enroll.sh")
+	require.NoError(t, os.WriteFile(f, Script(testPanel), 0o644))
+	return execScript(t, append([]string{f}, args...), env)
+}
+
+func TestScriptBackupStorageFlag(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{{"--backup-storage", "pbs"}, {"--backup-storage=pbs"}} {
+		r := runScriptArgs(t, map[string]string{"STUB_STORAGE": pbsStorage}, args...)
+		require.Equal(t, 0, r.code, redact(r.stderr))
+		require.True(t, r.has("pvesh", "get", "/storage/pbs", "--output-format", "json"))
+		require.Contains(t, r.privs("add", "Nebla"), "VM.Backup")
+		require.Equal(t, "Datastore.AllocateSpace Datastore.Audit", r.privs("add", "NeblaBackup"))
+		require.True(t, r.has("pveum", "acl", "modify", "/storage/pbs", "--users", "nebla@pve", "--roles", "NeblaBackup"))
+		require.Equal(t, 1, r.count("pveum", "acl", "modify", "/storage/pbs"))
+		require.Contains(t, r.body, `"backup_storage":"pbs"`)
+	}
+
+	// Without the flag: VM.Backup stays on the Nebla role, nothing else is added.
+	r := runScript(t, nil)
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.Contains(t, r.privs("add", "Nebla"), "VM.Backup")
+	require.False(t, r.has("pveum", "role", "add", "NeblaBackup"))
+	require.NotContains(t, r.body, "backup_storage")
+}
+
+func TestScriptBackupStorageRejectsNonPBS(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{{"--backup-storage", "local"}, {"--backup-storage", "nope"}, {"--backup-storage", "9bad"}, {"--backup-storage"}, {"--bogus"}} {
+		r := runScriptArgs(t, nil, args...)
+		require.Equal(t, 1, r.code, "%v", args)
+		noWrites(t, r)
+		require.False(t, r.has("curl"))
+	}
+	r := runScriptArgs(t, nil, "--backup-storage", "local")
+	require.Contains(t, r.stderr, "local is not a Proxmox Backup Server storage")
 }

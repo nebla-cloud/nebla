@@ -47,6 +47,8 @@ type Report struct {
 	TokenSecret string          `json:"-"`
 	Nodes       []ReportNode    `json:"nodes"`
 	Storages    []ReportStorage `json:"storages"`
+	// BackupStorage is the PBS storage the script granted NeblaBackup on, if any.
+	BackupStorage string `json:"backup_storage,omitempty"`
 }
 
 type ReportNode struct {
@@ -121,8 +123,9 @@ type wire struct {
 		Content string `json:"content"`
 		Shared  flag   `json:"shared"`
 	} `json:"storage"`
-	Fingerprints map[string]string `json:"fingerprints"`
-	NeblaISO     []string          `json:"nebla_iso"`
+	Fingerprints  map[string]string `json:"fingerprints"`
+	NeblaISO      []string          `json:"nebla_iso"`
+	BackupStorage string            `json:"backup_storage"`
 }
 
 // ParseReport validates the script's JSON and returns the typed report.
@@ -232,6 +235,12 @@ func ParseReport(raw []byte) (Report, error) {
 		if !seen[id] {
 			return Report{}, bad("nebla_iso names an unknown storage")
 		}
+	}
+	if w.BackupStorage != "" {
+		if !seen[w.BackupStorage] {
+			return Report{}, bad("backup_storage names an unknown storage")
+		}
+		r.BackupStorage = w.BackupStorage
 	}
 	return r, nil
 }
