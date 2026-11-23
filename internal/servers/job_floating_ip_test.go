@@ -366,6 +366,31 @@ func TestAssignFailsWithApplyCode(t *testing.T) {
 	a := f.action(t, act.ID)
 	require.Equal(t, actions.StatusError, a.Status)
 	require.Equal(t, actions.CodeFirewallUnenforced, a.Error.Code)
+	r := f.row(t, fip.ID)
+	require.Nil(t, r.PendingGen, "a failed wait is not resumed")
+	require.Equal(t, &f.b, r.ServerID)
+	require.Equal(t, "active", floatingips.Status(r))
+}
+
+func TestAssignSeesApplyFinishMidCheck(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	fip, _, err := f.svc.Create(ctx, f.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	act := f.assign(t, fip.ID, f.b)
+
+	// b's apply raises applied and finishes its action after the wait read applied.
+	ran := 0
+	servers.SetFloatingIPBeforeOutcome(f.w, func() {
+		if ran == 0 {
+			ran = f.runApplies(t, f.b)
+		}
+	})
+	require.NoError(t, f.work(t, act.ID, 1))
+	require.Equal(t, 1, ran)
+	require.Equal(t, actions.StatusSuccess, f.action(t, act.ID).Status)
+	require.Nil(t, f.row(t, fip.ID).PendingGen)
+	require.Equal(t, []int{f.vb}, f.holders(fip.IP))
 }
 
 func TestDeleteFreesAfterRelease(t *testing.T) {

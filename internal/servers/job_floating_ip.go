@@ -42,7 +42,8 @@ const applyPoll = 2 * time.Second
 // FloatingIPWorker carries out an assign, unassign or delete: release from the old server first, then apply on the new one.
 type FloatingIPWorker struct {
 	river.WorkerDefaults[floatingips.ChangeArgs]
-	o WorkerOptions
+	o             WorkerOptions
+	beforeOutcome func()
 }
 
 func NewFloatingIPWorker(o WorkerOptions) *FloatingIPWorker {
@@ -219,14 +220,15 @@ func (w *FloatingIPWorker) await(ctx context.Context, a floatingips.ChangeArgs, 
 			return err
 		}
 	}
-	switch {
-	case srv == nil || srv.Status == StatusDeleting:
-	case srv.FirewallGenApplied >= *row.PendingGen:
+	if srv != nil && srv.Status != StatusDeleting {
+		if srv.FirewallGenApplied < *row.PendingGen {
+			if err := w.applyOutcome(ctx, srv, *row.PendingGen); err != nil {
+				return err
+			}
+		}
 		if err := settleWait(ctx, FirewallSettle); err != nil {
 			return err
 		}
-	default:
-		return w.applyOutcome(ctx, srv, *row.PendingGen)
 	}
 	err := w.o.Ent.IPAddress.Update().Where(ipaddress.ID(row.ID), ipaddress.PendingGen(*row.PendingGen)).ClearPendingGen().Exec(ctx)
 	if err != nil {
@@ -235,8 +237,11 @@ func (w *FloatingIPWorker) await(ctx context.Context, a floatingips.ChangeArgs, 
 	return actions.Succeed(ctx, w.o.Ent, a.ActionID)
 }
 
-// applyOutcome snoozes while an apply on srv is unfinished, else fails with the last apply's code.
+// applyOutcome is nil once srv reached gen; it snoozes while an apply is unfinished, else fails with the last apply's code.
 func (w *FloatingIPWorker) applyOutcome(ctx context.Context, srv *ent.Server, gen int64) error {
+	if w.beforeOutcome != nil {
+		w.beforeOutcome()
+	}
 	q := w.o.Ent.Action.Query().Where(ActionsOf(srv.ProjectID, srv.ID), action.Command(firewalls.KindApply))
 	running, err := q.Clone().Where(action.StatusEQ(action.StatusRunning)).Exist(ctx)
 	if err != nil {
@@ -244,6 +249,13 @@ func (w *FloatingIPWorker) applyOutcome(ctx context.Context, srv *ent.Server, ge
 	}
 	if running {
 		return river.JobSnooze(applyPoll)
+	}
+	// An apply raises applied before it finishes its action, so read applied again after seeing none running.
+	if srv, err = w.o.Ent.Server.Get(ctx, srv.ID); err != nil {
+		return err
+	}
+	if srv.FirewallGenApplied >= gen {
+		return nil
 	}
 	code := actions.CodeFailed
 	last, err := q.Order(ent.Desc(action.FieldID)).First(ctx)
@@ -256,7 +268,7 @@ func (w *FloatingIPWorker) applyOutcome(ctx context.Context, srv *ent.Server, ge
 	return &permanentError{code, fmt.Sprintf("server %d did not apply firewall generation %d", srv.ID, gen)}
 }
 
-// fail unassigns a row whose release never finished and fails the action with release_pending; else with f's code.
+// fail unassigns a row whose release never finished and fails with release_pending; else it stops the wait and fails with f's code.
 func (w *FloatingIPWorker) fail(ctx context.Context, a floatingips.ChangeArgs, f failure) error {
 	err := db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
 		cur, err := etx.IPAddress.Query().Where(ipaddress.ID(a.FloatingIPID)).ForUpdate().Only(ctx)
@@ -267,7 +279,8 @@ func (w *FloatingIPWorker) fail(ctx context.Context, a floatingips.ChangeArgs, f
 			return err
 		}
 		if cur.ReleasingFromID == nil {
-			return nil
+			// The address stays assigned; drift repair fills the ipset later.
+			return etx.IPAddress.UpdateOneID(cur.ID).ClearPendingGen().Exec(ctx)
 		}
 		f.code = actions.CodeReleasePending
 		return etx.IPAddress.UpdateOneID(cur.ID).ClearServerID().ClearPendingGen().Exec(ctx)

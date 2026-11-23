@@ -70,3 +70,6 @@ func ApplyFirewallsNow(ctx context.Context, o WorkerOptions, pc pve.Client, id i
 	_, _, err := o.applyFirewallsNow(ctx, pc, id, node, vmid)
 	return err
 }
+
+// SetFloatingIPBeforeOutcome runs f before the assign wait checks for an unfinished apply.
+func SetFloatingIPBeforeOutcome(w *FloatingIPWorker, f func()) { w.beforeOutcome = f }
