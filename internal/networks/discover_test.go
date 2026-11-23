@@ -306,3 +306,25 @@ func TestSetLocationSDNZoneTakenOnSameCluster(t *testing.T) {
 		SetDiskStorage("local").SetIsoStorage("local").SaveX(ctx)
 	require.NoError(t, e.App.Ent.Location.UpdateOneID(far.ID).SetSdnZone("nebla").Exec(ctx))
 }
+
+func TestDiscoverFollowsZoneTypeChange(t *testing.T) {
+	ctx := context.Background()
+	e := newSDNEnv(t, "nb0001", "nb0002")
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	n := e.App.Ent.Network.Create().SetProjectID(e.Project).SetLocationID(e.loc).SetName("n").SetLabels(map[string]string{}).
+		SetIPRange("10.1.0.0/24").SaveX(ctx)
+	e.App.Ent.VNetSlot.Update().Where(vnetslot.Vnet("nb0001")).SetState(vnetslot.StateInUse).SetNetworkID(n.ID).ExecX(ctx)
+	got := e.slots(t)
+	require.Equal(t, "simple", got["nb0001"].ZoneType)
+	require.Equal(t, "simple", got["nb0002"].ZoneType)
+
+	e.pv.SetSDNZoneType("nebla", "vxlan")
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	got = e.slots(t)
+	require.Equal(t, "vxlan", got["nb0002"].ZoneType)
+	require.Equal(t, "vxlan", got["nb0001"].ZoneType, "an in-use slot follows the zone type too")
+	require.Equal(t, vnetslot.StateInUse, got["nb0001"].State)
+	vx, err := networks.VXLANLocation(ctx, e.App.Ent, e.loc)
+	require.NoError(t, err)
+	require.True(t, vx)
+}

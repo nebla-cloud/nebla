@@ -110,7 +110,19 @@ func systemOnTop(cur []pve.FirewallRule, n int) bool {
 	return true
 }
 
-// keepSystemOnTop re-adds the system rules when anything sits above them: delete them all, then add in reverse.
+// countSystem counts the system rules in rs.
+func countSystem(rs []pve.FirewallRule) int {
+	n := 0
+	for _, r := range rs {
+		if isSystem(r) {
+			n++
+		}
+	}
+	return n
+}
+
+// keepSystemOnTop re-adds the desired system rules on top, then deletes every system rule below them.
+// The guard is never absent: PVE prepends, so the fresh copies land first.
 func keepSystemOnTop(ctx context.Context, pc pve.Client, node string, vmid int, d Desired, cur []pve.FirewallRule) ([]pve.FirewallRule, error) {
 	var sys []pve.FirewallRule
 	for _, r := range d.Rules {
@@ -118,20 +130,28 @@ func keepSystemOnTop(ctx context.Context, pc pve.Client, node string, vmid int, 
 			sys = append(sys, r)
 		}
 	}
-	if len(sys) == 0 || systemOnTop(cur, len(sys)) {
+	k := len(sys)
+	if systemOnTop(cur, k) {
 		return cur, nil
 	}
-	var err error
-	for range len(cur) + 1 {
-		i := slices.IndexFunc(cur, isSystem)
-		if i < 0 {
-			break
+	for _, r := range slices.Backward(sys) {
+		if err := pc.AddFirewallRule(ctx, node, vmid, r); err != nil {
+			return nil, fmt.Errorf("add firewall rule: %w", err)
 		}
-		top := cur[i]
-		for _, r := range cur {
-			if isSystem(r) && r.Pos > top.Pos {
-				top = r
+	}
+	var err error
+	if cur, err = readRules(ctx, pc, node, vmid); err != nil {
+		return nil, err
+	}
+	for range len(cur) + 1 {
+		var top *pve.FirewallRule
+		for i, r := range cur {
+			if isSystem(r) && r.Pos >= k && (top == nil || r.Pos > top.Pos) {
+				top = &cur[i]
 			}
+		}
+		if top == nil {
+			return cur, nil
 		}
 		if err := pc.DeleteFirewallRule(ctx, node, vmid, top.Pos, top.Digest); err != nil {
 			return nil, fmt.Errorf("delete firewall rule: %w", err)
@@ -140,18 +160,7 @@ func keepSystemOnTop(ctx context.Context, pc pve.Client, node string, vmid int, 
 			return nil, err
 		}
 	}
-	for _, r := range slices.Backward(sys) {
-		if err := pc.AddFirewallRule(ctx, node, vmid, r); err != nil {
-			return nil, fmt.Errorf("add firewall rule: %w", err)
-		}
-	}
-	if cur, err = readRules(ctx, pc, node, vmid); err != nil {
-		return nil, err
-	}
-	if !systemOnTop(cur, len(sys)) {
-		return nil, errors.New("system firewall rules are not on top after re-adding them")
-	}
-	return cur, nil
+	return nil, errors.New("system firewall rules are not on top after re-adding them")
 }
 
 // storedDiffers deletes all stale rules, then fails for good because Proxmox kept a rule differently.
@@ -241,6 +250,9 @@ func Drift(cur []pve.FirewallRule, curOpts map[string]string, d Desired) string 
 	missing, stale := diff(cur, d)
 	if len(missing) > 0 {
 		return ruleDrift(cur, missing[0])
+	}
+	if n := countSystem(d.Rules); !systemOnTop(cur, n) {
+		return "system rules are not on top"
 	}
 	if len(stale) > 0 {
 		return fmt.Sprintf("unexpected rule at pos %d (%q)", stale[0].Pos, stale[0].Comment)

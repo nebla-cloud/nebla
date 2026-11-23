@@ -18,6 +18,7 @@ package firewalls
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/netip"
 	"slices"
@@ -508,5 +509,72 @@ func TestVXLANGuardWithoutFirewall(t *testing.T) {
 	}
 	if v, _ = s.VM(vmid); len(v.Rules) != 0 {
 		t.Fatalf("guard should go when the location stops being vxlan: %+v", v.Rules)
+	}
+}
+
+func TestSyncKeepsGuardPresent(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	user := func(ids ...int64) []Rule {
+		var rs []Rule
+		for _, id := range ids {
+			rs = append(rs, Rule{ID: id, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr(fmt.Sprint(1000 + id)), IPs: pfx("0.0.0.0/0")})
+		}
+		return rs
+	}
+	guard := func(nics ...int) System { return System{VXLANGuard: true, PrivateNICs: nics} }
+	seen := false
+	s.OnFirewallWrite(func() {
+		v, _ := s.VM(vmid)
+		if has := comments(v.Rules)["nebla:sys:vxlan"]; seen && !has {
+			t.Errorf("guard missing mid-sync: %+v", v.Rules)
+		} else if has {
+			seen = true
+		}
+	})
+	steps := []struct {
+		name string
+		d    Desired
+	}{
+		{"first", Render(user(1), true, guard(1, 2))},
+		{"add a user rule", Render(user(1, 2), true, guard(1, 2))},
+		{"drop to accept with NICs attached", Render(nil, false, guard(1, 2))},
+		{"back to drop", Render(user(1), true, guard(1, 2))},
+		{"drop a NIC under drop", Render(user(1), true, guard(1))},
+	}
+	for _, st := range steps {
+		if err := Sync(ctx, pc, node, vmid, st.d); err != nil {
+			t.Fatalf("%s: %v", st.name, err)
+		}
+		converged(t, s, st.d)
+		v, _ := s.VM(vmid)
+		k := countSystem(st.d.Rules)
+		for i, r := range v.Rules {
+			if isSystem(r) != (i < k) {
+				t.Fatalf("%s: system rules not exactly on top: %+v", st.name, v.Rules)
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("guard never appeared")
+	}
+}
+
+func TestDriftSeesSystemRulesBelowUserRules(t *testing.T) {
+	s, pc := setup(t)
+	ctx := context.Background()
+	d := Render([]Rule{{ID: 1, FirewallID: 1, Direction: "in", Protocol: "tcp", Port: ptr("22"), IPs: pfx("0.0.0.0/0")}}, true, System{VXLANGuard: true})
+	if err := Sync(ctx, pc, node, vmid, d); err != nil {
+		t.Fatal(err)
+	}
+	v, _ := s.VM(vmid)
+	opts := v.Firewall
+	if got := Drift(v.Rules, opts, d); got != "" {
+		t.Fatalf("drift = %q", got)
+	}
+	swapped := []pve.FirewallRule{v.Rules[1], v.Rules[0]}
+	swapped[0].Pos, swapped[1].Pos = 0, 1
+	if got := Drift(swapped, opts, d); got == "" {
+		t.Fatal("system rule below a user rule is drift")
 	}
 }

@@ -319,6 +319,17 @@ func (s *Server) AddSDN(zone pve.SDNZone, vnets ...pve.SDNVNet) {
 	s.vnets = append(s.vnets, vnets...)
 }
 
+// SetSDNZoneType changes a listed zone's type, as an admin editing it would.
+func (s *Server) SetSDNZoneType(zone, typ string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.zones {
+		if s.zones[i].Zone == zone {
+			s.zones[i].Type = typ
+		}
+	}
+}
+
 // RemoveSDNVNet drops a vnet and its subnets, as an admin deleting it would.
 func (s *Server) RemoveSDNVNet(vnet string) {
 	s.mu.Lock()

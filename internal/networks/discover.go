@@ -288,16 +288,17 @@ func wanted(sl *ent.VNetSlot, f found) (func(*ent.VNetSlotUpdateOne) *ent.VNetSl
 		}, true
 	}
 	if sl.NetworkID != nil {
-		// A handed-out VNet keeps its MTU; only its health follows the checks.
+		// A handed-out VNet's state stays in_use; zone, zone type and MTU follow Proxmox, and health follows the checks.
 		health := vnetslot.HealthOk
 		if !f.ok {
 			health = vnetslot.HealthDegraded
 		}
-		if sl.State == vnetslot.StateInUse && sl.Health == health && sl.Reason == f.cand.Reason {
+		if sl.State == vnetslot.StateInUse && sl.Health == health && sl.Reason == f.cand.Reason && sl.Zone == f.cand.Zone &&
+			sl.ZoneType == f.zoneTyp && sl.Mtu == f.cand.MTU {
 			return nil, false
 		}
 		return func(u *ent.VNetSlotUpdateOne) *ent.VNetSlotUpdateOne {
-			return u.SetState(vnetslot.StateInUse).SetHealth(health).SetReason(f.cand.Reason)
+			return u.SetZone(f.cand.Zone).SetZoneType(f.zoneTyp).SetMtu(f.cand.MTU).SetState(vnetslot.StateInUse).SetHealth(health).SetReason(f.cand.Reason)
 		}, true
 	}
 	st := vnetslot.State(f.cand.State)
