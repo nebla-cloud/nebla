@@ -1014,7 +1014,7 @@ var (
 				Symbol:     "servers_images_image",
 				Columns:    []*schema.Column{ServersColumns[40]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
-				OnDelete:   schema.SetNull,
+				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_snapshots_snapshot",

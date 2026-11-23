@@ -38,7 +38,7 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref, pn []priv
 		pn = []privateNetItem{}
 	}
 	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apigen.LocationRef{Id: s.Location.ID, Name: s.Location.Name, Description: s.Location.Description},
-		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, PrivateNet: pn, Created: s.CreatedAt,
+		ServerType: apiServerType(s.Type), Image: serverImage(s), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, PrivateNet: pn, Created: s.CreatedAt,
 		Backups: apigen.ServerBackups{Enabled: s.Backups.Enabled, Keep: s.Backups.Keep, Count: s.Backups.Count,
 			LastBackupAt: s.Backups.LastBackupAt, NextBackupAt: s.Backups.NextBackupAt},
 		IpChangeRerunsCloudInit: s.IPChangeRerunsCloudInit,
@@ -338,4 +338,12 @@ func (s *server) ChangeServerType(ctx context.Context, req apigen.ChangeServerTy
 		return nil, err
 	}
 	return apigen.ChangeServerType201JSONResponse{ActionCreatedJSONResponse: apigen.ActionCreatedJSONResponse{Action: apiAction(a)}}, nil
+}
+
+// serverImage is the image shape of a server; without an image it carries the server's own OS facts.
+func serverImage(s servers.Server) apigen.Image {
+	if s.Image == nil {
+		return apigen.Image{OsFlavor: s.OSFlavor, OsVersion: s.OSVersion, Locations: []int64{}}
+	}
+	return apiImage(*s.Image)
 }

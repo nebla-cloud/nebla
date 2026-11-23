@@ -130,11 +130,14 @@ type Server struct {
 	Name, Status  string
 	Location      catalog.Location
 	Type          catalog.ServerType
-	Image         catalog.Image
-	Node          string
-	Labels        map[string]string
-	DiskGB        int
-	IPv4, IPv6    netip.Addr
+	// Image is nil when the server was built from a snapshot whose image is gone.
+	Image      *catalog.Image
+	OSFlavor   string
+	OSVersion  string
+	Node       string
+	Labels     map[string]string
+	DiskGB     int
+	IPv4, IPv6 netip.Addr
 	// IPv4ID and IPv6ID are the primary IP ids, zero when unassigned.
 	IPv4ID, IPv6ID int64
 	CreatedAt      time.Time
@@ -733,15 +736,20 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			}
 			types[r.ServerTypeID] = t
 		}
-		var img catalog.Image
+		var img *catalog.Image
 		if r.ImageID != nil {
-			var ok bool
-			if img, ok = imgs[*r.ImageID]; !ok {
-				if img, err = s.o.Catalog.GetImage(ctx, *r.ImageID); err != nil {
+			cached, ok := imgs[*r.ImageID]
+			if !ok {
+				if cached, err = s.o.Catalog.GetImage(ctx, *r.ImageID); err != nil {
 					return nil, err
 				}
-				imgs[*r.ImageID] = img
+				imgs[*r.ImageID] = cached
 			}
+			img = &cached
+		}
+		flavor, version, err := catalog.ServerOSFacts(ctx, s.o.Ent, r)
+		if err != nil {
+			return nil, err
 		}
 		loc, ok := locs[r.LocationID]
 		if !ok {
@@ -750,7 +758,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			}
 			locs[r.LocationID] = loc
 		}
-		out[i] = Server{ID: r.ID, ProjectID: r.ProjectID, Name: r.Name, Status: string(r.Status), Location: loc, Type: t, Image: img,
+		out[i] = Server{ID: r.ID, ProjectID: r.ProjectID, Name: r.Name, Status: string(r.Status), Location: loc, Type: t, Image: img, OSFlavor: flavor, OSVersion: version,
 			Node: r.Node, Labels: r.Labels, DiskGB: r.DiskGB, CreatedAt: r.CreatedAt, IPChangeRerunsCloudInit: !r.NetRefresh}
 		if out[i].Labels == nil {
 			out[i].Labels = map[string]string{}

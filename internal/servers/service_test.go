@@ -35,7 +35,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
-	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
@@ -695,11 +694,14 @@ func TestServerOSFactsSurviveImageAndSnapshotDelete(t *testing.T) {
 	debian := c.Image.Create().SetName("debian").SetOsFlavor("debian").SetOsVersion("13").SaveX(ctx)
 	snap := c.Snapshot.Create().SetProjectID(e.Project).SetLocationID(e.Location).SetName("s").SetLabels(map[string]string{}).
 		SetImageID(debian.ID).SetOsFlavor("debian").SetOsVersion("13").SetSizeGB(10).SaveX(ctx)
-	made := e.CreateServer("web", nil)
-	c.Server.UpdateOneID(made.ServerID).SetSnapshotID(snap.ID).SetImageID(debian.ID).SetOsFlavor("debian").SetOsVersion("13").ExecX(ctx)
 
-	c.Snapshot.DeleteOneID(snap.ID).ExecX(ctx)
+	// Only the snapshot references the image, so the delete works and nulls the snapshot's image.
 	c.Image.DeleteOneID(debian.ID).ExecX(ctx)
+	require.Nil(t, c.Snapshot.GetX(ctx, snap.ID).ImageID)
+
+	made := e.CreateServer("web", nil)
+	c.Server.UpdateOneID(made.ServerID).ClearImageID().SetSnapshotID(snap.ID).SetOsFlavor("debian").SetOsVersion("13").ExecX(ctx)
+	c.Snapshot.DeleteOneID(snap.ID).ExecX(ctx)
 
 	row := c.Server.GetX(ctx, made.ServerID)
 	require.Nil(t, row.ImageID)
@@ -708,10 +710,24 @@ func TestServerOSFactsSurviveImageAndSnapshotDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "debian", flavor)
 	require.Equal(t, "13", version)
-	require.False(t, c.Image.Query().Where(image.ID(debian.ID)).ExistX(ctx))
 
-	res := e.C.Get("/v1/servers/" + sid(made.ServerID))
-	require.Equal(t, http.StatusOK, res.StatusCode, body(t, res))
+	got, _ := expect[struct {
+		Image struct {
+			OsFlavor  string `json:"os_flavor"`
+			OsVersion string `json:"os_version"`
+		} `json:"image"`
+	}](t, e.C.Get("/v1/servers/"+sid(made.ServerID)), http.StatusOK)
+	require.Equal(t, "debian", got.Image.OsFlavor)
+	require.Equal(t, "13", got.Image.OsVersion)
+}
+
+func TestImageDeleteRefusedWhileServerUsesIt(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.CreateServer("web", nil)
+	err := e.App.Ent.Image.DeleteOneID(e.Image).Exec(ctx)
+	require.Error(t, err)
+	expectErr(t, e.Admin.Send(http.MethodDelete, "/v1/admin/images/"+sid(e.Image), nil), http.StatusConflict, "resource_in_use")
 }
 
 func TestOSFactsFallBackToImage(t *testing.T) {

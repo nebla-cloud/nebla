@@ -102,7 +102,7 @@ func (Server) Edges() []ent.Edge {
 		edge.To("server_type", ServerType.Type).Field("server_type_id").Unique().Required().
 			Annotations(entsql.OnDelete(entsql.NoAction)),
 		edge.To("image", Image.Type).Field("image_id").Unique().
-			Annotations(entsql.OnDelete(entsql.SetNull)),
+			Annotations(entsql.OnDelete(entsql.NoAction)),
 		edge.To("snapshot", Snapshot.Type).Field("snapshot_id").Unique().
 			Annotations(entsql.OnDelete(entsql.SetNull)),
 		edge.To("rebuild_snapshot", Snapshot.Type).Field("rebuild_snapshot_id").Unique().
