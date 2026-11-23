@@ -20,9 +20,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/schema"
 	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
+	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/snapshots"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -113,7 +116,18 @@ func TestReconcileRetriesErrorCleanup(t *testing.T) {
 	foreign := snapRow(t, e, "foreign", 9302, snapshot.StatusError, true)
 	e.App.PVE.SetVMConfig(9302, "description", "someone else")
 
+	usage := func() projects.Usage {
+		u, err := snapshots.UsageWith(func(context.Context, *ent.Client, int64) (projects.Usage, error) {
+			return projects.Usage{}, nil
+		})(ctx, e.App.Ent, e.Project)
+		require.NoError(t, err)
+		return u
+	}
+	require.Equal(t, 3, usage().Snapshots)
+
 	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, 0, usage().Snapshots)
+	require.Equal(t, 0, usage().SnapshotGB)
 	for _, id := range []int64{gone, ours, foreign} {
 		_, err := e.App.Ent.Snapshot.Get(ctx, id)
 		require.Error(t, err, "row %d released", id)
@@ -138,4 +152,38 @@ func TestReconcileRetryRestartsSourceServer(t *testing.T) {
 	require.Equal(t, "running", v.Status)
 	_, err := e.App.Ent.Snapshot.Get(ctx, id)
 	require.Error(t, err)
+}
+
+func TestReconcileRetryKeepsRowWhenStartFails(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	srv, vmid := running(t, e, "web")
+	id := snapRow(t, e, "gone", 9500, snapshot.StatusError, false)
+	require.NoError(t, e.App.Ent.Snapshot.UpdateOneID(id).SetServerID(srv.ID).SetWasRunning(true).Exec(ctx))
+	e.App.PVE.SetVMStatus(vmid, "stopped")
+	e.App.PVE.FailNext("/status/start", 500)
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, snapshot.StatusError, snapStatus(t, e, id))
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	_, err := e.App.Ent.Snapshot.Get(ctx, id)
+	require.Error(t, err, "the next pass finishes the cleanup")
+}
+
+func TestReconcileRetrySkipsRowOnOfflineNode(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	_, _ = running(t, e, "web")
+	id := snapRow(t, e, "ours", 9600, snapshot.StatusError, true)
+	e.App.PVE.MoveVM(9600, "pve2")
+	require.NoError(t, e.App.Ent.Snapshot.UpdateOneID(id).SetNode("pve2").Exec(ctx))
+	e.App.PVE.SetNodeOffline("pve2", true)
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, snapshot.StatusError, snapStatus(t, e, id))
+	_, found := e.App.PVE.VM(9600)
+	require.True(t, found)
 }

@@ -62,19 +62,22 @@ func (r *Reconciler) syncSnapshots(ctx context.Context, log *slog.Logger, locati
 			log.Warn("reconcile: snapshot template without a row left alone", "vmid", vmid, "node", v.Node)
 		}
 	}
-	// A failed listing must not turn every snapshot missing.
+	// A failed listing or an offline node hides templates; act on neither missing nor cleanup then.
 	listed := len(all) > 0
 	var errs []error
 	for _, row := range rows {
 		switch row.Status {
 		case snapshot.StatusAvailable:
-			if !listed || row.Vmid == nil || !r.templateGone(row, templates, vms, allOnline) {
+			if !listed || row.Vmid == nil || !visible(row, vms, allOnline) || !templateGone(row, templates) {
 				continue
 			}
 			if err := r.markSnapshotMissing(ctx, log, row.ID, listedAt); err != nil {
 				errs = append(errs, fmt.Errorf("snapshot %d: %w", row.ID, err))
 			}
 		case snapshot.StatusError:
+			if !listed || !visible(row, vms, allOnline) {
+				continue
+			}
 			o := snapshots.WorkerOptions{SQL: r.o.SQL, Ent: r.o.Ent, Catalog: r.o.Catalog, Logger: log}
 			if err := snapshots.RetryCleanup(ctx, o, row, pc); err != nil {
 				log.Warn("reconcile: snapshot cleanup retry failed", "snapshot_id", row.ID, "err", err)
@@ -96,15 +99,18 @@ func tagID(tags string) int64 {
 	return 0
 }
 
-// templateGone is true when no template tagged for the row sits at its vmid and no offline node could be hiding it.
-func (r *Reconciler) templateGone(row *ent.Snapshot, templates map[int]pve.VM, vms view, allOnline bool) bool {
-	if v, ok := templates[*row.Vmid]; ok && slices.Contains(servers.SplitTags(v.Tags), snapshots.SnapshotTag(row.ID)) {
-		return false
-	}
+// visible is true when no offline node could be hiding the row's template.
+func visible(row *ent.Snapshot, vms view, allOnline bool) bool {
 	if row.Node != "" {
 		return vms.online[row.Node]
 	}
 	return allOnline
+}
+
+// templateGone is true when no template tagged for the row sits at its vmid.
+func templateGone(row *ent.Snapshot, templates map[int]pve.VM) bool {
+	v, ok := templates[*row.Vmid]
+	return !ok || !slices.Contains(servers.SplitTags(v.Tags), snapshots.SnapshotTag(row.ID))
 }
 
 // markSnapshotMissing re-reads the row under its lock and marks it unless a job owns it or an action ran since the list.
