@@ -63,6 +63,17 @@ type Location struct {
 	UpdatedAt       time.Time
 }
 
+// LocationRef is the member-facing reference to a location.
+type LocationRef struct {
+	ID                int64
+	Name, Description string
+}
+
+// Ref returns the location's member-facing reference.
+func (l Location) Ref() LocationRef {
+	return LocationRef{ID: l.ID, Name: l.Name, Description: l.Description}
+}
+
 // Node is a Proxmox node as last synced; MaxMem and Mem are bytes, CPU is a 0-1 load fraction.
 type Node struct {
 	ID                  int64

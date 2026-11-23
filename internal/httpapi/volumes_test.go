@@ -436,7 +436,7 @@ func TestDeleteProjectWithVolumes(t *testing.T) {
 	}
 	got := decodeJSON[errBody](t, e.App, e.C.Send(http.MethodDelete, "/v1/projects/"+itoa(e.Project), nil), http.StatusConflict)
 	require.Equal(t, "project_not_empty", got.Error.Code)
-	require.Equal(t, "Delete the project's servers and volumes first.", got.Error.Message)
+	require.Equal(t, "Delete the project's servers, volumes and floating IPs first.", got.Error.Message)
 	got = decodeJSON[errBody](t, e.App, e.Admin.Send(http.MethodDelete, "/v1/admin/projects/"+itoa(e.Project), nil), http.StatusConflict)
 	require.Equal(t, "project_not_empty", got.Error.Code)
 
