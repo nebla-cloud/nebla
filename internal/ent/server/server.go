@@ -73,6 +73,14 @@ const (
 	FieldFirewallGenApplied = "firewall_gen_applied"
 	// FieldFirewallLeaseUntil holds the string denoting the firewall_lease_until field in the database.
 	FieldFirewallLeaseUntil = "firewall_lease_until"
+	// FieldBackupsEnabled holds the string denoting the backups_enabled field in the database.
+	FieldBackupsEnabled = "backups_enabled"
+	// FieldBackupKeep holds the string denoting the backup_keep field in the database.
+	FieldBackupKeep = "backup_keep"
+	// FieldBackupSlot holds the string denoting the backup_slot field in the database.
+	FieldBackupSlot = "backup_slot"
+	// FieldBackupsEnabledAt holds the string denoting the backups_enabled_at field in the database.
+	FieldBackupsEnabledAt = "backups_enabled_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -147,6 +155,10 @@ var Columns = []string{
 	FieldFirewallGenDesired,
 	FieldFirewallGenApplied,
 	FieldFirewallLeaseUntil,
+	FieldBackupsEnabled,
+	FieldBackupKeep,
+	FieldBackupSlot,
+	FieldBackupsEnabledAt,
 	FieldCreatedAt,
 }
 
@@ -177,6 +189,12 @@ var (
 	DefaultFirewallGenDesired int64
 	// DefaultFirewallGenApplied holds the default value on creation for the "firewall_gen_applied" field.
 	DefaultFirewallGenApplied int64
+	// DefaultBackupsEnabled holds the default value on creation for the "backups_enabled" field.
+	DefaultBackupsEnabled bool
+	// DefaultBackupKeep holds the default value on creation for the "backup_keep" field.
+	DefaultBackupKeep int
+	// DefaultBackupSlot holds the default value on creation for the "backup_slot" field.
+	DefaultBackupSlot int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -355,6 +373,26 @@ func ByFirewallGenApplied(opts ...sql.OrderTermOption) OrderOption {
 // ByFirewallLeaseUntil orders the results by the firewall_lease_until field.
 func ByFirewallLeaseUntil(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFirewallLeaseUntil, opts...).ToFunc()
+}
+
+// ByBackupsEnabled orders the results by the backups_enabled field.
+func ByBackupsEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupsEnabled, opts...).ToFunc()
+}
+
+// ByBackupKeep orders the results by the backup_keep field.
+func ByBackupKeep(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupKeep, opts...).ToFunc()
+}
+
+// ByBackupSlot orders the results by the backup_slot field.
+func ByBackupSlot(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupSlot, opts...).ToFunc()
+}
+
+// ByBackupsEnabledAt orders the results by the backups_enabled_at field.
+func ByBackupsEnabledAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupsEnabledAt, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -33,6 +33,30 @@ func (f ActionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ActionMutation", m)
 }
 
+// The BackupFunc type is an adapter to allow the use of ordinary
+// function as Backup mutator.
+type BackupFunc func(context.Context, *ent.BackupMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BackupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BackupMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BackupMutation", m)
+}
+
+// The BackupTombstoneFunc type is an adapter to allow the use of ordinary
+// function as BackupTombstone mutator.
+type BackupTombstoneFunc func(context.Context, *ent.BackupTombstoneMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f BackupTombstoneFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.BackupTombstoneMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BackupTombstoneMutation", m)
+}
+
 // The CatalogBuildFunc type is an adapter to allow the use of ordinary
 // function as CatalogBuild mutator.
 type CatalogBuildFunc func(context.Context, *ent.CatalogBuildMutation) (ent.Value, error)

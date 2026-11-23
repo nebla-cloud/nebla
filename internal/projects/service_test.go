@@ -419,3 +419,32 @@ func TestSelfLeave(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, invs)
 }
+
+func TestQuotaBackupsReserved(t *testing.T) {
+	ctx := context.Background()
+	existing := projects.Usage{BackupsReserved: 7}
+	svc, _, sqlDB, u := setup(t, projects.Options{Hooks: projects.Hooks{
+		Usage: func(context.Context, *ent.Client, int64) (projects.Usage, error) { return existing, nil },
+	}})
+	p, err := svc.Create(ctx, u.ID, false, "Web")
+	require.NoError(t, err)
+	q, err := svc.SetQuota(ctx, p.ID, projects.Quota{MaxBackups: 10})
+	require.NoError(t, err)
+	require.Equal(t, projects.Quota{MaxBackups: 10}, q)
+
+	reserve := func(d projects.Usage) error {
+		return db.WithTx(ctx, sqlDB, func(_ *sql.Tx, etx *ent.Client) error {
+			return svc.ReserveQuota(ctx, etx, p.ID, d)
+		})
+	}
+	var e apierr.E
+	err = reserve(projects.Usage{BackupsReserved: 7})
+	require.True(t, errors.As(err, &e), "got %v", err)
+	require.Equal(t, "quota_exceeded", e.Code)
+	require.Contains(t, e.Msg, "max_backups")
+	require.Contains(t, e.Msg, "is 10, this would use 14")
+
+	require.NoError(t, reserve(projects.Usage{BackupsReserved: 3}))
+	existing = projects.Usage{BackupsReserved: 12}
+	require.NoError(t, reserve(projects.Usage{BackupsReserved: -3}), "shrinking passes over quota")
+}

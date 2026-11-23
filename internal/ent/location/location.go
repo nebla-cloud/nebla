@@ -40,6 +40,14 @@ const (
 	FieldVolumeStorage = "volume_storage"
 	// FieldVolumeStorageOk holds the string denoting the volume_storage_ok field in the database.
 	FieldVolumeStorageOk = "volume_storage_ok"
+	// FieldBackupStorage holds the string denoting the backup_storage field in the database.
+	FieldBackupStorage = "backup_storage"
+	// FieldBackupStorageOk holds the string denoting the backup_storage_ok field in the database.
+	FieldBackupStorageOk = "backup_storage_ok"
+	// FieldBackupWindowStart holds the string denoting the backup_window_start field in the database.
+	FieldBackupWindowStart = "backup_window_start"
+	// FieldBackupWindowEnd holds the string denoting the backup_window_end field in the database.
+	FieldBackupWindowEnd = "backup_window_end"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -98,6 +106,10 @@ var Columns = []string{
 	FieldFirewallEnabled,
 	FieldVolumeStorage,
 	FieldVolumeStorageOk,
+	FieldBackupStorage,
+	FieldBackupStorageOk,
+	FieldBackupWindowStart,
+	FieldBackupWindowEnd,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -131,6 +143,14 @@ var (
 	DefaultVolumeStorage string
 	// DefaultVolumeStorageOk holds the default value on creation for the "volume_storage_ok" field.
 	DefaultVolumeStorageOk bool
+	// DefaultBackupStorage holds the default value on creation for the "backup_storage" field.
+	DefaultBackupStorage string
+	// DefaultBackupStorageOk holds the default value on creation for the "backup_storage_ok" field.
+	DefaultBackupStorageOk bool
+	// DefaultBackupWindowStart holds the default value on creation for the "backup_window_start" field.
+	DefaultBackupWindowStart int
+	// DefaultBackupWindowEnd holds the default value on creation for the "backup_window_end" field.
+	DefaultBackupWindowEnd int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -205,6 +225,26 @@ func ByVolumeStorage(opts ...sql.OrderTermOption) OrderOption {
 // ByVolumeStorageOk orders the results by the volume_storage_ok field.
 func ByVolumeStorageOk(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldVolumeStorageOk, opts...).ToFunc()
+}
+
+// ByBackupStorage orders the results by the backup_storage field.
+func ByBackupStorage(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupStorage, opts...).ToFunc()
+}
+
+// ByBackupStorageOk orders the results by the backup_storage_ok field.
+func ByBackupStorageOk(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupStorageOk, opts...).ToFunc()
+}
+
+// ByBackupWindowStart orders the results by the backup_window_start field.
+func ByBackupWindowStart(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupWindowStart, opts...).ToFunc()
+}
+
+// ByBackupWindowEnd orders the results by the backup_window_end field.
+func ByBackupWindowEnd(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackupWindowEnd, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

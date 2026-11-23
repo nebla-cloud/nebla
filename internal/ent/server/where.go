@@ -185,6 +185,26 @@ func FirewallLeaseUntil(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldFirewallLeaseUntil, v))
 }
 
+// BackupsEnabled applies equality check predicate on the "backups_enabled" field. It's identical to BackupsEnabledEQ.
+func BackupsEnabled(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupsEnabled, v))
+}
+
+// BackupKeep applies equality check predicate on the "backup_keep" field. It's identical to BackupKeepEQ.
+func BackupKeep(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupKeep, v))
+}
+
+// BackupSlot applies equality check predicate on the "backup_slot" field. It's identical to BackupSlotEQ.
+func BackupSlot(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupSlot, v))
+}
+
+// BackupsEnabledAt applies equality check predicate on the "backups_enabled_at" field. It's identical to BackupsEnabledAtEQ.
+func BackupsEnabledAt(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupsEnabledAt, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreatedAt, v))
@@ -1473,6 +1493,146 @@ func FirewallLeaseUntilIsNil() predicate.Server {
 // FirewallLeaseUntilNotNil applies the NotNil predicate on the "firewall_lease_until" field.
 func FirewallLeaseUntilNotNil() predicate.Server {
 	return predicate.Server(sql.FieldNotNull(FieldFirewallLeaseUntil))
+}
+
+// BackupsEnabledEQ applies the EQ predicate on the "backups_enabled" field.
+func BackupsEnabledEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupsEnabled, v))
+}
+
+// BackupsEnabledNEQ applies the NEQ predicate on the "backups_enabled" field.
+func BackupsEnabledNEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldBackupsEnabled, v))
+}
+
+// BackupKeepEQ applies the EQ predicate on the "backup_keep" field.
+func BackupKeepEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupKeep, v))
+}
+
+// BackupKeepNEQ applies the NEQ predicate on the "backup_keep" field.
+func BackupKeepNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldBackupKeep, v))
+}
+
+// BackupKeepIn applies the In predicate on the "backup_keep" field.
+func BackupKeepIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldBackupKeep, vs...))
+}
+
+// BackupKeepNotIn applies the NotIn predicate on the "backup_keep" field.
+func BackupKeepNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldBackupKeep, vs...))
+}
+
+// BackupKeepGT applies the GT predicate on the "backup_keep" field.
+func BackupKeepGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldBackupKeep, v))
+}
+
+// BackupKeepGTE applies the GTE predicate on the "backup_keep" field.
+func BackupKeepGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldBackupKeep, v))
+}
+
+// BackupKeepLT applies the LT predicate on the "backup_keep" field.
+func BackupKeepLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldBackupKeep, v))
+}
+
+// BackupKeepLTE applies the LTE predicate on the "backup_keep" field.
+func BackupKeepLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldBackupKeep, v))
+}
+
+// BackupSlotEQ applies the EQ predicate on the "backup_slot" field.
+func BackupSlotEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupSlot, v))
+}
+
+// BackupSlotNEQ applies the NEQ predicate on the "backup_slot" field.
+func BackupSlotNEQ(v int) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldBackupSlot, v))
+}
+
+// BackupSlotIn applies the In predicate on the "backup_slot" field.
+func BackupSlotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldBackupSlot, vs...))
+}
+
+// BackupSlotNotIn applies the NotIn predicate on the "backup_slot" field.
+func BackupSlotNotIn(vs ...int) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldBackupSlot, vs...))
+}
+
+// BackupSlotGT applies the GT predicate on the "backup_slot" field.
+func BackupSlotGT(v int) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldBackupSlot, v))
+}
+
+// BackupSlotGTE applies the GTE predicate on the "backup_slot" field.
+func BackupSlotGTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldBackupSlot, v))
+}
+
+// BackupSlotLT applies the LT predicate on the "backup_slot" field.
+func BackupSlotLT(v int) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldBackupSlot, v))
+}
+
+// BackupSlotLTE applies the LTE predicate on the "backup_slot" field.
+func BackupSlotLTE(v int) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldBackupSlot, v))
+}
+
+// BackupsEnabledAtEQ applies the EQ predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtEQ(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldBackupsEnabledAt, v))
+}
+
+// BackupsEnabledAtNEQ applies the NEQ predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtNEQ(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldBackupsEnabledAt, v))
+}
+
+// BackupsEnabledAtIn applies the In predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtIn(vs ...time.Time) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldBackupsEnabledAt, vs...))
+}
+
+// BackupsEnabledAtNotIn applies the NotIn predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtNotIn(vs ...time.Time) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldBackupsEnabledAt, vs...))
+}
+
+// BackupsEnabledAtGT applies the GT predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtGT(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldBackupsEnabledAt, v))
+}
+
+// BackupsEnabledAtGTE applies the GTE predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtGTE(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldBackupsEnabledAt, v))
+}
+
+// BackupsEnabledAtLT applies the LT predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtLT(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldBackupsEnabledAt, v))
+}
+
+// BackupsEnabledAtLTE applies the LTE predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtLTE(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldBackupsEnabledAt, v))
+}
+
+// BackupsEnabledAtIsNil applies the IsNil predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldBackupsEnabledAt))
+}
+
+// BackupsEnabledAtNotNil applies the NotNil predicate on the "backups_enabled_at" field.
+func BackupsEnabledAtNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldBackupsEnabledAt))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

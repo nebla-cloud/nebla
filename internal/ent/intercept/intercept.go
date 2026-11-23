@@ -10,6 +10,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
+	"github.com/nebla-cloud/nebla/internal/ent/backuptombstone"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
@@ -146,6 +148,60 @@ func (f TraverseAction) Traverse(ctx context.Context, q ent.Query) error {
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ActionQuery", q)
+}
+
+// The BackupFunc type is an adapter to allow the use of ordinary function as a Querier.
+type BackupFunc func(context.Context, *ent.BackupQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f BackupFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.BackupQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.BackupQuery", q)
+}
+
+// The TraverseBackup type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseBackup func(context.Context, *ent.BackupQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseBackup) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseBackup) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.BackupQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.BackupQuery", q)
+}
+
+// The BackupTombstoneFunc type is an adapter to allow the use of ordinary function as a Querier.
+type BackupTombstoneFunc func(context.Context, *ent.BackupTombstoneQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f BackupTombstoneFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.BackupTombstoneQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.BackupTombstoneQuery", q)
+}
+
+// The TraverseBackupTombstone type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseBackupTombstone func(context.Context, *ent.BackupTombstoneQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseBackupTombstone) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseBackupTombstone) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.BackupTombstoneQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.BackupTombstoneQuery", q)
 }
 
 // The CatalogBuildFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -830,6 +886,10 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.APITokenQuery, predicate.APIToken, apitoken.OrderOption]{typ: ent.TypeAPIToken, tq: q}, nil
 	case *ent.ActionQuery:
 		return &query[*ent.ActionQuery, predicate.Action, action.OrderOption]{typ: ent.TypeAction, tq: q}, nil
+	case *ent.BackupQuery:
+		return &query[*ent.BackupQuery, predicate.Backup, backup.OrderOption]{typ: ent.TypeBackup, tq: q}, nil
+	case *ent.BackupTombstoneQuery:
+		return &query[*ent.BackupTombstoneQuery, predicate.BackupTombstone, backuptombstone.OrderOption]{typ: ent.TypeBackupTombstone, tq: q}, nil
 	case *ent.CatalogBuildQuery:
 		return &query[*ent.CatalogBuildQuery, predicate.CatalogBuild, catalogbuild.OrderOption]{typ: ent.TypeCatalogBuild, tq: q}, nil
 	case *ent.ConsoleTokenQuery:

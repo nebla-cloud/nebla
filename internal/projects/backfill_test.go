@@ -35,7 +35,7 @@ func legacyProject(t *testing.T, c *ent.Client, owner int64, q projects.Quota) i
 	ctx := context.Background()
 	p, err := c.Project.Create().SetName("legacy").SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).
 		SetMaxMemoryMB(q.MaxMemoryMB).SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
-		SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).Save(ctx)
+		SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).SetMaxBackups(q.MaxBackups).Save(ctx)
 	require.NoError(t, err)
 	require.NoError(t, c.ProjectMember.Create().SetProjectID(p.ID).SetUserID(owner).SetRole(projects.RoleOwner).Exec(ctx))
 	return p.ID
@@ -46,7 +46,7 @@ func quotaOf(t *testing.T, c *ent.Client, id int64) projects.Quota {
 	p, err := c.Project.Get(context.Background(), id)
 	require.NoError(t, err)
 	return projects.Quota{MaxServers: p.MaxServers, MaxVCPU: p.MaxVcpu, MaxMemoryMB: p.MaxMemoryMB, MaxDiskGB: p.MaxDiskGB, MaxIPs: p.MaxIps,
-		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB}
+		MaxVolumes: p.MaxVolumes, MaxVolumeGB: p.MaxVolumeGB, MaxBackups: p.MaxBackups}
 }
 
 func TestBackfillAppliesDefaultToLegacy(t *testing.T) {
@@ -175,4 +175,35 @@ func TestBackfillVolumeQuotaSkipsZero(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 	require.Equal(t, 5, quotaOf(t, c, id).MaxVolumes)
+}
+
+func TestBackfillBackupQuota(t *testing.T) {
+	ctx := context.Background()
+	_, c, _, u := setup(t, projects.Options{})
+	admin, err := auth.New(c, ext.Defaults(nil).Registration).CreateUser(ctx, "admin@example.test", testutil.Password, "A", true)
+	require.NoError(t, err)
+	limited := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 9})
+	adminOwned := legacyProject(t, c, admin.ID, projects.Quota{MaxServers: 9})
+	unlimited := legacyProject(t, c, u.ID, projects.Quota{})
+	has := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 9, MaxBackups: 2})
+	bq := projects.Quota{MaxBackups: 35}
+
+	n, err := projects.BackfillBackupQuota(ctx, c, projects.Quota{MaxServers: 1})
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Zero(t, c.Setting.Query().CountX(ctx), "a zero backup limit leaves the guard unset")
+
+	n, err = projects.BackfillBackupQuota(ctx, c, bq)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, projects.Quota{MaxServers: 9, MaxBackups: 35}, quotaOf(t, c, limited))
+	require.Equal(t, projects.Quota{MaxServers: 9}, quotaOf(t, c, adminOwned))
+	require.Equal(t, projects.Quota{}, quotaOf(t, c, unlimited))
+	require.Equal(t, projects.Quota{MaxServers: 9, MaxBackups: 2}, quotaOf(t, c, has))
+
+	second := legacyProject(t, c, u.ID, projects.Quota{MaxServers: 3})
+	n, err = projects.BackfillBackupQuota(ctx, c, bq)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Equal(t, projects.Quota{MaxServers: 3}, quotaOf(t, c, second))
 }

@@ -119,3 +119,8 @@ func TestEventResourceFields(t *testing.T) {
 	require.Equal(t, []ext.EventKind{"volume.created", "volume.resized", "volume.deleted", "volume.usage"},
 		[]ext.EventKind{ext.VolumeCreated, ext.VolumeResized, ext.VolumeDeleted, ext.VolumeUsage})
 }
+
+func TestBackupEventKinds(t *testing.T) {
+	require.Equal(t, []ext.EventKind{"backup.created", "backup.deleted", "backup.restored", "backup.usage"},
+		[]ext.EventKind{ext.BackupCreated, ext.BackupDeleted, ext.BackupRestored, ext.BackupUsage})
+}

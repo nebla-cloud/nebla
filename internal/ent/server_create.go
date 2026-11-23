@@ -336,6 +336,62 @@ func (_c *ServerCreate) SetNillableFirewallLeaseUntil(v *time.Time) *ServerCreat
 	return _c
 }
 
+// SetBackupsEnabled sets the "backups_enabled" field.
+func (_c *ServerCreate) SetBackupsEnabled(v bool) *ServerCreate {
+	_c.mutation.SetBackupsEnabled(v)
+	return _c
+}
+
+// SetNillableBackupsEnabled sets the "backups_enabled" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableBackupsEnabled(v *bool) *ServerCreate {
+	if v != nil {
+		_c.SetBackupsEnabled(*v)
+	}
+	return _c
+}
+
+// SetBackupKeep sets the "backup_keep" field.
+func (_c *ServerCreate) SetBackupKeep(v int) *ServerCreate {
+	_c.mutation.SetBackupKeep(v)
+	return _c
+}
+
+// SetNillableBackupKeep sets the "backup_keep" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableBackupKeep(v *int) *ServerCreate {
+	if v != nil {
+		_c.SetBackupKeep(*v)
+	}
+	return _c
+}
+
+// SetBackupSlot sets the "backup_slot" field.
+func (_c *ServerCreate) SetBackupSlot(v int) *ServerCreate {
+	_c.mutation.SetBackupSlot(v)
+	return _c
+}
+
+// SetNillableBackupSlot sets the "backup_slot" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableBackupSlot(v *int) *ServerCreate {
+	if v != nil {
+		_c.SetBackupSlot(*v)
+	}
+	return _c
+}
+
+// SetBackupsEnabledAt sets the "backups_enabled_at" field.
+func (_c *ServerCreate) SetBackupsEnabledAt(v time.Time) *ServerCreate {
+	_c.mutation.SetBackupsEnabledAt(v)
+	return _c
+}
+
+// SetNillableBackupsEnabledAt sets the "backups_enabled_at" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableBackupsEnabledAt(v *time.Time) *ServerCreate {
+	if v != nil {
+		_c.SetBackupsEnabledAt(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ServerCreate) SetCreatedAt(v time.Time) *ServerCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -447,6 +503,18 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultFirewallGenApplied
 		_c.mutation.SetFirewallGenApplied(v)
 	}
+	if _, ok := _c.mutation.BackupsEnabled(); !ok {
+		v := server.DefaultBackupsEnabled
+		_c.mutation.SetBackupsEnabled(v)
+	}
+	if _, ok := _c.mutation.BackupKeep(); !ok {
+		v := server.DefaultBackupKeep
+		_c.mutation.SetBackupKeep(v)
+	}
+	if _, ok := _c.mutation.BackupSlot(); !ok {
+		v := server.DefaultBackupSlot
+		_c.mutation.SetBackupSlot(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := server.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -522,6 +590,15 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.FirewallGenApplied(); !ok {
 		return &ValidationError{Name: "firewall_gen_applied", err: errors.New(`ent: missing required field "Server.firewall_gen_applied"`)}
+	}
+	if _, ok := _c.mutation.BackupsEnabled(); !ok {
+		return &ValidationError{Name: "backups_enabled", err: errors.New(`ent: missing required field "Server.backups_enabled"`)}
+	}
+	if _, ok := _c.mutation.BackupKeep(); !ok {
+		return &ValidationError{Name: "backup_keep", err: errors.New(`ent: missing required field "Server.backup_keep"`)}
+	}
+	if _, ok := _c.mutation.BackupSlot(); !ok {
+		return &ValidationError{Name: "backup_slot", err: errors.New(`ent: missing required field "Server.backup_slot"`)}
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "Server.project"`)}
@@ -667,6 +744,22 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FirewallLeaseUntil(); ok {
 		_spec.SetField(server.FieldFirewallLeaseUntil, field.TypeTime, value)
 		_node.FirewallLeaseUntil = &value
+	}
+	if value, ok := _c.mutation.BackupsEnabled(); ok {
+		_spec.SetField(server.FieldBackupsEnabled, field.TypeBool, value)
+		_node.BackupsEnabled = value
+	}
+	if value, ok := _c.mutation.BackupKeep(); ok {
+		_spec.SetField(server.FieldBackupKeep, field.TypeInt, value)
+		_node.BackupKeep = value
+	}
+	if value, ok := _c.mutation.BackupSlot(); ok {
+		_spec.SetField(server.FieldBackupSlot, field.TypeInt, value)
+		_node.BackupSlot = value
+	}
+	if value, ok := _c.mutation.BackupsEnabledAt(); ok {
+		_spec.SetField(server.FieldBackupsEnabledAt, field.TypeTime, value)
+		_node.BackupsEnabledAt = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(server.FieldCreatedAt, field.TypeTime, value)
@@ -1221,6 +1314,72 @@ func (u *ServerUpsert) UpdateFirewallLeaseUntil() *ServerUpsert {
 // ClearFirewallLeaseUntil clears the value of the "firewall_lease_until" field.
 func (u *ServerUpsert) ClearFirewallLeaseUntil() *ServerUpsert {
 	u.SetNull(server.FieldFirewallLeaseUntil)
+	return u
+}
+
+// SetBackupsEnabled sets the "backups_enabled" field.
+func (u *ServerUpsert) SetBackupsEnabled(v bool) *ServerUpsert {
+	u.Set(server.FieldBackupsEnabled, v)
+	return u
+}
+
+// UpdateBackupsEnabled sets the "backups_enabled" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateBackupsEnabled() *ServerUpsert {
+	u.SetExcluded(server.FieldBackupsEnabled)
+	return u
+}
+
+// SetBackupKeep sets the "backup_keep" field.
+func (u *ServerUpsert) SetBackupKeep(v int) *ServerUpsert {
+	u.Set(server.FieldBackupKeep, v)
+	return u
+}
+
+// UpdateBackupKeep sets the "backup_keep" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateBackupKeep() *ServerUpsert {
+	u.SetExcluded(server.FieldBackupKeep)
+	return u
+}
+
+// AddBackupKeep adds v to the "backup_keep" field.
+func (u *ServerUpsert) AddBackupKeep(v int) *ServerUpsert {
+	u.Add(server.FieldBackupKeep, v)
+	return u
+}
+
+// SetBackupSlot sets the "backup_slot" field.
+func (u *ServerUpsert) SetBackupSlot(v int) *ServerUpsert {
+	u.Set(server.FieldBackupSlot, v)
+	return u
+}
+
+// UpdateBackupSlot sets the "backup_slot" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateBackupSlot() *ServerUpsert {
+	u.SetExcluded(server.FieldBackupSlot)
+	return u
+}
+
+// AddBackupSlot adds v to the "backup_slot" field.
+func (u *ServerUpsert) AddBackupSlot(v int) *ServerUpsert {
+	u.Add(server.FieldBackupSlot, v)
+	return u
+}
+
+// SetBackupsEnabledAt sets the "backups_enabled_at" field.
+func (u *ServerUpsert) SetBackupsEnabledAt(v time.Time) *ServerUpsert {
+	u.Set(server.FieldBackupsEnabledAt, v)
+	return u
+}
+
+// UpdateBackupsEnabledAt sets the "backups_enabled_at" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateBackupsEnabledAt() *ServerUpsert {
+	u.SetExcluded(server.FieldBackupsEnabledAt)
+	return u
+}
+
+// ClearBackupsEnabledAt clears the value of the "backups_enabled_at" field.
+func (u *ServerUpsert) ClearBackupsEnabledAt() *ServerUpsert {
+	u.SetNull(server.FieldBackupsEnabledAt)
 	return u
 }
 
@@ -1785,6 +1944,83 @@ func (u *ServerUpsertOne) UpdateFirewallLeaseUntil() *ServerUpsertOne {
 func (u *ServerUpsertOne) ClearFirewallLeaseUntil() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearFirewallLeaseUntil()
+	})
+}
+
+// SetBackupsEnabled sets the "backups_enabled" field.
+func (u *ServerUpsertOne) SetBackupsEnabled(v bool) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupsEnabled(v)
+	})
+}
+
+// UpdateBackupsEnabled sets the "backups_enabled" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateBackupsEnabled() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupsEnabled()
+	})
+}
+
+// SetBackupKeep sets the "backup_keep" field.
+func (u *ServerUpsertOne) SetBackupKeep(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupKeep(v)
+	})
+}
+
+// AddBackupKeep adds v to the "backup_keep" field.
+func (u *ServerUpsertOne) AddBackupKeep(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddBackupKeep(v)
+	})
+}
+
+// UpdateBackupKeep sets the "backup_keep" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateBackupKeep() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupKeep()
+	})
+}
+
+// SetBackupSlot sets the "backup_slot" field.
+func (u *ServerUpsertOne) SetBackupSlot(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupSlot(v)
+	})
+}
+
+// AddBackupSlot adds v to the "backup_slot" field.
+func (u *ServerUpsertOne) AddBackupSlot(v int) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddBackupSlot(v)
+	})
+}
+
+// UpdateBackupSlot sets the "backup_slot" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateBackupSlot() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupSlot()
+	})
+}
+
+// SetBackupsEnabledAt sets the "backups_enabled_at" field.
+func (u *ServerUpsertOne) SetBackupsEnabledAt(v time.Time) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupsEnabledAt(v)
+	})
+}
+
+// UpdateBackupsEnabledAt sets the "backups_enabled_at" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateBackupsEnabledAt() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupsEnabledAt()
+	})
+}
+
+// ClearBackupsEnabledAt clears the value of the "backups_enabled_at" field.
+func (u *ServerUpsertOne) ClearBackupsEnabledAt() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearBackupsEnabledAt()
 	})
 }
 
@@ -2515,6 +2751,83 @@ func (u *ServerUpsertBulk) UpdateFirewallLeaseUntil() *ServerUpsertBulk {
 func (u *ServerUpsertBulk) ClearFirewallLeaseUntil() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearFirewallLeaseUntil()
+	})
+}
+
+// SetBackupsEnabled sets the "backups_enabled" field.
+func (u *ServerUpsertBulk) SetBackupsEnabled(v bool) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupsEnabled(v)
+	})
+}
+
+// UpdateBackupsEnabled sets the "backups_enabled" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateBackupsEnabled() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupsEnabled()
+	})
+}
+
+// SetBackupKeep sets the "backup_keep" field.
+func (u *ServerUpsertBulk) SetBackupKeep(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupKeep(v)
+	})
+}
+
+// AddBackupKeep adds v to the "backup_keep" field.
+func (u *ServerUpsertBulk) AddBackupKeep(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddBackupKeep(v)
+	})
+}
+
+// UpdateBackupKeep sets the "backup_keep" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateBackupKeep() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupKeep()
+	})
+}
+
+// SetBackupSlot sets the "backup_slot" field.
+func (u *ServerUpsertBulk) SetBackupSlot(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupSlot(v)
+	})
+}
+
+// AddBackupSlot adds v to the "backup_slot" field.
+func (u *ServerUpsertBulk) AddBackupSlot(v int) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddBackupSlot(v)
+	})
+}
+
+// UpdateBackupSlot sets the "backup_slot" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateBackupSlot() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupSlot()
+	})
+}
+
+// SetBackupsEnabledAt sets the "backups_enabled_at" field.
+func (u *ServerUpsertBulk) SetBackupsEnabledAt(v time.Time) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetBackupsEnabledAt(v)
+	})
+}
+
+// UpdateBackupsEnabledAt sets the "backups_enabled_at" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateBackupsEnabledAt() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateBackupsEnabledAt()
+	})
+}
+
+// ClearBackupsEnabledAt clears the value of the "backups_enabled_at" field.
+func (u *ServerUpsertBulk) ClearBackupsEnabledAt() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearBackupsEnabledAt()
 	})
 }
 

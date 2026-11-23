@@ -191,6 +191,27 @@ func (_u *ProjectUpdate) AddMaxVolumeGB(v int) *ProjectUpdate {
 	return _u
 }
 
+// SetMaxBackups sets the "max_backups" field.
+func (_u *ProjectUpdate) SetMaxBackups(v int) *ProjectUpdate {
+	_u.mutation.ResetMaxBackups()
+	_u.mutation.SetMaxBackups(v)
+	return _u
+}
+
+// SetNillableMaxBackups sets the "max_backups" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableMaxBackups(v *int) *ProjectUpdate {
+	if v != nil {
+		_u.SetMaxBackups(*v)
+	}
+	return _u
+}
+
+// AddMaxBackups adds value to the "max_backups" field.
+func (_u *ProjectUpdate) AddMaxBackups(v int) *ProjectUpdate {
+	_u.mutation.AddMaxBackups(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdate) SetCreatedBy(v int64) *ProjectUpdate {
 	_u.mutation.SetCreatedBy(v)
@@ -363,6 +384,12 @@ func (_u *ProjectUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedMaxVolumeGB(); ok {
 		_spec.AddField(project.FieldMaxVolumeGB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxBackups(); ok {
+		_spec.SetField(project.FieldMaxBackups, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxBackups(); ok {
+		_spec.AddField(project.FieldMaxBackups, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -621,6 +648,27 @@ func (_u *ProjectUpdateOne) AddMaxVolumeGB(v int) *ProjectUpdateOne {
 	return _u
 }
 
+// SetMaxBackups sets the "max_backups" field.
+func (_u *ProjectUpdateOne) SetMaxBackups(v int) *ProjectUpdateOne {
+	_u.mutation.ResetMaxBackups()
+	_u.mutation.SetMaxBackups(v)
+	return _u
+}
+
+// SetNillableMaxBackups sets the "max_backups" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableMaxBackups(v *int) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetMaxBackups(*v)
+	}
+	return _u
+}
+
+// AddMaxBackups adds value to the "max_backups" field.
+func (_u *ProjectUpdateOne) AddMaxBackups(v int) *ProjectUpdateOne {
+	_u.mutation.AddMaxBackups(v)
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ProjectUpdateOne) SetCreatedBy(v int64) *ProjectUpdateOne {
 	_u.mutation.SetCreatedBy(v)
@@ -823,6 +871,12 @@ func (_u *ProjectUpdateOne) sqlSave(ctx context.Context) (_node *Project, err er
 	}
 	if value, ok := _u.mutation.AddedMaxVolumeGB(); ok {
 		_spec.AddField(project.FieldMaxVolumeGB, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxBackups(); ok {
+		_spec.SetField(project.FieldMaxBackups, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxBackups(); ok {
+		_spec.AddField(project.FieldMaxBackups, field.TypeInt, value)
 	}
 	if _u.mutation.CreatorCleared() {
 		edge := &sqlgraph.EdgeSpec{

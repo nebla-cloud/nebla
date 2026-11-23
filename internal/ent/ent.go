@@ -14,6 +14,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
+	"github.com/nebla-cloud/nebla/internal/ent/backuptombstone"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
@@ -101,6 +103,8 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			apitoken.Table:           apitoken.ValidColumn,
 			action.Table:             action.ValidColumn,
+			backup.Table:             backup.ValidColumn,
+			backuptombstone.Table:    backuptombstone.ValidColumn,
 			catalogbuild.Table:       catalogbuild.ValidColumn,
 			consoletoken.Table:       consoletoken.ValidColumn,
 			firewall.Table:           firewall.ValidColumn,

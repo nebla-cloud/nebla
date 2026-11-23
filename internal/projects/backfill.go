@@ -86,6 +86,36 @@ func BackfillVolumeQuota(ctx context.Context, db *ent.Client, q Quota) (int, err
 	return n, err
 }
 
+const backupBackfillKey = "projects.backup_quota_backfilled"
+
+// BackfillBackupQuota gives q's backup limit, once per install, to limited projects that no panel admin owns.
+func BackfillBackupQuota(ctx context.Context, db *ent.Client, q Quota) (int, error) {
+	if q.MaxBackups == 0 {
+		return 0, nil
+	}
+	n := 0
+	err := withTx(ctx, db, func(tx *ent.Client) error {
+		_, err := tx.Setting.Create().SetID(backupBackfillKey).SetValue("true").
+			OnConflictColumns(setting.FieldID).DoNothing().ID(ctx)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		// A project with all five older limits at 0 was made unlimited on purpose.
+		n, err = tx.Project.Update().
+			Where(
+				project.MaxBackups(0),
+				project.Not(project.And(project.MaxServers(0), project.MaxVcpu(0), project.MaxMemoryMB(0), project.MaxDiskGB(0), project.MaxIps(0))),
+				project.Not(project.HasMembersWith(projectmember.Role(RoleOwner), projectmember.HasUserWith(user.IsAdmin(true)))),
+			).
+			SetMaxBackups(q.MaxBackups).Save(ctx)
+		return err
+	})
+	return n, err
+}
+
 const createdByKey = "projects.created_by_backfilled"
 
 // BackfillCreatedBy sets created_by, once per install, to each older project's earliest owner.

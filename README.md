@@ -144,7 +144,7 @@ The panel reads its settings from environment variables. With compose they go in
 | `PANEL_LISTEN` | `:8080` |
 | `PANEL_SMTP_URL` | none |
 | `PANEL_TRUSTED_PROXIES` | none |
-| `PANEL_DEFAULT_QUOTA` | `servers=5,vcpu=8,memory_mb=16384,disk_gb=200,ips=5,volumes=5,volume_gb=100` |
+| `PANEL_DEFAULT_QUOTA` | `servers=5,vcpu=8,memory_mb=16384,disk_gb=200,ips=5,volumes=5,volume_gb=100,backups=35` |
 | `PANEL_MAX_PROJECTS_PER_USER` | `3` |
 
 - **`PANEL_LISTEN`**: HTTP listen address.

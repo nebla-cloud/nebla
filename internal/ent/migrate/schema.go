@@ -105,6 +105,84 @@ var (
 			},
 		},
 	}
+	// BackupsColumns holds the columns for the "backups" table.
+	BackupsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "storage", Type: field.TypeString, Size: 2147483647},
+		{Name: "node", Type: field.TypeString, Size: 2147483647},
+		{Name: "volid", Type: field.TypeString, Unique: true, Nullable: true, Size: 2147483647},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"scheduled", "manual"}},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"queued", "creating", "available", "restoring", "deleting", "error", "missing"}, Default: "queued"},
+		{Name: "instance_generation", Type: field.TypeInt},
+		{Name: "network_fingerprint", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "size_bytes", Type: field.TypeInt64, Default: 0},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "completed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "project_id", Type: field.TypeInt64},
+		{Name: "server_id", Type: field.TypeInt64},
+		{Name: "location_id", Type: field.TypeInt64},
+	}
+	// BackupsTable holds the schema information for the "backups" table.
+	BackupsTable = &schema.Table{
+		Name:       "backups",
+		Columns:    BackupsColumns,
+		PrimaryKey: []*schema.Column{BackupsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "backups_projects_project",
+				Columns:    []*schema.Column{BackupsColumns[11]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "backups_servers_server",
+				Columns:    []*schema.Column{BackupsColumns[12]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "backups_locations_location",
+				Columns:    []*schema.Column{BackupsColumns[13]},
+				RefColumns: []*schema.Column{LocationsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "backups_server_pending_key",
+				Unique:  true,
+				Columns: []*schema.Column{BackupsColumns[12]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "status IN ('queued', 'creating')",
+				},
+			},
+			{
+				Name:    "backups_server_created_idx",
+				Unique:  false,
+				Columns: []*schema.Column{BackupsColumns[12], BackupsColumns[9]},
+			},
+			{
+				Name:    "backups_location_node_status_idx",
+				Unique:  false,
+				Columns: []*schema.Column{BackupsColumns[13], BackupsColumns[2], BackupsColumns[5]},
+			},
+		},
+	}
+	// BackupTombstonesColumns holds the columns for the "backup_tombstones" table.
+	BackupTombstonesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "volid", Type: field.TypeString, Unique: true, Size: 2147483647},
+		{Name: "storage", Type: field.TypeString, Size: 2147483647},
+		{Name: "location_id", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+	}
+	// BackupTombstonesTable holds the schema information for the "backup_tombstones" table.
+	BackupTombstonesTable = &schema.Table{
+		Name:       "backup_tombstones",
+		Columns:    BackupTombstonesColumns,
+		PrimaryKey: []*schema.Column{BackupTombstonesColumns[0]},
+	}
 	// CatalogBuildsColumns holds the columns for the "catalog_builds" table.
 	CatalogBuildsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -581,6 +659,10 @@ var (
 		{Name: "firewall_enabled", Type: field.TypeBool, Nullable: true},
 		{Name: "volume_storage", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "volume_storage_ok", Type: field.TypeBool, Default: false},
+		{Name: "backup_storage", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "backup_storage_ok", Type: field.TypeBool, Default: false},
+		{Name: "backup_window_start", Type: field.TypeInt, Default: 120},
+		{Name: "backup_window_end", Type: field.TypeInt, Default: 360},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 	}
@@ -705,6 +787,7 @@ var (
 		{Name: "max_ips", Type: field.TypeInt, Default: 0},
 		{Name: "max_volumes", Type: field.TypeInt, Default: 0},
 		{Name: "max_volume_gb", Type: field.TypeInt, Default: 0},
+		{Name: "max_backups", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "created_by", Type: field.TypeInt64, Nullable: true},
 	}
@@ -716,7 +799,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "projects_users_creator",
-				Columns:    []*schema.Column{ProjectsColumns[10]},
+				Columns:    []*schema.Column{ProjectsColumns[11]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -725,7 +808,7 @@ var (
 			{
 				Name:    "projects_created_by_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ProjectsColumns[10]},
+				Columns: []*schema.Column{ProjectsColumns[11]},
 			},
 		},
 	}
@@ -832,6 +915,10 @@ var (
 		{Name: "firewall_gen_desired", Type: field.TypeInt64, Default: 0},
 		{Name: "firewall_gen_applied", Type: field.TypeInt64, Default: 0},
 		{Name: "firewall_lease_until", Type: field.TypeTime, Nullable: true},
+		{Name: "backups_enabled", Type: field.TypeBool, Default: false},
+		{Name: "backup_keep", Type: field.TypeInt, Default: 7},
+		{Name: "backup_slot", Type: field.TypeInt, Default: 0},
+		{Name: "backups_enabled_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -846,25 +933,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "servers_projects_project",
-				Columns:    []*schema.Column{ServersColumns[27]},
+				Columns:    []*schema.Column{ServersColumns[31]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_locations_location",
-				Columns:    []*schema.Column{ServersColumns[28]},
+				Columns:    []*schema.Column{ServersColumns[32]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_server_types_server_type",
-				Columns:    []*schema.Column{ServersColumns[29]},
+				Columns:    []*schema.Column{ServersColumns[33]},
 				RefColumns: []*schema.Column{ServerTypesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_images_image",
-				Columns:    []*schema.Column{ServersColumns[30]},
+				Columns:    []*schema.Column{ServersColumns[34]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -873,7 +960,7 @@ var (
 			{
 				Name:    "servers_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{ServersColumns[27], ServersColumns[1]},
+				Columns: []*schema.Column{ServersColumns[31], ServersColumns[1]},
 			},
 			{
 				Name:    "servers_mac_key",
@@ -883,17 +970,17 @@ var (
 			{
 				Name:    "servers_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[28], ServersColumns[2]},
+				Columns: []*schema.Column{ServersColumns[32], ServersColumns[2]},
 			},
 			{
 				Name:    "servers_server_type_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[29]},
+				Columns: []*schema.Column{ServersColumns[33]},
 			},
 			{
 				Name:    "servers_image_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[30]},
+				Columns: []*schema.Column{ServersColumns[34]},
 			},
 		},
 	}
@@ -1137,6 +1224,8 @@ var (
 	Tables = []*schema.Table{
 		APITokensTable,
 		ActionsTable,
+		BackupsTable,
+		BackupTombstonesTable,
 		CatalogBuildsTable,
 		ConsoleTokensTable,
 		FirewallsTable,
@@ -1173,6 +1262,9 @@ func init() {
 		Table: "api_tokens",
 	}
 	ActionsTable.ForeignKeys[0].RefTable = ProjectsTable
+	BackupsTable.ForeignKeys[0].RefTable = ProjectsTable
+	BackupsTable.ForeignKeys[1].RefTable = ServersTable
+	BackupsTable.ForeignKeys[2].RefTable = LocationsTable
 	CatalogBuildsTable.ForeignKeys[0].RefTable = LocationsTable
 	ConsoleTokensTable.ForeignKeys[0].RefTable = ServersTable
 	FirewallsTable.ForeignKeys[0].RefTable = ProjectsTable

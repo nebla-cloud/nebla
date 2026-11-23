@@ -45,6 +45,12 @@ func (Location) Fields() []ent.Field {
 		// volume_storage "" means each node's effective disk storage.
 		field.Text("volume_storage").Default(""),
 		field.Bool("volume_storage_ok").Default(false),
+		// backup_storage "" means backups are off for the location.
+		field.Text("backup_storage").Default(""),
+		field.Bool("backup_storage_ok").Default(false),
+		// The window is minutes from 00:00 UTC and may cross midnight.
+		field.Int("backup_window_start").Default(120),
+		field.Int("backup_window_end").Default(360),
 		createdAt(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now).
 			Annotations(entsql.DefaultExpr("now()")),

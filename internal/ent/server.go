@@ -80,6 +80,14 @@ type Server struct {
 	FirewallGenApplied int64 `json:"firewall_gen_applied,omitempty"`
 	// FirewallLeaseUntil holds the value of the "firewall_lease_until" field.
 	FirewallLeaseUntil *time.Time `json:"firewall_lease_until,omitempty"`
+	// BackupsEnabled holds the value of the "backups_enabled" field.
+	BackupsEnabled bool `json:"backups_enabled,omitempty"`
+	// BackupKeep holds the value of the "backup_keep" field.
+	BackupKeep int `json:"backup_keep,omitempty"`
+	// BackupSlot holds the value of the "backup_slot" field.
+	BackupSlot int `json:"backup_slot,omitempty"`
+	// BackupsEnabledAt holds the value of the "backups_enabled_at" field.
+	BackupsEnabledAt *time.Time `json:"backups_enabled_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -154,11 +162,13 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied:
+		case server.FieldBackupsEnabled:
+			values[i] = new(sql.NullBool)
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot:
 			values[i] = new(sql.NullInt64)
 		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData:
 			values[i] = new(sql.NullString)
-		case server.FieldFirewallLeaseUntil, server.FieldCreatedAt:
+		case server.FieldFirewallLeaseUntil, server.FieldBackupsEnabledAt, server.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -367,6 +377,31 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 				_m.FirewallLeaseUntil = new(time.Time)
 				*_m.FirewallLeaseUntil = value.Time
 			}
+		case server.FieldBackupsEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field backups_enabled", values[i])
+			} else if value.Valid {
+				_m.BackupsEnabled = value.Bool
+			}
+		case server.FieldBackupKeep:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field backup_keep", values[i])
+			} else if value.Valid {
+				_m.BackupKeep = int(value.Int64)
+			}
+		case server.FieldBackupSlot:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field backup_slot", values[i])
+			} else if value.Valid {
+				_m.BackupSlot = int(value.Int64)
+			}
+		case server.FieldBackupsEnabledAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field backups_enabled_at", values[i])
+			} else if value.Valid {
+				_m.BackupsEnabledAt = new(time.Time)
+				*_m.BackupsEnabledAt = value.Time
+			}
 		case server.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -527,6 +562,20 @@ func (_m *Server) String() string {
 	builder.WriteString(", ")
 	if v := _m.FirewallLeaseUntil; v != nil {
 		builder.WriteString("firewall_lease_until=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("backups_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BackupsEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("backup_keep=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BackupKeep))
+	builder.WriteString(", ")
+	builder.WriteString("backup_slot=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BackupSlot))
+	builder.WriteString(", ")
+	if v := _m.BackupsEnabledAt; v != nil {
+		builder.WriteString("backups_enabled_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
 	builder.WriteString(", ")

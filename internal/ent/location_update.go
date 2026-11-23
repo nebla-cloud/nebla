@@ -213,6 +213,76 @@ func (_u *LocationUpdate) SetNillableVolumeStorageOk(v *bool) *LocationUpdate {
 	return _u
 }
 
+// SetBackupStorage sets the "backup_storage" field.
+func (_u *LocationUpdate) SetBackupStorage(v string) *LocationUpdate {
+	_u.mutation.SetBackupStorage(v)
+	return _u
+}
+
+// SetNillableBackupStorage sets the "backup_storage" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableBackupStorage(v *string) *LocationUpdate {
+	if v != nil {
+		_u.SetBackupStorage(*v)
+	}
+	return _u
+}
+
+// SetBackupStorageOk sets the "backup_storage_ok" field.
+func (_u *LocationUpdate) SetBackupStorageOk(v bool) *LocationUpdate {
+	_u.mutation.SetBackupStorageOk(v)
+	return _u
+}
+
+// SetNillableBackupStorageOk sets the "backup_storage_ok" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableBackupStorageOk(v *bool) *LocationUpdate {
+	if v != nil {
+		_u.SetBackupStorageOk(*v)
+	}
+	return _u
+}
+
+// SetBackupWindowStart sets the "backup_window_start" field.
+func (_u *LocationUpdate) SetBackupWindowStart(v int) *LocationUpdate {
+	_u.mutation.ResetBackupWindowStart()
+	_u.mutation.SetBackupWindowStart(v)
+	return _u
+}
+
+// SetNillableBackupWindowStart sets the "backup_window_start" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableBackupWindowStart(v *int) *LocationUpdate {
+	if v != nil {
+		_u.SetBackupWindowStart(*v)
+	}
+	return _u
+}
+
+// AddBackupWindowStart adds value to the "backup_window_start" field.
+func (_u *LocationUpdate) AddBackupWindowStart(v int) *LocationUpdate {
+	_u.mutation.AddBackupWindowStart(v)
+	return _u
+}
+
+// SetBackupWindowEnd sets the "backup_window_end" field.
+func (_u *LocationUpdate) SetBackupWindowEnd(v int) *LocationUpdate {
+	_u.mutation.ResetBackupWindowEnd()
+	_u.mutation.SetBackupWindowEnd(v)
+	return _u
+}
+
+// SetNillableBackupWindowEnd sets the "backup_window_end" field if the given value is not nil.
+func (_u *LocationUpdate) SetNillableBackupWindowEnd(v *int) *LocationUpdate {
+	if v != nil {
+		_u.SetBackupWindowEnd(*v)
+	}
+	return _u
+}
+
+// AddBackupWindowEnd adds value to the "backup_window_end" field.
+func (_u *LocationUpdate) AddBackupWindowEnd(v int) *LocationUpdate {
+	_u.mutation.AddBackupWindowEnd(v)
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdate) SetUpdatedAt(v time.Time) *LocationUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -460,6 +530,24 @@ func (_u *LocationUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.VolumeStorageOk(); ok {
 		_spec.SetField(location.FieldVolumeStorageOk, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BackupStorage(); ok {
+		_spec.SetField(location.FieldBackupStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.BackupStorageOk(); ok {
+		_spec.SetField(location.FieldBackupStorageOk, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BackupWindowStart(); ok {
+		_spec.SetField(location.FieldBackupWindowStart, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupWindowStart(); ok {
+		_spec.AddField(location.FieldBackupWindowStart, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BackupWindowEnd(); ok {
+		_spec.SetField(location.FieldBackupWindowEnd, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupWindowEnd(); ok {
+		_spec.AddField(location.FieldBackupWindowEnd, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)
@@ -846,6 +934,76 @@ func (_u *LocationUpdateOne) SetNillableVolumeStorageOk(v *bool) *LocationUpdate
 	return _u
 }
 
+// SetBackupStorage sets the "backup_storage" field.
+func (_u *LocationUpdateOne) SetBackupStorage(v string) *LocationUpdateOne {
+	_u.mutation.SetBackupStorage(v)
+	return _u
+}
+
+// SetNillableBackupStorage sets the "backup_storage" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableBackupStorage(v *string) *LocationUpdateOne {
+	if v != nil {
+		_u.SetBackupStorage(*v)
+	}
+	return _u
+}
+
+// SetBackupStorageOk sets the "backup_storage_ok" field.
+func (_u *LocationUpdateOne) SetBackupStorageOk(v bool) *LocationUpdateOne {
+	_u.mutation.SetBackupStorageOk(v)
+	return _u
+}
+
+// SetNillableBackupStorageOk sets the "backup_storage_ok" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableBackupStorageOk(v *bool) *LocationUpdateOne {
+	if v != nil {
+		_u.SetBackupStorageOk(*v)
+	}
+	return _u
+}
+
+// SetBackupWindowStart sets the "backup_window_start" field.
+func (_u *LocationUpdateOne) SetBackupWindowStart(v int) *LocationUpdateOne {
+	_u.mutation.ResetBackupWindowStart()
+	_u.mutation.SetBackupWindowStart(v)
+	return _u
+}
+
+// SetNillableBackupWindowStart sets the "backup_window_start" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableBackupWindowStart(v *int) *LocationUpdateOne {
+	if v != nil {
+		_u.SetBackupWindowStart(*v)
+	}
+	return _u
+}
+
+// AddBackupWindowStart adds value to the "backup_window_start" field.
+func (_u *LocationUpdateOne) AddBackupWindowStart(v int) *LocationUpdateOne {
+	_u.mutation.AddBackupWindowStart(v)
+	return _u
+}
+
+// SetBackupWindowEnd sets the "backup_window_end" field.
+func (_u *LocationUpdateOne) SetBackupWindowEnd(v int) *LocationUpdateOne {
+	_u.mutation.ResetBackupWindowEnd()
+	_u.mutation.SetBackupWindowEnd(v)
+	return _u
+}
+
+// SetNillableBackupWindowEnd sets the "backup_window_end" field if the given value is not nil.
+func (_u *LocationUpdateOne) SetNillableBackupWindowEnd(v *int) *LocationUpdateOne {
+	if v != nil {
+		_u.SetBackupWindowEnd(*v)
+	}
+	return _u
+}
+
+// AddBackupWindowEnd adds value to the "backup_window_end" field.
+func (_u *LocationUpdateOne) AddBackupWindowEnd(v int) *LocationUpdateOne {
+	_u.mutation.AddBackupWindowEnd(v)
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *LocationUpdateOne) SetUpdatedAt(v time.Time) *LocationUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -1123,6 +1281,24 @@ func (_u *LocationUpdateOne) sqlSave(ctx context.Context) (_node *Location, err 
 	}
 	if value, ok := _u.mutation.VolumeStorageOk(); ok {
 		_spec.SetField(location.FieldVolumeStorageOk, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BackupStorage(); ok {
+		_spec.SetField(location.FieldBackupStorage, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.BackupStorageOk(); ok {
+		_spec.SetField(location.FieldBackupStorageOk, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BackupWindowStart(); ok {
+		_spec.SetField(location.FieldBackupWindowStart, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupWindowStart(); ok {
+		_spec.AddField(location.FieldBackupWindowStart, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BackupWindowEnd(); ok {
+		_spec.SetField(location.FieldBackupWindowEnd, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupWindowEnd(); ok {
+		_spec.AddField(location.FieldBackupWindowEnd, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(location.FieldUpdatedAt, field.TypeTime, value)

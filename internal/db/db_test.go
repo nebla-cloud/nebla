@@ -25,6 +25,7 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ent/setting"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -206,4 +207,20 @@ func TestWithTxSupportsRawQuery(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
+}
+
+func TestBackupPendingUnique(t *testing.T) {
+	ctx := context.Background()
+	app := testutil.NewApp(t)
+	e := testutil.NewServerEnv(app)
+	s := e.RunningServer("web")
+	add := func(status backup.Status) error {
+		return app.Ent.Backup.Create().SetProjectID(e.Project).SetServerID(s.ServerID).SetLocationID(e.Location).
+			SetStorage("pbs").SetNode("pve1").SetKind(backup.KindManual).SetStatus(status).SetInstanceGeneration(1).Exec(ctx)
+	}
+	require.NoError(t, add(backup.StatusQueued))
+	require.Error(t, add(backup.StatusQueued), "a second pending backup for the server must fail")
+	require.Error(t, add(backup.StatusCreating))
+	require.NoError(t, add(backup.StatusAvailable))
+	require.NoError(t, add(backup.StatusAvailable))
 }

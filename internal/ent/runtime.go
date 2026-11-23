@@ -7,6 +7,8 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
+	"github.com/nebla-cloud/nebla/internal/ent/backuptombstone"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
@@ -68,6 +70,30 @@ func init() {
 	actionDescStarted := actionFields[8].Descriptor()
 	// action.DefaultStarted holds the default value on creation for the started field.
 	action.DefaultStarted = actionDescStarted.Default.(func() time.Time)
+	backupFields := schema.Backup{}.Fields()
+	_ = backupFields
+	// backupDescNetworkFingerprint is the schema descriptor for network_fingerprint field.
+	backupDescNetworkFingerprint := backupFields[10].Descriptor()
+	// backup.DefaultNetworkFingerprint holds the default value on creation for the network_fingerprint field.
+	backup.DefaultNetworkFingerprint = backupDescNetworkFingerprint.Default.(string)
+	// backupDescSizeBytes is the schema descriptor for size_bytes field.
+	backupDescSizeBytes := backupFields[11].Descriptor()
+	// backup.DefaultSizeBytes holds the default value on creation for the size_bytes field.
+	backup.DefaultSizeBytes = backupDescSizeBytes.Default.(int64)
+	// backupDescCreatedAt is the schema descriptor for created_at field.
+	backupDescCreatedAt := backupFields[12].Descriptor()
+	// backup.DefaultCreatedAt holds the default value on creation for the created_at field.
+	backup.DefaultCreatedAt = backupDescCreatedAt.Default.(func() time.Time)
+	backuptombstoneFields := schema.BackupTombstone{}.Fields()
+	_ = backuptombstoneFields
+	// backuptombstoneDescCreatedAt is the schema descriptor for created_at field.
+	backuptombstoneDescCreatedAt := backuptombstoneFields[4].Descriptor()
+	// backuptombstone.DefaultCreatedAt holds the default value on creation for the created_at field.
+	backuptombstone.DefaultCreatedAt = backuptombstoneDescCreatedAt.Default.(func() time.Time)
+	// backuptombstoneDescAttempts is the schema descriptor for attempts field.
+	backuptombstoneDescAttempts := backuptombstoneFields[5].Descriptor()
+	// backuptombstone.DefaultAttempts holds the default value on creation for the attempts field.
+	backuptombstone.DefaultAttempts = backuptombstoneDescAttempts.Default.(int)
 	catalogbuildFields := schema.CatalogBuild{}.Fields()
 	_ = catalogbuildFields
 	// catalogbuildDescNode is the schema descriptor for node field.
@@ -180,12 +206,28 @@ func init() {
 	locationDescVolumeStorageOk := locationFields[13].Descriptor()
 	// location.DefaultVolumeStorageOk holds the default value on creation for the volume_storage_ok field.
 	location.DefaultVolumeStorageOk = locationDescVolumeStorageOk.Default.(bool)
+	// locationDescBackupStorage is the schema descriptor for backup_storage field.
+	locationDescBackupStorage := locationFields[14].Descriptor()
+	// location.DefaultBackupStorage holds the default value on creation for the backup_storage field.
+	location.DefaultBackupStorage = locationDescBackupStorage.Default.(string)
+	// locationDescBackupStorageOk is the schema descriptor for backup_storage_ok field.
+	locationDescBackupStorageOk := locationFields[15].Descriptor()
+	// location.DefaultBackupStorageOk holds the default value on creation for the backup_storage_ok field.
+	location.DefaultBackupStorageOk = locationDescBackupStorageOk.Default.(bool)
+	// locationDescBackupWindowStart is the schema descriptor for backup_window_start field.
+	locationDescBackupWindowStart := locationFields[16].Descriptor()
+	// location.DefaultBackupWindowStart holds the default value on creation for the backup_window_start field.
+	location.DefaultBackupWindowStart = locationDescBackupWindowStart.Default.(int)
+	// locationDescBackupWindowEnd is the schema descriptor for backup_window_end field.
+	locationDescBackupWindowEnd := locationFields[17].Descriptor()
+	// location.DefaultBackupWindowEnd holds the default value on creation for the backup_window_end field.
+	location.DefaultBackupWindowEnd = locationDescBackupWindowEnd.Default.(int)
 	// locationDescCreatedAt is the schema descriptor for created_at field.
-	locationDescCreatedAt := locationFields[14].Descriptor()
+	locationDescCreatedAt := locationFields[18].Descriptor()
 	// location.DefaultCreatedAt holds the default value on creation for the created_at field.
 	location.DefaultCreatedAt = locationDescCreatedAt.Default.(func() time.Time)
 	// locationDescUpdatedAt is the schema descriptor for updated_at field.
-	locationDescUpdatedAt := locationFields[15].Descriptor()
+	locationDescUpdatedAt := locationFields[19].Descriptor()
 	// location.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	location.DefaultUpdatedAt = locationDescUpdatedAt.Default.(func() time.Time)
 	// location.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -274,8 +316,12 @@ func init() {
 	projectDescMaxVolumeGB := projectFields[8].Descriptor()
 	// project.DefaultMaxVolumeGB holds the default value on creation for the max_volume_gb field.
 	project.DefaultMaxVolumeGB = projectDescMaxVolumeGB.Default.(int)
+	// projectDescMaxBackups is the schema descriptor for max_backups field.
+	projectDescMaxBackups := projectFields[9].Descriptor()
+	// project.DefaultMaxBackups holds the default value on creation for the max_backups field.
+	project.DefaultMaxBackups = projectDescMaxBackups.Default.(int)
 	// projectDescCreatedAt is the schema descriptor for created_at field.
-	projectDescCreatedAt := projectFields[10].Descriptor()
+	projectDescCreatedAt := projectFields[11].Descriptor()
 	// project.DefaultCreatedAt holds the default value on creation for the created_at field.
 	project.DefaultCreatedAt = projectDescCreatedAt.Default.(func() time.Time)
 	projectmemberFields := schema.ProjectMember{}.Fields()
@@ -324,8 +370,20 @@ func init() {
 	serverDescFirewallGenApplied := serverFields[28].Descriptor()
 	// server.DefaultFirewallGenApplied holds the default value on creation for the firewall_gen_applied field.
 	server.DefaultFirewallGenApplied = serverDescFirewallGenApplied.Default.(int64)
+	// serverDescBackupsEnabled is the schema descriptor for backups_enabled field.
+	serverDescBackupsEnabled := serverFields[30].Descriptor()
+	// server.DefaultBackupsEnabled holds the default value on creation for the backups_enabled field.
+	server.DefaultBackupsEnabled = serverDescBackupsEnabled.Default.(bool)
+	// serverDescBackupKeep is the schema descriptor for backup_keep field.
+	serverDescBackupKeep := serverFields[31].Descriptor()
+	// server.DefaultBackupKeep holds the default value on creation for the backup_keep field.
+	server.DefaultBackupKeep = serverDescBackupKeep.Default.(int)
+	// serverDescBackupSlot is the schema descriptor for backup_slot field.
+	serverDescBackupSlot := serverFields[32].Descriptor()
+	// server.DefaultBackupSlot holds the default value on creation for the backup_slot field.
+	server.DefaultBackupSlot = serverDescBackupSlot.Default.(int)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[30].Descriptor()
+	serverDescCreatedAt := serverFields[34].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servertypeFields := schema.ServerType{}.Fields()

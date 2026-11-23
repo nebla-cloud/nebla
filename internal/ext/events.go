@@ -33,6 +33,10 @@ const (
 	VolumeResized     EventKind = "volume.resized"
 	VolumeDeleted     EventKind = "volume.deleted"
 	VolumeUsage       EventKind = "volume.usage"
+	BackupCreated     EventKind = "backup.created"
+	BackupDeleted     EventKind = "backup.deleted"
+	BackupRestored    EventKind = "backup.restored"
+	BackupUsage       EventKind = "backup.usage"
 	FloatingIPCreated EventKind = "floating_ip.created"
 	FloatingIPDeleted EventKind = "floating_ip.deleted"
 )

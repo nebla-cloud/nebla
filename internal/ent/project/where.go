@@ -95,6 +95,11 @@ func MaxVolumeGB(v int) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldMaxVolumeGB, v))
 }
 
+// MaxBackups applies equality check predicate on the "max_backups" field. It's identical to MaxBackupsEQ.
+func MaxBackups(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxBackups, v))
+}
+
 // CreatedBy applies equality check predicate on the "created_by" field. It's identical to CreatedByEQ.
 func CreatedBy(v int64) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldCreatedBy, v))
@@ -448,6 +453,46 @@ func MaxVolumeGBLT(v int) predicate.Project {
 // MaxVolumeGBLTE applies the LTE predicate on the "max_volume_gb" field.
 func MaxVolumeGBLTE(v int) predicate.Project {
 	return predicate.Project(sql.FieldLTE(FieldMaxVolumeGB, v))
+}
+
+// MaxBackupsEQ applies the EQ predicate on the "max_backups" field.
+func MaxBackupsEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMaxBackups, v))
+}
+
+// MaxBackupsNEQ applies the NEQ predicate on the "max_backups" field.
+func MaxBackupsNEQ(v int) predicate.Project {
+	return predicate.Project(sql.FieldNEQ(FieldMaxBackups, v))
+}
+
+// MaxBackupsIn applies the In predicate on the "max_backups" field.
+func MaxBackupsIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldIn(FieldMaxBackups, vs...))
+}
+
+// MaxBackupsNotIn applies the NotIn predicate on the "max_backups" field.
+func MaxBackupsNotIn(vs ...int) predicate.Project {
+	return predicate.Project(sql.FieldNotIn(FieldMaxBackups, vs...))
+}
+
+// MaxBackupsGT applies the GT predicate on the "max_backups" field.
+func MaxBackupsGT(v int) predicate.Project {
+	return predicate.Project(sql.FieldGT(FieldMaxBackups, v))
+}
+
+// MaxBackupsGTE applies the GTE predicate on the "max_backups" field.
+func MaxBackupsGTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldGTE(FieldMaxBackups, v))
+}
+
+// MaxBackupsLT applies the LT predicate on the "max_backups" field.
+func MaxBackupsLT(v int) predicate.Project {
+	return predicate.Project(sql.FieldLT(FieldMaxBackups, v))
+}
+
+// MaxBackupsLTE applies the LTE predicate on the "max_backups" field.
+func MaxBackupsLTE(v int) predicate.Project {
+	return predicate.Project(sql.FieldLTE(FieldMaxBackups, v))
 }
 
 // CreatedByEQ applies the EQ predicate on the "created_by" field.

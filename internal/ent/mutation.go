@@ -14,6 +14,8 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
+	"github.com/nebla-cloud/nebla/internal/ent/backuptombstone"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
@@ -54,6 +56,8 @@ const (
 	// Node types.
 	TypeAPIToken           = "APIToken"
 	TypeAction             = "Action"
+	TypeBackup             = "Backup"
+	TypeBackupTombstone    = "BackupTombstone"
 	TypeCatalogBuild       = "CatalogBuild"
 	TypeConsoleToken       = "ConsoleToken"
 	TypeFirewall           = "Firewall"
@@ -1929,6 +1933,1859 @@ func (m *ActionMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Action edge %s", name)
+}
+
+// BackupMutation represents an operation that mutates the Backup nodes in the graph.
+type BackupMutation struct {
+	config
+	op                     Op
+	typ                    string
+	id                     *int64
+	storage                *string
+	node                   *string
+	volid                  *string
+	kind                   *backup.Kind
+	status                 *backup.Status
+	instance_generation    *int
+	addinstance_generation *int
+	network_fingerprint    *string
+	size_bytes             *int64
+	addsize_bytes          *int64
+	created_at             *time.Time
+	completed_at           *time.Time
+	clearedFields          map[string]struct{}
+	project                *int64
+	clearedproject         bool
+	server                 *int64
+	clearedserver          bool
+	location               *int64
+	clearedlocation        bool
+	done                   bool
+	oldValue               func(context.Context) (*Backup, error)
+	predicates             []predicate.Backup
+}
+
+var _ ent.Mutation = (*BackupMutation)(nil)
+
+// backupOption allows management of the mutation configuration using functional options.
+type backupOption func(*BackupMutation)
+
+// newBackupMutation creates new mutation for the Backup entity.
+func newBackupMutation(c config, op Op, opts ...backupOption) *BackupMutation {
+	m := &BackupMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeBackup,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withBackupID sets the ID field of the mutation.
+func withBackupID(id int64) backupOption {
+	return func(m *BackupMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Backup
+		)
+		m.oldValue = func(ctx context.Context) (*Backup, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Backup.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withBackup sets the old Backup of the mutation.
+func withBackup(node *Backup) backupOption {
+	return func(m *BackupMutation) {
+		m.oldValue = func(context.Context) (*Backup, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m BackupMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m BackupMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Backup entities.
+func (m *BackupMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *BackupMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *BackupMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Backup.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProjectID sets the "project_id" field.
+func (m *BackupMutation) SetProjectID(i int64) {
+	m.project = &i
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *BackupMutation) ProjectID() (r int64, exists bool) {
+	v := m.project
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldProjectID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *BackupMutation) ResetProjectID() {
+	m.project = nil
+}
+
+// SetServerID sets the "server_id" field.
+func (m *BackupMutation) SetServerID(i int64) {
+	m.server = &i
+}
+
+// ServerID returns the value of the "server_id" field in the mutation.
+func (m *BackupMutation) ServerID() (r int64, exists bool) {
+	v := m.server
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServerID returns the old "server_id" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldServerID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServerID: %w", err)
+	}
+	return oldValue.ServerID, nil
+}
+
+// ResetServerID resets all changes to the "server_id" field.
+func (m *BackupMutation) ResetServerID() {
+	m.server = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *BackupMutation) SetLocationID(i int64) {
+	m.location = &i
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *BackupMutation) LocationID() (r int64, exists bool) {
+	v := m.location
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *BackupMutation) ResetLocationID() {
+	m.location = nil
+}
+
+// SetStorage sets the "storage" field.
+func (m *BackupMutation) SetStorage(s string) {
+	m.storage = &s
+}
+
+// Storage returns the value of the "storage" field in the mutation.
+func (m *BackupMutation) Storage() (r string, exists bool) {
+	v := m.storage
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStorage returns the old "storage" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldStorage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStorage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStorage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStorage: %w", err)
+	}
+	return oldValue.Storage, nil
+}
+
+// ResetStorage resets all changes to the "storage" field.
+func (m *BackupMutation) ResetStorage() {
+	m.storage = nil
+}
+
+// SetNode sets the "node" field.
+func (m *BackupMutation) SetNode(s string) {
+	m.node = &s
+}
+
+// Node returns the value of the "node" field in the mutation.
+func (m *BackupMutation) Node() (r string, exists bool) {
+	v := m.node
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNode returns the old "node" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldNode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNode: %w", err)
+	}
+	return oldValue.Node, nil
+}
+
+// ResetNode resets all changes to the "node" field.
+func (m *BackupMutation) ResetNode() {
+	m.node = nil
+}
+
+// SetVolid sets the "volid" field.
+func (m *BackupMutation) SetVolid(s string) {
+	m.volid = &s
+}
+
+// Volid returns the value of the "volid" field in the mutation.
+func (m *BackupMutation) Volid() (r string, exists bool) {
+	v := m.volid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVolid returns the old "volid" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldVolid(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVolid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVolid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVolid: %w", err)
+	}
+	return oldValue.Volid, nil
+}
+
+// ClearVolid clears the value of the "volid" field.
+func (m *BackupMutation) ClearVolid() {
+	m.volid = nil
+	m.clearedFields[backup.FieldVolid] = struct{}{}
+}
+
+// VolidCleared returns if the "volid" field was cleared in this mutation.
+func (m *BackupMutation) VolidCleared() bool {
+	_, ok := m.clearedFields[backup.FieldVolid]
+	return ok
+}
+
+// ResetVolid resets all changes to the "volid" field.
+func (m *BackupMutation) ResetVolid() {
+	m.volid = nil
+	delete(m.clearedFields, backup.FieldVolid)
+}
+
+// SetKind sets the "kind" field.
+func (m *BackupMutation) SetKind(b backup.Kind) {
+	m.kind = &b
+}
+
+// Kind returns the value of the "kind" field in the mutation.
+func (m *BackupMutation) Kind() (r backup.Kind, exists bool) {
+	v := m.kind
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKind returns the old "kind" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldKind(ctx context.Context) (v backup.Kind, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKind is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKind requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKind: %w", err)
+	}
+	return oldValue.Kind, nil
+}
+
+// ResetKind resets all changes to the "kind" field.
+func (m *BackupMutation) ResetKind() {
+	m.kind = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *BackupMutation) SetStatus(b backup.Status) {
+	m.status = &b
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *BackupMutation) Status() (r backup.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldStatus(ctx context.Context) (v backup.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *BackupMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetInstanceGeneration sets the "instance_generation" field.
+func (m *BackupMutation) SetInstanceGeneration(i int) {
+	m.instance_generation = &i
+	m.addinstance_generation = nil
+}
+
+// InstanceGeneration returns the value of the "instance_generation" field in the mutation.
+func (m *BackupMutation) InstanceGeneration() (r int, exists bool) {
+	v := m.instance_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInstanceGeneration returns the old "instance_generation" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldInstanceGeneration(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInstanceGeneration is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInstanceGeneration requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInstanceGeneration: %w", err)
+	}
+	return oldValue.InstanceGeneration, nil
+}
+
+// AddInstanceGeneration adds i to the "instance_generation" field.
+func (m *BackupMutation) AddInstanceGeneration(i int) {
+	if m.addinstance_generation != nil {
+		*m.addinstance_generation += i
+	} else {
+		m.addinstance_generation = &i
+	}
+}
+
+// AddedInstanceGeneration returns the value that was added to the "instance_generation" field in this mutation.
+func (m *BackupMutation) AddedInstanceGeneration() (r int, exists bool) {
+	v := m.addinstance_generation
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInstanceGeneration resets all changes to the "instance_generation" field.
+func (m *BackupMutation) ResetInstanceGeneration() {
+	m.instance_generation = nil
+	m.addinstance_generation = nil
+}
+
+// SetNetworkFingerprint sets the "network_fingerprint" field.
+func (m *BackupMutation) SetNetworkFingerprint(s string) {
+	m.network_fingerprint = &s
+}
+
+// NetworkFingerprint returns the value of the "network_fingerprint" field in the mutation.
+func (m *BackupMutation) NetworkFingerprint() (r string, exists bool) {
+	v := m.network_fingerprint
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNetworkFingerprint returns the old "network_fingerprint" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldNetworkFingerprint(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNetworkFingerprint is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNetworkFingerprint requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNetworkFingerprint: %w", err)
+	}
+	return oldValue.NetworkFingerprint, nil
+}
+
+// ResetNetworkFingerprint resets all changes to the "network_fingerprint" field.
+func (m *BackupMutation) ResetNetworkFingerprint() {
+	m.network_fingerprint = nil
+}
+
+// SetSizeBytes sets the "size_bytes" field.
+func (m *BackupMutation) SetSizeBytes(i int64) {
+	m.size_bytes = &i
+	m.addsize_bytes = nil
+}
+
+// SizeBytes returns the value of the "size_bytes" field in the mutation.
+func (m *BackupMutation) SizeBytes() (r int64, exists bool) {
+	v := m.size_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSizeBytes returns the old "size_bytes" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldSizeBytes(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSizeBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSizeBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSizeBytes: %w", err)
+	}
+	return oldValue.SizeBytes, nil
+}
+
+// AddSizeBytes adds i to the "size_bytes" field.
+func (m *BackupMutation) AddSizeBytes(i int64) {
+	if m.addsize_bytes != nil {
+		*m.addsize_bytes += i
+	} else {
+		m.addsize_bytes = &i
+	}
+}
+
+// AddedSizeBytes returns the value that was added to the "size_bytes" field in this mutation.
+func (m *BackupMutation) AddedSizeBytes() (r int64, exists bool) {
+	v := m.addsize_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSizeBytes resets all changes to the "size_bytes" field.
+func (m *BackupMutation) ResetSizeBytes() {
+	m.size_bytes = nil
+	m.addsize_bytes = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *BackupMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *BackupMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *BackupMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetCompletedAt sets the "completed_at" field.
+func (m *BackupMutation) SetCompletedAt(t time.Time) {
+	m.completed_at = &t
+}
+
+// CompletedAt returns the value of the "completed_at" field in the mutation.
+func (m *BackupMutation) CompletedAt() (r time.Time, exists bool) {
+	v := m.completed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompletedAt returns the old "completed_at" field's value of the Backup entity.
+// If the Backup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupMutation) OldCompletedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompletedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompletedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompletedAt: %w", err)
+	}
+	return oldValue.CompletedAt, nil
+}
+
+// ClearCompletedAt clears the value of the "completed_at" field.
+func (m *BackupMutation) ClearCompletedAt() {
+	m.completed_at = nil
+	m.clearedFields[backup.FieldCompletedAt] = struct{}{}
+}
+
+// CompletedAtCleared returns if the "completed_at" field was cleared in this mutation.
+func (m *BackupMutation) CompletedAtCleared() bool {
+	_, ok := m.clearedFields[backup.FieldCompletedAt]
+	return ok
+}
+
+// ResetCompletedAt resets all changes to the "completed_at" field.
+func (m *BackupMutation) ResetCompletedAt() {
+	m.completed_at = nil
+	delete(m.clearedFields, backup.FieldCompletedAt)
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (m *BackupMutation) ClearProject() {
+	m.clearedproject = true
+	m.clearedFields[backup.FieldProjectID] = struct{}{}
+}
+
+// ProjectCleared reports if the "project" edge to the Project entity was cleared.
+func (m *BackupMutation) ProjectCleared() bool {
+	return m.clearedproject
+}
+
+// ProjectIDs returns the "project" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ProjectID instead. It exists only for internal usage by the builders.
+func (m *BackupMutation) ProjectIDs() (ids []int64) {
+	if id := m.project; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetProject resets all changes to the "project" edge.
+func (m *BackupMutation) ResetProject() {
+	m.project = nil
+	m.clearedproject = false
+}
+
+// ClearServer clears the "server" edge to the Server entity.
+func (m *BackupMutation) ClearServer() {
+	m.clearedserver = true
+	m.clearedFields[backup.FieldServerID] = struct{}{}
+}
+
+// ServerCleared reports if the "server" edge to the Server entity was cleared.
+func (m *BackupMutation) ServerCleared() bool {
+	return m.clearedserver
+}
+
+// ServerIDs returns the "server" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ServerID instead. It exists only for internal usage by the builders.
+func (m *BackupMutation) ServerIDs() (ids []int64) {
+	if id := m.server; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetServer resets all changes to the "server" edge.
+func (m *BackupMutation) ResetServer() {
+	m.server = nil
+	m.clearedserver = false
+}
+
+// ClearLocation clears the "location" edge to the Location entity.
+func (m *BackupMutation) ClearLocation() {
+	m.clearedlocation = true
+	m.clearedFields[backup.FieldLocationID] = struct{}{}
+}
+
+// LocationCleared reports if the "location" edge to the Location entity was cleared.
+func (m *BackupMutation) LocationCleared() bool {
+	return m.clearedlocation
+}
+
+// LocationIDs returns the "location" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// LocationID instead. It exists only for internal usage by the builders.
+func (m *BackupMutation) LocationIDs() (ids []int64) {
+	if id := m.location; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetLocation resets all changes to the "location" edge.
+func (m *BackupMutation) ResetLocation() {
+	m.location = nil
+	m.clearedlocation = false
+}
+
+// Where appends a list predicates to the BackupMutation builder.
+func (m *BackupMutation) Where(ps ...predicate.Backup) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the BackupMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *BackupMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Backup, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *BackupMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *BackupMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Backup).
+func (m *BackupMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *BackupMutation) Fields() []string {
+	fields := make([]string, 0, 13)
+	if m.project != nil {
+		fields = append(fields, backup.FieldProjectID)
+	}
+	if m.server != nil {
+		fields = append(fields, backup.FieldServerID)
+	}
+	if m.location != nil {
+		fields = append(fields, backup.FieldLocationID)
+	}
+	if m.storage != nil {
+		fields = append(fields, backup.FieldStorage)
+	}
+	if m.node != nil {
+		fields = append(fields, backup.FieldNode)
+	}
+	if m.volid != nil {
+		fields = append(fields, backup.FieldVolid)
+	}
+	if m.kind != nil {
+		fields = append(fields, backup.FieldKind)
+	}
+	if m.status != nil {
+		fields = append(fields, backup.FieldStatus)
+	}
+	if m.instance_generation != nil {
+		fields = append(fields, backup.FieldInstanceGeneration)
+	}
+	if m.network_fingerprint != nil {
+		fields = append(fields, backup.FieldNetworkFingerprint)
+	}
+	if m.size_bytes != nil {
+		fields = append(fields, backup.FieldSizeBytes)
+	}
+	if m.created_at != nil {
+		fields = append(fields, backup.FieldCreatedAt)
+	}
+	if m.completed_at != nil {
+		fields = append(fields, backup.FieldCompletedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *BackupMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case backup.FieldProjectID:
+		return m.ProjectID()
+	case backup.FieldServerID:
+		return m.ServerID()
+	case backup.FieldLocationID:
+		return m.LocationID()
+	case backup.FieldStorage:
+		return m.Storage()
+	case backup.FieldNode:
+		return m.Node()
+	case backup.FieldVolid:
+		return m.Volid()
+	case backup.FieldKind:
+		return m.Kind()
+	case backup.FieldStatus:
+		return m.Status()
+	case backup.FieldInstanceGeneration:
+		return m.InstanceGeneration()
+	case backup.FieldNetworkFingerprint:
+		return m.NetworkFingerprint()
+	case backup.FieldSizeBytes:
+		return m.SizeBytes()
+	case backup.FieldCreatedAt:
+		return m.CreatedAt()
+	case backup.FieldCompletedAt:
+		return m.CompletedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *BackupMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case backup.FieldProjectID:
+		return m.OldProjectID(ctx)
+	case backup.FieldServerID:
+		return m.OldServerID(ctx)
+	case backup.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case backup.FieldStorage:
+		return m.OldStorage(ctx)
+	case backup.FieldNode:
+		return m.OldNode(ctx)
+	case backup.FieldVolid:
+		return m.OldVolid(ctx)
+	case backup.FieldKind:
+		return m.OldKind(ctx)
+	case backup.FieldStatus:
+		return m.OldStatus(ctx)
+	case backup.FieldInstanceGeneration:
+		return m.OldInstanceGeneration(ctx)
+	case backup.FieldNetworkFingerprint:
+		return m.OldNetworkFingerprint(ctx)
+	case backup.FieldSizeBytes:
+		return m.OldSizeBytes(ctx)
+	case backup.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case backup.FieldCompletedAt:
+		return m.OldCompletedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown Backup field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BackupMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case backup.FieldProjectID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
+		return nil
+	case backup.FieldServerID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServerID(v)
+		return nil
+	case backup.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case backup.FieldStorage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStorage(v)
+		return nil
+	case backup.FieldNode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNode(v)
+		return nil
+	case backup.FieldVolid:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVolid(v)
+		return nil
+	case backup.FieldKind:
+		v, ok := value.(backup.Kind)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetKind(v)
+		return nil
+	case backup.FieldStatus:
+		v, ok := value.(backup.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case backup.FieldInstanceGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInstanceGeneration(v)
+		return nil
+	case backup.FieldNetworkFingerprint:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNetworkFingerprint(v)
+		return nil
+	case backup.FieldSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSizeBytes(v)
+		return nil
+	case backup.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case backup.FieldCompletedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompletedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Backup field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *BackupMutation) AddedFields() []string {
+	var fields []string
+	if m.addinstance_generation != nil {
+		fields = append(fields, backup.FieldInstanceGeneration)
+	}
+	if m.addsize_bytes != nil {
+		fields = append(fields, backup.FieldSizeBytes)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *BackupMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case backup.FieldInstanceGeneration:
+		return m.AddedInstanceGeneration()
+	case backup.FieldSizeBytes:
+		return m.AddedSizeBytes()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BackupMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case backup.FieldInstanceGeneration:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInstanceGeneration(v)
+		return nil
+	case backup.FieldSizeBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSizeBytes(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Backup numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *BackupMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(backup.FieldVolid) {
+		fields = append(fields, backup.FieldVolid)
+	}
+	if m.FieldCleared(backup.FieldCompletedAt) {
+		fields = append(fields, backup.FieldCompletedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *BackupMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *BackupMutation) ClearField(name string) error {
+	switch name {
+	case backup.FieldVolid:
+		m.ClearVolid()
+		return nil
+	case backup.FieldCompletedAt:
+		m.ClearCompletedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Backup nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *BackupMutation) ResetField(name string) error {
+	switch name {
+	case backup.FieldProjectID:
+		m.ResetProjectID()
+		return nil
+	case backup.FieldServerID:
+		m.ResetServerID()
+		return nil
+	case backup.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case backup.FieldStorage:
+		m.ResetStorage()
+		return nil
+	case backup.FieldNode:
+		m.ResetNode()
+		return nil
+	case backup.FieldVolid:
+		m.ResetVolid()
+		return nil
+	case backup.FieldKind:
+		m.ResetKind()
+		return nil
+	case backup.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case backup.FieldInstanceGeneration:
+		m.ResetInstanceGeneration()
+		return nil
+	case backup.FieldNetworkFingerprint:
+		m.ResetNetworkFingerprint()
+		return nil
+	case backup.FieldSizeBytes:
+		m.ResetSizeBytes()
+		return nil
+	case backup.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case backup.FieldCompletedAt:
+		m.ResetCompletedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown Backup field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *BackupMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.project != nil {
+		edges = append(edges, backup.EdgeProject)
+	}
+	if m.server != nil {
+		edges = append(edges, backup.EdgeServer)
+	}
+	if m.location != nil {
+		edges = append(edges, backup.EdgeLocation)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *BackupMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case backup.EdgeProject:
+		if id := m.project; id != nil {
+			return []ent.Value{*id}
+		}
+	case backup.EdgeServer:
+		if id := m.server; id != nil {
+			return []ent.Value{*id}
+		}
+	case backup.EdgeLocation:
+		if id := m.location; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *BackupMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *BackupMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *BackupMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedproject {
+		edges = append(edges, backup.EdgeProject)
+	}
+	if m.clearedserver {
+		edges = append(edges, backup.EdgeServer)
+	}
+	if m.clearedlocation {
+		edges = append(edges, backup.EdgeLocation)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *BackupMutation) EdgeCleared(name string) bool {
+	switch name {
+	case backup.EdgeProject:
+		return m.clearedproject
+	case backup.EdgeServer:
+		return m.clearedserver
+	case backup.EdgeLocation:
+		return m.clearedlocation
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *BackupMutation) ClearEdge(name string) error {
+	switch name {
+	case backup.EdgeProject:
+		m.ClearProject()
+		return nil
+	case backup.EdgeServer:
+		m.ClearServer()
+		return nil
+	case backup.EdgeLocation:
+		m.ClearLocation()
+		return nil
+	}
+	return fmt.Errorf("unknown Backup unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *BackupMutation) ResetEdge(name string) error {
+	switch name {
+	case backup.EdgeProject:
+		m.ResetProject()
+		return nil
+	case backup.EdgeServer:
+		m.ResetServer()
+		return nil
+	case backup.EdgeLocation:
+		m.ResetLocation()
+		return nil
+	}
+	return fmt.Errorf("unknown Backup edge %s", name)
+}
+
+// BackupTombstoneMutation represents an operation that mutates the BackupTombstone nodes in the graph.
+type BackupTombstoneMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int64
+	volid          *string
+	storage        *string
+	location_id    *int64
+	addlocation_id *int64
+	created_at     *time.Time
+	attempts       *int
+	addattempts    *int
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*BackupTombstone, error)
+	predicates     []predicate.BackupTombstone
+}
+
+var _ ent.Mutation = (*BackupTombstoneMutation)(nil)
+
+// backuptombstoneOption allows management of the mutation configuration using functional options.
+type backuptombstoneOption func(*BackupTombstoneMutation)
+
+// newBackupTombstoneMutation creates new mutation for the BackupTombstone entity.
+func newBackupTombstoneMutation(c config, op Op, opts ...backuptombstoneOption) *BackupTombstoneMutation {
+	m := &BackupTombstoneMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeBackupTombstone,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withBackupTombstoneID sets the ID field of the mutation.
+func withBackupTombstoneID(id int64) backuptombstoneOption {
+	return func(m *BackupTombstoneMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *BackupTombstone
+		)
+		m.oldValue = func(ctx context.Context) (*BackupTombstone, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().BackupTombstone.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withBackupTombstone sets the old BackupTombstone of the mutation.
+func withBackupTombstone(node *BackupTombstone) backuptombstoneOption {
+	return func(m *BackupTombstoneMutation) {
+		m.oldValue = func(context.Context) (*BackupTombstone, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m BackupTombstoneMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m BackupTombstoneMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of BackupTombstone entities.
+func (m *BackupTombstoneMutation) SetID(id int64) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *BackupTombstoneMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *BackupTombstoneMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().BackupTombstone.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetVolid sets the "volid" field.
+func (m *BackupTombstoneMutation) SetVolid(s string) {
+	m.volid = &s
+}
+
+// Volid returns the value of the "volid" field in the mutation.
+func (m *BackupTombstoneMutation) Volid() (r string, exists bool) {
+	v := m.volid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVolid returns the old "volid" field's value of the BackupTombstone entity.
+// If the BackupTombstone object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupTombstoneMutation) OldVolid(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVolid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVolid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVolid: %w", err)
+	}
+	return oldValue.Volid, nil
+}
+
+// ResetVolid resets all changes to the "volid" field.
+func (m *BackupTombstoneMutation) ResetVolid() {
+	m.volid = nil
+}
+
+// SetStorage sets the "storage" field.
+func (m *BackupTombstoneMutation) SetStorage(s string) {
+	m.storage = &s
+}
+
+// Storage returns the value of the "storage" field in the mutation.
+func (m *BackupTombstoneMutation) Storage() (r string, exists bool) {
+	v := m.storage
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStorage returns the old "storage" field's value of the BackupTombstone entity.
+// If the BackupTombstone object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupTombstoneMutation) OldStorage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStorage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStorage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStorage: %w", err)
+	}
+	return oldValue.Storage, nil
+}
+
+// ResetStorage resets all changes to the "storage" field.
+func (m *BackupTombstoneMutation) ResetStorage() {
+	m.storage = nil
+}
+
+// SetLocationID sets the "location_id" field.
+func (m *BackupTombstoneMutation) SetLocationID(i int64) {
+	m.location_id = &i
+	m.addlocation_id = nil
+}
+
+// LocationID returns the value of the "location_id" field in the mutation.
+func (m *BackupTombstoneMutation) LocationID() (r int64, exists bool) {
+	v := m.location_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLocationID returns the old "location_id" field's value of the BackupTombstone entity.
+// If the BackupTombstone object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupTombstoneMutation) OldLocationID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLocationID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLocationID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLocationID: %w", err)
+	}
+	return oldValue.LocationID, nil
+}
+
+// AddLocationID adds i to the "location_id" field.
+func (m *BackupTombstoneMutation) AddLocationID(i int64) {
+	if m.addlocation_id != nil {
+		*m.addlocation_id += i
+	} else {
+		m.addlocation_id = &i
+	}
+}
+
+// AddedLocationID returns the value that was added to the "location_id" field in this mutation.
+func (m *BackupTombstoneMutation) AddedLocationID() (r int64, exists bool) {
+	v := m.addlocation_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetLocationID resets all changes to the "location_id" field.
+func (m *BackupTombstoneMutation) ResetLocationID() {
+	m.location_id = nil
+	m.addlocation_id = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *BackupTombstoneMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *BackupTombstoneMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the BackupTombstone entity.
+// If the BackupTombstone object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupTombstoneMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *BackupTombstoneMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetAttempts sets the "attempts" field.
+func (m *BackupTombstoneMutation) SetAttempts(i int) {
+	m.attempts = &i
+	m.addattempts = nil
+}
+
+// Attempts returns the value of the "attempts" field in the mutation.
+func (m *BackupTombstoneMutation) Attempts() (r int, exists bool) {
+	v := m.attempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAttempts returns the old "attempts" field's value of the BackupTombstone entity.
+// If the BackupTombstone object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BackupTombstoneMutation) OldAttempts(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAttempts is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAttempts requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAttempts: %w", err)
+	}
+	return oldValue.Attempts, nil
+}
+
+// AddAttempts adds i to the "attempts" field.
+func (m *BackupTombstoneMutation) AddAttempts(i int) {
+	if m.addattempts != nil {
+		*m.addattempts += i
+	} else {
+		m.addattempts = &i
+	}
+}
+
+// AddedAttempts returns the value that was added to the "attempts" field in this mutation.
+func (m *BackupTombstoneMutation) AddedAttempts() (r int, exists bool) {
+	v := m.addattempts
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAttempts resets all changes to the "attempts" field.
+func (m *BackupTombstoneMutation) ResetAttempts() {
+	m.attempts = nil
+	m.addattempts = nil
+}
+
+// Where appends a list predicates to the BackupTombstoneMutation builder.
+func (m *BackupTombstoneMutation) Where(ps ...predicate.BackupTombstone) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the BackupTombstoneMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *BackupTombstoneMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.BackupTombstone, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *BackupTombstoneMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *BackupTombstoneMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (BackupTombstone).
+func (m *BackupTombstoneMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *BackupTombstoneMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.volid != nil {
+		fields = append(fields, backuptombstone.FieldVolid)
+	}
+	if m.storage != nil {
+		fields = append(fields, backuptombstone.FieldStorage)
+	}
+	if m.location_id != nil {
+		fields = append(fields, backuptombstone.FieldLocationID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, backuptombstone.FieldCreatedAt)
+	}
+	if m.attempts != nil {
+		fields = append(fields, backuptombstone.FieldAttempts)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *BackupTombstoneMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case backuptombstone.FieldVolid:
+		return m.Volid()
+	case backuptombstone.FieldStorage:
+		return m.Storage()
+	case backuptombstone.FieldLocationID:
+		return m.LocationID()
+	case backuptombstone.FieldCreatedAt:
+		return m.CreatedAt()
+	case backuptombstone.FieldAttempts:
+		return m.Attempts()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *BackupTombstoneMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case backuptombstone.FieldVolid:
+		return m.OldVolid(ctx)
+	case backuptombstone.FieldStorage:
+		return m.OldStorage(ctx)
+	case backuptombstone.FieldLocationID:
+		return m.OldLocationID(ctx)
+	case backuptombstone.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case backuptombstone.FieldAttempts:
+		return m.OldAttempts(ctx)
+	}
+	return nil, fmt.Errorf("unknown BackupTombstone field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BackupTombstoneMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case backuptombstone.FieldVolid:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVolid(v)
+		return nil
+	case backuptombstone.FieldStorage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStorage(v)
+		return nil
+	case backuptombstone.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLocationID(v)
+		return nil
+	case backuptombstone.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case backuptombstone.FieldAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAttempts(v)
+		return nil
+	}
+	return fmt.Errorf("unknown BackupTombstone field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *BackupTombstoneMutation) AddedFields() []string {
+	var fields []string
+	if m.addlocation_id != nil {
+		fields = append(fields, backuptombstone.FieldLocationID)
+	}
+	if m.addattempts != nil {
+		fields = append(fields, backuptombstone.FieldAttempts)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *BackupTombstoneMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case backuptombstone.FieldLocationID:
+		return m.AddedLocationID()
+	case backuptombstone.FieldAttempts:
+		return m.AddedAttempts()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BackupTombstoneMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case backuptombstone.FieldLocationID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLocationID(v)
+		return nil
+	case backuptombstone.FieldAttempts:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAttempts(v)
+		return nil
+	}
+	return fmt.Errorf("unknown BackupTombstone numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *BackupTombstoneMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *BackupTombstoneMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *BackupTombstoneMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown BackupTombstone nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *BackupTombstoneMutation) ResetField(name string) error {
+	switch name {
+	case backuptombstone.FieldVolid:
+		m.ResetVolid()
+		return nil
+	case backuptombstone.FieldStorage:
+		m.ResetStorage()
+		return nil
+	case backuptombstone.FieldLocationID:
+		m.ResetLocationID()
+		return nil
+	case backuptombstone.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case backuptombstone.FieldAttempts:
+		m.ResetAttempts()
+		return nil
+	}
+	return fmt.Errorf("unknown BackupTombstone field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *BackupTombstoneMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *BackupTombstoneMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *BackupTombstoneMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *BackupTombstoneMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *BackupTombstoneMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *BackupTombstoneMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *BackupTombstoneMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown BackupTombstone unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *BackupTombstoneMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown BackupTombstone edge %s", name)
 }
 
 // CatalogBuildMutation represents an operation that mutates the CatalogBuild nodes in the graph.
@@ -12515,6 +14372,12 @@ type LocationMutation struct {
 	firewall_enabled       *bool
 	volume_storage         *string
 	volume_storage_ok      *bool
+	backup_storage         *string
+	backup_storage_ok      *bool
+	backup_window_start    *int
+	addbackup_window_start *int
+	backup_window_end      *int
+	addbackup_window_end   *int
 	created_at             *time.Time
 	updated_at             *time.Time
 	clearedFields          map[string]struct{}
@@ -13120,6 +14983,190 @@ func (m *LocationMutation) ResetVolumeStorageOk() {
 	m.volume_storage_ok = nil
 }
 
+// SetBackupStorage sets the "backup_storage" field.
+func (m *LocationMutation) SetBackupStorage(s string) {
+	m.backup_storage = &s
+}
+
+// BackupStorage returns the value of the "backup_storage" field in the mutation.
+func (m *LocationMutation) BackupStorage() (r string, exists bool) {
+	v := m.backup_storage
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupStorage returns the old "backup_storage" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldBackupStorage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupStorage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupStorage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupStorage: %w", err)
+	}
+	return oldValue.BackupStorage, nil
+}
+
+// ResetBackupStorage resets all changes to the "backup_storage" field.
+func (m *LocationMutation) ResetBackupStorage() {
+	m.backup_storage = nil
+}
+
+// SetBackupStorageOk sets the "backup_storage_ok" field.
+func (m *LocationMutation) SetBackupStorageOk(b bool) {
+	m.backup_storage_ok = &b
+}
+
+// BackupStorageOk returns the value of the "backup_storage_ok" field in the mutation.
+func (m *LocationMutation) BackupStorageOk() (r bool, exists bool) {
+	v := m.backup_storage_ok
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupStorageOk returns the old "backup_storage_ok" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldBackupStorageOk(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupStorageOk is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupStorageOk requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupStorageOk: %w", err)
+	}
+	return oldValue.BackupStorageOk, nil
+}
+
+// ResetBackupStorageOk resets all changes to the "backup_storage_ok" field.
+func (m *LocationMutation) ResetBackupStorageOk() {
+	m.backup_storage_ok = nil
+}
+
+// SetBackupWindowStart sets the "backup_window_start" field.
+func (m *LocationMutation) SetBackupWindowStart(i int) {
+	m.backup_window_start = &i
+	m.addbackup_window_start = nil
+}
+
+// BackupWindowStart returns the value of the "backup_window_start" field in the mutation.
+func (m *LocationMutation) BackupWindowStart() (r int, exists bool) {
+	v := m.backup_window_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupWindowStart returns the old "backup_window_start" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldBackupWindowStart(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupWindowStart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupWindowStart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupWindowStart: %w", err)
+	}
+	return oldValue.BackupWindowStart, nil
+}
+
+// AddBackupWindowStart adds i to the "backup_window_start" field.
+func (m *LocationMutation) AddBackupWindowStart(i int) {
+	if m.addbackup_window_start != nil {
+		*m.addbackup_window_start += i
+	} else {
+		m.addbackup_window_start = &i
+	}
+}
+
+// AddedBackupWindowStart returns the value that was added to the "backup_window_start" field in this mutation.
+func (m *LocationMutation) AddedBackupWindowStart() (r int, exists bool) {
+	v := m.addbackup_window_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBackupWindowStart resets all changes to the "backup_window_start" field.
+func (m *LocationMutation) ResetBackupWindowStart() {
+	m.backup_window_start = nil
+	m.addbackup_window_start = nil
+}
+
+// SetBackupWindowEnd sets the "backup_window_end" field.
+func (m *LocationMutation) SetBackupWindowEnd(i int) {
+	m.backup_window_end = &i
+	m.addbackup_window_end = nil
+}
+
+// BackupWindowEnd returns the value of the "backup_window_end" field in the mutation.
+func (m *LocationMutation) BackupWindowEnd() (r int, exists bool) {
+	v := m.backup_window_end
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupWindowEnd returns the old "backup_window_end" field's value of the Location entity.
+// If the Location object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *LocationMutation) OldBackupWindowEnd(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupWindowEnd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupWindowEnd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupWindowEnd: %w", err)
+	}
+	return oldValue.BackupWindowEnd, nil
+}
+
+// AddBackupWindowEnd adds i to the "backup_window_end" field.
+func (m *LocationMutation) AddBackupWindowEnd(i int) {
+	if m.addbackup_window_end != nil {
+		*m.addbackup_window_end += i
+	} else {
+		m.addbackup_window_end = &i
+	}
+}
+
+// AddedBackupWindowEnd returns the value that was added to the "backup_window_end" field in this mutation.
+func (m *LocationMutation) AddedBackupWindowEnd() (r int, exists bool) {
+	v := m.addbackup_window_end
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBackupWindowEnd resets all changes to the "backup_window_end" field.
+func (m *LocationMutation) ResetBackupWindowEnd() {
+	m.backup_window_end = nil
+	m.addbackup_window_end = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *LocationMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -13442,7 +15489,7 @@ func (m *LocationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *LocationMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 19)
 	if m.name != nil {
 		fields = append(fields, location.FieldName)
 	}
@@ -13481,6 +15528,18 @@ func (m *LocationMutation) Fields() []string {
 	}
 	if m.volume_storage_ok != nil {
 		fields = append(fields, location.FieldVolumeStorageOk)
+	}
+	if m.backup_storage != nil {
+		fields = append(fields, location.FieldBackupStorage)
+	}
+	if m.backup_storage_ok != nil {
+		fields = append(fields, location.FieldBackupStorageOk)
+	}
+	if m.backup_window_start != nil {
+		fields = append(fields, location.FieldBackupWindowStart)
+	}
+	if m.backup_window_end != nil {
+		fields = append(fields, location.FieldBackupWindowEnd)
 	}
 	if m.created_at != nil {
 		fields = append(fields, location.FieldCreatedAt)
@@ -13522,6 +15581,14 @@ func (m *LocationMutation) Field(name string) (ent.Value, bool) {
 		return m.VolumeStorage()
 	case location.FieldVolumeStorageOk:
 		return m.VolumeStorageOk()
+	case location.FieldBackupStorage:
+		return m.BackupStorage()
+	case location.FieldBackupStorageOk:
+		return m.BackupStorageOk()
+	case location.FieldBackupWindowStart:
+		return m.BackupWindowStart()
+	case location.FieldBackupWindowEnd:
+		return m.BackupWindowEnd()
 	case location.FieldCreatedAt:
 		return m.CreatedAt()
 	case location.FieldUpdatedAt:
@@ -13561,6 +15628,14 @@ func (m *LocationMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldVolumeStorage(ctx)
 	case location.FieldVolumeStorageOk:
 		return m.OldVolumeStorageOk(ctx)
+	case location.FieldBackupStorage:
+		return m.OldBackupStorage(ctx)
+	case location.FieldBackupStorageOk:
+		return m.OldBackupStorageOk(ctx)
+	case location.FieldBackupWindowStart:
+		return m.OldBackupWindowStart(ctx)
+	case location.FieldBackupWindowEnd:
+		return m.OldBackupWindowEnd(ctx)
 	case location.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case location.FieldUpdatedAt:
@@ -13665,6 +15740,34 @@ func (m *LocationMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetVolumeStorageOk(v)
 		return nil
+	case location.FieldBackupStorage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupStorage(v)
+		return nil
+	case location.FieldBackupStorageOk:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupStorageOk(v)
+		return nil
+	case location.FieldBackupWindowStart:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupWindowStart(v)
+		return nil
+	case location.FieldBackupWindowEnd:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupWindowEnd(v)
+		return nil
 	case location.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -13686,13 +15789,26 @@ func (m *LocationMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *LocationMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addbackup_window_start != nil {
+		fields = append(fields, location.FieldBackupWindowStart)
+	}
+	if m.addbackup_window_end != nil {
+		fields = append(fields, location.FieldBackupWindowEnd)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *LocationMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case location.FieldBackupWindowStart:
+		return m.AddedBackupWindowStart()
+	case location.FieldBackupWindowEnd:
+		return m.AddedBackupWindowEnd()
+	}
 	return nil, false
 }
 
@@ -13701,6 +15817,20 @@ func (m *LocationMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *LocationMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case location.FieldBackupWindowStart:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBackupWindowStart(v)
+		return nil
+	case location.FieldBackupWindowEnd:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBackupWindowEnd(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Location numeric field %s", name)
 }
@@ -13775,6 +15905,18 @@ func (m *LocationMutation) ResetField(name string) error {
 		return nil
 	case location.FieldVolumeStorageOk:
 		m.ResetVolumeStorageOk()
+		return nil
+	case location.FieldBackupStorage:
+		m.ResetBackupStorage()
+		return nil
+	case location.FieldBackupStorageOk:
+		m.ResetBackupStorageOk()
+		return nil
+	case location.FieldBackupWindowStart:
+		m.ResetBackupWindowStart()
+		return nil
+	case location.FieldBackupWindowEnd:
+		m.ResetBackupWindowEnd()
 		return nil
 	case location.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -16132,6 +18274,8 @@ type ProjectMutation struct {
 	addmax_volumes   *int
 	max_volume_gb    *int
 	addmax_volume_gb *int
+	max_backups      *int
+	addmax_backups   *int
 	created_at       *time.Time
 	clearedFields    map[string]struct{}
 	creator          *int64
@@ -16676,6 +18820,62 @@ func (m *ProjectMutation) ResetMaxVolumeGB() {
 	m.addmax_volume_gb = nil
 }
 
+// SetMaxBackups sets the "max_backups" field.
+func (m *ProjectMutation) SetMaxBackups(i int) {
+	m.max_backups = &i
+	m.addmax_backups = nil
+}
+
+// MaxBackups returns the value of the "max_backups" field in the mutation.
+func (m *ProjectMutation) MaxBackups() (r int, exists bool) {
+	v := m.max_backups
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxBackups returns the old "max_backups" field's value of the Project entity.
+// If the Project object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProjectMutation) OldMaxBackups(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxBackups is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxBackups requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxBackups: %w", err)
+	}
+	return oldValue.MaxBackups, nil
+}
+
+// AddMaxBackups adds i to the "max_backups" field.
+func (m *ProjectMutation) AddMaxBackups(i int) {
+	if m.addmax_backups != nil {
+		*m.addmax_backups += i
+	} else {
+		m.addmax_backups = &i
+	}
+}
+
+// AddedMaxBackups returns the value that was added to the "max_backups" field in this mutation.
+func (m *ProjectMutation) AddedMaxBackups() (r int, exists bool) {
+	v := m.addmax_backups
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxBackups resets all changes to the "max_backups" field.
+func (m *ProjectMutation) ResetMaxBackups() {
+	m.max_backups = nil
+	m.addmax_backups = nil
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (m *ProjectMutation) SetCreatedBy(i int64) {
 	m.creator = &i
@@ -16889,7 +19089,7 @@ func (m *ProjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProjectMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.name != nil {
 		fields = append(fields, project.FieldName)
 	}
@@ -16913,6 +19113,9 @@ func (m *ProjectMutation) Fields() []string {
 	}
 	if m.max_volume_gb != nil {
 		fields = append(fields, project.FieldMaxVolumeGB)
+	}
+	if m.max_backups != nil {
+		fields = append(fields, project.FieldMaxBackups)
 	}
 	if m.creator != nil {
 		fields = append(fields, project.FieldCreatedBy)
@@ -16944,6 +19147,8 @@ func (m *ProjectMutation) Field(name string) (ent.Value, bool) {
 		return m.MaxVolumes()
 	case project.FieldMaxVolumeGB:
 		return m.MaxVolumeGB()
+	case project.FieldMaxBackups:
+		return m.MaxBackups()
 	case project.FieldCreatedBy:
 		return m.CreatedBy()
 	case project.FieldCreatedAt:
@@ -16973,6 +19178,8 @@ func (m *ProjectMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldMaxVolumes(ctx)
 	case project.FieldMaxVolumeGB:
 		return m.OldMaxVolumeGB(ctx)
+	case project.FieldMaxBackups:
+		return m.OldMaxBackups(ctx)
 	case project.FieldCreatedBy:
 		return m.OldCreatedBy(ctx)
 	case project.FieldCreatedAt:
@@ -17042,6 +19249,13 @@ func (m *ProjectMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetMaxVolumeGB(v)
 		return nil
+	case project.FieldMaxBackups:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxBackups(v)
+		return nil
 	case project.FieldCreatedBy:
 		v, ok := value.(int64)
 		if !ok {
@@ -17085,6 +19299,9 @@ func (m *ProjectMutation) AddedFields() []string {
 	if m.addmax_volume_gb != nil {
 		fields = append(fields, project.FieldMaxVolumeGB)
 	}
+	if m.addmax_backups != nil {
+		fields = append(fields, project.FieldMaxBackups)
+	}
 	return fields
 }
 
@@ -17107,6 +19324,8 @@ func (m *ProjectMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedMaxVolumes()
 	case project.FieldMaxVolumeGB:
 		return m.AddedMaxVolumeGB()
+	case project.FieldMaxBackups:
+		return m.AddedMaxBackups()
 	}
 	return nil, false
 }
@@ -17164,6 +19383,13 @@ func (m *ProjectMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddMaxVolumeGB(v)
+		return nil
+	case project.FieldMaxBackups:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxBackups(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Project numeric field %s", name)
@@ -17224,6 +19450,9 @@ func (m *ProjectMutation) ResetField(name string) error {
 		return nil
 	case project.FieldMaxVolumeGB:
 		m.ResetMaxVolumeGB()
+		return nil
+	case project.FieldMaxBackups:
+		m.ResetMaxBackups()
 		return nil
 	case project.FieldCreatedBy:
 		m.ResetCreatedBy()
@@ -18583,6 +20812,12 @@ type ServerMutation struct {
 	firewall_gen_applied    *int64
 	addfirewall_gen_applied *int64
 	firewall_lease_until    *time.Time
+	backups_enabled         *bool
+	backup_keep             *int
+	addbackup_keep          *int
+	backup_slot             *int
+	addbackup_slot          *int
+	backups_enabled_at      *time.Time
 	created_at              *time.Time
 	clearedFields           map[string]struct{}
 	project                 *int64
@@ -20107,6 +22342,203 @@ func (m *ServerMutation) ResetFirewallLeaseUntil() {
 	delete(m.clearedFields, server.FieldFirewallLeaseUntil)
 }
 
+// SetBackupsEnabled sets the "backups_enabled" field.
+func (m *ServerMutation) SetBackupsEnabled(b bool) {
+	m.backups_enabled = &b
+}
+
+// BackupsEnabled returns the value of the "backups_enabled" field in the mutation.
+func (m *ServerMutation) BackupsEnabled() (r bool, exists bool) {
+	v := m.backups_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupsEnabled returns the old "backups_enabled" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldBackupsEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupsEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupsEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupsEnabled: %w", err)
+	}
+	return oldValue.BackupsEnabled, nil
+}
+
+// ResetBackupsEnabled resets all changes to the "backups_enabled" field.
+func (m *ServerMutation) ResetBackupsEnabled() {
+	m.backups_enabled = nil
+}
+
+// SetBackupKeep sets the "backup_keep" field.
+func (m *ServerMutation) SetBackupKeep(i int) {
+	m.backup_keep = &i
+	m.addbackup_keep = nil
+}
+
+// BackupKeep returns the value of the "backup_keep" field in the mutation.
+func (m *ServerMutation) BackupKeep() (r int, exists bool) {
+	v := m.backup_keep
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupKeep returns the old "backup_keep" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldBackupKeep(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupKeep is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupKeep requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupKeep: %w", err)
+	}
+	return oldValue.BackupKeep, nil
+}
+
+// AddBackupKeep adds i to the "backup_keep" field.
+func (m *ServerMutation) AddBackupKeep(i int) {
+	if m.addbackup_keep != nil {
+		*m.addbackup_keep += i
+	} else {
+		m.addbackup_keep = &i
+	}
+}
+
+// AddedBackupKeep returns the value that was added to the "backup_keep" field in this mutation.
+func (m *ServerMutation) AddedBackupKeep() (r int, exists bool) {
+	v := m.addbackup_keep
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBackupKeep resets all changes to the "backup_keep" field.
+func (m *ServerMutation) ResetBackupKeep() {
+	m.backup_keep = nil
+	m.addbackup_keep = nil
+}
+
+// SetBackupSlot sets the "backup_slot" field.
+func (m *ServerMutation) SetBackupSlot(i int) {
+	m.backup_slot = &i
+	m.addbackup_slot = nil
+}
+
+// BackupSlot returns the value of the "backup_slot" field in the mutation.
+func (m *ServerMutation) BackupSlot() (r int, exists bool) {
+	v := m.backup_slot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupSlot returns the old "backup_slot" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldBackupSlot(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupSlot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupSlot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupSlot: %w", err)
+	}
+	return oldValue.BackupSlot, nil
+}
+
+// AddBackupSlot adds i to the "backup_slot" field.
+func (m *ServerMutation) AddBackupSlot(i int) {
+	if m.addbackup_slot != nil {
+		*m.addbackup_slot += i
+	} else {
+		m.addbackup_slot = &i
+	}
+}
+
+// AddedBackupSlot returns the value that was added to the "backup_slot" field in this mutation.
+func (m *ServerMutation) AddedBackupSlot() (r int, exists bool) {
+	v := m.addbackup_slot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBackupSlot resets all changes to the "backup_slot" field.
+func (m *ServerMutation) ResetBackupSlot() {
+	m.backup_slot = nil
+	m.addbackup_slot = nil
+}
+
+// SetBackupsEnabledAt sets the "backups_enabled_at" field.
+func (m *ServerMutation) SetBackupsEnabledAt(t time.Time) {
+	m.backups_enabled_at = &t
+}
+
+// BackupsEnabledAt returns the value of the "backups_enabled_at" field in the mutation.
+func (m *ServerMutation) BackupsEnabledAt() (r time.Time, exists bool) {
+	v := m.backups_enabled_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackupsEnabledAt returns the old "backups_enabled_at" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldBackupsEnabledAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackupsEnabledAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackupsEnabledAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackupsEnabledAt: %w", err)
+	}
+	return oldValue.BackupsEnabledAt, nil
+}
+
+// ClearBackupsEnabledAt clears the value of the "backups_enabled_at" field.
+func (m *ServerMutation) ClearBackupsEnabledAt() {
+	m.backups_enabled_at = nil
+	m.clearedFields[server.FieldBackupsEnabledAt] = struct{}{}
+}
+
+// BackupsEnabledAtCleared returns if the "backups_enabled_at" field was cleared in this mutation.
+func (m *ServerMutation) BackupsEnabledAtCleared() bool {
+	_, ok := m.clearedFields[server.FieldBackupsEnabledAt]
+	return ok
+}
+
+// ResetBackupsEnabledAt resets all changes to the "backups_enabled_at" field.
+func (m *ServerMutation) ResetBackupsEnabledAt() {
+	m.backups_enabled_at = nil
+	delete(m.clearedFields, server.FieldBackupsEnabledAt)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ServerMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -20285,7 +22717,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 30)
+	fields := make([]string, 0, 34)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -20373,6 +22805,18 @@ func (m *ServerMutation) Fields() []string {
 	if m.firewall_lease_until != nil {
 		fields = append(fields, server.FieldFirewallLeaseUntil)
 	}
+	if m.backups_enabled != nil {
+		fields = append(fields, server.FieldBackupsEnabled)
+	}
+	if m.backup_keep != nil {
+		fields = append(fields, server.FieldBackupKeep)
+	}
+	if m.backup_slot != nil {
+		fields = append(fields, server.FieldBackupSlot)
+	}
+	if m.backups_enabled_at != nil {
+		fields = append(fields, server.FieldBackupsEnabledAt)
+	}
 	if m.created_at != nil {
 		fields = append(fields, server.FieldCreatedAt)
 	}
@@ -20442,6 +22886,14 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.FirewallGenApplied()
 	case server.FieldFirewallLeaseUntil:
 		return m.FirewallLeaseUntil()
+	case server.FieldBackupsEnabled:
+		return m.BackupsEnabled()
+	case server.FieldBackupKeep:
+		return m.BackupKeep()
+	case server.FieldBackupSlot:
+		return m.BackupSlot()
+	case server.FieldBackupsEnabledAt:
+		return m.BackupsEnabledAt()
 	case server.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -20511,6 +22963,14 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldFirewallGenApplied(ctx)
 	case server.FieldFirewallLeaseUntil:
 		return m.OldFirewallLeaseUntil(ctx)
+	case server.FieldBackupsEnabled:
+		return m.OldBackupsEnabled(ctx)
+	case server.FieldBackupKeep:
+		return m.OldBackupKeep(ctx)
+	case server.FieldBackupSlot:
+		return m.OldBackupSlot(ctx)
+	case server.FieldBackupsEnabledAt:
+		return m.OldBackupsEnabledAt(ctx)
 	case server.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -20725,6 +23185,34 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetFirewallLeaseUntil(v)
 		return nil
+	case server.FieldBackupsEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupsEnabled(v)
+		return nil
+	case server.FieldBackupKeep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupKeep(v)
+		return nil
+	case server.FieldBackupSlot:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupSlot(v)
+		return nil
+	case server.FieldBackupsEnabledAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackupsEnabledAt(v)
+		return nil
 	case server.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -20776,6 +23264,12 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.addfirewall_gen_applied != nil {
 		fields = append(fields, server.FieldFirewallGenApplied)
 	}
+	if m.addbackup_keep != nil {
+		fields = append(fields, server.FieldBackupKeep)
+	}
+	if m.addbackup_slot != nil {
+		fields = append(fields, server.FieldBackupSlot)
+	}
 	return fields
 }
 
@@ -20808,6 +23302,10 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedFirewallGenDesired()
 	case server.FieldFirewallGenApplied:
 		return m.AddedFirewallGenApplied()
+	case server.FieldBackupKeep:
+		return m.AddedBackupKeep()
+	case server.FieldBackupSlot:
+		return m.AddedBackupSlot()
 	}
 	return nil, false
 }
@@ -20901,6 +23399,20 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddFirewallGenApplied(v)
 		return nil
+	case server.FieldBackupKeep:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBackupKeep(v)
+		return nil
+	case server.FieldBackupSlot:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBackupSlot(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Server numeric field %s", name)
 }
@@ -20932,6 +23444,9 @@ func (m *ServerMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(server.FieldFirewallLeaseUntil) {
 		fields = append(fields, server.FieldFirewallLeaseUntil)
+	}
+	if m.FieldCleared(server.FieldBackupsEnabledAt) {
+		fields = append(fields, server.FieldBackupsEnabledAt)
 	}
 	return fields
 }
@@ -20970,6 +23485,9 @@ func (m *ServerMutation) ClearField(name string) error {
 		return nil
 	case server.FieldFirewallLeaseUntil:
 		m.ClearFirewallLeaseUntil()
+		return nil
+	case server.FieldBackupsEnabledAt:
+		m.ClearBackupsEnabledAt()
 		return nil
 	}
 	return fmt.Errorf("unknown Server nullable field %s", name)
@@ -21065,6 +23583,18 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldFirewallLeaseUntil:
 		m.ResetFirewallLeaseUntil()
+		return nil
+	case server.FieldBackupsEnabled:
+		m.ResetBackupsEnabled()
+		return nil
+	case server.FieldBackupKeep:
+		m.ResetBackupKeep()
+		return nil
+	case server.FieldBackupSlot:
+		m.ResetBackupSlot()
+		return nil
+	case server.FieldBackupsEnabledAt:
+		m.ResetBackupsEnabledAt()
 		return nil
 	case server.FieldCreatedAt:
 		m.ResetCreatedAt()

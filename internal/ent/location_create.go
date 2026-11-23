@@ -160,6 +160,62 @@ func (_c *LocationCreate) SetNillableVolumeStorageOk(v *bool) *LocationCreate {
 	return _c
 }
 
+// SetBackupStorage sets the "backup_storage" field.
+func (_c *LocationCreate) SetBackupStorage(v string) *LocationCreate {
+	_c.mutation.SetBackupStorage(v)
+	return _c
+}
+
+// SetNillableBackupStorage sets the "backup_storage" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableBackupStorage(v *string) *LocationCreate {
+	if v != nil {
+		_c.SetBackupStorage(*v)
+	}
+	return _c
+}
+
+// SetBackupStorageOk sets the "backup_storage_ok" field.
+func (_c *LocationCreate) SetBackupStorageOk(v bool) *LocationCreate {
+	_c.mutation.SetBackupStorageOk(v)
+	return _c
+}
+
+// SetNillableBackupStorageOk sets the "backup_storage_ok" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableBackupStorageOk(v *bool) *LocationCreate {
+	if v != nil {
+		_c.SetBackupStorageOk(*v)
+	}
+	return _c
+}
+
+// SetBackupWindowStart sets the "backup_window_start" field.
+func (_c *LocationCreate) SetBackupWindowStart(v int) *LocationCreate {
+	_c.mutation.SetBackupWindowStart(v)
+	return _c
+}
+
+// SetNillableBackupWindowStart sets the "backup_window_start" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableBackupWindowStart(v *int) *LocationCreate {
+	if v != nil {
+		_c.SetBackupWindowStart(*v)
+	}
+	return _c
+}
+
+// SetBackupWindowEnd sets the "backup_window_end" field.
+func (_c *LocationCreate) SetBackupWindowEnd(v int) *LocationCreate {
+	_c.mutation.SetBackupWindowEnd(v)
+	return _c
+}
+
+// SetNillableBackupWindowEnd sets the "backup_window_end" field if the given value is not nil.
+func (_c *LocationCreate) SetNillableBackupWindowEnd(v *int) *LocationCreate {
+	if v != nil {
+		_c.SetBackupWindowEnd(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *LocationCreate) SetCreatedAt(v time.Time) *LocationCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -313,6 +369,22 @@ func (_c *LocationCreate) defaults() {
 		v := location.DefaultVolumeStorageOk
 		_c.mutation.SetVolumeStorageOk(v)
 	}
+	if _, ok := _c.mutation.BackupStorage(); !ok {
+		v := location.DefaultBackupStorage
+		_c.mutation.SetBackupStorage(v)
+	}
+	if _, ok := _c.mutation.BackupStorageOk(); !ok {
+		v := location.DefaultBackupStorageOk
+		_c.mutation.SetBackupStorageOk(v)
+	}
+	if _, ok := _c.mutation.BackupWindowStart(); !ok {
+		v := location.DefaultBackupWindowStart
+		_c.mutation.SetBackupWindowStart(v)
+	}
+	if _, ok := _c.mutation.BackupWindowEnd(); !ok {
+		v := location.DefaultBackupWindowEnd
+		_c.mutation.SetBackupWindowEnd(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := location.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -360,6 +432,18 @@ func (_c *LocationCreate) check() error {
 	}
 	if _, ok := _c.mutation.VolumeStorageOk(); !ok {
 		return &ValidationError{Name: "volume_storage_ok", err: errors.New(`ent: missing required field "Location.volume_storage_ok"`)}
+	}
+	if _, ok := _c.mutation.BackupStorage(); !ok {
+		return &ValidationError{Name: "backup_storage", err: errors.New(`ent: missing required field "Location.backup_storage"`)}
+	}
+	if _, ok := _c.mutation.BackupStorageOk(); !ok {
+		return &ValidationError{Name: "backup_storage_ok", err: errors.New(`ent: missing required field "Location.backup_storage_ok"`)}
+	}
+	if _, ok := _c.mutation.BackupWindowStart(); !ok {
+		return &ValidationError{Name: "backup_window_start", err: errors.New(`ent: missing required field "Location.backup_window_start"`)}
+	}
+	if _, ok := _c.mutation.BackupWindowEnd(); !ok {
+		return &ValidationError{Name: "backup_window_end", err: errors.New(`ent: missing required field "Location.backup_window_end"`)}
 	}
 	return nil
 }
@@ -445,6 +529,22 @@ func (_c *LocationCreate) createSpec() (*Location, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.VolumeStorageOk(); ok {
 		_spec.SetField(location.FieldVolumeStorageOk, field.TypeBool, value)
 		_node.VolumeStorageOk = value
+	}
+	if value, ok := _c.mutation.BackupStorage(); ok {
+		_spec.SetField(location.FieldBackupStorage, field.TypeString, value)
+		_node.BackupStorage = value
+	}
+	if value, ok := _c.mutation.BackupStorageOk(); ok {
+		_spec.SetField(location.FieldBackupStorageOk, field.TypeBool, value)
+		_node.BackupStorageOk = value
+	}
+	if value, ok := _c.mutation.BackupWindowStart(); ok {
+		_spec.SetField(location.FieldBackupWindowStart, field.TypeInt, value)
+		_node.BackupWindowStart = value
+	}
+	if value, ok := _c.mutation.BackupWindowEnd(); ok {
+		_spec.SetField(location.FieldBackupWindowEnd, field.TypeInt, value)
+		_node.BackupWindowEnd = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(location.FieldCreatedAt, field.TypeTime, value)
@@ -732,6 +832,66 @@ func (u *LocationUpsert) UpdateVolumeStorageOk() *LocationUpsert {
 	return u
 }
 
+// SetBackupStorage sets the "backup_storage" field.
+func (u *LocationUpsert) SetBackupStorage(v string) *LocationUpsert {
+	u.Set(location.FieldBackupStorage, v)
+	return u
+}
+
+// UpdateBackupStorage sets the "backup_storage" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateBackupStorage() *LocationUpsert {
+	u.SetExcluded(location.FieldBackupStorage)
+	return u
+}
+
+// SetBackupStorageOk sets the "backup_storage_ok" field.
+func (u *LocationUpsert) SetBackupStorageOk(v bool) *LocationUpsert {
+	u.Set(location.FieldBackupStorageOk, v)
+	return u
+}
+
+// UpdateBackupStorageOk sets the "backup_storage_ok" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateBackupStorageOk() *LocationUpsert {
+	u.SetExcluded(location.FieldBackupStorageOk)
+	return u
+}
+
+// SetBackupWindowStart sets the "backup_window_start" field.
+func (u *LocationUpsert) SetBackupWindowStart(v int) *LocationUpsert {
+	u.Set(location.FieldBackupWindowStart, v)
+	return u
+}
+
+// UpdateBackupWindowStart sets the "backup_window_start" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateBackupWindowStart() *LocationUpsert {
+	u.SetExcluded(location.FieldBackupWindowStart)
+	return u
+}
+
+// AddBackupWindowStart adds v to the "backup_window_start" field.
+func (u *LocationUpsert) AddBackupWindowStart(v int) *LocationUpsert {
+	u.Add(location.FieldBackupWindowStart, v)
+	return u
+}
+
+// SetBackupWindowEnd sets the "backup_window_end" field.
+func (u *LocationUpsert) SetBackupWindowEnd(v int) *LocationUpsert {
+	u.Set(location.FieldBackupWindowEnd, v)
+	return u
+}
+
+// UpdateBackupWindowEnd sets the "backup_window_end" field to the value that was provided on create.
+func (u *LocationUpsert) UpdateBackupWindowEnd() *LocationUpsert {
+	u.SetExcluded(location.FieldBackupWindowEnd)
+	return u
+}
+
+// AddBackupWindowEnd adds v to the "backup_window_end" field.
+func (u *LocationUpsert) AddBackupWindowEnd(v int) *LocationUpsert {
+	u.Add(location.FieldBackupWindowEnd, v)
+	return u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (u *LocationUpsert) SetUpdatedAt(v time.Time) *LocationUpsert {
 	u.Set(location.FieldUpdatedAt, v)
@@ -981,6 +1141,76 @@ func (u *LocationUpsertOne) SetVolumeStorageOk(v bool) *LocationUpsertOne {
 func (u *LocationUpsertOne) UpdateVolumeStorageOk() *LocationUpsertOne {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateVolumeStorageOk()
+	})
+}
+
+// SetBackupStorage sets the "backup_storage" field.
+func (u *LocationUpsertOne) SetBackupStorage(v string) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupStorage(v)
+	})
+}
+
+// UpdateBackupStorage sets the "backup_storage" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateBackupStorage() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupStorage()
+	})
+}
+
+// SetBackupStorageOk sets the "backup_storage_ok" field.
+func (u *LocationUpsertOne) SetBackupStorageOk(v bool) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupStorageOk(v)
+	})
+}
+
+// UpdateBackupStorageOk sets the "backup_storage_ok" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateBackupStorageOk() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupStorageOk()
+	})
+}
+
+// SetBackupWindowStart sets the "backup_window_start" field.
+func (u *LocationUpsertOne) SetBackupWindowStart(v int) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupWindowStart(v)
+	})
+}
+
+// AddBackupWindowStart adds v to the "backup_window_start" field.
+func (u *LocationUpsertOne) AddBackupWindowStart(v int) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.AddBackupWindowStart(v)
+	})
+}
+
+// UpdateBackupWindowStart sets the "backup_window_start" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateBackupWindowStart() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupWindowStart()
+	})
+}
+
+// SetBackupWindowEnd sets the "backup_window_end" field.
+func (u *LocationUpsertOne) SetBackupWindowEnd(v int) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupWindowEnd(v)
+	})
+}
+
+// AddBackupWindowEnd adds v to the "backup_window_end" field.
+func (u *LocationUpsertOne) AddBackupWindowEnd(v int) *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.AddBackupWindowEnd(v)
+	})
+}
+
+// UpdateBackupWindowEnd sets the "backup_window_end" field to the value that was provided on create.
+func (u *LocationUpsertOne) UpdateBackupWindowEnd() *LocationUpsertOne {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupWindowEnd()
 	})
 }
 
@@ -1401,6 +1631,76 @@ func (u *LocationUpsertBulk) SetVolumeStorageOk(v bool) *LocationUpsertBulk {
 func (u *LocationUpsertBulk) UpdateVolumeStorageOk() *LocationUpsertBulk {
 	return u.Update(func(s *LocationUpsert) {
 		s.UpdateVolumeStorageOk()
+	})
+}
+
+// SetBackupStorage sets the "backup_storage" field.
+func (u *LocationUpsertBulk) SetBackupStorage(v string) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupStorage(v)
+	})
+}
+
+// UpdateBackupStorage sets the "backup_storage" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateBackupStorage() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupStorage()
+	})
+}
+
+// SetBackupStorageOk sets the "backup_storage_ok" field.
+func (u *LocationUpsertBulk) SetBackupStorageOk(v bool) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupStorageOk(v)
+	})
+}
+
+// UpdateBackupStorageOk sets the "backup_storage_ok" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateBackupStorageOk() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupStorageOk()
+	})
+}
+
+// SetBackupWindowStart sets the "backup_window_start" field.
+func (u *LocationUpsertBulk) SetBackupWindowStart(v int) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupWindowStart(v)
+	})
+}
+
+// AddBackupWindowStart adds v to the "backup_window_start" field.
+func (u *LocationUpsertBulk) AddBackupWindowStart(v int) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.AddBackupWindowStart(v)
+	})
+}
+
+// UpdateBackupWindowStart sets the "backup_window_start" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateBackupWindowStart() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupWindowStart()
+	})
+}
+
+// SetBackupWindowEnd sets the "backup_window_end" field.
+func (u *LocationUpsertBulk) SetBackupWindowEnd(v int) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.SetBackupWindowEnd(v)
+	})
+}
+
+// AddBackupWindowEnd adds v to the "backup_window_end" field.
+func (u *LocationUpsertBulk) AddBackupWindowEnd(v int) *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.AddBackupWindowEnd(v)
+	})
+}
+
+// UpdateBackupWindowEnd sets the "backup_window_end" field to the value that was provided on create.
+func (u *LocationUpsertBulk) UpdateBackupWindowEnd() *LocationUpsertBulk {
+	return u.Update(func(s *LocationUpsert) {
+		s.UpdateBackupWindowEnd()
 	})
 }
 

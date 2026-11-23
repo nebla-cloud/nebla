@@ -518,6 +518,82 @@ func (_u *ServerUpdate) ClearFirewallLeaseUntil() *ServerUpdate {
 	return _u
 }
 
+// SetBackupsEnabled sets the "backups_enabled" field.
+func (_u *ServerUpdate) SetBackupsEnabled(v bool) *ServerUpdate {
+	_u.mutation.SetBackupsEnabled(v)
+	return _u
+}
+
+// SetNillableBackupsEnabled sets the "backups_enabled" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableBackupsEnabled(v *bool) *ServerUpdate {
+	if v != nil {
+		_u.SetBackupsEnabled(*v)
+	}
+	return _u
+}
+
+// SetBackupKeep sets the "backup_keep" field.
+func (_u *ServerUpdate) SetBackupKeep(v int) *ServerUpdate {
+	_u.mutation.ResetBackupKeep()
+	_u.mutation.SetBackupKeep(v)
+	return _u
+}
+
+// SetNillableBackupKeep sets the "backup_keep" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableBackupKeep(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetBackupKeep(*v)
+	}
+	return _u
+}
+
+// AddBackupKeep adds value to the "backup_keep" field.
+func (_u *ServerUpdate) AddBackupKeep(v int) *ServerUpdate {
+	_u.mutation.AddBackupKeep(v)
+	return _u
+}
+
+// SetBackupSlot sets the "backup_slot" field.
+func (_u *ServerUpdate) SetBackupSlot(v int) *ServerUpdate {
+	_u.mutation.ResetBackupSlot()
+	_u.mutation.SetBackupSlot(v)
+	return _u
+}
+
+// SetNillableBackupSlot sets the "backup_slot" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableBackupSlot(v *int) *ServerUpdate {
+	if v != nil {
+		_u.SetBackupSlot(*v)
+	}
+	return _u
+}
+
+// AddBackupSlot adds value to the "backup_slot" field.
+func (_u *ServerUpdate) AddBackupSlot(v int) *ServerUpdate {
+	_u.mutation.AddBackupSlot(v)
+	return _u
+}
+
+// SetBackupsEnabledAt sets the "backups_enabled_at" field.
+func (_u *ServerUpdate) SetBackupsEnabledAt(v time.Time) *ServerUpdate {
+	_u.mutation.SetBackupsEnabledAt(v)
+	return _u
+}
+
+// SetNillableBackupsEnabledAt sets the "backups_enabled_at" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableBackupsEnabledAt(v *time.Time) *ServerUpdate {
+	if v != nil {
+		_u.SetBackupsEnabledAt(*v)
+	}
+	return _u
+}
+
+// ClearBackupsEnabledAt clears the value of the "backups_enabled_at" field.
+func (_u *ServerUpdate) ClearBackupsEnabledAt() *ServerUpdate {
+	_u.mutation.ClearBackupsEnabledAt()
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdate) SetServerType(v *ServerType) *ServerUpdate {
 	return _u.SetServerTypeID(v.ID)
@@ -748,6 +824,27 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.FirewallLeaseUntilCleared() {
 		_spec.ClearField(server.FieldFirewallLeaseUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BackupsEnabled(); ok {
+		_spec.SetField(server.FieldBackupsEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BackupKeep(); ok {
+		_spec.SetField(server.FieldBackupKeep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupKeep(); ok {
+		_spec.AddField(server.FieldBackupKeep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BackupSlot(); ok {
+		_spec.SetField(server.FieldBackupSlot, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupSlot(); ok {
+		_spec.AddField(server.FieldBackupSlot, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BackupsEnabledAt(); ok {
+		_spec.SetField(server.FieldBackupsEnabledAt, field.TypeTime, value)
+	}
+	if _u.mutation.BackupsEnabledAtCleared() {
+		_spec.ClearField(server.FieldBackupsEnabledAt, field.TypeTime)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1315,6 +1412,82 @@ func (_u *ServerUpdateOne) ClearFirewallLeaseUntil() *ServerUpdateOne {
 	return _u
 }
 
+// SetBackupsEnabled sets the "backups_enabled" field.
+func (_u *ServerUpdateOne) SetBackupsEnabled(v bool) *ServerUpdateOne {
+	_u.mutation.SetBackupsEnabled(v)
+	return _u
+}
+
+// SetNillableBackupsEnabled sets the "backups_enabled" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableBackupsEnabled(v *bool) *ServerUpdateOne {
+	if v != nil {
+		_u.SetBackupsEnabled(*v)
+	}
+	return _u
+}
+
+// SetBackupKeep sets the "backup_keep" field.
+func (_u *ServerUpdateOne) SetBackupKeep(v int) *ServerUpdateOne {
+	_u.mutation.ResetBackupKeep()
+	_u.mutation.SetBackupKeep(v)
+	return _u
+}
+
+// SetNillableBackupKeep sets the "backup_keep" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableBackupKeep(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetBackupKeep(*v)
+	}
+	return _u
+}
+
+// AddBackupKeep adds value to the "backup_keep" field.
+func (_u *ServerUpdateOne) AddBackupKeep(v int) *ServerUpdateOne {
+	_u.mutation.AddBackupKeep(v)
+	return _u
+}
+
+// SetBackupSlot sets the "backup_slot" field.
+func (_u *ServerUpdateOne) SetBackupSlot(v int) *ServerUpdateOne {
+	_u.mutation.ResetBackupSlot()
+	_u.mutation.SetBackupSlot(v)
+	return _u
+}
+
+// SetNillableBackupSlot sets the "backup_slot" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableBackupSlot(v *int) *ServerUpdateOne {
+	if v != nil {
+		_u.SetBackupSlot(*v)
+	}
+	return _u
+}
+
+// AddBackupSlot adds value to the "backup_slot" field.
+func (_u *ServerUpdateOne) AddBackupSlot(v int) *ServerUpdateOne {
+	_u.mutation.AddBackupSlot(v)
+	return _u
+}
+
+// SetBackupsEnabledAt sets the "backups_enabled_at" field.
+func (_u *ServerUpdateOne) SetBackupsEnabledAt(v time.Time) *ServerUpdateOne {
+	_u.mutation.SetBackupsEnabledAt(v)
+	return _u
+}
+
+// SetNillableBackupsEnabledAt sets the "backups_enabled_at" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableBackupsEnabledAt(v *time.Time) *ServerUpdateOne {
+	if v != nil {
+		_u.SetBackupsEnabledAt(*v)
+	}
+	return _u
+}
+
+// ClearBackupsEnabledAt clears the value of the "backups_enabled_at" field.
+func (_u *ServerUpdateOne) ClearBackupsEnabledAt() *ServerUpdateOne {
+	_u.mutation.ClearBackupsEnabledAt()
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdateOne) SetServerType(v *ServerType) *ServerUpdateOne {
 	return _u.SetServerTypeID(v.ID)
@@ -1575,6 +1748,27 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if _u.mutation.FirewallLeaseUntilCleared() {
 		_spec.ClearField(server.FieldFirewallLeaseUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BackupsEnabled(); ok {
+		_spec.SetField(server.FieldBackupsEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BackupKeep(); ok {
+		_spec.SetField(server.FieldBackupKeep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupKeep(); ok {
+		_spec.AddField(server.FieldBackupKeep, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BackupSlot(); ok {
+		_spec.SetField(server.FieldBackupSlot, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedBackupSlot(); ok {
+		_spec.AddField(server.FieldBackupSlot, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BackupsEnabledAt(); ok {
+		_spec.SetField(server.FieldBackupsEnabledAt, field.TypeTime, value)
+	}
+	if _u.mutation.BackupsEnabledAtCleared() {
+		_spec.ClearField(server.FieldBackupsEnabledAt, field.TypeTime)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{

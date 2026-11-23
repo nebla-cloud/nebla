@@ -128,6 +128,20 @@ func (_c *ProjectCreate) SetNillableMaxVolumeGB(v *int) *ProjectCreate {
 	return _c
 }
 
+// SetMaxBackups sets the "max_backups" field.
+func (_c *ProjectCreate) SetMaxBackups(v int) *ProjectCreate {
+	_c.mutation.SetMaxBackups(v)
+	return _c
+}
+
+// SetNillableMaxBackups sets the "max_backups" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableMaxBackups(v *int) *ProjectCreate {
+	if v != nil {
+		_c.SetMaxBackups(*v)
+	}
+	return _c
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_c *ProjectCreate) SetCreatedBy(v int64) *ProjectCreate {
 	_c.mutation.SetCreatedBy(v)
@@ -259,6 +273,10 @@ func (_c *ProjectCreate) defaults() {
 		v := project.DefaultMaxVolumeGB
 		_c.mutation.SetMaxVolumeGB(v)
 	}
+	if _, ok := _c.mutation.MaxBackups(); !ok {
+		v := project.DefaultMaxBackups
+		_c.mutation.SetMaxBackups(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := project.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -290,6 +308,9 @@ func (_c *ProjectCreate) check() error {
 	}
 	if _, ok := _c.mutation.MaxVolumeGB(); !ok {
 		return &ValidationError{Name: "max_volume_gb", err: errors.New(`ent: missing required field "Project.max_volume_gb"`)}
+	}
+	if _, ok := _c.mutation.MaxBackups(); !ok {
+		return &ValidationError{Name: "max_backups", err: errors.New(`ent: missing required field "Project.max_backups"`)}
 	}
 	return nil
 }
@@ -355,6 +376,10 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MaxVolumeGB(); ok {
 		_spec.SetField(project.FieldMaxVolumeGB, field.TypeInt, value)
 		_node.MaxVolumeGB = value
+	}
+	if value, ok := _c.mutation.MaxBackups(); ok {
+		_spec.SetField(project.FieldMaxBackups, field.TypeInt, value)
+		_node.MaxBackups = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(project.FieldCreatedAt, field.TypeTime, value)
@@ -580,6 +605,24 @@ func (u *ProjectUpsert) UpdateMaxVolumeGB() *ProjectUpsert {
 // AddMaxVolumeGB adds v to the "max_volume_gb" field.
 func (u *ProjectUpsert) AddMaxVolumeGB(v int) *ProjectUpsert {
 	u.Add(project.FieldMaxVolumeGB, v)
+	return u
+}
+
+// SetMaxBackups sets the "max_backups" field.
+func (u *ProjectUpsert) SetMaxBackups(v int) *ProjectUpsert {
+	u.Set(project.FieldMaxBackups, v)
+	return u
+}
+
+// UpdateMaxBackups sets the "max_backups" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateMaxBackups() *ProjectUpsert {
+	u.SetExcluded(project.FieldMaxBackups)
+	return u
+}
+
+// AddMaxBackups adds v to the "max_backups" field.
+func (u *ProjectUpsert) AddMaxBackups(v int) *ProjectUpsert {
+	u.Add(project.FieldMaxBackups, v)
 	return u
 }
 
@@ -810,6 +853,27 @@ func (u *ProjectUpsertOne) AddMaxVolumeGB(v int) *ProjectUpsertOne {
 func (u *ProjectUpsertOne) UpdateMaxVolumeGB() *ProjectUpsertOne {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxVolumeGB()
+	})
+}
+
+// SetMaxBackups sets the "max_backups" field.
+func (u *ProjectUpsertOne) SetMaxBackups(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxBackups(v)
+	})
+}
+
+// AddMaxBackups adds v to the "max_backups" field.
+func (u *ProjectUpsertOne) AddMaxBackups(v int) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxBackups(v)
+	})
+}
+
+// UpdateMaxBackups sets the "max_backups" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateMaxBackups() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxBackups()
 	})
 }
 
@@ -1209,6 +1273,27 @@ func (u *ProjectUpsertBulk) AddMaxVolumeGB(v int) *ProjectUpsertBulk {
 func (u *ProjectUpsertBulk) UpdateMaxVolumeGB() *ProjectUpsertBulk {
 	return u.Update(func(s *ProjectUpsert) {
 		s.UpdateMaxVolumeGB()
+	})
+}
+
+// SetMaxBackups sets the "max_backups" field.
+func (u *ProjectUpsertBulk) SetMaxBackups(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetMaxBackups(v)
+	})
+}
+
+// AddMaxBackups adds v to the "max_backups" field.
+func (u *ProjectUpsertBulk) AddMaxBackups(v int) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.AddMaxBackups(v)
+	})
+}
+
+// UpdateMaxBackups sets the "max_backups" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateMaxBackups() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateMaxBackups()
 	})
 }
 

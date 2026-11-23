@@ -43,6 +43,14 @@ type Location struct {
 	VolumeStorage string `json:"volume_storage,omitempty"`
 	// VolumeStorageOk holds the value of the "volume_storage_ok" field.
 	VolumeStorageOk bool `json:"volume_storage_ok,omitempty"`
+	// BackupStorage holds the value of the "backup_storage" field.
+	BackupStorage string `json:"backup_storage,omitempty"`
+	// BackupStorageOk holds the value of the "backup_storage_ok" field.
+	BackupStorageOk bool `json:"backup_storage_ok,omitempty"`
+	// BackupWindowStart holds the value of the "backup_window_start" field.
+	BackupWindowStart int `json:"backup_window_start,omitempty"`
+	// BackupWindowEnd holds the value of the "backup_window_end" field.
+	BackupWindowEnd int `json:"backup_window_end,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -111,11 +119,11 @@ func (*Location) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case location.FieldTokenSecret:
 			values[i] = new([]byte)
-		case location.FieldInsecureTLS, location.FieldFirewallEnabled, location.FieldVolumeStorageOk:
+		case location.FieldInsecureTLS, location.FieldFirewallEnabled, location.FieldVolumeStorageOk, location.FieldBackupStorageOk:
 			values[i] = new(sql.NullBool)
-		case location.FieldID:
+		case location.FieldID, location.FieldBackupWindowStart, location.FieldBackupWindowEnd:
 			values[i] = new(sql.NullInt64)
-		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage, location.FieldVolumeStorage:
+		case location.FieldName, location.FieldDescription, location.FieldPveURL, location.FieldTokenID, location.FieldCaFingerprint, location.FieldDiskStorage, location.FieldIsoStorage, location.FieldImportStorage, location.FieldVolumeStorage, location.FieldBackupStorage:
 			values[i] = new(sql.NullString)
 		case location.FieldCreatedAt, location.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -218,6 +226,30 @@ func (_m *Location) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field volume_storage_ok", values[i])
 			} else if value.Valid {
 				_m.VolumeStorageOk = value.Bool
+			}
+		case location.FieldBackupStorage:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field backup_storage", values[i])
+			} else if value.Valid {
+				_m.BackupStorage = value.String
+			}
+		case location.FieldBackupStorageOk:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field backup_storage_ok", values[i])
+			} else if value.Valid {
+				_m.BackupStorageOk = value.Bool
+			}
+		case location.FieldBackupWindowStart:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field backup_window_start", values[i])
+			} else if value.Valid {
+				_m.BackupWindowStart = int(value.Int64)
+			}
+		case location.FieldBackupWindowEnd:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field backup_window_end", values[i])
+			} else if value.Valid {
+				_m.BackupWindowEnd = int(value.Int64)
 			}
 		case location.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -326,6 +358,18 @@ func (_m *Location) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("volume_storage_ok=")
 	builder.WriteString(fmt.Sprintf("%v", _m.VolumeStorageOk))
+	builder.WriteString(", ")
+	builder.WriteString("backup_storage=")
+	builder.WriteString(_m.BackupStorage)
+	builder.WriteString(", ")
+	builder.WriteString("backup_storage_ok=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BackupStorageOk))
+	builder.WriteString(", ")
+	builder.WriteString("backup_window_start=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BackupWindowStart))
+	builder.WriteString(", ")
+	builder.WriteString("backup_window_end=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BackupWindowEnd))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

@@ -120,6 +120,26 @@ func VolumeStorageOk(v bool) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldVolumeStorageOk, v))
 }
 
+// BackupStorage applies equality check predicate on the "backup_storage" field. It's identical to BackupStorageEQ.
+func BackupStorage(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupStorage, v))
+}
+
+// BackupStorageOk applies equality check predicate on the "backup_storage_ok" field. It's identical to BackupStorageOkEQ.
+func BackupStorageOk(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupStorageOk, v))
+}
+
+// BackupWindowStart applies equality check predicate on the "backup_window_start" field. It's identical to BackupWindowStartEQ.
+func BackupWindowStart(v int) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupWindowStart, v))
+}
+
+// BackupWindowEnd applies equality check predicate on the "backup_window_end" field. It's identical to BackupWindowEndEQ.
+func BackupWindowEnd(v int) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupWindowEnd, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Location {
 	return predicate.Location(sql.FieldEQ(FieldCreatedAt, v))
@@ -793,6 +813,161 @@ func VolumeStorageOkEQ(v bool) predicate.Location {
 // VolumeStorageOkNEQ applies the NEQ predicate on the "volume_storage_ok" field.
 func VolumeStorageOkNEQ(v bool) predicate.Location {
 	return predicate.Location(sql.FieldNEQ(FieldVolumeStorageOk, v))
+}
+
+// BackupStorageEQ applies the EQ predicate on the "backup_storage" field.
+func BackupStorageEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupStorage, v))
+}
+
+// BackupStorageNEQ applies the NEQ predicate on the "backup_storage" field.
+func BackupStorageNEQ(v string) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldBackupStorage, v))
+}
+
+// BackupStorageIn applies the In predicate on the "backup_storage" field.
+func BackupStorageIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldBackupStorage, vs...))
+}
+
+// BackupStorageNotIn applies the NotIn predicate on the "backup_storage" field.
+func BackupStorageNotIn(vs ...string) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldBackupStorage, vs...))
+}
+
+// BackupStorageGT applies the GT predicate on the "backup_storage" field.
+func BackupStorageGT(v string) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldBackupStorage, v))
+}
+
+// BackupStorageGTE applies the GTE predicate on the "backup_storage" field.
+func BackupStorageGTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldBackupStorage, v))
+}
+
+// BackupStorageLT applies the LT predicate on the "backup_storage" field.
+func BackupStorageLT(v string) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldBackupStorage, v))
+}
+
+// BackupStorageLTE applies the LTE predicate on the "backup_storage" field.
+func BackupStorageLTE(v string) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldBackupStorage, v))
+}
+
+// BackupStorageContains applies the Contains predicate on the "backup_storage" field.
+func BackupStorageContains(v string) predicate.Location {
+	return predicate.Location(sql.FieldContains(FieldBackupStorage, v))
+}
+
+// BackupStorageHasPrefix applies the HasPrefix predicate on the "backup_storage" field.
+func BackupStorageHasPrefix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasPrefix(FieldBackupStorage, v))
+}
+
+// BackupStorageHasSuffix applies the HasSuffix predicate on the "backup_storage" field.
+func BackupStorageHasSuffix(v string) predicate.Location {
+	return predicate.Location(sql.FieldHasSuffix(FieldBackupStorage, v))
+}
+
+// BackupStorageEqualFold applies the EqualFold predicate on the "backup_storage" field.
+func BackupStorageEqualFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldEqualFold(FieldBackupStorage, v))
+}
+
+// BackupStorageContainsFold applies the ContainsFold predicate on the "backup_storage" field.
+func BackupStorageContainsFold(v string) predicate.Location {
+	return predicate.Location(sql.FieldContainsFold(FieldBackupStorage, v))
+}
+
+// BackupStorageOkEQ applies the EQ predicate on the "backup_storage_ok" field.
+func BackupStorageOkEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupStorageOk, v))
+}
+
+// BackupStorageOkNEQ applies the NEQ predicate on the "backup_storage_ok" field.
+func BackupStorageOkNEQ(v bool) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldBackupStorageOk, v))
+}
+
+// BackupWindowStartEQ applies the EQ predicate on the "backup_window_start" field.
+func BackupWindowStartEQ(v int) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupWindowStart, v))
+}
+
+// BackupWindowStartNEQ applies the NEQ predicate on the "backup_window_start" field.
+func BackupWindowStartNEQ(v int) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldBackupWindowStart, v))
+}
+
+// BackupWindowStartIn applies the In predicate on the "backup_window_start" field.
+func BackupWindowStartIn(vs ...int) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldBackupWindowStart, vs...))
+}
+
+// BackupWindowStartNotIn applies the NotIn predicate on the "backup_window_start" field.
+func BackupWindowStartNotIn(vs ...int) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldBackupWindowStart, vs...))
+}
+
+// BackupWindowStartGT applies the GT predicate on the "backup_window_start" field.
+func BackupWindowStartGT(v int) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldBackupWindowStart, v))
+}
+
+// BackupWindowStartGTE applies the GTE predicate on the "backup_window_start" field.
+func BackupWindowStartGTE(v int) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldBackupWindowStart, v))
+}
+
+// BackupWindowStartLT applies the LT predicate on the "backup_window_start" field.
+func BackupWindowStartLT(v int) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldBackupWindowStart, v))
+}
+
+// BackupWindowStartLTE applies the LTE predicate on the "backup_window_start" field.
+func BackupWindowStartLTE(v int) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldBackupWindowStart, v))
+}
+
+// BackupWindowEndEQ applies the EQ predicate on the "backup_window_end" field.
+func BackupWindowEndEQ(v int) predicate.Location {
+	return predicate.Location(sql.FieldEQ(FieldBackupWindowEnd, v))
+}
+
+// BackupWindowEndNEQ applies the NEQ predicate on the "backup_window_end" field.
+func BackupWindowEndNEQ(v int) predicate.Location {
+	return predicate.Location(sql.FieldNEQ(FieldBackupWindowEnd, v))
+}
+
+// BackupWindowEndIn applies the In predicate on the "backup_window_end" field.
+func BackupWindowEndIn(vs ...int) predicate.Location {
+	return predicate.Location(sql.FieldIn(FieldBackupWindowEnd, vs...))
+}
+
+// BackupWindowEndNotIn applies the NotIn predicate on the "backup_window_end" field.
+func BackupWindowEndNotIn(vs ...int) predicate.Location {
+	return predicate.Location(sql.FieldNotIn(FieldBackupWindowEnd, vs...))
+}
+
+// BackupWindowEndGT applies the GT predicate on the "backup_window_end" field.
+func BackupWindowEndGT(v int) predicate.Location {
+	return predicate.Location(sql.FieldGT(FieldBackupWindowEnd, v))
+}
+
+// BackupWindowEndGTE applies the GTE predicate on the "backup_window_end" field.
+func BackupWindowEndGTE(v int) predicate.Location {
+	return predicate.Location(sql.FieldGTE(FieldBackupWindowEnd, v))
+}
+
+// BackupWindowEndLT applies the LT predicate on the "backup_window_end" field.
+func BackupWindowEndLT(v int) predicate.Location {
+	return predicate.Location(sql.FieldLT(FieldBackupWindowEnd, v))
+}
+
+// BackupWindowEndLTE applies the LTE predicate on the "backup_window_end" field.
+func BackupWindowEndLTE(v int) predicate.Location {
+	return predicate.Location(sql.FieldLTE(FieldBackupWindowEnd, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

@@ -12,6 +12,12 @@ type APIToken func(*sql.Selector)
 // Action is the predicate function for action builders.
 type Action func(*sql.Selector)
 
+// Backup is the predicate function for backup builders.
+type Backup func(*sql.Selector)
+
+// BackupTombstone is the predicate function for backuptombstone builders.
+type BackupTombstone func(*sql.Selector)
+
 // CatalogBuild is the predicate function for catalogbuild builders.
 type CatalogBuild func(*sql.Selector)
 

@@ -17,6 +17,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/apitoken"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
+	"github.com/nebla-cloud/nebla/internal/ent/backuptombstone"
 	"github.com/nebla-cloud/nebla/internal/ent/catalogbuild"
 	"github.com/nebla-cloud/nebla/internal/ent/consoletoken"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
@@ -55,6 +57,10 @@ type Client struct {
 	APIToken *APITokenClient
 	// Action is the client for interacting with the Action builders.
 	Action *ActionClient
+	// Backup is the client for interacting with the Backup builders.
+	Backup *BackupClient
+	// BackupTombstone is the client for interacting with the BackupTombstone builders.
+	BackupTombstone *BackupTombstoneClient
 	// CatalogBuild is the client for interacting with the CatalogBuild builders.
 	CatalogBuild *CatalogBuildClient
 	// ConsoleToken is the client for interacting with the ConsoleToken builders.
@@ -118,6 +124,8 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIToken = NewAPITokenClient(c.config)
 	c.Action = NewActionClient(c.config)
+	c.Backup = NewBackupClient(c.config)
+	c.BackupTombstone = NewBackupTombstoneClient(c.config)
 	c.CatalogBuild = NewCatalogBuildClient(c.config)
 	c.ConsoleToken = NewConsoleTokenClient(c.config)
 	c.Firewall = NewFirewallClient(c.config)
@@ -237,6 +245,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:             cfg,
 		APIToken:           NewAPITokenClient(cfg),
 		Action:             NewActionClient(cfg),
+		Backup:             NewBackupClient(cfg),
+		BackupTombstone:    NewBackupTombstoneClient(cfg),
 		CatalogBuild:       NewCatalogBuildClient(cfg),
 		ConsoleToken:       NewConsoleTokenClient(cfg),
 		Firewall:           NewFirewallClient(cfg),
@@ -283,6 +293,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:             cfg,
 		APIToken:           NewAPITokenClient(cfg),
 		Action:             NewActionClient(cfg),
+		Backup:             NewBackupClient(cfg),
+		BackupTombstone:    NewBackupTombstoneClient(cfg),
 		CatalogBuild:       NewCatalogBuildClient(cfg),
 		ConsoleToken:       NewConsoleTokenClient(cfg),
 		Firewall:           NewFirewallClient(cfg),
@@ -337,11 +349,12 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.Firewall,
-		c.FirewallResource, c.FirewallRule, c.IPAddress, c.IPAllocation, c.IPPool,
-		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
-		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
-		c.Setting, c.User, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
+		c.APIToken, c.Action, c.Backup, c.BackupTombstone, c.CatalogBuild,
+		c.ConsoleToken, c.Firewall, c.FirewallResource, c.FirewallRule, c.IPAddress,
+		c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite, c.Location,
+		c.LocationEnrollment, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
+		c.ServerType, c.Session, c.Setting, c.User, c.Volume, c.WebauthnChallenge,
+		c.WebauthnCredential,
 	} {
 		n.Use(hooks...)
 	}
@@ -351,11 +364,12 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIToken, c.Action, c.CatalogBuild, c.ConsoleToken, c.Firewall,
-		c.FirewallResource, c.FirewallRule, c.IPAddress, c.IPAllocation, c.IPPool,
-		c.Image, c.ImageTemplate, c.Invite, c.Location, c.LocationEnrollment, c.Node,
-		c.Project, c.ProjectMember, c.SSHKey, c.Server, c.ServerType, c.Session,
-		c.Setting, c.User, c.Volume, c.WebauthnChallenge, c.WebauthnCredential,
+		c.APIToken, c.Action, c.Backup, c.BackupTombstone, c.CatalogBuild,
+		c.ConsoleToken, c.Firewall, c.FirewallResource, c.FirewallRule, c.IPAddress,
+		c.IPAllocation, c.IPPool, c.Image, c.ImageTemplate, c.Invite, c.Location,
+		c.LocationEnrollment, c.Node, c.Project, c.ProjectMember, c.SSHKey, c.Server,
+		c.ServerType, c.Session, c.Setting, c.User, c.Volume, c.WebauthnChallenge,
+		c.WebauthnCredential,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -368,6 +382,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.APIToken.mutate(ctx, m)
 	case *ActionMutation:
 		return c.Action.mutate(ctx, m)
+	case *BackupMutation:
+		return c.Backup.mutate(ctx, m)
+	case *BackupTombstoneMutation:
+		return c.BackupTombstone.mutate(ctx, m)
 	case *CatalogBuildMutation:
 		return c.CatalogBuild.mutate(ctx, m)
 	case *ConsoleTokenMutation:
@@ -734,6 +752,320 @@ func (c *ActionClient) mutate(ctx context.Context, m *ActionMutation) (Value, er
 		return (&ActionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Action mutation op: %q", m.Op())
+	}
+}
+
+// BackupClient is a client for the Backup schema.
+type BackupClient struct {
+	config
+}
+
+// NewBackupClient returns a client for the Backup from the given config.
+func NewBackupClient(c config) *BackupClient {
+	return &BackupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `backup.Hooks(f(g(h())))`.
+func (c *BackupClient) Use(hooks ...Hook) {
+	c.hooks.Backup = append(c.hooks.Backup, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `backup.Intercept(f(g(h())))`.
+func (c *BackupClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Backup = append(c.inters.Backup, interceptors...)
+}
+
+// Create returns a builder for creating a Backup entity.
+func (c *BackupClient) Create() *BackupCreate {
+	mutation := newBackupMutation(c.config, OpCreate)
+	return &BackupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Backup entities.
+func (c *BackupClient) CreateBulk(builders ...*BackupCreate) *BackupCreateBulk {
+	return &BackupCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BackupClient) MapCreateBulk(slice any, setFunc func(*BackupCreate, int)) *BackupCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BackupCreateBulk{err: fmt.Errorf("calling to BackupClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BackupCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BackupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Backup.
+func (c *BackupClient) Update() *BackupUpdate {
+	mutation := newBackupMutation(c.config, OpUpdate)
+	return &BackupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BackupClient) UpdateOne(_m *Backup) *BackupUpdateOne {
+	mutation := newBackupMutation(c.config, OpUpdateOne, withBackup(_m))
+	return &BackupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BackupClient) UpdateOneID(id int64) *BackupUpdateOne {
+	mutation := newBackupMutation(c.config, OpUpdateOne, withBackupID(id))
+	return &BackupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Backup.
+func (c *BackupClient) Delete() *BackupDelete {
+	mutation := newBackupMutation(c.config, OpDelete)
+	return &BackupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BackupClient) DeleteOne(_m *Backup) *BackupDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BackupClient) DeleteOneID(id int64) *BackupDeleteOne {
+	builder := c.Delete().Where(backup.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BackupDeleteOne{builder}
+}
+
+// Query returns a query builder for Backup.
+func (c *BackupClient) Query() *BackupQuery {
+	return &BackupQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBackup},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Backup entity by its id.
+func (c *BackupClient) Get(ctx context.Context, id int64) (*Backup, error) {
+	return c.Query().Where(backup.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BackupClient) GetX(ctx context.Context, id int64) *Backup {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a Backup.
+func (c *BackupClient) QueryProject(_m *Backup) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(backup.Table, backup.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, backup.ProjectTable, backup.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryServer queries the server edge of a Backup.
+func (c *BackupClient) QueryServer(_m *Backup) *ServerQuery {
+	query := (&ServerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(backup.Table, backup.FieldID, id),
+			sqlgraph.To(server.Table, server.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, backup.ServerTable, backup.ServerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryLocation queries the location edge of a Backup.
+func (c *BackupClient) QueryLocation(_m *Backup) *LocationQuery {
+	query := (&LocationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(backup.Table, backup.FieldID, id),
+			sqlgraph.To(location.Table, location.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, backup.LocationTable, backup.LocationColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *BackupClient) Hooks() []Hook {
+	return c.hooks.Backup
+}
+
+// Interceptors returns the client interceptors.
+func (c *BackupClient) Interceptors() []Interceptor {
+	return c.inters.Backup
+}
+
+func (c *BackupClient) mutate(ctx context.Context, m *BackupMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BackupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BackupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BackupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BackupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Backup mutation op: %q", m.Op())
+	}
+}
+
+// BackupTombstoneClient is a client for the BackupTombstone schema.
+type BackupTombstoneClient struct {
+	config
+}
+
+// NewBackupTombstoneClient returns a client for the BackupTombstone from the given config.
+func NewBackupTombstoneClient(c config) *BackupTombstoneClient {
+	return &BackupTombstoneClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `backuptombstone.Hooks(f(g(h())))`.
+func (c *BackupTombstoneClient) Use(hooks ...Hook) {
+	c.hooks.BackupTombstone = append(c.hooks.BackupTombstone, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `backuptombstone.Intercept(f(g(h())))`.
+func (c *BackupTombstoneClient) Intercept(interceptors ...Interceptor) {
+	c.inters.BackupTombstone = append(c.inters.BackupTombstone, interceptors...)
+}
+
+// Create returns a builder for creating a BackupTombstone entity.
+func (c *BackupTombstoneClient) Create() *BackupTombstoneCreate {
+	mutation := newBackupTombstoneMutation(c.config, OpCreate)
+	return &BackupTombstoneCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of BackupTombstone entities.
+func (c *BackupTombstoneClient) CreateBulk(builders ...*BackupTombstoneCreate) *BackupTombstoneCreateBulk {
+	return &BackupTombstoneCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BackupTombstoneClient) MapCreateBulk(slice any, setFunc func(*BackupTombstoneCreate, int)) *BackupTombstoneCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BackupTombstoneCreateBulk{err: fmt.Errorf("calling to BackupTombstoneClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BackupTombstoneCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BackupTombstoneCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for BackupTombstone.
+func (c *BackupTombstoneClient) Update() *BackupTombstoneUpdate {
+	mutation := newBackupTombstoneMutation(c.config, OpUpdate)
+	return &BackupTombstoneUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BackupTombstoneClient) UpdateOne(_m *BackupTombstone) *BackupTombstoneUpdateOne {
+	mutation := newBackupTombstoneMutation(c.config, OpUpdateOne, withBackupTombstone(_m))
+	return &BackupTombstoneUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BackupTombstoneClient) UpdateOneID(id int64) *BackupTombstoneUpdateOne {
+	mutation := newBackupTombstoneMutation(c.config, OpUpdateOne, withBackupTombstoneID(id))
+	return &BackupTombstoneUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for BackupTombstone.
+func (c *BackupTombstoneClient) Delete() *BackupTombstoneDelete {
+	mutation := newBackupTombstoneMutation(c.config, OpDelete)
+	return &BackupTombstoneDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BackupTombstoneClient) DeleteOne(_m *BackupTombstone) *BackupTombstoneDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BackupTombstoneClient) DeleteOneID(id int64) *BackupTombstoneDeleteOne {
+	builder := c.Delete().Where(backuptombstone.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BackupTombstoneDeleteOne{builder}
+}
+
+// Query returns a query builder for BackupTombstone.
+func (c *BackupTombstoneClient) Query() *BackupTombstoneQuery {
+	return &BackupTombstoneQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBackupTombstone},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a BackupTombstone entity by its id.
+func (c *BackupTombstoneClient) Get(ctx context.Context, id int64) (*BackupTombstone, error) {
+	return c.Query().Where(backuptombstone.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BackupTombstoneClient) GetX(ctx context.Context, id int64) *BackupTombstone {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *BackupTombstoneClient) Hooks() []Hook {
+	return c.hooks.BackupTombstone
+}
+
+// Interceptors returns the client interceptors.
+func (c *BackupTombstoneClient) Interceptors() []Interceptor {
+	return c.inters.BackupTombstone
+}
+
+func (c *BackupTombstoneClient) mutate(ctx context.Context, m *BackupTombstoneMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BackupTombstoneCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BackupTombstoneUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BackupTombstoneUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BackupTombstoneDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown BackupTombstone mutation op: %q", m.Op())
 	}
 }
 
@@ -4785,18 +5117,18 @@ func (c *WebauthnCredentialClient) mutate(ctx context.Context, m *WebauthnCreden
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIToken, Action, CatalogBuild, ConsoleToken, Firewall, FirewallResource,
-		FirewallRule, IPAddress, IPAllocation, IPPool, Image, ImageTemplate, Invite,
-		Location, LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server,
-		ServerType, Session, Setting, User, Volume, WebauthnChallenge,
-		WebauthnCredential []ent.Hook
+		APIToken, Action, Backup, BackupTombstone, CatalogBuild, ConsoleToken, Firewall,
+		FirewallResource, FirewallRule, IPAddress, IPAllocation, IPPool, Image,
+		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
+		ProjectMember, SSHKey, Server, ServerType, Session, Setting, User, Volume,
+		WebauthnChallenge, WebauthnCredential []ent.Hook
 	}
 	inters struct {
-		APIToken, Action, CatalogBuild, ConsoleToken, Firewall, FirewallResource,
-		FirewallRule, IPAddress, IPAllocation, IPPool, Image, ImageTemplate, Invite,
-		Location, LocationEnrollment, Node, Project, ProjectMember, SSHKey, Server,
-		ServerType, Session, Setting, User, Volume, WebauthnChallenge,
-		WebauthnCredential []ent.Interceptor
+		APIToken, Action, Backup, BackupTombstone, CatalogBuild, ConsoleToken, Firewall,
+		FirewallResource, FirewallRule, IPAddress, IPAllocation, IPPool, Image,
+		ImageTemplate, Invite, Location, LocationEnrollment, Node, Project,
+		ProjectMember, SSHKey, Server, ServerType, Session, Setting, User, Volume,
+		WebauthnChallenge, WebauthnCredential []ent.Interceptor
 	}
 )
 

@@ -18,6 +18,10 @@ type Tx struct {
 	APIToken *APITokenClient
 	// Action is the client for interacting with the Action builders.
 	Action *ActionClient
+	// Backup is the client for interacting with the Backup builders.
+	Backup *BackupClient
+	// BackupTombstone is the client for interacting with the BackupTombstone builders.
+	BackupTombstone *BackupTombstoneClient
 	// CatalogBuild is the client for interacting with the CatalogBuild builders.
 	CatalogBuild *CatalogBuildClient
 	// ConsoleToken is the client for interacting with the ConsoleToken builders.
@@ -201,6 +205,8 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.APIToken = NewAPITokenClient(tx.config)
 	tx.Action = NewActionClient(tx.config)
+	tx.Backup = NewBackupClient(tx.config)
+	tx.BackupTombstone = NewBackupTombstoneClient(tx.config)
 	tx.CatalogBuild = NewCatalogBuildClient(tx.config)
 	tx.ConsoleToken = NewConsoleTokenClient(tx.config)
 	tx.Firewall = NewFirewallClient(tx.config)

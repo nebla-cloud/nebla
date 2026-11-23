@@ -69,6 +69,12 @@ func (Server) Fields() []ent.Field {
 		field.Int64("firewall_gen_desired").Default(0),
 		field.Int64("firewall_gen_applied").Default(0),
 		field.Time("firewall_lease_until").Optional().Nillable(),
+		field.Bool("backups_enabled").Default(false),
+		field.Int("backup_keep").Default(7),
+		// backup_slot is (id * 7919) mod 1440, the server's minute offset in the backup window.
+		field.Int("backup_slot").Default(0),
+		// backups_enabled_at gates scheduled backups: none is due before it.
+		field.Time("backups_enabled_at").Optional().Nillable(),
 		createdAt(),
 	}
 }
