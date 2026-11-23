@@ -65,7 +65,7 @@ func (e *env) advance(d time.Duration) {
 	e.now = e.now.Add(d)
 }
 
-func setup(t *testing.T, fp ...func(context.Context, string) (string, error)) *env {
+func setup(t *testing.T, fp ...func(context.Context, string, []string) (string, error)) *env {
 	t.Helper()
 	client, sqlDB := testutil.NewEntSQL(t)
 	pv := fake.New(t)
@@ -76,7 +76,7 @@ func setup(t *testing.T, fp ...func(context.Context, string) (string, error)) *e
 	e := &env{cat: cat, ent: client, sql: sqlDB, pv: pv, userID: u.ID, now: time.Now().UTC().Truncate(time.Second)}
 	o := enroll.Options{SecretKey: []byte(testutil.SecretKey), BaseURL: panelURL, Catalog: cat, Now: e.clock}
 	if len(fp) > 0 {
-		o.LeafFingerprint = fp[0]
+		o.VerifyLeafFingerprint = fp[0]
 	}
 	e.svc = enroll.New(sqlDB, client, o)
 	return e

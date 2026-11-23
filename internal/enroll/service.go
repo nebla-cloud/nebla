@@ -57,8 +57,8 @@ type Options struct {
 	// BaseURL is the panel URL the setup script calls back.
 	BaseURL string
 	Catalog *catalog.Service
-	// LeafFingerprint defaults to pve.LeafFingerprint.
-	LeafFingerprint func(ctx context.Context, url string) (string, error)
+	// VerifyLeafFingerprint defaults to pve.VerifyLeafFingerprint.
+	VerifyLeafFingerprint func(ctx context.Context, url string, fingerprints []string) (string, error)
 	// Now defaults to time.Now.
 	Now func() time.Time
 	// Logger defaults to slog.Default().
@@ -97,8 +97,8 @@ type CreateInput struct {
 }
 
 func New(sqlDB *sql.DB, client *ent.Client, o Options) *Service {
-	if o.LeafFingerprint == nil {
-		o.LeafFingerprint = pve.LeafFingerprint
+	if o.VerifyLeafFingerprint == nil {
+		o.VerifyLeafFingerprint = pve.VerifyLeafFingerprint
 	}
 	if o.Now == nil {
 		o.Now = time.Now

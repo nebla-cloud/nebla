@@ -17,25 +17,38 @@ package pve_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 )
 
-func TestLeafFingerprint(t *testing.T) {
+func TestVerifyLeafFingerprint(t *testing.T) {
 	conn := fake.New(t).Conn()
-	got, err := pve.LeafFingerprint(context.Background(), conn.BaseURL)
+	want := pve.NormFP(conn.CAFingerprint)
+	got, err := pve.VerifyLeafFingerprint(context.Background(), conn.BaseURL, []string{want})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := pve.NormFP(conn.CAFingerprint); got != want {
+	if got != want {
 		t.Fatalf("got %s, want %s", got, want)
 	}
 }
 
-func TestLeafFingerprintBadURL(t *testing.T) {
-	if _, err := pve.LeafFingerprint(context.Background(), "https://127.0.0.1:1"); err == nil {
+func TestVerifyLeafFingerprintBadURL(t *testing.T) {
+	if _, err := pve.VerifyLeafFingerprint(context.Background(), "https://127.0.0.1:1", nil); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+func TestVerifyLeafFingerprintRejectsUnreportedCertificate(t *testing.T) {
+	conn := fake.New(t).Conn()
+	got, err := pve.VerifyLeafFingerprint(context.Background(), conn.BaseURL, nil)
+	if !errors.Is(err, pve.ErrFingerprint) {
+		t.Fatalf("got error %v, want ErrFingerprint", err)
+	}
+	if want := pve.NormFP(conn.CAFingerprint); got != want {
+		t.Fatalf("got %s, want %s", got, want)
 	}
 }

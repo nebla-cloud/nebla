@@ -18,6 +18,7 @@ package enroll
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -144,15 +145,18 @@ func (s *Service) Finish(ctx context.Context, id int64, in FinishInput) (Finishe
 	if err := validStorages(rep, in, vol); err != nil {
 		return Finished{}, err
 	}
-	seen, err := s.o.LeafFingerprint(ctx, u.String())
+	fingerprints := make([]string, 0, len(rep.Nodes))
+	for _, node := range rep.Nodes {
+		fingerprints = append(fingerprints, node.Fingerprint)
+	}
+	seen, err := s.o.VerifyLeafFingerprint(ctx, u.String(), fingerprints)
+	if errors.Is(err, pve.ErrFingerprint) {
+		return Finished{}, apierr.New(http.StatusUnprocessableEntity, "fingerprint_mismatch",
+			fmt.Sprintf("the certificate at %s (%s) is not one the node reported", u.Host, seen))
+	}
 	if err != nil {
 		return Finished{}, apierr.New(http.StatusUnprocessableEntity, "pve_unreachable",
 			"cannot read the certificate at "+u.Host+": "+err.Error())
-	}
-	seen = pve.NormFP(seen)
-	if !slices.ContainsFunc(rep.Nodes, func(n ReportNode) bool { return n.Fingerprint == seen }) {
-		return Finished{}, apierr.New(http.StatusUnprocessableEntity, "fingerprint_mismatch",
-			fmt.Sprintf("the certificate at %s (%s) is not one the node reported", u.Host, seen))
 	}
 	secret, err := s.box.Open(r.TokenSecret)
 	if err != nil {
