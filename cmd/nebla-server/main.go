@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/auth"
+	"github.com/nebla-cloud/nebla/internal/backups"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/config"
 	"github.com/nebla-cloud/nebla/internal/db"
@@ -87,6 +88,8 @@ func run() error {
 	servers.RegisterWorkers(workers, servers.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log,
 		Jobs: func() *jobs.Jobs { return runner }})
 	volumes.RegisterWorkers(workers, volumes.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log})
+	backups.RegisterWorkers(workers, backups.WorkerOptions{SQL: sqlDB, Ent: client, Catalog: cat, Bus: bus, Logger: log,
+		Jobs: func() *jobs.Jobs { return runner }})
 	var fips *floatingips.Service
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
 		VolumeRescue: func(ctx context.Context) error {
@@ -104,7 +107,7 @@ func run() error {
 	auth.RegisterPasskeyJobs(workers, passkeys)
 	runner, err = jobs.New(pool, sqlDB, workers, jobs.WithLogger(log),
 		jobs.WithPeriodicJobs(reconcile.PeriodicJob(), servers.UsagePeriodicJob(), volumes.UsagePeriodicJob(), enroll.SweepPeriodicJob(),
-			auth.ChallengeCleanupPeriodicJob()))
+			auth.ChallengeCleanupPeriodicJob(), backups.SchedulePeriodicJob(), backups.UsagePeriodicJob()))
 	if err != nil {
 		return err
 	}
@@ -121,6 +124,10 @@ func run() error {
 	}
 	if rescued > 0 {
 		log.Warn("failed orphaned volume actions", "count", rescued)
+	}
+	// After the server rescue, so a lost backup's action is failed before its job is re-enqueued.
+	if err := backups.RescueOrphaned(ctx, sqlDB, runner); err != nil {
+		return err
 	}
 	if _, err := projects.BackfillCreatedBy(ctx, client); err != nil {
 		return err

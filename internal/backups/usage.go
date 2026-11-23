@@ -32,14 +32,19 @@ func UsageWith(next projects.UsageFunc) projects.UsageFunc {
 		if err != nil {
 			return projects.Usage{}, err
 		}
-		rows, err := tx.Backup.Query().Where(backup.ProjectID(projectID), servers.StoredBackups).Select(backup.FieldServerID).All(ctx)
+		var counts []struct {
+			ServerID int64 `json:"server_id"`
+			Count    int   `json:"count"`
+		}
+		err = tx.Backup.Query().Where(backup.ProjectID(projectID), servers.StoredBackups).
+			GroupBy(backup.FieldServerID).Aggregate(ent.Count()).Scan(ctx, &counts)
 		if err != nil {
 			return projects.Usage{}, err
 		}
-		u.Backups = len(rows)
-		stored := map[int64]int{}
-		for _, r := range rows {
-			stored[r.ServerID]++
+		stored := make(map[int64]int, len(counts))
+		for _, c := range counts {
+			stored[c.ServerID] = c.Count
+			u.Backups += c.Count
 		}
 		srvs, err := tx.Server.Query().Where(server.ProjectID(projectID)).
 			Select(server.FieldID, server.FieldBackupsEnabled, server.FieldBackupKeep).All(ctx)
