@@ -237,4 +237,58 @@ func TestNetworkFingerprintStable(t *testing.T) {
 	same, err := cloudinit.NetworkFingerprint(in)
 	require.NoError(t, err)
 	require.Equal(t, fp, same)
+
+	in = input()
+	in.Private = []cloudinit.PrivateNIC{{MAC: "BC:24:11:AA:00:01", Index: 1, Addr: netip.MustParsePrefix("10.9.0.2/24"), MTU: 1500}}
+	withPriv, err := cloudinit.NetworkFingerprint(in)
+	require.NoError(t, err)
+	require.NotEqual(t, fp, withPriv)
+}
+
+func TestNetworkConfigPrivate(t *testing.T) {
+	in := input()
+	in.Private = []cloudinit.PrivateNIC{
+		{MAC: "BC:24:11:AA:00:01", Index: 1, Addr: netip.MustParsePrefix("10.9.0.2/24"), MTU: 1450},
+		{MAC: "BC:24:11:AA:00:02", Index: 2, Addr: netip.MustParsePrefix("172.16.0.5/16"), MTU: 1500},
+	}
+	_, files := readISO(t, in)
+	const want = `ethernets:
+    eth0:
+        match:
+            macaddress: bc:24:11:0a:1b:2c
+        set-name: eth0
+        dhcp4: false
+        dhcp6: false
+        addresses:
+            - 10.0.0.10/24
+            - 2001:db8::10/64
+        routes:
+            - to: default
+              via: 10.0.0.1
+            - to: default
+              via: 2001:db8::1
+        nameservers:
+            addresses:
+                - 1.1.1.1
+                - 2606:4700:4700::1111
+    eth1:
+        match:
+            macaddress: bc:24:11:aa:00:01
+        set-name: eth1
+        dhcp4: false
+        dhcp6: false
+        addresses:
+            - 10.9.0.2/24
+        mtu: 1450
+    eth2:
+        match:
+            macaddress: bc:24:11:aa:00:02
+        set-name: eth2
+        dhcp4: false
+        dhcp6: false
+        addresses:
+            - 172.16.0.5/16
+version: 2
+`
+	require.Equal(t, want, files["network-config"])
 }

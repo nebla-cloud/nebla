@@ -33,6 +33,8 @@ type NIC struct {
 	MAC   string
 	VNet  string
 	MTU   int
+	// Bits is the prefix length of the network's range.
+	Bits  int
 	State string
 }
 
@@ -54,6 +56,15 @@ func PrivateNICs(ctx context.Context, c *ent.Client, serverID int64) ([]NIC, err
 		} else if !ent.IsNotFound(err) {
 			return nil, err
 		}
+		nw, err := c.Network.Get(ctx, a.NetworkID)
+		if err != nil {
+			return nil, err
+		}
+		pfx, err := netip.ParsePrefix(nw.IPRange)
+		if err != nil {
+			return nil, fmt.Errorf("network %d has a bad range: %w", nw.ID, err)
+		}
+		n.Bits = pfx.Bits()
 		out = append(out, n)
 	}
 	return out, nil

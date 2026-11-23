@@ -46,11 +46,13 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
@@ -106,6 +108,8 @@ type Options struct {
 	Jobs *jobs.Jobs
 	// BackupInfo fills Server.Backups' count and times; nil leaves them zero.
 	BackupInfo func(ctx context.Context, ids []int64) (map[int64]ServerBackups, error)
+	// Networks nil disables private networks: a create that names one fails with 422.
+	Networks *networks.Service
 }
 
 type Service struct{ o Options }
@@ -160,7 +164,8 @@ type CreateInput struct {
 	StartAfter bool
 	Firewalls  []int64
 	// Backups nil leaves backups off.
-	Backups *BackupSettings
+	Backups  *BackupSettings
+	Networks []networks.CreateRef
 }
 
 // UpdateInput changes only the non-nil fields.
@@ -294,6 +299,9 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	if len(in.Networks) > 0 && s.o.Networks == nil {
+		return Server{}, actions.Action{}, invalid("Private networks aren't available in this location.")
+	}
 	fwIDs := slices.Compact(slices.Sorted(slices.Values(in.Firewalls)))
 	delta := projects.Usage{Servers: 1, VCPU: typ.Cores, MemoryMB: typ.MemoryMB, DiskGB: typ.DiskGB, IPs: len(families)}
 	if in.Backups != nil {
@@ -351,6 +359,11 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			}
 			if err := attachFirewalls(ctx, etx, projectID, row.ID, labels, fwIDs); err != nil {
 				return err
+			}
+			if len(in.Networks) > 0 {
+				if err := s.o.Networks.ReserveForCreate(ctx, etx, projectID, loc.ID, row.ID, in.Networks); err != nil {
+					return err
+				}
 			}
 			act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindCreateServer,
 				[]actions.Resource{{ID: row.ID, Type: ResourceType}},
@@ -466,6 +479,12 @@ func newMAC(ctx context.Context, tx *ent.Client) (string, error) {
 		taken, err := tx.Server.Query().Where(server.MAC(mac)).Exist(ctx)
 		if err != nil {
 			return "", err
+		}
+		if !taken {
+			taken, err = tx.ServerNetwork.Query().Where(servernetwork.MACEqualFold(mac)).Exist(ctx)
+			if err != nil {
+				return "", err
+			}
 		}
 		if !taken {
 			return mac, nil

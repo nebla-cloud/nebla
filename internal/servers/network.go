@@ -17,11 +17,14 @@ package servers
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/nebla-cloud/nebla/internal/cloudinit"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/networks"
 )
 
 // InstanceGeneration is the cloud-init instance-id generation; 0 means the ISO generation.
@@ -38,9 +41,30 @@ func seedInput(ctx context.Context, c *ent.Client, row *ent.Server, assign []ipa
 	if err != nil {
 		return cloudinit.Input{}, err
 	}
+	priv, err := privateSeed(ctx, c, row.ID)
+	if err != nil {
+		return cloudinit.Input{}, err
+	}
 	return cloudinit.Input{
 		Hostname: row.Name, SSHKeys: row.SSHKeys, UserData: row.UserData, MAC: row.MAC, IPs: assign, Floating: fips,
+		Private: priv,
 	}, nil
+}
+
+// privateSeed lists the server's private NICs for cloud-init, leaving out ones being detached.
+func privateSeed(ctx context.Context, c *ent.Client, serverID int64) ([]cloudinit.PrivateNIC, error) {
+	nics, err := networks.PrivateNICs(ctx, c, serverID)
+	if err != nil {
+		return nil, err
+	}
+	var out []cloudinit.PrivateNIC
+	for _, n := range nics {
+		if n.State == string(servernetwork.StateDetaching) {
+			continue
+		}
+		out = append(out, cloudinit.PrivateNIC{MAC: n.MAC, Index: n.Index, Addr: netip.PrefixFrom(n.IP, n.Bits), MTU: n.MTU})
+	}
+	return out, nil
 }
 
 // NetworkFingerprint hashes the network-config the server's seed ISO would carry now.

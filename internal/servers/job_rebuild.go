@@ -296,6 +296,9 @@ func (r *rebuildRun) finish(ctx context.Context) error {
 		if err := etx.Server.UpdateOneID(r.row.ID).SetStatus(server.Status(status)).SetRebuildStep(0).Exec(ctx); err != nil {
 			return err
 		}
+		if err := markAttached(ctx, etx, r.row.ID); err != nil {
+			return err
+		}
 		if err := r.b.raiseApplied(ctx, tx); err != nil {
 			return err
 		}

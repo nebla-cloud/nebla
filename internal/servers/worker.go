@@ -25,6 +25,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -167,4 +168,60 @@ func realStatus(ctx context.Context, pc pve.Client, serverID int64, vmid *int, f
 
 func actionLog(l *slog.Logger, act *ent.Action, serverID int64) *slog.Logger {
 	return l.With("server_id", serverID, "action_id", act.ID, "command", act.Command)
+}
+
+// SyncNICs makes net1 to net3 on the VM equal the server's attached private NICs, then renders its firewalls.
+func (o *WorkerOptions) SyncNICs(ctx context.Context, pc pve.Client, node string, vmid int, serverID int64) error {
+	all, err := networks.PrivateNICs(ctx, o.Ent, serverID)
+	if err != nil {
+		return err
+	}
+	want := map[string]string{}
+	for _, n := range all {
+		if n.State != "detaching" {
+			want["net"+strconv.Itoa(n.Index)] = nicValue(n)
+		}
+	}
+	if err := o.syncNICConfig(ctx, pc, node, vmid, want); err != nil {
+		return err
+	}
+	_, _, err = o.applyFirewallsNow(ctx, pc, serverID, node, vmid)
+	return err
+}
+
+// syncNICConfig writes the wanted netN values and deletes the others, with the config digest.
+func (o *WorkerOptions) syncNICConfig(ctx context.Context, pc pve.Client, node string, vmid int, want map[string]string) error {
+	for range digestTries {
+		cfg, err := pc.Config(ctx, node, vmid)
+		if err != nil {
+			return &stepError{"read vm config", err}
+		}
+		kv := map[string]string{}
+		var del []string
+		for i := 1; i <= networks.MaxNICs; i++ {
+			key := "net" + strconv.Itoa(i)
+			have, has := cfg[key]
+			switch w, ok := want[key]; {
+			case ok && !strings.EqualFold(have, w):
+				kv[key] = w
+			case !ok && has:
+				del = append(del, key)
+			}
+		}
+		if len(kv) == 0 && len(del) == 0 {
+			return nil
+		}
+		if len(del) > 0 {
+			kv["delete"] = strings.Join(del, ",")
+		}
+		err = pc.SetConfigDigest(ctx, node, vmid, kv, cfg["digest"])
+		if errors.Is(err, pve.ErrDigestMismatch) {
+			continue
+		}
+		if err != nil {
+			return &stepError{"sync network", err}
+		}
+		return nil
+	}
+	return transient("vm %d config kept changing", vmid)
 }

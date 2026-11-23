@@ -200,6 +200,9 @@ func (c *createRun) finish(ctx context.Context) error {
 		if err := etx.Server.UpdateOneID(c.row.ID).SetStatus(server.Status(status)).SetCreateStep(stepDone).Exec(ctx); err != nil {
 			return err
 		}
+		if err := markAttached(ctx, etx, c.row.ID); err != nil {
+			return err
+		}
 		if err := c.b.raiseApplied(ctx, tx); err != nil {
 			return err
 		}

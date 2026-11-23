@@ -44,6 +44,16 @@ type Input struct {
 	IPs                  []ipam.Assignment
 	// Floating are extra single addresses on eth0, with no routes.
 	Floating []netip.Addr
+	// Private are the server's private NICs, eth1 and up.
+	Private []PrivateNIC
+}
+
+// PrivateNIC is one private NIC: matched by MAC, addressed inside its network's range.
+type PrivateNIC struct {
+	MAC   string
+	Index int
+	Addr  netip.Prefix
+	MTU   int
 }
 
 // Build returns a NoCloud ISO (label cidata) with meta-data, network-config and user-data.
@@ -90,6 +100,7 @@ type ethernet struct {
 	Addresses   []string            `yaml:"addresses,omitempty"`
 	Routes      []route             `yaml:"routes,omitempty"`
 	Nameservers map[string][]string `yaml:"nameservers,omitempty"`
+	MTU         int                 `yaml:"mtu,omitempty"`
 }
 
 func networkConfig(in Input) ([]byte, error) {
@@ -112,7 +123,16 @@ func networkConfig(in Input) ([]byte, error) {
 	if len(dns) > 0 {
 		eth.Nameservers = map[string][]string{"addresses": dns}
 	}
-	return yaml.Marshal(map[string]any{"version": 2, "ethernets": map[string]ethernet{"eth0": eth}})
+	eths := map[string]ethernet{"eth0": eth}
+	for _, p := range in.Private {
+		name := fmt.Sprintf("eth%d", p.Index)
+		e := ethernet{Match: map[string]string{"macaddress": strings.ToLower(p.MAC)}, SetName: name, Addresses: []string{p.Addr.String()}}
+		if p.MTU != 1500 {
+			e.MTU = p.MTU
+		}
+		eths[name] = e
+	}
+	return yaml.Marshal(map[string]any{"version": 2, "ethernets": eths})
 }
 
 // NetworkFingerprint is the hex sha256 of the network-config the seed ISO carries.

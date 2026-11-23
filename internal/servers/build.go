@@ -30,7 +30,9 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/cloudinit"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ipam"
+	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
 
@@ -371,13 +373,78 @@ func (b *builder) configure(ctx context.Context) error {
 		return err
 	}
 	// A template's Proxmox cloud-init drive would clash with our cidata seed ISO.
-	if drives := cloudinitDrives(cfg); len(drives) > 0 {
-		kv["delete"] = strings.Join(drives, ",")
+	del := cloudinitDrives(cfg)
+	nics, err := b.privateNICs(ctx)
+	if err != nil {
+		return err
+	}
+	for i := 1; i <= networks.MaxNICs; i++ {
+		key := "net" + strconv.Itoa(i)
+		if j := slices.IndexFunc(nics, func(n networks.NIC) bool { return n.Index == i }); j >= 0 {
+			kv[key] = nicValue(nics[j])
+		} else if _, has := cfg[key]; has {
+			del = append(del, key)
+		}
+	}
+	if len(del) > 0 {
+		kv["delete"] = strings.Join(del, ",")
 	}
 	if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), kv); err != nil {
 		return err
 	}
+	if err := b.o.allowNetworkHotplug(ctx, b.pc, b.row.Node, b.vmid()); err != nil {
+		return err
+	}
 	return b.done(ctx, stepConfig)
+}
+
+// privateNICs returns the server's private NICs that belong on its VM, by index.
+func (b *builder) privateNICs(ctx context.Context) ([]networks.NIC, error) {
+	all, err := networks.PrivateNICs(ctx, b.o.Ent, b.row.ID)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(all, func(n networks.NIC) bool { return n.State == string(servernetwork.StateDetaching) }), nil
+}
+
+// withNetworkHotplug returns hotplug with network added; changed is false when it is unset or already allows it.
+func withNetworkHotplug(h string, set bool) (merged string, changed bool) {
+	switch {
+	case !set || h == "1":
+		return h, false
+	case h == "0" || h == "":
+		return "network", true
+	case slices.Contains(strings.Split(h, ","), "network"):
+		return h, false
+	}
+	return h + ",network", true
+}
+
+// allowNetworkHotplug adds network to a set hotplug list with the config digest; an unset one stays unset.
+func (o *WorkerOptions) allowNetworkHotplug(ctx context.Context, pc pve.Client, node string, vmid int) error {
+	for range digestTries {
+		cfg, err := pc.Config(ctx, node, vmid)
+		if err != nil {
+			return err
+		}
+		h, set := cfg["hotplug"]
+		merged, changed := withNetworkHotplug(h, set)
+		if !changed {
+			return nil
+		}
+		err = pc.SetConfigDigest(ctx, node, vmid, map[string]string{"hotplug": merged}, cfg["digest"])
+		if errors.Is(err, pve.ErrDigestMismatch) {
+			continue
+		}
+		return err
+	}
+	return transient("vm %d config kept changing", vmid)
+}
+
+// markAttached settles the server's attaching rows once its VM is built.
+func markAttached(ctx context.Context, etx *ent.Client, serverID int64) error {
+	return etx.ServerNetwork.Update().Where(servernetwork.ServerID(serverID), servernetwork.StateEQ(servernetwork.StateAttaching)).
+		SetState(servernetwork.StateAttached).Exec(ctx)
 }
 
 func (b *builder) resize(ctx context.Context) error {
