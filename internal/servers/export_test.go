@@ -82,5 +82,8 @@ func SetRestoreAfterStep(w *RestoreServerWorker, f func(step int)) { w.afterStep
 // SetRestoreAfterPost installs a hook between the restore request and saving its UPID.
 func SetRestoreAfterPost(w *RestoreServerWorker, f func()) { w.afterPost = f }
 
+// SetRestoreAfterUpid installs a hook between saving the restore's UPID and awaiting it.
+func SetRestoreAfterUpid(w *RestoreServerWorker, f func()) { w.afterUpid = f }
+
 // RestoreSteps are the restore job's steps in order.
 var RestoreSteps = []int{stepVMID, stepClone, stepConfig, stepResize, stepISO, stepFirewall, stepSwap, stepRetire, stepRestart}

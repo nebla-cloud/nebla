@@ -121,6 +121,7 @@ type rebuildRun struct {
 	o          *WorkerOptions
 	afterStep  func(int)
 	afterPost  func()
+	afterUpid  func()
 	name       string
 	actionID   int64
 	startAfter bool
@@ -166,7 +167,7 @@ func (r *rebuildRun) load(ctx context.Context) error {
 	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: tmpl, archive: r.archive, isoGen: r.row.IsoGeneration + 1,
 		instGen: cmp.Or(r.instGen, r.row.IsoGeneration+1),
 		st:      buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
-		save:    r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost}
+		save:    r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost, afterUpidSave: r.afterUpid}
 	return nil
 }
 

@@ -195,15 +195,19 @@ func TestRestoreResumesEveryStep(t *testing.T) {
 	ctx := context.Background()
 	e := newRestoreEnv(t)
 	b := e.backUp(t, e.sameNet(t))
-	crashes := append([]int{-1}, servers.RestoreSteps...)
+	crashes := append([]int{-1, -2}, servers.RestoreSteps...)
 	for _, n := range crashes {
 		old := vmidOf(t, e.ServerEnv, e.s.ServerID)
 		a, job := e.request(t, b, 1)
 		crashCtx, crash := context.WithCancel(ctx)
-		if n < 0 {
+		switch n {
+		case -1:
 			// Crash between the restore request and saving its task.
 			servers.SetRestoreAfterPost(e.w, crash)
-		} else {
+		case -2:
+			// Crash once the task is saved, before the restored VM is sanitized.
+			servers.SetRestoreAfterUpid(e.w, crash)
+		default:
 			servers.SetRestoreAfterStep(e.w, func(s int) {
 				if s == n {
 					crash()
@@ -212,10 +216,14 @@ func TestRestoreResumesEveryStep(t *testing.T) {
 		}
 		require.Error(t, e.w.Work(crashCtx, job), "step %d", n)
 		crash()
+		if n == -2 {
+			require.NotNil(t, e.App.Ent.Server.GetX(ctx, e.s.ServerID).RebuildCloneUpid, "task saved before the crash")
+		}
 		require.Equal(t, servers.StatusRebuilding, status(t, e.ServerEnv, e.s.ServerID), "step %d", n)
 		require.Equal(t, entbackup.StatusRestoring, e.backupStatus(t, b.ID), "step %d", n)
 
 		servers.SetRestoreAfterPost(e.w, nil)
+		servers.SetRestoreAfterUpid(e.w, nil)
 		servers.SetRestoreAfterStep(e.w, nil)
 		job.Attempt = 2
 		require.NoError(t, e.w.Work(ctx, job), "step %d", n)

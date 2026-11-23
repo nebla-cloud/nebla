@@ -23,16 +23,20 @@ import (
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/servers"
 )
 
 // live is a SQL condition on river_job alias j: a job that can still run.
 const live = `j.state not in ('discarded', 'cancelled', 'completed')`
 
-// RescueOrphaned re-enqueues pending backups whose job was lost and puts deletes that lost their action back.
+// RescueOrphaned re-enqueues pending backups whose job was lost and puts deletes and restores that lost their action back.
 // It runs at startup, after the server rescue has failed orphaned actions.
 func RescueOrphaned(ctx context.Context, sqlDB *sql.DB, j *jobs.Jobs) error {
 	return db.WithTx(ctx, sqlDB, func(tx *sql.Tx, _ *ent.Client) error {
 		if err := requeueLost(ctx, tx, j); err != nil {
+			return err
+		}
+		if err := releaseRestoring(ctx, tx); err != nil {
 			return err
 		}
 		// Startup only: a running prune also holds rows deleting without an action.
@@ -44,6 +48,17 @@ func RescueOrphaned(ctx context.Context, sqlDB *sql.DB, j *jobs.Jobs) error {
 			KindDeleteBackup)
 		return err
 	})
+}
+
+// releaseRestoring makes restoring backups available again once no live restore_backup action holds them.
+func releaseRestoring(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `
+		update backups b set status = 'available'
+		where b.status = 'restoring' and not exists (
+			select 1 from actions a join river_job j on j.id = a.river_job_id
+			where a.command = $1 and a.status = 'running' and (j.args->>'backup_id')::bigint = b.id and `+live+`)`,
+		servers.KindRestoreBackup)
+	return err
 }
 
 // requeueLost enqueues a create_backup job for each pending backup that has no live one.

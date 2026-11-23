@@ -67,10 +67,12 @@ type builder struct {
 	st             buildState
 	save           func(context.Context, buildState) error
 	afterClonePost func()
-	poll           time.Duration
-	tnode          string
-	tcfg           map[string]string
-	o              *WorkerOptions
+	// afterUpidSave runs once a restore's task is saved, before it is awaited.
+	afterUpidSave func()
+	poll          time.Duration
+	tnode         string
+	tcfg          map[string]string
+	o             *WorkerOptions
 	// fwGen is the desired firewall generation this run rendered; fwDone says it rendered at all.
 	fwGen  int64
 	fwDone bool

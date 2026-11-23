@@ -141,3 +141,47 @@ func TestReconcileFailsLostBackupAction(t *testing.T) {
 		require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, id).Status)
 	}
 }
+
+func TestRescueReleasesLostRestores(t *testing.T) {
+	ctx := context.Background()
+	e := newJobEnv(t)
+	a, b, c := e.running(t, "a"), e.running(t, "b"), e.running(t, "c")
+	// A restore whose action ended outside its job, one still running, and one whose action runs but whose job died.
+	lost := e.put(t, a, entbackup.StatusRestoring)
+	live := e.put(t, b, entbackup.StatusAvailable)
+	_, err := e.svc.Restore(ctx, e.Project, b, live.ID)
+	require.NoError(t, err)
+	dead := e.put(t, c, entbackup.StatusAvailable)
+	act, err := e.svc.Restore(ctx, e.Project, c, dead.ID)
+	require.NoError(t, err)
+	_, err = e.App.SQL.ExecContext(ctx, `update river_job set state = 'discarded', finalized_at = now() where id = $1`, *act.RiverJobID)
+	require.NoError(t, err)
+
+	require.NoError(t, backups.RescueOrphaned(ctx, e.App.SQL, e.App.Jobs))
+	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, lost.ID).Status)
+	require.Equal(t, entbackup.StatusRestoring, e.App.Ent.Backup.GetX(ctx, live.ID).Status)
+	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, dead.ID).Status)
+
+	// The periodic scheduler does the same once the action fails.
+	require.NoError(t, actions.Fail(ctx, e.App.Ent, e.restoreActionOf(t, b), actions.CodeFailed, "lost"))
+	e.schedule(t, time.Now())
+	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, live.ID).Status)
+}
+
+// restoreActionOf is the id of the server's running restore_backup action.
+func (e *jenv) restoreActionOf(t *testing.T, serverID int64) int64 {
+	t.Helper()
+	ids, err := e.App.Ent.Action.Query().Where(entaction.Command(servers.KindRestoreBackup), entaction.StatusEQ(entaction.StatusRunning)).IDs(context.Background())
+	require.NoError(t, err)
+	for _, id := range ids {
+		a, err := actions.Get(context.Background(), e.App.Ent, e.Project, id)
+		require.NoError(t, err)
+		for _, r := range a.Resources {
+			if r.ID == serverID {
+				return id
+			}
+		}
+	}
+	t.Fatalf("no restore action for server %d", serverID)
+	return 0
+}

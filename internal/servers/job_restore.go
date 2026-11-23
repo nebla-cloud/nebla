@@ -17,17 +17,14 @@ package servers
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
 	"errors"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ext"
@@ -65,6 +62,7 @@ type RestoreServerWorker struct {
 	o         WorkerOptions
 	afterStep func(int)
 	afterPost func()
+	afterUpid func()
 }
 
 func NewRestoreServerWorker(o WorkerOptions) *RestoreServerWorker {
@@ -78,7 +76,7 @@ func (*RestoreServerWorker) Timeout(*river.Job[RestoreServerArgs]) time.Duration
 
 func (w *RestoreServerWorker) Work(ctx context.Context, job *river.Job[RestoreServerArgs]) error {
 	// River may rescue a long restore into a second run; only one may touch the server at a time.
-	release, ok, err := serverRunLock(ctx, w.o.SQL, job.Args.ServerID)
+	release, ok, err := db.TryAdvisoryLock(ctx, w.o.SQL, "nebla-restore", strconv.FormatInt(job.Args.ServerID, 10))
 	if err != nil {
 		return err
 	}
@@ -91,7 +89,7 @@ func (w *RestoreServerWorker) Work(ctx context.Context, job *river.Job[RestoreSe
 		return ret
 	}
 	a := job.Args
-	r := &rebuildRun{o: &w.o, afterStep: w.afterStep, afterPost: w.afterPost, name: "restore", actionID: a.ActionID,
+	r := &rebuildRun{o: &w.o, afterStep: w.afterStep, afterPost: w.afterPost, afterUpid: w.afterUpid, name: "restore", actionID: a.ActionID,
 		startAfter: a.StartAfter, instGen: a.InstanceGeneration, archive: a.Archive, row: row,
 		finishTx:    func(ctx context.Context, etx *ent.Client) error { return backupAvailable(ctx, etx, a.BackupID) },
 		afterFinish: func(ctx context.Context) { w.publishRestored(ctx, a.BackupID) },
@@ -174,6 +172,9 @@ func (b *builder) restore(ctx context.Context) error {
 		if err := b.update(ctx, func(s *buildState) { s.Upid = &upid }); err != nil {
 			return err
 		}
+		if b.afterUpidSave != nil {
+			b.afterUpidSave()
+		}
 		if moved, err := b.awaitOrMove(ctx, upid); err != nil || !moved {
 			return err
 		}
@@ -233,50 +234,4 @@ func (b *builder) serverDescription(ctx context.Context, restored string) (strin
 	}
 	lines := slices.DeleteFunc(strings.Split(restored, "\n"), diskLine.MatchString)
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n"), nil
-}
-
-const runLockTimeout = 5 * time.Second
-
-// serverRunLock takes a per-server session advisory lock on its own connection until release; ok is false while another run holds it.
-func serverRunLock(ctx context.Context, db *sql.DB, serverID int64) (release func(), ok bool, err error) {
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return nil, false, err
-	}
-	key := strconv.FormatInt(serverID, 10)
-	if err := conn.QueryRowContext(ctx, `select pg_try_advisory_lock(hashtext('nebla-restore'), hashtext($1))`, key).Scan(&ok); err != nil {
-		discardConn(conn)
-		return nil, false, err
-	}
-	if !ok {
-		_ = conn.Close()
-		return nil, false, nil
-	}
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), runLockTimeout)
-			defer cancel()
-			var unlocked bool
-			err := conn.QueryRowContext(ctx, `select pg_advisory_unlock(hashtext('nebla-restore'), hashtext($1))`, key).Scan(&unlocked)
-			if err != nil || !unlocked {
-				discardConn(conn)
-				return
-			}
-			_ = conn.Close()
-		})
-	}, true, nil
-}
-
-// discardConn closes the connection's Postgres session, so no lock it took outlives it in the pool.
-func discardConn(conn *sql.Conn) {
-	_ = conn.Raw(func(dc any) error {
-		if c, ok := dc.(*stdlib.Conn); ok {
-			ctx, cancel := context.WithTimeout(context.Background(), runLockTimeout)
-			defer cancel()
-			_ = c.Conn().Close(ctx)
-		}
-		return driver.ErrBadConn
-	})
-	_ = conn.Close()
 }
