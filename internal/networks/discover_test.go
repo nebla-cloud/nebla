@@ -356,9 +356,9 @@ func TestSetLocationSDNPeerRules(t *testing.T) {
 		{"same CA fingerprint", func(e *env) (*ent.Location, *ent.Location) {
 			return e.cluster(t, "a", "https://one.example:8006", "aa:bb:cc", "n1"), e.cluster(t, "b", "https://two.example:8006", "AABBCC", "n2")
 		}, true},
-		{"shared node name", func(e *env) (*ent.Location, *ent.Location) {
-			return e.cluster(t, "a", "https://one.example:8006", "", "n1", "shared"), e.cluster(t, "b", "https://two.example:8006", "", "shared")
-		}, true},
+		{"shared node name only", func(e *env) (*ent.Location, *ent.Location) {
+			return e.cluster(t, "a", "https://one.example:8006", "", "pve"), e.cluster(t, "b", "https://two.example:8006", "", "pve")
+		}, false},
 		{"unrelated", func(e *env) (*ent.Location, *ent.Location) {
 			return e.cluster(t, "a", "https://one.example:8006", "aa", "n1"), e.cluster(t, "b", "https://two.example:8006", "bb", "n2")
 		}, false},

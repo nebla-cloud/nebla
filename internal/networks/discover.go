@@ -28,7 +28,6 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
-	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
@@ -281,17 +280,6 @@ func lockCluster(ctx context.Context, etx *ent.Client, own *ent.Location) (*ent.
 	if err != nil {
 		return nil, nil, err
 	}
-	rows, err := etx.Node.Query().Select(node.FieldLocationID, node.FieldName).All(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	names := map[int64]map[string]bool{}
-	for _, r := range rows {
-		if names[r.LocationID] == nil {
-			names[r.LocationID] = map[string]bool{}
-		}
-		names[r.LocationID][r.Name] = true
-	}
 	var cur *ent.Location
 	for _, l := range all {
 		if l.ID == own.ID {
@@ -303,25 +291,20 @@ func lockCluster(ctx context.Context, etx *ent.Client, own *ent.Location) (*ent.
 	}
 	var peers []*ent.Location
 	for _, l := range all {
-		if l.ID != cur.ID && sameCluster(cur, l, names[cur.ID], names[l.ID]) {
+		if l.ID != cur.ID && sameCluster(cur, l) {
 			peers = append(peers, l)
 		}
 	}
 	return cur, peers, nil
 }
 
-// sameCluster reports whether two locations look like one Proxmox cluster: the same address, the same CA, or a shared node name.
-func sameCluster(a, b *ent.Location, nodesA, nodesB map[string]bool) bool {
+// sameCluster reports whether two locations look like one Proxmox cluster: the same address, or the same CA.
+func sameCluster(a, b *ent.Location) bool {
 	if hostPort(a.PveURL) == hostPort(b.PveURL) {
 		return true
 	}
 	if fa := normFingerprint(a.CaFingerprint); fa != "" && fa == normFingerprint(b.CaFingerprint) {
 		return true
-	}
-	for n := range nodesA {
-		if nodesB[n] {
-			return true
-		}
 	}
 	return false
 }
