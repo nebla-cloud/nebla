@@ -821,3 +821,78 @@ func TestDeleteErrorSnapshotLocksServer(t *testing.T) {
 		require.Equal(t, []actions.Resource{{ID: r.ID, Type: snapshots.ResourceType}}, act.Resources)
 	})
 }
+
+// serverAction records an action on the server; finished ones stand for something the user did.
+func (e *env) serverAction(t *testing.T, srvID int64, command string, finished bool) {
+	t.Helper()
+	ctx := context.Background()
+	a, err := actions.Create(ctx, e.App.Ent, e.Project, command, []actions.Resource{{ID: srvID, Type: servers.ResourceType}})
+	require.NoError(t, err)
+	if finished {
+		require.NoError(t, actions.Succeed(ctx, e.App.Ent, a.ID))
+	}
+}
+
+func (e *env) retryCleanup(t *testing.T, id int64) {
+	t.Helper()
+	ctx := context.Background()
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	require.NoError(t, snapshots.RetryCleanup(ctx, e.opts(nil), e.App.Ent.Snapshot.GetX(ctx, id), pc))
+}
+
+func TestRetryCleanupRestart(t *testing.T) {
+	t.Run("the server starts, then the row goes", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, srvID, vmid := e.errorSnapshot(t, true)
+		e.retryCleanup(t, r.ID)
+		e.requireServer(t, srvID, vmid, servers.StatusRunning)
+		require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(r.ID)).ExistX(ctx))
+	})
+	t.Run("the user's own stop since is respected", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		r, srvID, vmid := e.errorSnapshot(t, true)
+		e.serverAction(t, srvID, "poweroff_server", true)
+		start := fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/start", vmid)
+		before := e.countCalls(start)
+		e.retryCleanup(t, r.ID)
+		require.Equal(t, before, e.countCalls(start), "no start")
+		e.requireServer(t, srvID, vmid, servers.StatusOff)
+		require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(r.ID)).ExistX(ctx), "cleanup went on")
+		_, ok := e.App.PVE.VM(r.VMID)
+		require.False(t, ok)
+	})
+	for _, cmd := range []string{"rebuild_server", "delete_server"} {
+		t.Run("a running "+cmd+" blocks the retry", func(t *testing.T) {
+			ctx := context.Background()
+			e := newEnv(t)
+			r, srvID, vmid := e.errorSnapshot(t, true)
+			e.serverAction(t, srvID, cmd, false)
+			e.retryCleanup(t, r.ID)
+			e.requireServer(t, srvID, vmid, servers.StatusOff)
+			row := e.App.Ent.Snapshot.GetX(ctx, r.ID)
+			require.Equal(t, snapshot.StatusError, row.Status)
+			require.True(t, row.WasRunning)
+			_, ok := e.App.PVE.VM(r.VMID)
+			require.True(t, ok, "nothing touched")
+		})
+	}
+}
+
+func TestDeleteErrorSnapshotRespectsUser(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	r, srvID, vmid := e.errorSnapshot(t, true)
+	e.serverAction(t, srvID, "poweroff_server", true)
+	start := fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/start", vmid)
+	before := e.countCalls(start)
+	act, err := e.svc.Delete(ctx, e.Project, r.ID)
+	require.NoError(t, err)
+	a := e.finish(t, e.opts(nil), act.ID)
+	require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+	require.Equal(t, before, e.countCalls(start), "no start")
+	e.requireServer(t, srvID, vmid, servers.StatusOff)
+	require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(r.ID)).ExistX(ctx))
+}

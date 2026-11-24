@@ -22,16 +22,18 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/snapshot"
 	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/servers"
 )
 
 // RetryCleanup finishes a failed create's cleanup on an error row: it starts the source server if it still needs it,
 // destroys the VM only when tag and nonce prove it ours, then deletes the row. Any failure leaves the row in error.
 func RetryCleanup(ctx context.Context, o WorkerOptions, row *ent.Snapshot, pc pve.Client) error {
 	o.defaults()
-	busy, err := hasRunningAction(ctx, o.Ent, row.ProjectID, row.ID)
-	if err != nil || busy {
+	row, err := claimRetry(ctx, o, row)
+	if err != nil || row == nil {
 		return err
 	}
 	c := &create{o: &o, row: row, log: o.Logger, pc: pc}
@@ -52,4 +54,47 @@ func RetryCleanup(ctx context.Context, o WorkerOptions, row *ent.Snapshot, pc pv
 		}
 		return etx.Snapshot.DeleteOneID(row.ID).Exec(ctx)
 	})
+}
+
+// claimRetry re-reads the row under the server and snapshot locks; nil means leave it for now. A user action on the
+// server since the create clears was_running, so the retry never overrides the user's power state.
+func claimRetry(ctx context.Context, o WorkerOptions, row *ent.Snapshot) (*ent.Snapshot, error) {
+	var out *ent.Snapshot
+	err := db.WithTx(ctx, o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		if row.ServerID != nil {
+			_, err := etx.Server.Query().Where(server.ID(*row.ServerID)).ForUpdate().Only(ctx)
+			if err != nil && !ent.IsNotFound(err) {
+				return err
+			}
+			busy, err := servers.HasRunningAction(ctx, etx, row.ProjectID, *row.ServerID)
+			if err != nil || busy {
+				return err
+			}
+		}
+		cur, err := lockSnapshot(ctx, etx, row.ProjectID, row.ID)
+		if errors.Is(err, errNotFound) {
+			return nil
+		}
+		if err != nil || cur.Status != snapshot.StatusError {
+			return err
+		}
+		busy, err := hasRunningAction(ctx, etx, row.ProjectID, row.ID)
+		if err != nil || busy {
+			return err
+		}
+		if needsRestart(cur) {
+			acted, err := userActedSince(ctx, etx, cur)
+			if err != nil {
+				return err
+			}
+			if acted {
+				if cur, err = etx.Snapshot.UpdateOneID(cur.ID).SetWasRunning(false).Save(ctx); err != nil {
+					return err
+				}
+			}
+		}
+		out = cur
+		return nil
+	})
+	return out, err
 }

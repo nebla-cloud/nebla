@@ -62,6 +62,18 @@ func (w *DeleteSnapshotWorker) Work(ctx context.Context, job *river.Job[DeleteSn
 			return nil
 		}
 		if needsRestart(row) {
+			acted, err := userActedSince(ctx, w.o.Ent, row)
+			if err != nil {
+				return err
+			}
+			if acted {
+				// The user set the server's power state since; leave it.
+				if row, err = w.o.Ent.Snapshot.UpdateOneID(row.ID).SetWasRunning(false).Save(ctx); err != nil {
+					return err
+				}
+			}
+		}
+		if needsRestart(row) {
 			// A failed create's cleanup never started the server again; that comes first.
 			if err := connect(); err != nil {
 				return err

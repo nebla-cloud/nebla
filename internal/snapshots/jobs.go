@@ -28,8 +28,10 @@ import (
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
+	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
@@ -275,6 +277,22 @@ func (o *WorkerOptions) syncServerStatus(ctx context.Context, pc pve.Client, ser
 	if err := o.setServerStatus(ctx, serverID, st); err != nil {
 		o.Logger.Error("snapshots: set server status", "server_id", serverID, "err", err)
 	}
+}
+
+// userActedSince reports whether an action on the snapshot's server finished after its create started: the user's power state wins.
+func userActedSince(ctx context.Context, c *ent.Client, row *ent.Snapshot) (bool, error) {
+	if row.ServerID == nil {
+		return false, nil
+	}
+	createID, err := c.Action.Query().Where(ActionsOf(row.ProjectID, row.ID), action.Command(KindCreateSnapshot)).FirstID(ctx)
+	if ent.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return c.Action.Query().Where(servers.ActionsOf(row.ProjectID, *row.ServerID), action.IDGT(createID), action.FinishedNotNil(),
+		action.CommandNEQ(firewalls.KindApply), action.Not(ActionsOf(row.ProjectID, row.ID))).Exist(ctx)
 }
 
 // restartSource starts the snapshot's source server if it was running, then clears was_running; it returns the updated row.
