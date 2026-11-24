@@ -210,11 +210,6 @@ func NetRefresh(v bool) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldNetRefresh, v))
 }
 
-// InstanceGen applies equality check predicate on the "instance_gen" field. It's identical to InstanceGenEQ.
-func InstanceGen(v int64) predicate.Server {
-	return predicate.Server(sql.FieldEQ(FieldInstanceGen, v))
-}
-
 // IsoNetHash applies equality check predicate on the "iso_net_hash" field. It's identical to IsoNetHashEQ.
 func IsoNetHash(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldIsoNetHash, v))
@@ -1668,46 +1663,6 @@ func NetRefreshEQ(v bool) predicate.Server {
 // NetRefreshNEQ applies the NEQ predicate on the "net_refresh" field.
 func NetRefreshNEQ(v bool) predicate.Server {
 	return predicate.Server(sql.FieldNEQ(FieldNetRefresh, v))
-}
-
-// InstanceGenEQ applies the EQ predicate on the "instance_gen" field.
-func InstanceGenEQ(v int64) predicate.Server {
-	return predicate.Server(sql.FieldEQ(FieldInstanceGen, v))
-}
-
-// InstanceGenNEQ applies the NEQ predicate on the "instance_gen" field.
-func InstanceGenNEQ(v int64) predicate.Server {
-	return predicate.Server(sql.FieldNEQ(FieldInstanceGen, v))
-}
-
-// InstanceGenIn applies the In predicate on the "instance_gen" field.
-func InstanceGenIn(vs ...int64) predicate.Server {
-	return predicate.Server(sql.FieldIn(FieldInstanceGen, vs...))
-}
-
-// InstanceGenNotIn applies the NotIn predicate on the "instance_gen" field.
-func InstanceGenNotIn(vs ...int64) predicate.Server {
-	return predicate.Server(sql.FieldNotIn(FieldInstanceGen, vs...))
-}
-
-// InstanceGenGT applies the GT predicate on the "instance_gen" field.
-func InstanceGenGT(v int64) predicate.Server {
-	return predicate.Server(sql.FieldGT(FieldInstanceGen, v))
-}
-
-// InstanceGenGTE applies the GTE predicate on the "instance_gen" field.
-func InstanceGenGTE(v int64) predicate.Server {
-	return predicate.Server(sql.FieldGTE(FieldInstanceGen, v))
-}
-
-// InstanceGenLT applies the LT predicate on the "instance_gen" field.
-func InstanceGenLT(v int64) predicate.Server {
-	return predicate.Server(sql.FieldLT(FieldInstanceGen, v))
-}
-
-// InstanceGenLTE applies the LTE predicate on the "instance_gen" field.
-func InstanceGenLTE(v int64) predicate.Server {
-	return predicate.Server(sql.FieldLTE(FieldInstanceGen, v))
 }
 
 // IsoNetHashEQ applies the EQ predicate on the "iso_net_hash" field.

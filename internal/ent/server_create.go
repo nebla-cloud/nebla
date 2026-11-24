@@ -406,20 +406,6 @@ func (_c *ServerCreate) SetNillableNetRefresh(v *bool) *ServerCreate {
 	return _c
 }
 
-// SetInstanceGen sets the "instance_gen" field.
-func (_c *ServerCreate) SetInstanceGen(v int64) *ServerCreate {
-	_c.mutation.SetInstanceGen(v)
-	return _c
-}
-
-// SetNillableInstanceGen sets the "instance_gen" field if the given value is not nil.
-func (_c *ServerCreate) SetNillableInstanceGen(v *int64) *ServerCreate {
-	if v != nil {
-		_c.SetInstanceGen(*v)
-	}
-	return _c
-}
-
 // SetIsoNetHash sets the "iso_net_hash" field.
 func (_c *ServerCreate) SetIsoNetHash(v string) *ServerCreate {
 	_c.mutation.SetIsoNetHash(v)
@@ -589,10 +575,6 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultNetRefresh
 		_c.mutation.SetNetRefresh(v)
 	}
-	if _, ok := _c.mutation.InstanceGen(); !ok {
-		v := server.DefaultInstanceGen
-		_c.mutation.SetInstanceGen(v)
-	}
 	if _, ok := _c.mutation.IsoNetHash(); !ok {
 		v := server.DefaultIsoNetHash
 		_c.mutation.SetIsoNetHash(v)
@@ -688,9 +670,6 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.NetRefresh(); !ok {
 		return &ValidationError{Name: "net_refresh", err: errors.New(`ent: missing required field "Server.net_refresh"`)}
-	}
-	if _, ok := _c.mutation.InstanceGen(); !ok {
-		return &ValidationError{Name: "instance_gen", err: errors.New(`ent: missing required field "Server.instance_gen"`)}
 	}
 	if _, ok := _c.mutation.IsoNetHash(); !ok {
 		return &ValidationError{Name: "iso_net_hash", err: errors.New(`ent: missing required field "Server.iso_net_hash"`)}
@@ -862,10 +841,6 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.NetRefresh(); ok {
 		_spec.SetField(server.FieldNetRefresh, field.TypeBool, value)
 		_node.NetRefresh = value
-	}
-	if value, ok := _c.mutation.InstanceGen(); ok {
-		_spec.SetField(server.FieldInstanceGen, field.TypeInt64, value)
-		_node.InstanceGen = value
 	}
 	if value, ok := _c.mutation.IsoNetHash(); ok {
 		_spec.SetField(server.FieldIsoNetHash, field.TypeString, value)
@@ -1510,24 +1485,6 @@ func (u *ServerUpsert) SetNetRefresh(v bool) *ServerUpsert {
 // UpdateNetRefresh sets the "net_refresh" field to the value that was provided on create.
 func (u *ServerUpsert) UpdateNetRefresh() *ServerUpsert {
 	u.SetExcluded(server.FieldNetRefresh)
-	return u
-}
-
-// SetInstanceGen sets the "instance_gen" field.
-func (u *ServerUpsert) SetInstanceGen(v int64) *ServerUpsert {
-	u.Set(server.FieldInstanceGen, v)
-	return u
-}
-
-// UpdateInstanceGen sets the "instance_gen" field to the value that was provided on create.
-func (u *ServerUpsert) UpdateInstanceGen() *ServerUpsert {
-	u.SetExcluded(server.FieldInstanceGen)
-	return u
-}
-
-// AddInstanceGen adds v to the "instance_gen" field.
-func (u *ServerUpsert) AddInstanceGen(v int64) *ServerUpsert {
-	u.Add(server.FieldInstanceGen, v)
 	return u
 }
 
@@ -2225,27 +2182,6 @@ func (u *ServerUpsertOne) SetNetRefresh(v bool) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateNetRefresh() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateNetRefresh()
-	})
-}
-
-// SetInstanceGen sets the "instance_gen" field.
-func (u *ServerUpsertOne) SetInstanceGen(v int64) *ServerUpsertOne {
-	return u.Update(func(s *ServerUpsert) {
-		s.SetInstanceGen(v)
-	})
-}
-
-// AddInstanceGen adds v to the "instance_gen" field.
-func (u *ServerUpsertOne) AddInstanceGen(v int64) *ServerUpsertOne {
-	return u.Update(func(s *ServerUpsert) {
-		s.AddInstanceGen(v)
-	})
-}
-
-// UpdateInstanceGen sets the "instance_gen" field to the value that was provided on create.
-func (u *ServerUpsertOne) UpdateInstanceGen() *ServerUpsertOne {
-	return u.Update(func(s *ServerUpsert) {
-		s.UpdateInstanceGen()
 	})
 }
 
@@ -3116,27 +3052,6 @@ func (u *ServerUpsertBulk) SetNetRefresh(v bool) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateNetRefresh() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateNetRefresh()
-	})
-}
-
-// SetInstanceGen sets the "instance_gen" field.
-func (u *ServerUpsertBulk) SetInstanceGen(v int64) *ServerUpsertBulk {
-	return u.Update(func(s *ServerUpsert) {
-		s.SetInstanceGen(v)
-	})
-}
-
-// AddInstanceGen adds v to the "instance_gen" field.
-func (u *ServerUpsertBulk) AddInstanceGen(v int64) *ServerUpsertBulk {
-	return u.Update(func(s *ServerUpsert) {
-		s.AddInstanceGen(v)
-	})
-}
-
-// UpdateInstanceGen sets the "instance_gen" field to the value that was provided on create.
-func (u *ServerUpsertBulk) UpdateInstanceGen() *ServerUpsertBulk {
-	return u.Update(func(s *ServerUpsert) {
-		s.UpdateInstanceGen()
 	})
 }
 

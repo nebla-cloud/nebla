@@ -80,7 +80,8 @@ func TestNewServerHasNetRefresh(t *testing.T) {
 	s := builtServer(t, e, cw, "web")
 	row := srvRow(t, e, s.ServerID)
 	require.True(t, row.NetRefresh)
-	require.Equal(t, int64(row.IsoGeneration), row.InstanceGen)
+	require.Zero(t, row.InstanceGeneration, "0 follows iso_generation")
+	require.Equal(t, row.IsoGeneration, servers.InstanceGeneration(row))
 	require.NotEmpty(t, row.IsoNetHash)
 	files := isoFiles(t, e, isoVolid(s.ServerID))
 	require.Equal(t, wantVendorData, files["vendor-data"])
@@ -100,7 +101,7 @@ func TestRebuildSetsNetRefresh(t *testing.T) {
 	row := srvRow(t, e, s.ServerID)
 	require.Equal(t, 2, row.IsoGeneration)
 	require.True(t, row.NetRefresh)
-	require.Equal(t, int64(2), row.InstanceGen)
+	require.Equal(t, 2, servers.InstanceGeneration(row))
 	require.NotEmpty(t, row.IsoNetHash)
 	files := isoFiles(t, e, genVolid(s.ServerID, 2))
 	require.Equal(t, wantVendorData, files["vendor-data"])
@@ -125,7 +126,7 @@ func TestISOSyncRewritesOnFloatingAssign(t *testing.T) {
 	require.NoError(t, servers.NewSyncISOWorker(f.o).Work(context.Background(), jobOf(servers.SyncISOArgs{ServerID: f.a}, 1)))
 	row := srvRow(t, f.ServerEnv, f.a)
 	require.Equal(t, 2, row.IsoGeneration)
-	require.Equal(t, int64(1), row.InstanceGen)
+	require.Equal(t, 1, row.InstanceGeneration, "kept instance is stored before iso_generation moves on")
 	require.Equal(t, genVolid(f.a, 2), *row.IsoVolid)
 	require.Equal(t, genVolid(f.a, 2)+",media=cdrom", ide2(t, f.ServerEnv, f.a))
 	files := isoFiles(t, f.ServerEnv, genVolid(f.a, 2))
@@ -139,6 +140,21 @@ func TestISOSyncRewritesOnFloatingAssign(t *testing.T) {
 	require.False(t, syncNow(t, f.o, f.a, false))
 }
 
+func TestISOSyncKeepsFollowingInstanceGeneration(t *testing.T) {
+	ctx := context.Background()
+	f := newFIPEnv(t)
+	_, ip := f.settled(t)
+	// An old server: instance_generation 0 follows iso_generation, which earlier rebuilds moved to 4.
+	require.NoError(t, f.App.Ent.Server.UpdateOneID(f.a).SetIsoGeneration(4).SetInstanceGeneration(0).Exec(ctx))
+	require.True(t, syncNow(t, f.o, f.a, false))
+	row := srvRow(t, f.ServerEnv, f.a)
+	require.Equal(t, 5, row.IsoGeneration)
+	require.Equal(t, 4, row.InstanceGeneration)
+	files := isoFiles(t, f.ServerEnv, genVolid(f.a, 5))
+	require.Contains(t, files["network-config"], "- "+ip+"/32\n")
+	require.Equal(t, fmt.Sprintf("nb-srv-%d-4", f.a), instanceID(t, files))
+}
+
 func TestISOSyncBumpsInstanceOnOldServer(t *testing.T) {
 	ctx := context.Background()
 	e, cw := directEnv(t)
@@ -147,7 +163,7 @@ func TestISOSyncBumpsInstanceOnOldServer(t *testing.T) {
 	require.True(t, syncNow(t, opts(e), s.ServerID, true))
 	row := srvRow(t, e, s.ServerID)
 	require.Equal(t, 2, row.IsoGeneration)
-	require.Equal(t, int64(2), row.InstanceGen)
+	require.Equal(t, 2, servers.InstanceGeneration(row))
 	files := isoFiles(t, e, genVolid(s.ServerID, 2))
 	require.Equal(t, fmt.Sprintf("nb-srv-%d-2", s.ServerID), instanceID(t, files))
 	require.NotContains(t, files, "vendor-data")
@@ -210,7 +226,7 @@ func TestRebuildEndsWithFreshISO(t *testing.T) {
 	require.NoError(t, sw.Work(ctx, jobOf(servers.SyncISOArgs{ServerID: f.a}, 1)))
 	row := srvRow(t, f.ServerEnv, f.a)
 	require.Equal(t, 3, row.IsoGeneration)
-	require.Equal(t, int64(2), row.InstanceGen)
+	require.Equal(t, 2, servers.InstanceGeneration(row))
 	require.Equal(t, genVolid(f.a, 3)+",media=cdrom", ide2(t, f.ServerEnv, f.a))
 	require.Contains(t, isoFiles(t, f.ServerEnv, genVolid(f.a, 3))["network-config"], "- "+fip.IP+"/32\n")
 }

@@ -608,27 +608,6 @@ func (_u *ServerUpdate) SetNillableNetRefresh(v *bool) *ServerUpdate {
 	return _u
 }
 
-// SetInstanceGen sets the "instance_gen" field.
-func (_u *ServerUpdate) SetInstanceGen(v int64) *ServerUpdate {
-	_u.mutation.ResetInstanceGen()
-	_u.mutation.SetInstanceGen(v)
-	return _u
-}
-
-// SetNillableInstanceGen sets the "instance_gen" field if the given value is not nil.
-func (_u *ServerUpdate) SetNillableInstanceGen(v *int64) *ServerUpdate {
-	if v != nil {
-		_u.SetInstanceGen(*v)
-	}
-	return _u
-}
-
-// AddInstanceGen adds value to the "instance_gen" field.
-func (_u *ServerUpdate) AddInstanceGen(v int64) *ServerUpdate {
-	_u.mutation.AddInstanceGen(v)
-	return _u
-}
-
 // SetIsoNetHash sets the "iso_net_hash" field.
 func (_u *ServerUpdate) SetIsoNetHash(v string) *ServerUpdate {
 	_u.mutation.SetIsoNetHash(v)
@@ -931,12 +910,6 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.NetRefresh(); ok {
 		_spec.SetField(server.FieldNetRefresh, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.InstanceGen(); ok {
-		_spec.SetField(server.FieldInstanceGen, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedInstanceGen(); ok {
-		_spec.AddField(server.FieldInstanceGen, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.IsoNetHash(); ok {
 		_spec.SetField(server.FieldIsoNetHash, field.TypeString, value)
@@ -1606,27 +1579,6 @@ func (_u *ServerUpdateOne) SetNillableNetRefresh(v *bool) *ServerUpdateOne {
 	return _u
 }
 
-// SetInstanceGen sets the "instance_gen" field.
-func (_u *ServerUpdateOne) SetInstanceGen(v int64) *ServerUpdateOne {
-	_u.mutation.ResetInstanceGen()
-	_u.mutation.SetInstanceGen(v)
-	return _u
-}
-
-// SetNillableInstanceGen sets the "instance_gen" field if the given value is not nil.
-func (_u *ServerUpdateOne) SetNillableInstanceGen(v *int64) *ServerUpdateOne {
-	if v != nil {
-		_u.SetInstanceGen(*v)
-	}
-	return _u
-}
-
-// AddInstanceGen adds value to the "instance_gen" field.
-func (_u *ServerUpdateOne) AddInstanceGen(v int64) *ServerUpdateOne {
-	_u.mutation.AddInstanceGen(v)
-	return _u
-}
-
 // SetIsoNetHash sets the "iso_net_hash" field.
 func (_u *ServerUpdateOne) SetIsoNetHash(v string) *ServerUpdateOne {
 	_u.mutation.SetIsoNetHash(v)
@@ -1959,12 +1911,6 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if value, ok := _u.mutation.NetRefresh(); ok {
 		_spec.SetField(server.FieldNetRefresh, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.InstanceGen(); ok {
-		_spec.SetField(server.FieldInstanceGen, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedInstanceGen(); ok {
-		_spec.AddField(server.FieldInstanceGen, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.IsoNetHash(); ok {
 		_spec.SetField(server.FieldIsoNetHash, field.TypeString, value)

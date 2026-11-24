@@ -21852,8 +21852,6 @@ type ServerMutation struct {
 	addbackup_slot          *int
 	backups_enabled_at      *time.Time
 	net_refresh             *bool
-	instance_gen            *int64
-	addinstance_gen         *int64
 	iso_net_hash            *string
 	iso_lease_until         *time.Time
 	instance_bump_pending   *bool
@@ -23614,62 +23612,6 @@ func (m *ServerMutation) ResetNetRefresh() {
 	m.net_refresh = nil
 }
 
-// SetInstanceGen sets the "instance_gen" field.
-func (m *ServerMutation) SetInstanceGen(i int64) {
-	m.instance_gen = &i
-	m.addinstance_gen = nil
-}
-
-// InstanceGen returns the value of the "instance_gen" field in the mutation.
-func (m *ServerMutation) InstanceGen() (r int64, exists bool) {
-	v := m.instance_gen
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldInstanceGen returns the old "instance_gen" field's value of the Server entity.
-// If the Server object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *ServerMutation) OldInstanceGen(ctx context.Context) (v int64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldInstanceGen is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldInstanceGen requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldInstanceGen: %w", err)
-	}
-	return oldValue.InstanceGen, nil
-}
-
-// AddInstanceGen adds i to the "instance_gen" field.
-func (m *ServerMutation) AddInstanceGen(i int64) {
-	if m.addinstance_gen != nil {
-		*m.addinstance_gen += i
-	} else {
-		m.addinstance_gen = &i
-	}
-}
-
-// AddedInstanceGen returns the value that was added to the "instance_gen" field in this mutation.
-func (m *ServerMutation) AddedInstanceGen() (r int64, exists bool) {
-	v := m.addinstance_gen
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetInstanceGen resets all changes to the "instance_gen" field.
-func (m *ServerMutation) ResetInstanceGen() {
-	m.instance_gen = nil
-	m.addinstance_gen = nil
-}
-
 // SetIsoNetHash sets the "iso_net_hash" field.
 func (m *ServerMutation) SetIsoNetHash(s string) {
 	m.iso_net_hash = &s
@@ -23969,7 +23911,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 39)
+	fields := make([]string, 0, 38)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -24072,9 +24014,6 @@ func (m *ServerMutation) Fields() []string {
 	if m.net_refresh != nil {
 		fields = append(fields, server.FieldNetRefresh)
 	}
-	if m.instance_gen != nil {
-		fields = append(fields, server.FieldInstanceGen)
-	}
 	if m.iso_net_hash != nil {
 		fields = append(fields, server.FieldIsoNetHash)
 	}
@@ -24163,8 +24102,6 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.BackupsEnabledAt()
 	case server.FieldNetRefresh:
 		return m.NetRefresh()
-	case server.FieldInstanceGen:
-		return m.InstanceGen()
 	case server.FieldIsoNetHash:
 		return m.IsoNetHash()
 	case server.FieldIsoLeaseUntil:
@@ -24250,8 +24187,6 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldBackupsEnabledAt(ctx)
 	case server.FieldNetRefresh:
 		return m.OldNetRefresh(ctx)
-	case server.FieldInstanceGen:
-		return m.OldInstanceGen(ctx)
 	case server.FieldIsoNetHash:
 		return m.OldIsoNetHash(ctx)
 	case server.FieldIsoLeaseUntil:
@@ -24507,13 +24442,6 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetNetRefresh(v)
 		return nil
-	case server.FieldInstanceGen:
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetInstanceGen(v)
-		return nil
 	case server.FieldIsoNetHash:
 		v, ok := value.(string)
 		if !ok {
@@ -24592,9 +24520,6 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.addbackup_slot != nil {
 		fields = append(fields, server.FieldBackupSlot)
 	}
-	if m.addinstance_gen != nil {
-		fields = append(fields, server.FieldInstanceGen)
-	}
 	return fields
 }
 
@@ -24631,8 +24556,6 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedBackupKeep()
 	case server.FieldBackupSlot:
 		return m.AddedBackupSlot()
-	case server.FieldInstanceGen:
-		return m.AddedInstanceGen()
 	}
 	return nil, false
 }
@@ -24739,13 +24662,6 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddBackupSlot(v)
-		return nil
-	case server.FieldInstanceGen:
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddInstanceGen(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Server numeric field %s", name)
@@ -24938,9 +24854,6 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldNetRefresh:
 		m.ResetNetRefresh()
-		return nil
-	case server.FieldInstanceGen:
-		m.ResetInstanceGen()
 		return nil
 	case server.FieldIsoNetHash:
 		m.ResetIsoNetHash()

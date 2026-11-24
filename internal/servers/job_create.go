@@ -157,7 +157,7 @@ func (c *createRun) save(ctx context.Context, st buildState) error {
 		u.SetIsoVolid(c.b.volid())
 	}
 	if st.Step >= stepISO && c.b.netHash != "" {
-		u.SetIsoNetHash(c.b.netHash).SetInstanceGen(int64(c.b.isoGen)).SetNetRefresh(true)
+		u.SetIsoNetHash(c.b.netHash).SetNetRefresh(true)
 	}
 	row, err := u.Save(ctx)
 	if err != nil {

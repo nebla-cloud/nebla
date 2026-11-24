@@ -215,8 +215,8 @@ func TestPrimaryIPsMigrationMovesAllocations(t *testing.T) {
 	require.Zero(t, m.count(t, `select count(*) from ip_allocations where owner = 'server'`))
 	require.Equal(t, 5, m.count(t, `select count(*) from ip_allocations where owner = 'primary' and server_id is null`))
 	require.Equal(t, 1, m.count(t, `select count(*) from ip_addresses where kind = 'floating' and name = 'web1-ipv4'`))
-	require.Zero(t, m.count(t, `select count(*) from servers where instance_gen <> iso_generation`))
-	require.Equal(t, 5, m.count(t, `select instance_gen from servers where id = $1`, f.webB))
+	// instance_generation 0 already means the ISO generation, so the data step leaves it alone.
+	require.Zero(t, m.count(t, `select count(*) from servers where instance_generation <> 0`))
 	require.Zero(t, m.count(t, `select count(*) from servers where net_refresh or iso_net_hash <> ''`))
 }
 
@@ -312,7 +312,7 @@ func TestPrimaryIPsDownRefuses(t *testing.T) {
 			require.Equal(t, before, m.rows(t, snap))
 			require.Equal(t, v, m.version(t))
 			require.Equal(t, 1, m.count(t,
-				`select count(*) from information_schema.columns where table_name = 'servers' and column_name = 'instance_gen'`))
+				`select count(*) from information_schema.columns where table_name = 'servers' and column_name = 'instance_bump_pending'`))
 		})
 	}
 }

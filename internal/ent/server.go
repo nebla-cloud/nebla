@@ -90,8 +90,6 @@ type Server struct {
 	BackupsEnabledAt *time.Time `json:"backups_enabled_at,omitempty"`
 	// NetRefresh holds the value of the "net_refresh" field.
 	NetRefresh bool `json:"net_refresh,omitempty"`
-	// InstanceGen holds the value of the "instance_gen" field.
-	InstanceGen int64 `json:"instance_gen,omitempty"`
 	// IsoNetHash holds the value of the "iso_net_hash" field.
 	IsoNetHash string `json:"iso_net_hash,omitempty"`
 	// IsoLeaseUntil holds the value of the "iso_lease_until" field.
@@ -174,7 +172,7 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case server.FieldBackupsEnabled, server.FieldNetRefresh, server.FieldInstanceBumpPending:
 			values[i] = new(sql.NullBool)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot, server.FieldInstanceGen:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot:
 			values[i] = new(sql.NullInt64)
 		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData, server.FieldIsoNetHash:
 			values[i] = new(sql.NullString)
@@ -418,12 +416,6 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.NetRefresh = value.Bool
 			}
-		case server.FieldInstanceGen:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field instance_gen", values[i])
-			} else if value.Valid {
-				_m.InstanceGen = value.Int64
-			}
 		case server.FieldIsoNetHash:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field iso_net_hash", values[i])
@@ -622,9 +614,6 @@ func (_m *Server) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("net_refresh=")
 	builder.WriteString(fmt.Sprintf("%v", _m.NetRefresh))
-	builder.WriteString(", ")
-	builder.WriteString("instance_gen=")
-	builder.WriteString(fmt.Sprintf("%v", _m.InstanceGen))
 	builder.WriteString(", ")
 	builder.WriteString("iso_net_hash=")
 	builder.WriteString(_m.IsoNetHash)

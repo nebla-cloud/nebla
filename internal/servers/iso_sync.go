@@ -26,7 +26,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
-	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/pve"
@@ -174,21 +173,19 @@ func isoSteady(row *ent.Server) bool {
 	return row.Status != StatusDeleting && row.Status != StatusMissing
 }
 
-// renderISO is the seed ISO input for row from its current IPs.
-func renderISO(ctx context.Context, c *ent.Client, row *ent.Server, instanceGen int64, netRefresh bool) (cloudinit.Input, error) {
+// renderISO is the seed ISO input for row from its current IPs, with instance-id generation instGen.
+func renderISO(ctx context.Context, c *ent.Client, row *ent.Server, instGen int, netRefresh bool) (cloudinit.Input, error) {
 	assign, err := ipam.Assignments(ctx, c, row.ID)
 	if err != nil {
 		return cloudinit.Input{}, err
 	}
-	fips, err := floatingips.GuestIPs(ctx, c, row.ID)
+	in, err := seedInput(ctx, c, row, assign)
 	if err != nil {
 		return cloudinit.Input{}, err
 	}
-	return cloudinit.Input{
-		InstanceID: fmt.Sprintf("nb-srv-%d-%d", row.ID, instanceGen),
-		Hostname:   row.Name, SSHKeys: row.SSHKeys, UserData: row.UserData, MAC: row.MAC, IPs: assign, Floating: fips,
-		NetRefresh: netRefresh,
-	}, nil
+	in.InstanceID = fmt.Sprintf("nb-srv-%d-%d", row.ID, instGen)
+	in.NetRefresh = netRefresh
+	return in, nil
 }
 
 // isoBeforeUpdate is a test hook run between the ISO upload and the server update.
@@ -211,9 +208,10 @@ func (o *WorkerOptions) syncISO(ctx context.Context, pc pve.Client, row *ent.Ser
 			return nil
 		}
 		bumpInstance = bumpInstance || cur.InstanceBumpPending
-		gen, inst := cur.IsoGeneration+1, cur.InstanceGen
+		// Keeping the instance writes InstanceGeneration(cur) back, so a 0 stops following the new iso_generation.
+		gen, inst := cur.IsoGeneration+1, InstanceGeneration(cur)
 		if bumpInstance {
-			inst = int64(gen)
+			inst = gen
 		}
 		in, err := renderISO(ctx, o.Ent, cur, inst, cur.NetRefresh)
 		if err != nil {
@@ -249,7 +247,7 @@ func (o *WorkerOptions) syncISO(ctx context.Context, pc pve.Client, row *ent.Ser
 		// A bump requested after cur was read must survive; the retry applies it.
 		n, err := o.Ent.Server.Update().Where(server.ID(cur.ID), server.IsoGeneration(cur.IsoGeneration), server.IsoLeaseUntil(l.until),
 			server.InstanceBumpPending(cur.InstanceBumpPending)).
-			SetIsoGeneration(gen).SetIsoVolid(volid).SetIsoNetHash(hash).SetInstanceGen(inst).SetInstanceBumpPending(false).Save(ctx)
+			SetIsoGeneration(gen).SetIsoVolid(volid).SetIsoNetHash(hash).SetInstanceGeneration(inst).SetInstanceBumpPending(false).Save(ctx)
 		if err != nil {
 			return err
 		}
@@ -276,7 +274,7 @@ func ISOSyncDue(ctx context.Context, c *ent.Client, row *ent.Server) (bool, erro
 	if row.IsoNetHash == "" || !isoSteady(row) || Building(row) {
 		return false, nil
 	}
-	in, err := renderISO(ctx, c, row, row.InstanceGen, row.NetRefresh)
+	in, err := renderISO(ctx, c, row, InstanceGeneration(row), row.NetRefresh)
 	if err != nil {
 		return false, err
 	}

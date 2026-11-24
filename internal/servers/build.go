@@ -497,7 +497,7 @@ func (b *builder) uploadISO(ctx context.Context) error {
 			b.isoGen = cur.IsoGeneration + 1
 			b.instGen = cmp.Or(b.pinInst, b.isoGen)
 		}
-		in, err := renderISO(ctx, b.o.Ent, b.row, int64(b.instGen), true)
+		in, err := renderISO(ctx, b.o.Ent, b.row, b.instGen, true)
 		if err != nil {
 			return err
 		}

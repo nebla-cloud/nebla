@@ -77,13 +77,11 @@ func (Server) Fields() []ent.Field {
 		field.Time("backups_enabled_at").Optional().Nillable(),
 		// net_refresh marks VMs whose cloud-init re-applies network config on boot.
 		field.Bool("net_refresh").Default(false),
-		// instance_gen goes into the cloud-init instance-id; bumping it re-runs user data.
-		field.Int64("instance_gen").Default(0),
 		// iso_net_hash is the network config baked into the current ISO.
 		field.Text("iso_net_hash").Default(""),
 		// iso_lease_until is held by the one seed ISO writer working on the server.
 		field.Time("iso_lease_until").Optional().Nillable(),
-		// instance_bump_pending makes the next seed ISO write bump instance_gen.
+		// instance_bump_pending makes the next seed ISO write bump instance_generation.
 		field.Bool("instance_bump_pending").Default(false),
 		createdAt(),
 	}

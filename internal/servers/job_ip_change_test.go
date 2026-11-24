@@ -920,8 +920,8 @@ func TestAssignToStoppedServer(t *testing.T) {
 	vol := genVolid(p.a, row.IsoGeneration)
 	require.Equal(t, vol+",media=cdrom", ide2(t, p.ServerEnv, p.a))
 	require.Contains(t, netConfig(t, p.ServerEnv, vol), ip.IP)
-	require.Equal(t, before.InstanceGen, row.InstanceGen)
-	require.Equal(t, fmt.Sprintf("nb-srv-%d-%d", p.a, before.InstanceGen), instanceID(t, isoFiles(t, p.ServerEnv, vol)))
+	require.Equal(t, servers.InstanceGeneration(before), servers.InstanceGeneration(row))
+	require.Equal(t, fmt.Sprintf("nb-srv-%d-%d", p.a, servers.InstanceGeneration(before)), instanceID(t, isoFiles(t, p.ServerEnv, vol)))
 	_, gone := p.App.PVE.Volume(genVolid(p.a, before.IsoGeneration))
 	require.False(t, gone, "the old ISO is deleted")
 	r := p.row(t, ip.ID)
@@ -941,7 +941,7 @@ func TestAssignOldServerWarnsAndBumpsInstance(t *testing.T) {
 
 	row := srvRow(t, p.ServerEnv, p.a)
 	require.Equal(t, 2, row.IsoGeneration)
-	require.Equal(t, int64(2), row.InstanceGen)
+	require.Equal(t, 2, servers.InstanceGeneration(row))
 	require.Equal(t, fmt.Sprintf("nb-srv-%d-2", p.a), instanceID(t, isoFiles(t, p.ServerEnv, genVolid(p.a, 2))))
 }
 
@@ -1183,11 +1183,11 @@ func TestOldServerFailedAssignBumpsOnce(t *testing.T) {
 	row := srvRow(t, p.ServerEnv, p.a)
 	require.False(t, row.InstanceBumpPending)
 	require.Equal(t, before.IsoGeneration+1, row.IsoGeneration)
-	require.Equal(t, int64(row.IsoGeneration), row.InstanceGen)
-	require.NotEqual(t, before.InstanceGen, row.InstanceGen)
+	require.Equal(t, row.IsoGeneration, servers.InstanceGeneration(row))
+	require.NotEqual(t, servers.InstanceGeneration(before), servers.InstanceGeneration(row))
 	require.Contains(t, netConfig(t, p.ServerEnv, genVolid(p.a, row.IsoGeneration)), ip.IP)
 	require.False(t, syncNow(t, p.o, p.a, false), "the bump happens once")
-	require.Equal(t, row.InstanceGen, srvRow(t, p.ServerEnv, p.a).InstanceGen)
+	require.Equal(t, servers.InstanceGeneration(row), servers.InstanceGeneration(srvRow(t, p.ServerEnv, p.a)))
 }
 
 func TestNet0FailureRetriedByResume(t *testing.T) {
@@ -1266,13 +1266,13 @@ func TestISOSyncKeepsBumpRequestedMidSync(t *testing.T) {
 	require.True(t, once)
 	row := srvRow(t, p.ServerEnv, p.a)
 	require.True(t, row.InstanceBumpPending)
-	require.Equal(t, before.InstanceGen, row.InstanceGen)
+	require.Equal(t, servers.InstanceGeneration(before), servers.InstanceGeneration(row))
 
 	require.True(t, syncNow(t, p.o, p.a, false))
 	row = srvRow(t, p.ServerEnv, p.a)
 	require.False(t, row.InstanceBumpPending)
-	require.Equal(t, int64(row.IsoGeneration), row.InstanceGen)
-	require.NotEqual(t, before.InstanceGen, row.InstanceGen)
+	require.Equal(t, row.IsoGeneration, servers.InstanceGeneration(row))
+	require.NotEqual(t, servers.InstanceGeneration(before), servers.InstanceGeneration(row))
 }
 
 func TestServerDeleteClearsPrimaryPendingGen(t *testing.T) {

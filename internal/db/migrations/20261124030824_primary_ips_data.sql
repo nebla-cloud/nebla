@@ -32,7 +32,6 @@ BEGIN
   END IF;
 END $$;
 -- +goose StatementEnd
-UPDATE servers SET instance_gen = iso_generation;
 
 -- +goose Down
 -- +goose StatementBegin
