@@ -67,7 +67,11 @@ async function mountTab(s: Server = on()) {
     ),
   )
   const router = testRouter([
-    { path: '/p/:projectId/servers/:serverId/backups', name: 'server-backups', component: BackupsTab },
+    {
+      path: '/p/:projectId/servers/:serverId/backups',
+      name: 'server-backups',
+      component: BackupsTab,
+    },
   ])
   await router.push('/p/7/servers/5/backups')
   const m = mountApp(BackupsTab, {

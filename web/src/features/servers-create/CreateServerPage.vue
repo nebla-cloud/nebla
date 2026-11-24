@@ -243,7 +243,9 @@ async function submit() {
     public_net: { ipv4: form.ipv4, ipv6: form.ipv6 },
     ...(form.userData.trim() ? { user_data: form.userData } : {}),
     ...(backupsOn.value ? { backups: { enabled: true, keep: DEFAULT_KEEP } } : {}),
-    ...(firewallIds.value.length ? { firewalls: firewallIds.value.map((firewall) => ({ firewall })) } : {}),
+    ...(firewallIds.value.length
+      ? { firewalls: firewallIds.value.map((firewall) => ({ firewall })) }
+      : {}),
   } as components['schemas']['ServerInput']
   try {
     const res = unwrap(await api.POST('/servers', { body }))
@@ -337,7 +339,8 @@ const cards = 'flex flex-wrap gap-2.5'
                   <span class="flex items-center gap-2.5">
                     <OsBadge :name="o.image.os_flavor" size="lg" />
                     <span class="flex min-w-0 flex-col">
-                      <span>{{ osParts(o.image)?.name ?? o.image.name }}</span>{{ ' ' }}
+                      <span>{{ osParts(o.image)?.name ?? o.image.name }}</span
+                      >{{ ' ' }}
                       <span
                         v-if="o.disabledReason || osParts(o.image)?.version"
                         class="text-[12.5px] font-normal text-muted"
