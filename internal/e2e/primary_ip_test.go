@@ -78,7 +78,7 @@ func keyscan(t *testing.T, p *serialConsole, ip string, limit time.Duration) str
 	t.Helper()
 	deadline := time.Now().Add(limit)
 	for {
-		out, code := p.exec("ssh-keyscan -T 5 -t ed25519 "+ip+" 2>/dev/null | cut -d' ' -f2,3", time.Minute)
+		out, code := p.exec("ssh-keyscan -T 5 -t ed25519 "+ip+" 2>/dev/null | awk '$2 == \"ssh-ed25519\" {print $2, $3}'", time.Minute)
 		if code == 0 && strings.HasPrefix(out, "ssh-ed25519 ") {
 			return out
 		}
