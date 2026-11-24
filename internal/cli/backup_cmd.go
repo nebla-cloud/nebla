@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -155,7 +156,7 @@ func backupNowCmd(a *app) *cobra.Command {
 		}
 		if !wo.NoWait {
 			api.Timeout = wo.Timeout
-			if b, err = api.waitBackup(cmd.Context(), a.env.Stderr, s.Id, b.Id, wo.Timeout); err != nil {
+			if b, err = api.waitBackup(cmd.Context(), a.env.Stderr, s.Id, s.Name, b.Id, wo.Timeout); err != nil {
 				return err
 			}
 		}
@@ -172,8 +173,8 @@ func backupNowCmd(a *app) *cobra.Command {
 	return cmd
 }
 
-// waitBackup polls the backup until it is available; any other final state is an error.
-func (a *API) waitBackup(ctx context.Context, w interface{ Write([]byte) (int, error) }, server, id int64, timeout time.Duration) (*apiclient.Backup, error) {
+// waitBackup polls the backup until it is available; any other final state, or the row going away, is an error.
+func (a *API) waitBackup(ctx context.Context, w interface{ Write([]byte) (int, error) }, server int64, serverName string, id int64, timeout time.Duration) (*apiclient.Backup, error) {
 	parent := ctx
 	if timeout > 0 {
 		var cancel context.CancelFunc
@@ -195,6 +196,10 @@ func (a *API) waitBackup(ctx context.Context, w interface{ Write([]byte) (int, e
 					return b, fmt.Errorf("backup %d failed: it is %s", id, b.Status)
 				}
 			}
+		}
+		var ae *APIError
+		if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
+			return nil, fmt.Errorf("backup %d failed or was cancelled; see `nebla server actions %s`", id, serverName)
 		}
 		if err != nil && ctx.Err() == nil {
 			return nil, err

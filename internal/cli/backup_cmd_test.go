@@ -196,6 +196,25 @@ func TestBackupNowFailure(t *testing.T) {
 	}
 }
 
+func TestBackupNowDropped(t *testing.T) {
+	h, _ := newBackupHarness(t)
+	enableBackups(t, h)
+	// A failed or cancelled backup deletes its row.
+	go func() {
+		for i := 0; i < 100; i++ {
+			time.Sleep(50 * time.Millisecond)
+			n, _ := h.Env.App.Ent.Backup.Delete().Exec(context.Background())
+			if n > 0 {
+				return
+			}
+		}
+	}()
+	_, errOut, code := h.run("server", "backup", "now", "web")
+	if code == 0 || !strings.Contains(errOut, "failed or was cancelled; see `nebla server actions web`") {
+		t.Fatalf("now: %d %q", code, errOut)
+	}
+}
+
 func TestBackupNowNoWait(t *testing.T) {
 	h, _ := newBackupHarness(t)
 	enableBackups(t, h)
