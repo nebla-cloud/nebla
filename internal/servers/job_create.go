@@ -27,6 +27,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
@@ -261,6 +262,9 @@ func (c *createRun) cleanup(ctx context.Context, f failure) error {
 		u := etx.Server.UpdateOneID(c.row.ID).SetStatus(server.Status(StatusError))
 		if gone {
 			if err := ipam.Release(ctx, etx, c.row.ID); err != nil {
+				return err
+			}
+			if _, err := etx.ServerNetwork.Delete().Where(servernetwork.ServerID(c.row.ID), servernetwork.StateEQ(servernetwork.StateAttaching)).Exec(ctx); err != nil {
 				return err
 			}
 			u.ClearVmid().ClearCloneUpid().ClearCloneNonce().ClearIsoVolid().SetCreateStep(0)

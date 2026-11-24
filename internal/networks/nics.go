@@ -28,11 +28,12 @@ import (
 
 // NIC is one private NIC of a server.
 type NIC struct {
-	Index int
-	IP    netip.Addr
-	MAC   string
-	VNet  string
-	MTU   int
+	Index     int
+	NetworkID int64
+	IP        netip.Addr
+	MAC       string
+	VNet      string
+	MTU       int
 	// Bits is the prefix length of the network's range.
 	Bits  int
 	State string
@@ -50,7 +51,7 @@ func PrivateNICs(ctx context.Context, c *ent.Client, serverID int64) ([]NIC, err
 		if err != nil {
 			return nil, fmt.Errorf("server network %d has a bad address: %w", a.ID, err)
 		}
-		n := NIC{Index: a.Nic, IP: ip, MAC: a.MAC, State: string(a.State)}
+		n := NIC{Index: a.Nic, NetworkID: a.NetworkID, IP: ip, MAC: a.MAC, State: string(a.State)}
 		if sl, err := c.VNetSlot.Query().Where(vnetslot.NetworkID(a.NetworkID)).Only(ctx); err == nil {
 			n.VNet, n.MTU = sl.Vnet, sl.Mtu
 		} else if !ent.IsNotFound(err) {

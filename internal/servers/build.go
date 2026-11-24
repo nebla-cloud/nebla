@@ -378,6 +378,11 @@ func (b *builder) configure(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	for _, n := range nics {
+		if n.VNet == "" {
+			return permanent("network %d has no private network slot", n.NetworkID)
+		}
+	}
 	for i := 1; i <= networks.MaxNICs; i++ {
 		key := "net" + strconv.Itoa(i)
 		if j := slices.IndexFunc(nics, func(n networks.NIC) bool { return n.Index == i }); j >= 0 {

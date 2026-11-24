@@ -18,6 +18,7 @@ package servers_test
 import (
 	"bytes"
 	"context"
+	"github.com/nebla-cloud/nebla/internal/actions"
 	"io"
 	"net/http"
 	"strings"
@@ -254,4 +255,26 @@ func TestSyncNICsRewrites(t *testing.T) {
 	require.Error(t, o.SyncNICs(ctx, pc, "pve1", vmid, s.ServerID))
 	vm, _ = p.App.PVE.VM(vmid)
 	require.Contains(t, vm.Config, "net3", "the failed write changed nothing")
+}
+
+func TestCreateFailsWhenSlotMissing(t *testing.T) {
+	p := newPrivEnv(t)
+	ctx := context.Background()
+	s := p.create(t, "web", "alpha")
+	p.App.Ent.VNetSlot.Delete().ExecX(ctx)
+	_ = p.w.Work(ctx, job(s, 1))
+	a := testutil.WaitAction(t, p.App.Ent, s.ActionID)
+	require.Equal(t, actions.StatusError, a.Status)
+	require.Contains(t, a.Error.Detail, "has no private network slot")
+}
+
+func TestFailedCreateDropsAttachingRows(t *testing.T) {
+	p := newPrivEnv(t)
+	ctx := context.Background()
+	s := p.create(t, "web", "alpha")
+	require.Len(t, nicRows(t, p.ServerEnv, s.ServerID), 1)
+	p.App.PVE.FailNext("/resize", http.StatusInternalServerError)
+	_ = p.w.Work(ctx, job(s, 1))
+	require.Equal(t, servers.StatusError, string(p.App.Ent.Server.GetX(ctx, s.ServerID).Status))
+	require.Empty(t, nicRows(t, p.ServerEnv, s.ServerID))
 }
