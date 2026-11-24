@@ -125,7 +125,7 @@ func (s *Service) Get(ctx context.Context, projectID, serverID, id int64) (Backu
 	}
 	b, err := s.o.Ent.Backup.Query().Where(backup.ID(id), backup.ServerID(serverID), backup.ProjectID(projectID)).Only(ctx)
 	if err != nil {
-		return Backup{}, notFound(err)
+		return Backup{}, backupNotFound(err)
 	}
 	fp, err := servers.NetworkFingerprint(ctx, s.o.Ent, row)
 	if err != nil {
@@ -200,7 +200,7 @@ func (s *Service) lockBackup(ctx context.Context, etx *ent.Client, projectID, se
 	}
 	b, err := etx.Backup.Query().Where(backup.ID(id), backup.ServerID(serverID)).ForUpdate().Only(ctx)
 	if err != nil {
-		return nil, nil, notFound(err)
+		return nil, nil, backupNotFound(err)
 	}
 	return row, b, nil
 }

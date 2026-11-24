@@ -27,6 +27,7 @@ import (
 
 var (
 	errNotFound       = apierr.New(http.StatusNotFound, "not_found", "not found")
+	errBackupNotFound = apierr.New(http.StatusNotFound, "backup_not_found", "backup not found")
 	errNoJobs         = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
 	errDisabled       = apierr.New(http.StatusUnprocessableEntity, "backups_disabled", "Backups are turned off for this server")
 	errUnavailable    = apierr.New(http.StatusUnprocessableEntity, "backups_unavailable", "Backups are not available in this location")
@@ -41,6 +42,13 @@ func invalid(format string, a ...any) error {
 func notFound(err error) error {
 	if ent.IsNotFound(err) {
 		return errNotFound
+	}
+	return err
+}
+
+func backupNotFound(err error) error {
+	if ent.IsNotFound(err) {
+		return errBackupNotFound
 	}
 	return err
 }

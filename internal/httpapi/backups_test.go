@@ -171,8 +171,9 @@ func TestBackupsRoutes(t *testing.T) {
 	require.Equal(t, http.StatusConflict, res.StatusCode)
 	res.Body.Close()
 	res = e.C.Get(base + "/999999")
+	body = e.App.Body(res)
 	require.Equal(t, http.StatusNotFound, res.StatusCode)
-	res.Body.Close()
+	require.Contains(t, body, `"backup_not_found"`)
 }
 
 func TestBackupsRoutesDisabledAndRoles(t *testing.T) {

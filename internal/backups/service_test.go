@@ -232,7 +232,7 @@ func TestRestoreRequiresAvailable(t *testing.T) {
 	_, err := e.svc.Restore(ctx, e.Project, id+999, b.ID)
 	requireAPIErr(t, err, http.StatusNotFound, "not_found")
 	_, err = e.svc.Restore(ctx, e.Project, id, b.ID+999)
-	requireAPIErr(t, err, http.StatusNotFound, "not_found")
+	requireAPIErr(t, err, http.StatusNotFound, "backup_not_found")
 
 	// The server must be running or off.
 	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetStatus(server.StatusError).Exec(ctx))
