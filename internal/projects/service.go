@@ -227,7 +227,7 @@ func (s *Service) Create(ctx context.Context, userID int64, isAdmin bool, name s
 			}
 			q := s.opts.DefaultQuota
 			c.SetMaxServers(q.MaxServers).SetMaxVcpu(q.MaxVCPU).SetMaxMemoryMB(q.MaxMemoryMB).SetMaxDiskGB(q.MaxDiskGB).SetMaxIps(q.MaxIPs).
-				SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB)
+				SetMaxVolumes(q.MaxVolumes).SetMaxVolumeGB(q.MaxVolumeGB).SetMaxBackups(q.MaxBackups)
 		}
 		if p, err = c.Save(ctx); err != nil {
 			return err

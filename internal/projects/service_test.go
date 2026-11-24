@@ -225,7 +225,7 @@ func TestServiceReusesCallerTx(t *testing.T) {
 
 func TestNewProjectGetsDefaultQuota(t *testing.T) {
 	ctx := context.Background()
-	dq := projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5}
+	dq := projects.Quota{MaxServers: 5, MaxVCPU: 8, MaxMemoryMB: 16384, MaxDiskGB: 200, MaxIPs: 5, MaxVolumes: 5, MaxVolumeGB: 100, MaxBackups: 35}
 	svc, _, _, u := setup(t, projects.Options{DefaultQuota: dq})
 	p, err := svc.Create(ctx, u.ID, false, "Web")
 	require.NoError(t, err)
