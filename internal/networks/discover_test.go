@@ -17,9 +17,11 @@ package networks_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 
+	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/networks"
@@ -327,4 +329,89 @@ func TestDiscoverFollowsZoneTypeChange(t *testing.T) {
 	vx, err := networks.VXLANLocation(ctx, e.App.Ent, e.loc)
 	require.NoError(t, err)
 	require.True(t, vx)
+}
+
+func (e *env) cluster(t *testing.T, name, url, fingerprint string, nodes ...string) *ent.Location {
+	t.Helper()
+	ctx := context.Background()
+	l := e.App.Ent.Location.Create().SetName(name).SetPveURL(url).SetCaFingerprint(fingerprint).SetTokenID("t").SetTokenSecret([]byte("s")).
+		SetDiskStorage("local").SetIsoStorage("local").SaveX(ctx)
+	for _, n := range nodes {
+		e.App.Ent.Node.Create().SetLocationID(l.ID).SetName(n).ExecX(ctx)
+	}
+	return l
+}
+
+func TestSetLocationSDNPeerRules(t *testing.T) {
+	ctx := context.Background()
+	zone := "shared"
+	for _, tc := range []struct {
+		name string
+		a    func(*env) (*ent.Location, *ent.Location)
+		peer bool
+	}{
+		{"same host and port written differently", func(e *env) (*ent.Location, *ent.Location) {
+			return e.cluster(t, "a", "https://pve1.example:8006", "", "n1"), e.cluster(t, "b", "https://PVE1.example/", "", "n2")
+		}, true},
+		{"same CA fingerprint", func(e *env) (*ent.Location, *ent.Location) {
+			return e.cluster(t, "a", "https://one.example:8006", "aa:bb:cc", "n1"), e.cluster(t, "b", "https://two.example:8006", "AABBCC", "n2")
+		}, true},
+		{"shared node name", func(e *env) (*ent.Location, *ent.Location) {
+			return e.cluster(t, "a", "https://one.example:8006", "", "n1", "shared"), e.cluster(t, "b", "https://two.example:8006", "", "shared")
+		}, true},
+		{"unrelated", func(e *env) (*ent.Location, *ent.Location) {
+			return e.cluster(t, "a", "https://one.example:8006", "aa", "n1"), e.cluster(t, "b", "https://two.example:8006", "bb", "n2")
+		}, false},
+		{"empty fingerprints don't match", func(e *env) (*ent.Location, *ent.Location) {
+			return e.cluster(t, "a", "https://one.example:8006", "", "n1"), e.cluster(t, "b", "https://two.example:9000", "", "n2")
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t)
+			a, b := tc.a(e)
+			e.App.Ent.Location.UpdateOneID(a.ID).SetSdnZone(zone).ExecX(ctx)
+			_, err := e.svc.SetLocationSDN(ctx, b.ID, &zone, "nb")
+			if tc.peer {
+				requireAPIErr(t, err, http.StatusUnprocessableEntity, "invalid_input", "Another location already uses this zone.")
+				return
+			}
+			var ae apierr.E
+			if errors.As(err, &ae) {
+				require.NotEqual(t, "Another location already uses this zone.", ae.Msg)
+			}
+		})
+	}
+}
+
+func TestDiscoverSkipsVNetsOfPeerLocation(t *testing.T) {
+	ctx := context.Background()
+	e := newSDNEnv(t, "nb0001", "nb0002")
+	peer := e.cluster(t, "other-loc", "https://SDN.invalid:8006/", "")
+	e.slot(t, peer.ID, "nb0001", vnetslot.StateFree)
+
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	got := e.slots(t)
+	require.Equal(t, vnetslot.StateUnusable, got["nb0001"].State)
+	require.Equal(t, "used by location other-loc", got["nb0001"].Reason)
+	require.Equal(t, vnetslot.StateFree, got["nb0002"].State)
+	require.Equal(t, vnetslot.StateFree, e.App.Ent.VNetSlot.Query().Where(vnetslot.LocationID(peer.ID)).OnlyX(ctx).State, "the holder is untouched")
+
+	// The peer's next pass doesn't treat our "used by" slot as a claim.
+	e.App.Ent.Location.UpdateOneID(peer.ID).SetSdnZone("nebla").ExecX(ctx)
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	require.Equal(t, vnetslot.StateUnusable, e.slots(t)["nb0001"].State)
+}
+
+func TestDiscoverKeepsHandedOutSlotInUse(t *testing.T) {
+	ctx := context.Background()
+	e := newSDNEnv(t, "nb0001")
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	n := e.App.Ent.Network.Create().SetProjectID(e.Project).SetLocationID(e.loc).SetName("n").SetLabels(map[string]string{}).
+		SetIPRange("10.1.0.0/24").SaveX(ctx)
+	e.App.Ent.VNetSlot.Update().Where(vnetslot.Vnet("nb0001")).SetState(vnetslot.StateInUse).SetNetworkID(n.ID).ExecX(ctx)
+	peer := e.cluster(t, "other-loc", "https://sdn.invalid", "")
+	e.slot(t, peer.ID, "nb0001", vnetslot.StateFree)
+
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	require.Equal(t, vnetslot.StateInUse, e.slots(t)["nb0001"].State)
 }

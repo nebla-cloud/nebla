@@ -20,12 +20,15 @@ import (
 	"database/sql"
 	"errors"
 	"maps"
+	"net"
+	"net/url"
 	"slices"
 	"strings"
 
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
+	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
 	"github.com/nebla-cloud/nebla/internal/pve"
 )
@@ -89,22 +92,16 @@ func (s *Service) SetLocationSDN(ctx context.Context, locationID int64, zone *st
 		if err != nil {
 			return notFound(err)
 		}
-		// Every location on the cluster is locked in id order, so two admins can't take one zone together
+		// Every location is locked in id order, so two admins can't take one zone together
 		// and a running Discover of this location sees the change.
-		peers, err := etx.Location.Query().Where(location.PveURL(own.PveURL)).Order(location.ByID()).Unique(false).Modify(noKeyUpdate).All(ctx)
+		loc, peers, err := lockCluster(ctx, etx, own)
 		if err != nil {
 			return err
 		}
-		var loc *ent.Location
 		for _, p := range peers {
-			if p.ID == locationID {
-				loc = p
-			} else if zone != nil && p.SdnZone != nil && *p.SdnZone == *zone {
+			if zone != nil && p.SdnZone != nil && *p.SdnZone == *zone {
 				return errZoneTaken
 			}
-		}
-		if loc == nil {
-			return errNotFound
 		}
 		sameZone := (zone == nil) == (loc.SdnZone == nil) && (zone == nil || *zone == *loc.SdnZone)
 		if sameZone && prefix == loc.VnetPrefix {
@@ -207,9 +204,9 @@ func (s *Service) Discover(ctx context.Context, pc pve.Client, locationID int64)
 		discoverHook("read")
 	}
 	return s.withTx(ctx, func(_ *sql.Tx, etx *ent.Client) error {
-		cur, err := etx.Location.Query().Where(location.ID(locationID)).Unique(false).Modify(noKeyUpdate).Only(ctx)
+		cur, peers, err := lockCluster(ctx, etx, loc)
 		if err != nil {
-			return notFound(err)
+			return err
 		}
 		if cur.SdnZone == nil || *cur.SdnZone != *loc.SdnZone || cur.VnetPrefix != loc.VnetPrefix {
 			return nil
@@ -218,7 +215,23 @@ func (s *Service) Discover(ctx context.Context, pc pve.Client, locationID int64)
 		if err != nil {
 			return err
 		}
+		peerUsed, err := peerVNets(ctx, etx, peers, seen)
+		if err != nil {
+			return err
+		}
 		have := map[string]bool{}
+		mine := map[string]*ent.VNetSlot{}
+		for _, sl := range slots {
+			mine[sl.Vnet] = sl
+		}
+		for name, by := range peerUsed {
+			if sl := mine[name]; sl != nil && sl.NetworkID != nil {
+				continue
+			}
+			f := seen[name]
+			f.cand.State, f.cand.Reason, f.ok = string(vnetslot.StateUnusable), "used by location "+by, false
+			seen[name] = f
+		}
 		var dirty []int64
 		for _, sl := range slots {
 			have[sl.Vnet] = true
@@ -260,6 +273,102 @@ func (s *Service) Discover(ctx context.Context, pc pve.Client, locationID int64)
 		}
 		return nil
 	})
+}
+
+// lockCluster locks every location in id order and returns the one with own's id and the others on its cluster.
+func lockCluster(ctx context.Context, etx *ent.Client, own *ent.Location) (*ent.Location, []*ent.Location, error) {
+	all, err := etx.Location.Query().Order(location.ByID()).Unique(false).Modify(noKeyUpdate).All(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	rows, err := etx.Node.Query().Select(node.FieldLocationID, node.FieldName).All(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	names := map[int64]map[string]bool{}
+	for _, r := range rows {
+		if names[r.LocationID] == nil {
+			names[r.LocationID] = map[string]bool{}
+		}
+		names[r.LocationID][r.Name] = true
+	}
+	var cur *ent.Location
+	for _, l := range all {
+		if l.ID == own.ID {
+			cur = l
+		}
+	}
+	if cur == nil {
+		return nil, nil, errNotFound
+	}
+	var peers []*ent.Location
+	for _, l := range all {
+		if l.ID != cur.ID && sameCluster(cur, l, names[cur.ID], names[l.ID]) {
+			peers = append(peers, l)
+		}
+	}
+	return cur, peers, nil
+}
+
+// sameCluster reports whether two locations look like one Proxmox cluster: the same address, the same CA, or a shared node name.
+func sameCluster(a, b *ent.Location, nodesA, nodesB map[string]bool) bool {
+	if hostPort(a.PveURL) == hostPort(b.PveURL) {
+		return true
+	}
+	if fa := normFingerprint(a.CaFingerprint); fa != "" && fa == normFingerprint(b.CaFingerprint) {
+		return true
+	}
+	for n := range nodesA {
+		if nodesB[n] {
+			return true
+		}
+	}
+	return false
+}
+
+// hostPort is the URL's lowercase host and port (8006 when absent), without scheme, path or trailing slash.
+func hostPort(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Hostname() == "" {
+		return strings.ToLower(strings.TrimRight(strings.TrimSpace(raw), "/"))
+	}
+	port := u.Port()
+	if port == "" {
+		port = "8006"
+	}
+	return net.JoinHostPort(strings.ToLower(u.Hostname()), port)
+}
+
+func normFingerprint(fp string) string {
+	return strings.ToUpper(strings.NewReplacer(":", "", " ", "").Replace(fp))
+}
+
+// peerVNets maps each VNet in seen that a peer location already holds a slot for to that location's name.
+// A slot a peer marked unusable only because of a third holder doesn't count, so two locations can't shut each other out.
+func peerVNets(ctx context.Context, etx *ent.Client, peers []*ent.Location, seen map[string]found) (map[string]string, error) {
+	out := map[string]string{}
+	if len(peers) == 0 || len(seen) == 0 {
+		return out, nil
+	}
+	byID := map[int64]string{}
+	ids := make([]int64, len(peers))
+	for i, p := range peers {
+		ids[i], byID[p.ID] = p.ID, p.Name
+	}
+	rows, err := etx.VNetSlot.Query().Where(vnetslot.LocationIDIn(ids...), vnetslot.VnetIn(slices.Collect(maps.Keys(seen))...)).
+		Order(vnetslot.ByID()).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if r.State == vnetslot.StateUnusable && strings.HasPrefix(r.Reason, "used by location ") {
+			continue
+		}
+		if _, ok := out[r.Vnet]; !ok {
+			out[r.Vnet] = byID[r.LocationID]
+		}
+	}
+	return out, nil
 }
 
 // noKeyUpdate locks rows without blocking inserts that reference them.
