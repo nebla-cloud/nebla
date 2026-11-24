@@ -153,6 +153,13 @@ func run() error {
 	if filledBackup > 0 {
 		log.Info("backfilled backup project quota", "count", filledBackup)
 	}
+	filledSlots, err := servers.BackfillBackupSlots(ctx, sqlDB)
+	if err != nil {
+		return err
+	}
+	if filledSlots > 0 {
+		log.Info("backfilled server backup slots", "count", filledSlots)
+	}
 	n, err := runner.FailOrphanedActions(ctx)
 	if err != nil {
 		return err
