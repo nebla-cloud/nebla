@@ -145,8 +145,12 @@ func init() {
 	ipaddressDescDeleting := ipaddressFields[14].Descriptor()
 	// ipaddress.DefaultDeleting holds the default value on creation for the deleting field.
 	ipaddress.DefaultDeleting = ipaddressDescDeleting.Default.(bool)
+	// ipaddressDescAutoDelete is the schema descriptor for auto_delete field.
+	ipaddressDescAutoDelete := ipaddressFields[15].Descriptor()
+	// ipaddress.DefaultAutoDelete holds the default value on creation for the auto_delete field.
+	ipaddress.DefaultAutoDelete = ipaddressDescAutoDelete.Default.(bool)
 	// ipaddressDescCreatedAt is the schema descriptor for created_at field.
-	ipaddressDescCreatedAt := ipaddressFields[16].Descriptor()
+	ipaddressDescCreatedAt := ipaddressFields[17].Descriptor()
 	// ipaddress.DefaultCreatedAt holds the default value on creation for the created_at field.
 	ipaddress.DefaultCreatedAt = ipaddressDescCreatedAt.Default.(func() time.Time)
 	ipallocationFields := schema.IPAllocation{}.Fields()
@@ -403,8 +407,20 @@ func init() {
 	serverDescBackupSlot := serverFields[32].Descriptor()
 	// server.DefaultBackupSlot holds the default value on creation for the backup_slot field.
 	server.DefaultBackupSlot = serverDescBackupSlot.Default.(int)
+	// serverDescNetRefresh is the schema descriptor for net_refresh field.
+	serverDescNetRefresh := serverFields[34].Descriptor()
+	// server.DefaultNetRefresh holds the default value on creation for the net_refresh field.
+	server.DefaultNetRefresh = serverDescNetRefresh.Default.(bool)
+	// serverDescInstanceGen is the schema descriptor for instance_gen field.
+	serverDescInstanceGen := serverFields[35].Descriptor()
+	// server.DefaultInstanceGen holds the default value on creation for the instance_gen field.
+	server.DefaultInstanceGen = serverDescInstanceGen.Default.(int64)
+	// serverDescIsoNetHash is the schema descriptor for iso_net_hash field.
+	serverDescIsoNetHash := serverFields[36].Descriptor()
+	// server.DefaultIsoNetHash holds the default value on creation for the iso_net_hash field.
+	server.DefaultIsoNetHash = serverDescIsoNetHash.Default.(string)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[34].Descriptor()
+	serverDescCreatedAt := serverFields[37].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servernetworkFields := schema.ServerNetwork{}.Fields()

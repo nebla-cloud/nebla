@@ -32,6 +32,7 @@ README lists the variables it needs.
 - API changes start in `api/openapi.yaml`. Run `make generate` afterwards.
 - Schema changes go in the ent schema. Generate the migration with `make migrate-diff name=<name>` and never edit
   migrations by hand.
+- Data-only migrations may be created with `atlas migrate new <name>` and written by hand; run `make migrate-hash` after.
 - Add or update tests with every behaviour change.
 - Keep code comments short: one line, or none when the code says it.
 

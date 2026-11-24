@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -205,6 +206,6 @@ func TestReadOnlyTokenCannotWriteFloatingIPs(t *testing.T) {
 	after, err := e.App.Ent.Action.Query().Count(ctx)
 	require.NoError(t, err)
 	require.Equal(t, before, after)
-	require.Equal(t, 1, e.App.Ent.IPAddress.Query().CountX(ctx))
+	require.Equal(t, 1, e.App.Ent.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindFloating)).CountX(ctx))
 	require.Equal(t, out.FloatingIP.Name, decodeJSON[apiFIP](t, e.App, ro.Get(fp), http.StatusOK).Name)
 }

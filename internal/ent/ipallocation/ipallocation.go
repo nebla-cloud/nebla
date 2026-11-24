@@ -73,6 +73,7 @@ const DefaultOwner = OwnerServer
 const (
 	OwnerServer   Owner = "server"
 	OwnerFloating Owner = "floating"
+	OwnerPrimary  Owner = "primary"
 )
 
 func (o Owner) String() string {
@@ -82,7 +83,7 @@ func (o Owner) String() string {
 // OwnerValidator is a validator for the "owner" field enum values. It is called by the builders before save.
 func OwnerValidator(o Owner) error {
 	switch o {
-	case OwnerServer, OwnerFloating:
+	case OwnerServer, OwnerFloating, OwnerPrimary:
 		return nil
 	default:
 		return fmt.Errorf("ipallocation: invalid enum value for owner field: %q", o)

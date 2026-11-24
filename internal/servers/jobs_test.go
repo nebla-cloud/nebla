@@ -35,6 +35,7 @@ import (
 	"github.com/kdomanski/iso9660"
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
@@ -764,12 +765,17 @@ func TestDeleteSparesReusedVMID(t *testing.T) {
 	w := servers.NewDeleteServerWorker(opts(e))
 	deleteIt := func(s testutil.CreatedServer) {
 		t.Helper()
+		var allocs []int64
+		for _, r := range e.App.Ent.IPAddress.Query().Where(ipaddress.ServerID(s.ServerID)).AllX(ctx) {
+			allocs = append(allocs, r.AllocationID)
+		}
+		require.NotEmpty(t, allocs)
 		del, _ := expect[actionBody](t, e.C.Send(http.MethodDelete, spath(s.ServerID), nil), http.StatusOK)
 		require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.DeleteServerArgs](t, e, del.Action.ID), 1)))
 		waitOK(t, e, del.Action.ID)
 		_, err := e.App.Ent.Server.Get(ctx, s.ServerID)
 		require.Error(t, err)
-		n, err := e.App.Ent.IPAllocation.Query().Where(ipallocation.ServerID(s.ServerID)).Count(ctx)
+		n, err := e.App.Ent.IPAllocation.Query().Where(ipallocation.IDIn(allocs...)).Count(ctx)
 		require.NoError(t, err)
 		require.Zero(t, n)
 	}

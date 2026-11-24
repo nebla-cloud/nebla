@@ -40,7 +40,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
-	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
@@ -124,6 +123,9 @@ type ListFilter struct {
 	Name, LabelSelector, Server, Location string
 }
 
+// floating keeps a query to floating IP rows; primary IPs share the table.
+var floating = ipaddress.KindEQ(ipaddress.KindFloating)
+
 var nameRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func validName(n string) error {
@@ -181,7 +183,7 @@ func (s *Service) withTx(ctx context.Context, fn func(tx *sql.Tx, etx *ent.Clien
 
 // lockFIP locks the project's floating IP row; a running action on it gives 409 locked.
 func lockFIP(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.IPAddress, error) {
-	row, err := tx.IPAddress.Query().Where(ipaddress.ID(id), ipaddress.ProjectID(projectID)).ForUpdate().Only(ctx)
+	row, err := tx.IPAddress.Query().Where(ipaddress.ID(id), ipaddress.ProjectID(projectID), floating).ForUpdate().Only(ctx)
 	if err != nil {
 		return nil, notFound(err)
 	}
@@ -234,17 +236,18 @@ func serverByRef(ctx context.Context, c *ent.Client, projectID int64, ref string
 	return row, err
 }
 
-// serverSegment is the segment of the server's primary address of family; errSegment when it has none.
+// serverSegment is the segment of the server's primary IP of family; errSegment when it has none.
 func serverSegment(ctx context.Context, c *ent.Client, serverID int64, family string) (ipam.Segment, error) {
-	a, err := c.IPAllocation.Query().Where(ipallocation.ServerID(serverID), ipallocation.OwnerEQ(ipallocation.OwnerServer),
-		ipallocation.HasPoolWith(ippool.Family(family))).WithPool().First(ctx)
+	r, err := c.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(serverID), ipaddress.Family(family)).
+		WithAllocation(func(q *ent.IPAllocationQuery) { q.WithPool() }).Only(ctx)
 	if ent.IsNotFound(err) {
 		return ipam.Segment{}, errSegment
 	}
 	if err != nil {
 		return ipam.Segment{}, err
 	}
-	return ipam.Segment{Bridge: a.Edges.Pool.Bridge, VLAN: a.Edges.Pool.VlanTag}, nil
+	p := r.Edges.Allocation.Edges.Pool
+	return ipam.Segment{Bridge: p.Bridge, VLAN: p.VlanTag}, nil
 }
 
 func sameSegment(a, b ipam.Segment) bool {
@@ -269,7 +272,7 @@ func checkTarget(ctx context.Context, tx *ent.Client, target *ent.Server, locati
 	if seg != nil && !sameSegment(*seg, got) {
 		return ipam.Segment{}, errSegment
 	}
-	n, err := tx.IPAddress.Query().Where(ipaddress.ServerID(target.ID)).Count(ctx)
+	n, err := tx.IPAddress.Query().Where(ipaddress.ServerID(target.ID), floating).Count(ctx)
 	if err != nil {
 		return ipam.Segment{}, err
 	}
@@ -554,7 +557,7 @@ func (s *Service) ResumeStuck(ctx context.Context) error {
 	if s.o.Jobs == nil {
 		return errNoJobs
 	}
-	rows, err := s.o.Ent.IPAddress.Query().Where(ipaddress.Or(ipaddress.ReleasingFromIDNotNil(), ipaddress.Deleting(true),
+	rows, err := s.o.Ent.IPAddress.Query().Where(floating, ipaddress.Or(ipaddress.ReleasingFromIDNotNil(), ipaddress.Deleting(true),
 		ipaddress.PendingGenNotNil())).Order(ipaddress.ByID()).All(ctx)
 	if err != nil {
 		return err
@@ -621,7 +624,7 @@ func coolingDown(ctx context.Context, etx *ent.Client, row *ent.IPAddress) (bool
 }
 
 func (s *Service) get(ctx context.Context, projectID, id int64) (*ent.IPAddress, error) {
-	row, err := s.o.Ent.IPAddress.Query().Where(ipaddress.ID(id), ipaddress.ProjectID(projectID)).Only(ctx)
+	row, err := s.o.Ent.IPAddress.Query().Where(ipaddress.ID(id), ipaddress.ProjectID(projectID), floating).Only(ctx)
 	return row, notFound(err)
 }
 
@@ -643,7 +646,7 @@ func (s *Service) List(ctx context.Context, projectID int64, f ListFilter, page,
 	if err != nil {
 		return nil, 0, err
 	}
-	q := s.o.Ent.IPAddress.Query().Where(ipaddress.ProjectID(projectID)).Where(preds...)
+	q := s.o.Ent.IPAddress.Query().Where(ipaddress.ProjectID(projectID), floating).Where(preds...)
 	if f.Name != "" {
 		q = q.Where(ipaddress.Name(f.Name))
 	}
@@ -809,7 +812,7 @@ func (s *Service) Actions(ctx context.Context, projectID, id int64, f actions.Li
 	return actions.List(ctx, s.o.Ent, projectID, f, page, perPage)
 }
 
-// HasWith reports next's answer, or whether the project still owns floating IPs.
+// HasWith reports next's answer, or whether the project still owns IP addresses; it counts floating and primary IPs.
 func HasWith(next projects.HasServersFunc) projects.HasServersFunc {
 	return func(ctx context.Context, tx *ent.Client, projectID int64) (bool, error) {
 		busy, err := next(ctx, tx, projectID)
@@ -820,7 +823,7 @@ func HasWith(next projects.HasServersFunc) projects.HasServersFunc {
 	}
 }
 
-// UsageWith adds the project's floating IPs, assigned or not, to next's IPs.
+// UsageWith adds the project's IP addresses, floating and primary, assigned or not, to next's IPs.
 func UsageWith(next projects.UsageFunc) projects.UsageFunc {
 	return func(ctx context.Context, tx *ent.Client, projectID int64) (projects.Usage, error) {
 		u, err := next(ctx, tx, projectID)
@@ -890,7 +893,7 @@ func (s *Service) ServerRefs(ctx context.Context, serverIDs []int64) (map[int64]
 	if len(serverIDs) == 0 {
 		return out, nil
 	}
-	rows, err := s.o.Ent.IPAddress.Query().Where(ipaddress.ServerIDIn(serverIDs...)).Order(ipaddress.ByID()).All(ctx)
+	rows, err := s.o.Ent.IPAddress.Query().Where(ipaddress.ServerIDIn(serverIDs...), floating).Order(ipaddress.ByID()).All(ctx)
 	if err != nil {
 		return nil, err
 	}

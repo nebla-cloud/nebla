@@ -88,6 +88,12 @@ type Server struct {
 	BackupSlot int `json:"backup_slot,omitempty"`
 	// BackupsEnabledAt holds the value of the "backups_enabled_at" field.
 	BackupsEnabledAt *time.Time `json:"backups_enabled_at,omitempty"`
+	// NetRefresh holds the value of the "net_refresh" field.
+	NetRefresh bool `json:"net_refresh,omitempty"`
+	// InstanceGen holds the value of the "instance_gen" field.
+	InstanceGen int64 `json:"instance_gen,omitempty"`
+	// IsoNetHash holds the value of the "iso_net_hash" field.
+	IsoNetHash string `json:"iso_net_hash,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -162,11 +168,11 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldBackupsEnabled:
+		case server.FieldBackupsEnabled, server.FieldNetRefresh:
 			values[i] = new(sql.NullBool)
-		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot:
+		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot, server.FieldInstanceGen:
 			values[i] = new(sql.NullInt64)
-		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData:
+		case server.FieldName, server.FieldNode, server.FieldStatus, server.FieldMAC, server.FieldIsoVolid, server.FieldCloneUpid, server.FieldCloneNonce, server.FieldRebuildCloneUpid, server.FieldRebuildCloneNonce, server.FieldUserData, server.FieldIsoNetHash:
 			values[i] = new(sql.NullString)
 		case server.FieldFirewallLeaseUntil, server.FieldBackupsEnabledAt, server.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -402,6 +408,24 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 				_m.BackupsEnabledAt = new(time.Time)
 				*_m.BackupsEnabledAt = value.Time
 			}
+		case server.FieldNetRefresh:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field net_refresh", values[i])
+			} else if value.Valid {
+				_m.NetRefresh = value.Bool
+			}
+		case server.FieldInstanceGen:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field instance_gen", values[i])
+			} else if value.Valid {
+				_m.InstanceGen = value.Int64
+			}
+		case server.FieldIsoNetHash:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field iso_net_hash", values[i])
+			} else if value.Valid {
+				_m.IsoNetHash = value.String
+			}
 		case server.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -578,6 +602,15 @@ func (_m *Server) String() string {
 		builder.WriteString("backups_enabled_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("net_refresh=")
+	builder.WriteString(fmt.Sprintf("%v", _m.NetRefresh))
+	builder.WriteString(", ")
+	builder.WriteString("instance_gen=")
+	builder.WriteString(fmt.Sprintf("%v", _m.InstanceGen))
+	builder.WriteString(", ")
+	builder.WriteString("iso_net_hash=")
+	builder.WriteString(_m.IsoNetHash)
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

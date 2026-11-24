@@ -81,6 +81,12 @@ const (
 	FieldBackupSlot = "backup_slot"
 	// FieldBackupsEnabledAt holds the string denoting the backups_enabled_at field in the database.
 	FieldBackupsEnabledAt = "backups_enabled_at"
+	// FieldNetRefresh holds the string denoting the net_refresh field in the database.
+	FieldNetRefresh = "net_refresh"
+	// FieldInstanceGen holds the string denoting the instance_gen field in the database.
+	FieldInstanceGen = "instance_gen"
+	// FieldIsoNetHash holds the string denoting the iso_net_hash field in the database.
+	FieldIsoNetHash = "iso_net_hash"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -159,6 +165,9 @@ var Columns = []string{
 	FieldBackupKeep,
 	FieldBackupSlot,
 	FieldBackupsEnabledAt,
+	FieldNetRefresh,
+	FieldInstanceGen,
+	FieldIsoNetHash,
 	FieldCreatedAt,
 }
 
@@ -195,6 +204,12 @@ var (
 	DefaultBackupKeep int
 	// DefaultBackupSlot holds the default value on creation for the "backup_slot" field.
 	DefaultBackupSlot int
+	// DefaultNetRefresh holds the default value on creation for the "net_refresh" field.
+	DefaultNetRefresh bool
+	// DefaultInstanceGen holds the default value on creation for the "instance_gen" field.
+	DefaultInstanceGen int64
+	// DefaultIsoNetHash holds the default value on creation for the "iso_net_hash" field.
+	DefaultIsoNetHash string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -393,6 +408,21 @@ func ByBackupSlot(opts ...sql.OrderTermOption) OrderOption {
 // ByBackupsEnabledAt orders the results by the backups_enabled_at field.
 func ByBackupsEnabledAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBackupsEnabledAt, opts...).ToFunc()
+}
+
+// ByNetRefresh orders the results by the net_refresh field.
+func ByNetRefresh(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNetRefresh, opts...).ToFunc()
+}
+
+// ByInstanceGen orders the results by the instance_gen field.
+func ByInstanceGen(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldInstanceGen, opts...).ToFunc()
+}
+
+// ByIsoNetHash orders the results by the iso_net_hash field.
+func ByIsoNetHash(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIsoNetHash, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

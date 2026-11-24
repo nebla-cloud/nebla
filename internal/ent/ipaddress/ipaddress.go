@@ -43,6 +43,8 @@ const (
 	FieldPendingGen = "pending_gen"
 	// FieldDeleting holds the string denoting the deleting field in the database.
 	FieldDeleting = "deleting"
+	// FieldAutoDelete holds the string denoting the auto_delete field in the database.
+	FieldAutoDelete = "auto_delete"
 	// FieldDNSPtr holds the string denoting the dns_ptr field in the database.
 	FieldDNSPtr = "dns_ptr"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -122,6 +124,7 @@ var Columns = []string{
 	FieldPreviousServerID,
 	FieldPendingGen,
 	FieldDeleting,
+	FieldAutoDelete,
 	FieldDNSPtr,
 	FieldCreatedAt,
 }
@@ -141,6 +144,8 @@ var (
 	DefaultDescription string
 	// DefaultDeleting holds the default value on creation for the "deleting" field.
 	DefaultDeleting bool
+	// DefaultAutoDelete holds the default value on creation for the "auto_delete" field.
+	DefaultAutoDelete bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -154,6 +159,7 @@ const DefaultKind = KindFloating
 // Kind values.
 const (
 	KindFloating Kind = "floating"
+	KindPrimary  Kind = "primary"
 )
 
 func (k Kind) String() string {
@@ -163,7 +169,7 @@ func (k Kind) String() string {
 // KindValidator is a validator for the "kind" field enum values. It is called by the builders before save.
 func KindValidator(k Kind) error {
 	switch k {
-	case KindFloating:
+	case KindFloating, KindPrimary:
 		return nil
 	default:
 		return fmt.Errorf("ipaddress: invalid enum value for kind field: %q", k)
@@ -241,6 +247,11 @@ func ByPendingGen(opts ...sql.OrderTermOption) OrderOption {
 // ByDeleting orders the results by the deleting field.
 func ByDeleting(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDeleting, opts...).ToFunc()
+}
+
+// ByAutoDelete orders the results by the auto_delete field.
+func ByAutoDelete(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAutoDelete, opts...).ToFunc()
 }
 
 // ByDNSPtr orders the results by the dns_ptr field.

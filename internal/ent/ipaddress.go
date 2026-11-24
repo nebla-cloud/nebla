@@ -50,6 +50,8 @@ type IPAddress struct {
 	PendingGen *int64 `json:"pending_gen,omitempty"`
 	// Deleting holds the value of the "deleting" field.
 	Deleting bool `json:"deleting,omitempty"`
+	// AutoDelete holds the value of the "auto_delete" field.
+	AutoDelete bool `json:"auto_delete,omitempty"`
 	// DNSPtr holds the value of the "dns_ptr" field.
 	DNSPtr *string `json:"dns_ptr,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -152,7 +154,7 @@ func (*IPAddress) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case ipaddress.FieldLabels:
 			values[i] = new([]byte)
-		case ipaddress.FieldDeleting:
+		case ipaddress.FieldDeleting, ipaddress.FieldAutoDelete:
 			values[i] = new(sql.NullBool)
 		case ipaddress.FieldID, ipaddress.FieldProjectID, ipaddress.FieldLocationID, ipaddress.FieldAllocationID, ipaddress.FieldServerID, ipaddress.FieldReleasingFromID, ipaddress.FieldPreviousServerID, ipaddress.FieldPendingGen:
 			values[i] = new(sql.NullInt64)
@@ -270,6 +272,12 @@ func (_m *IPAddress) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field deleting", values[i])
 			} else if value.Valid {
 				_m.Deleting = value.Bool
+			}
+		case ipaddress.FieldAutoDelete:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field auto_delete", values[i])
+			} else if value.Valid {
+				_m.AutoDelete = value.Bool
 			}
 		case ipaddress.FieldDNSPtr:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -399,6 +407,9 @@ func (_m *IPAddress) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("deleting=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Deleting))
+	builder.WriteString(", ")
+	builder.WriteString("auto_delete=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AutoDelete))
 	builder.WriteString(", ")
 	if v := _m.DNSPtr; v != nil {
 		builder.WriteString("dns_ptr=")

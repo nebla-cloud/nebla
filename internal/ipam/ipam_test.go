@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/netip"
 	"sync"
 	"testing"
@@ -27,6 +28,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
+	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -66,17 +69,40 @@ func requireCode(t *testing.T, err error, status int, code string) {
 	require.Equal(t, code, e.Code, e.Msg)
 }
 
-func (e env) allocate(ctx context.Context, family string, server int64) (ipam.Assignment, error) {
-	var a ipam.Assignment
-	err := db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) (err error) {
-		a, err = ipam.Allocate(ctx, tx, e.loc, family, server)
-		return err
-	})
+func (e env) allocate(ctx context.Context, family string) (ipam.Assignment, error) {
+	a, _, err := e.allocatePrimary(ctx, family)
 	return a, err
 }
 
-func (e env) release(ctx context.Context, server int64) error {
-	return db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error { return ipam.Release(ctx, tx, server) })
+func (e env) allocatePrimary(ctx context.Context, family string) (ipam.Assignment, int64, error) {
+	var a ipam.Assignment
+	var id int64
+	err := db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) (err error) {
+		a, id, err = ipam.AllocatePrimary(ctx, tx, e.loc, family, nil)
+		return err
+	})
+	return a, id, err
+}
+
+// newServer inserts a bare server in e.loc and returns it with its project.
+func (e env) newServer(t *testing.T, name string) (project, server int64) {
+	t.Helper()
+	ctx := context.Background()
+	p := e.ent.Project.Create().SetName("p-" + name).SaveX(ctx)
+	st := e.ent.ServerType.Create().SetName("t-" + name).SetCores(1).SetMemoryMB(512).SetDiskGB(10).SaveX(ctx)
+	img := e.ent.Image.Create().SetName("i-" + name).SetOsFlavor("debian").SetOsVersion("13").SaveX(ctx)
+	s := e.ent.Server.Create().SetProjectID(p.ID).SetName(name).SetLocationID(e.loc).SetTemplateVmid(9000).
+		SetServerTypeID(st.ID).SetImageID(img.ID).SetMAC("bc:24:11:00:00:01").SetLabels(map[string]string{}).
+		SetCores(1).SetMemoryMB(512).SetDiskGB(10).SetSSHKeys([]string{}).SaveX(ctx)
+	return p.ID, s.ID
+}
+
+// primaryRow inserts a primary ip_addresses row for allocation id; server may be nil.
+func (e env) primaryRow(t *testing.T, project, allocID int64, a ipam.Assignment, server *int64) {
+	t.Helper()
+	e.ent.IPAddress.Create().SetKind(ipaddress.KindPrimary).SetProjectID(project).SetLocationID(e.loc).SetAllocationID(allocID).
+		SetFamily(a.Family).SetIP(a.IP.String()).SetName(fmt.Sprintf("ip-%d", allocID)).SetLabels(map[string]string{}).
+		SetNillableServerID(server).ExecX(context.Background())
 }
 
 func TestAllocateLowestFree(t *testing.T) {
@@ -84,8 +110,8 @@ func TestAllocateLowestFree(t *testing.T) {
 	e := setup(t)
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
 	require.NoError(t, err)
-	for i, want := range []string{"10.0.0.10", "10.0.0.11", "10.0.0.12"} {
-		a, err := e.allocate(ctx, "ipv4", int64(i+1))
+	for _, want := range []string{"10.0.0.10", "10.0.0.11", "10.0.0.12"} {
+		a, err := e.allocate(ctx, "ipv4")
 		require.NoError(t, err)
 		require.Equal(t, netip.MustParseAddr(want), a.IP)
 		require.Equal(t, 24, a.Prefix)
@@ -94,9 +120,9 @@ func TestAllocateLowestFree(t *testing.T) {
 		require.Nil(t, a.VLAN)
 		require.Len(t, a.DNS, 2)
 	}
-	_, err = e.allocate(ctx, "ipv4", 4)
+	_, err = e.allocate(ctx, "ipv4")
 	requireCode(t, err, 409, "ip_pool_exhausted")
-	_, err = e.allocate(ctx, "ipv6", 4)
+	_, err = e.allocate(ctx, "ipv6")
 	requireCode(t, err, 409, "ip_pool_exhausted")
 }
 
@@ -105,7 +131,7 @@ func TestAllocateSkipsGateway(t *testing.T) {
 	e := setup(t)
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.1", "10.0.0.3"))
 	require.NoError(t, err)
-	a, err := e.allocate(ctx, "ipv4", 1)
+	a, err := e.allocate(ctx, "ipv4")
 	require.NoError(t, err)
 	require.Equal(t, netip.MustParseAddr("10.0.0.2"), a.IP)
 }
@@ -120,10 +146,10 @@ func TestAllocateAcrossPoolsLowestIDFirst(t *testing.T) {
 	in.VLANTag = new(100)
 	_, err = e.svc.Create(ctx, in)
 	require.NoError(t, err)
-	a, err := e.allocate(ctx, "ipv4", 1)
+	a, err := e.allocate(ctx, "ipv4")
 	require.NoError(t, err)
 	require.Equal(t, netip.MustParseAddr("10.0.0.50"), a.IP)
-	a, err = e.allocate(ctx, "ipv4", 2)
+	a, err = e.allocate(ctx, "ipv4")
 	require.NoError(t, err)
 	require.Equal(t, netip.MustParseAddr("10.0.1.5"), a.IP)
 	require.Equal(t, 100, *a.VLAN)
@@ -135,24 +161,26 @@ func TestAllocateIPv6HugeRange(t *testing.T) {
 	_, err := e.svc.Create(ctx, ipam.PoolInput{LocationID: e.loc, Family: "ipv6", Bridge: "vmbr1", CIDR: "2001:db8::/32",
 		Gateway: "2001:db8::1", DNS: []string{}, RangeStart: "2001:db8::2", RangeEnd: "2001:db8:ffff::"})
 	require.NoError(t, err)
-	a, err := e.allocate(ctx, "ipv6", 1)
+	a, err := e.allocate(ctx, "ipv6")
 	require.NoError(t, err)
 	require.Equal(t, netip.MustParseAddr("2001:db8::2"), a.IP)
 	require.Equal(t, 32, a.Prefix)
 }
 
-func TestReleaseMakesIPReusable(t *testing.T) {
+func TestFreeMakesIPReusable(t *testing.T) {
 	ctx := context.Background()
 	e := setup(t)
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
 	require.NoError(t, err)
-	for i := range 3 {
-		_, err := e.allocate(ctx, "ipv4", int64(i+1))
+	ids := make([]int64, 3)
+	for i := range ids {
+		_, ids[i], err = e.allocatePrimary(ctx, "ipv4")
 		require.NoError(t, err)
 	}
-	require.NoError(t, e.release(ctx, 2))
-	require.NoError(t, e.release(ctx, 2))
-	a, err := e.allocate(ctx, "ipv4", 9)
+	for range 2 {
+		require.NoError(t, db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error { return ipam.FreeAllocation(ctx, tx, ids[1]) }))
+	}
+	a, err := e.allocate(ctx, "ipv4")
 	require.NoError(t, err)
 	require.Equal(t, netip.MustParseAddr("10.0.0.11"), a.IP)
 }
@@ -169,7 +197,7 @@ func TestAllocateConcurrentLastIP(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		errs[0] = db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error {
-			_, err := ipam.Allocate(ctx, tx, e.loc, "ipv4", 1)
+			_, _, err := ipam.AllocatePrimary(ctx, tx, e.loc, "ipv4", nil)
 			close(allocated)
 			if err != nil {
 				return err
@@ -181,7 +209,7 @@ func TestAllocateConcurrentLastIP(t *testing.T) {
 	wg.Go(func() {
 		<-allocated
 		errs[1] = db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error {
-			_, err := ipam.Allocate(ctx, tx, e.loc, "ipv4", 2)
+			_, _, err := ipam.AllocatePrimary(ctx, tx, e.loc, "ipv4", nil)
 			return err
 		})
 	})
@@ -264,9 +292,9 @@ func TestPoolInUse(t *testing.T) {
 	e := setup(t)
 	p, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.20"))
 	require.NoError(t, err)
-	_, err = e.allocate(ctx, "ipv4", 1)
+	_, id1, err := e.allocatePrimary(ctx, "ipv4")
 	require.NoError(t, err)
-	_, err = e.allocate(ctx, "ipv4", 2)
+	_, id2, err := e.allocatePrimary(ctx, "ipv4")
 	require.NoError(t, err)
 
 	requireCode(t, e.svc.Delete(ctx, p.ID), 409, "pool_in_use")
@@ -284,8 +312,12 @@ func TestPoolInUse(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, got.Allocated)
 
-	require.NoError(t, e.release(ctx, 1))
-	require.NoError(t, e.release(ctx, 2))
+	require.NoError(t, db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error {
+		if err := ipam.FreeAllocation(ctx, tx, id1); err != nil {
+			return err
+		}
+		return ipam.FreeAllocation(ctx, tx, id2)
+	}))
 	require.NoError(t, e.svc.Delete(ctx, p.ID))
 	_, err = e.svc.Get(ctx, p.ID)
 	requireCode(t, err, 404, "not_found")
@@ -311,7 +343,7 @@ func TestListPools(t *testing.T) {
 	require.Empty(t, ps)
 }
 
-func TestAssignmentsMatchAllocate(t *testing.T) {
+func TestAssignmentsReadsPrimaryRows(t *testing.T) {
 	ctx := context.Background()
 	e := setup(t)
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
@@ -320,19 +352,45 @@ func TestAssignmentsMatchAllocate(t *testing.T) {
 	_, err = e.svc.Create(ctx, ipam.PoolInput{LocationID: e.loc, Family: "ipv6", Bridge: "vmbr1", VLANTag: &vlan, CIDR: "2001:db8::/64",
 		Gateway: "2001:db8::1", DNS: []string{"2001:db8::53"}, RangeStart: "2001:db8::10", RangeEnd: "2001:db8::20"})
 	require.NoError(t, err)
-	a4, err := e.allocate(ctx, "ipv4", 5)
+	proj, srv := e.newServer(t, "web")
+	a4, id4, err := e.allocatePrimary(ctx, "ipv4")
 	require.NoError(t, err)
-	a6, err := e.allocate(ctx, "ipv6", 5)
+	a6, id6, err := e.allocatePrimary(ctx, "ipv6")
 	require.NoError(t, err)
-	_, err = e.allocate(ctx, "ipv4", 6)
+	spare, spareID, err := e.allocatePrimary(ctx, "ipv4")
 	require.NoError(t, err)
+	e.primaryRow(t, proj, id6, a6, &srv)
+	e.primaryRow(t, proj, id4, a4, &srv)
+	e.primaryRow(t, proj, spareID, spare, nil)
 
-	got, err := ipam.Assignments(ctx, e.ent, 5)
+	got, err := ipam.Assignments(ctx, e.ent, srv)
 	require.NoError(t, err)
-	require.Equal(t, []ipam.Assignment{a4, a6}, got, "ipv4 first, then ipv6")
+	require.Equal(t, []ipam.Assignment{a4, a6}, got, "ipv4 first, then ipv6, with pool settings")
+	require.Equal(t, &vlan, got[1].VLAN)
 	got, err = ipam.Assignments(ctx, e.ent, 99)
 	require.NoError(t, err)
 	require.Empty(t, got)
+}
+
+func TestAllocatePrimaryLowestFree(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
+	require.NoError(t, err)
+	a, id, err := e.allocatePrimary(ctx, "ipv4")
+	require.NoError(t, err)
+	require.Equal(t, netip.MustParseAddr("10.0.0.10"), a.IP)
+	f, _, err := e.allocateFloating(ctx, "ipv4", nil)
+	require.NoError(t, err)
+	require.Equal(t, netip.MustParseAddr("10.0.0.11"), f.IP)
+	b, _, err := e.allocatePrimary(ctx, "ipv4")
+	require.NoError(t, err)
+	require.Equal(t, netip.MustParseAddr("10.0.0.12"), b.IP)
+	row := e.ent.IPAllocation.GetX(ctx, id)
+	require.Equal(t, ipallocation.OwnerPrimary, row.Owner)
+	require.Nil(t, row.ServerID)
+	_, _, err = e.allocatePrimary(ctx, "ipv4")
+	requireCode(t, err, 409, "ip_pool_exhausted")
 }
 
 func TestAvailable(t *testing.T) {
@@ -349,7 +407,7 @@ func TestAvailable(t *testing.T) {
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.10"))
 	require.NoError(t, err)
 	check(true, false)
-	_, err = e.allocate(ctx, "ipv4", 1)
+	_, err = e.allocate(ctx, "ipv4")
 	require.NoError(t, err)
 	check(false, false)
 }
@@ -369,14 +427,14 @@ func TestAllocateFloatingSkipsPrimaries(t *testing.T) {
 	e := setup(t)
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
 	require.NoError(t, err)
-	a, err := e.allocate(ctx, "ipv4", 1)
+	a, err := e.allocate(ctx, "ipv4")
 	require.NoError(t, err)
 	require.Equal(t, netip.MustParseAddr("10.0.0.10"), a.IP)
 	f, id, err := e.allocateFloating(ctx, "ipv4", nil)
 	require.NoError(t, err)
 	require.NotZero(t, id)
 	require.Equal(t, netip.MustParseAddr("10.0.0.11"), f.IP)
-	p, err := e.allocate(ctx, "ipv4", 2)
+	p, err := e.allocate(ctx, "ipv4")
 	require.NoError(t, err)
 	require.Equal(t, netip.MustParseAddr("10.0.0.12"), p.IP)
 	require.Equal(t, ipam.Segment{Bridge: "vmbr0"}, ipam.SegmentOf(f))
@@ -416,21 +474,22 @@ func TestAllocateFloatingSegment(t *testing.T) {
 	requireCode(t, err, 409, "ip_pool_exhausted")
 }
 
-func TestReleaseKeepsFloating(t *testing.T) {
+func TestFreeAllocationFreesBothKinds(t *testing.T) {
 	ctx := context.Background()
 	e := setup(t)
 	_, err := e.svc.Create(ctx, v4(e.loc, "10.0.0.10", "10.0.0.12"))
 	require.NoError(t, err)
-	_, err = e.allocate(ctx, "ipv4", 1)
+	_, pid, err := e.allocatePrimary(ctx, "ipv4")
 	require.NoError(t, err)
-	_, id, err := e.allocateFloating(ctx, "ipv4", nil)
+	_, fid, err := e.allocateFloating(ctx, "ipv4", nil)
 	require.NoError(t, err)
-	require.NoError(t, e.release(ctx, 1))
-	n, err := e.ent.IPAllocation.Query().Count(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 1, n)
-	require.NoError(t, db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error { return ipam.FreeAllocation(ctx, tx, id) }))
-	n, err = e.ent.IPAllocation.Query().Count(ctx)
-	require.NoError(t, err)
-	require.Zero(t, n)
+	free := func(id int64) {
+		t.Helper()
+		require.NoError(t, db.WithTx(ctx, e.sql, func(_ *sql.Tx, tx *ent.Client) error { return ipam.FreeAllocation(ctx, tx, id) }))
+	}
+	free(pid)
+	require.Equal(t, 1, e.ent.IPAllocation.Query().CountX(ctx))
+	free(fid)
+	free(fid)
+	require.Zero(t, e.ent.IPAllocation.Query().CountX(ctx))
 }

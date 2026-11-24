@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
-	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/reconcile"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
@@ -60,7 +60,10 @@ func TestDeleteHalfCreatedServer(t *testing.T) {
 	e := newEnv(t)
 	s := e.CreateServer("web", nil)
 	require.NoError(t, actions.Fail(ctx, e.App.Ent, s.ActionID, "orphaned", "lost"))
-	require.NoError(t, ipam.Release(ctx, e.App.Ent, s.ServerID))
+	for _, r := range e.App.Ent.IPAddress.Query().Where(ipaddress.ServerID(s.ServerID)).AllX(ctx) {
+		e.App.Ent.IPAddress.DeleteOneID(r.ID).ExecX(ctx)
+		e.App.Ent.IPAllocation.DeleteOneID(r.AllocationID).ExecX(ctx)
+	}
 	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetStatus(server.StatusError).Exec(ctx))
 	require.Nil(t, vmidOrNil(t, e, s.ServerID))
 	before := len(e.App.PVE.Calls())

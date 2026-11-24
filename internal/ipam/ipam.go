@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Package ipam manages IP pools and hands out addresses to servers.
+// Package ipam manages IP pools and hands out addresses.
 package ipam
 
 import (
@@ -30,6 +30,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/ippool"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
@@ -419,29 +420,6 @@ func Available(ctx context.Context, c *ent.Client, locationID int64) (ipv4, ipv6
 	return ipv4, ipv6, nil
 }
 
-// Allocate takes the lowest free address of the family, locking pools in id order; call it inside a transaction.
-func Allocate(ctx context.Context, tx *ent.Client, locationID int64, family string, serverID int64) (Assignment, error) {
-	pools, err := tx.IPPool.Query().Where(ippool.LocationID(locationID), ippool.Family(family)).
-		Order(ent.Asc(ippool.FieldID)).ForUpdate().All(ctx)
-	if err != nil {
-		return Assignment{}, err
-	}
-	for _, p := range pools {
-		ip, ok, err := freeAddr(ctx, tx, p)
-		if err != nil {
-			return Assignment{}, err
-		}
-		if !ok {
-			continue
-		}
-		if _, err := tx.IPAllocation.Create().SetPoolID(p.ID).SetIP(ip.String()).SetServerID(serverID).SetOwner(ipallocation.OwnerServer).Save(ctx); err != nil {
-			return Assignment{}, err
-		}
-		return assignment(p, ip)
-	}
-	return Assignment{}, conflict("ip_pool_exhausted", "no free "+family+" address in this location")
-}
-
 // Segment is the bridge and VLAN a floating address is reachable on.
 type Segment struct {
 	Bridge string
@@ -463,6 +441,16 @@ func (s Segment) matches(p *ent.IPPool) bool {
 
 // AllocateFloating takes the lowest free address of the family on a matching segment (nil means any) and returns its allocation id; call it inside a transaction.
 func AllocateFloating(ctx context.Context, tx *ent.Client, locationID int64, family string, seg *Segment) (Assignment, int64, error) {
+	return allocate(ctx, tx, locationID, family, seg, ipallocation.OwnerFloating)
+}
+
+// AllocatePrimary is AllocateFloating for a primary IP.
+func AllocatePrimary(ctx context.Context, tx *ent.Client, locationID int64, family string, seg *Segment) (Assignment, int64, error) {
+	return allocate(ctx, tx, locationID, family, seg, ipallocation.OwnerPrimary)
+}
+
+// allocate locks the location's pools of family in id order and takes the first free address.
+func allocate(ctx context.Context, tx *ent.Client, locationID int64, family string, seg *Segment, owner ipallocation.Owner) (Assignment, int64, error) {
 	pools, err := tx.IPPool.Query().Where(ippool.LocationID(locationID), ippool.Family(family)).
 		Order(ent.Asc(ippool.FieldID)).ForUpdate().All(ctx)
 	if err != nil {
@@ -479,7 +467,7 @@ func AllocateFloating(ctx context.Context, tx *ent.Client, locationID int64, fam
 		if !ok {
 			continue
 		}
-		row, err := tx.IPAllocation.Create().SetPoolID(p.ID).SetIP(ip.String()).SetOwner(ipallocation.OwnerFloating).Save(ctx)
+		row, err := tx.IPAllocation.Create().SetPoolID(p.ID).SetIP(ip.String()).SetOwner(owner).Save(ctx)
 		if err != nil {
 			return Assignment{}, 0, err
 		}
@@ -489,9 +477,10 @@ func AllocateFloating(ctx context.Context, tx *ent.Client, locationID int64, fam
 	return Assignment{}, 0, conflict("ip_pool_exhausted", "no free "+family+" address in this location")
 }
 
-// FreeAllocation deletes one floating allocation; it is idempotent.
+// FreeAllocation deletes one floating or primary allocation; it is idempotent.
 func FreeAllocation(ctx context.Context, tx *ent.Client, id int64) error {
-	_, err := tx.IPAllocation.Delete().Where(ipallocation.ID(id), ipallocation.OwnerEQ(ipallocation.OwnerFloating)).Exec(ctx)
+	_, err := tx.IPAllocation.Delete().Where(ipallocation.ID(id),
+		ipallocation.OwnerIn(ipallocation.OwnerFloating, ipallocation.OwnerPrimary)).Exec(ctx)
 	return err
 }
 
@@ -512,9 +501,10 @@ func assignment(p *ent.IPPool, ip netip.Addr) (Assignment, error) {
 	return Assignment{PoolID: p.ID, Family: p.Family, IP: ip, Prefix: prefix.Bits(), Gateway: gw, DNS: dns, Bridge: p.Bridge, VLAN: p.VlanTag}, nil
 }
 
-// Assignments returns a server's addresses with their pool settings, ipv4 first.
+// Assignments returns the addresses of a server's primary IPs with their pool settings, ipv4 first.
 func Assignments(ctx context.Context, c *ent.Client, serverID int64) ([]Assignment, error) {
-	rows, err := c.IPAllocation.Query().Where(ipallocation.ServerID(serverID), ipallocation.OwnerEQ(ipallocation.OwnerServer)).WithPool().All(ctx)
+	rows, err := c.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(serverID)).
+		WithAllocation(func(q *ent.IPAllocationQuery) { q.WithPool() }).All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -522,9 +512,9 @@ func Assignments(ctx context.Context, c *ent.Client, serverID int64) ([]Assignme
 	for _, r := range rows {
 		ip, err := netip.ParseAddr(r.IP)
 		if err != nil {
-			return nil, fmt.Errorf("allocation %d: %w", r.ID, err)
+			return nil, fmt.Errorf("primary IP %d: %w", r.ID, err)
 		}
-		a, err := assignment(r.Edges.Pool, ip)
+		a, err := assignment(r.Edges.Allocation.Edges.Pool, ip)
 		if err != nil {
 			return nil, err
 		}
@@ -549,10 +539,4 @@ func firstErr(errs ...error) error {
 		}
 	}
 	return nil
-}
-
-// Release frees every address held by a server; it is idempotent.
-func Release(ctx context.Context, tx *ent.Client, serverID int64) error {
-	_, err := tx.IPAllocation.Delete().Where(ipallocation.ServerID(serverID), ipallocation.OwnerEQ(ipallocation.OwnerServer)).Exec(ctx)
-	return err
 }

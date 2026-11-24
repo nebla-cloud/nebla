@@ -27,12 +27,12 @@ import (
 
 // AllowedIPs lists the floating IPs the server may use, sorted; ones still releasing from it are excluded.
 func AllowedIPs(ctx context.Context, c *ent.Client, serverID int64) ([]netip.Addr, error) {
-	return assigned(ctx, c, ipaddress.ServerID(serverID), ipaddress.ReleasingFromIDIsNil())
+	return assigned(ctx, c, ipaddress.ServerID(serverID), ipaddress.ReleasingFromIDIsNil(), floating)
 }
 
 // GuestIPs lists every floating IP assigned to the server, sorted, including ones still releasing to it; for the guest's own config.
 func GuestIPs(ctx context.Context, c *ent.Client, serverID int64) ([]netip.Addr, error) {
-	return assigned(ctx, c, ipaddress.ServerID(serverID))
+	return assigned(ctx, c, ipaddress.ServerID(serverID), floating)
 }
 
 func assigned(ctx context.Context, c *ent.Client, where ...predicate.IPAddress) ([]netip.Addr, error) {
@@ -52,7 +52,7 @@ func assigned(ctx context.Context, c *ent.Client, where ...predicate.IPAddress) 
 	return out, nil
 }
 
-// LockAssigned takes FOR SHARE on the server's floating IP rows; ipset writers hold it for the length of their write.
+// LockAssigned takes FOR SHARE on the server's IP rows, floating and primary; ipset writers hold it for the length of their write.
 func LockAssigned(ctx context.Context, tx *ent.Client, serverID int64) error {
 	_, err := tx.IPAddress.Query().Where(ipaddress.ServerID(serverID)).ForShare().IDs(ctx)
 	return err

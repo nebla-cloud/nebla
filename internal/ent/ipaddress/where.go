@@ -115,6 +115,11 @@ func Deleting(v bool) predicate.IPAddress {
 	return predicate.IPAddress(sql.FieldEQ(FieldDeleting, v))
 }
 
+// AutoDelete applies equality check predicate on the "auto_delete" field. It's identical to AutoDeleteEQ.
+func AutoDelete(v bool) predicate.IPAddress {
+	return predicate.IPAddress(sql.FieldEQ(FieldAutoDelete, v))
+}
+
 // DNSPtr applies equality check predicate on the "dns_ptr" field. It's identical to DNSPtrEQ.
 func DNSPtr(v string) predicate.IPAddress {
 	return predicate.IPAddress(sql.FieldEQ(FieldDNSPtr, v))
@@ -613,6 +618,16 @@ func DeletingEQ(v bool) predicate.IPAddress {
 // DeletingNEQ applies the NEQ predicate on the "deleting" field.
 func DeletingNEQ(v bool) predicate.IPAddress {
 	return predicate.IPAddress(sql.FieldNEQ(FieldDeleting, v))
+}
+
+// AutoDeleteEQ applies the EQ predicate on the "auto_delete" field.
+func AutoDeleteEQ(v bool) predicate.IPAddress {
+	return predicate.IPAddress(sql.FieldEQ(FieldAutoDelete, v))
+}
+
+// AutoDeleteNEQ applies the NEQ predicate on the "auto_delete" field.
+func AutoDeleteNEQ(v bool) predicate.IPAddress {
+	return predicate.IPAddress(sql.FieldNEQ(FieldAutoDelete, v))
 }
 
 // DNSPtrEQ applies the EQ predicate on the "dns_ptr" field.

@@ -205,6 +205,21 @@ func BackupsEnabledAt(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldBackupsEnabledAt, v))
 }
 
+// NetRefresh applies equality check predicate on the "net_refresh" field. It's identical to NetRefreshEQ.
+func NetRefresh(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldNetRefresh, v))
+}
+
+// InstanceGen applies equality check predicate on the "instance_gen" field. It's identical to InstanceGenEQ.
+func InstanceGen(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldInstanceGen, v))
+}
+
+// IsoNetHash applies equality check predicate on the "iso_net_hash" field. It's identical to IsoNetHashEQ.
+func IsoNetHash(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldIsoNetHash, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreatedAt, v))
@@ -1633,6 +1648,121 @@ func BackupsEnabledAtIsNil() predicate.Server {
 // BackupsEnabledAtNotNil applies the NotNil predicate on the "backups_enabled_at" field.
 func BackupsEnabledAtNotNil() predicate.Server {
 	return predicate.Server(sql.FieldNotNull(FieldBackupsEnabledAt))
+}
+
+// NetRefreshEQ applies the EQ predicate on the "net_refresh" field.
+func NetRefreshEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldNetRefresh, v))
+}
+
+// NetRefreshNEQ applies the NEQ predicate on the "net_refresh" field.
+func NetRefreshNEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldNetRefresh, v))
+}
+
+// InstanceGenEQ applies the EQ predicate on the "instance_gen" field.
+func InstanceGenEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldInstanceGen, v))
+}
+
+// InstanceGenNEQ applies the NEQ predicate on the "instance_gen" field.
+func InstanceGenNEQ(v int64) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldInstanceGen, v))
+}
+
+// InstanceGenIn applies the In predicate on the "instance_gen" field.
+func InstanceGenIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldInstanceGen, vs...))
+}
+
+// InstanceGenNotIn applies the NotIn predicate on the "instance_gen" field.
+func InstanceGenNotIn(vs ...int64) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldInstanceGen, vs...))
+}
+
+// InstanceGenGT applies the GT predicate on the "instance_gen" field.
+func InstanceGenGT(v int64) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldInstanceGen, v))
+}
+
+// InstanceGenGTE applies the GTE predicate on the "instance_gen" field.
+func InstanceGenGTE(v int64) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldInstanceGen, v))
+}
+
+// InstanceGenLT applies the LT predicate on the "instance_gen" field.
+func InstanceGenLT(v int64) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldInstanceGen, v))
+}
+
+// InstanceGenLTE applies the LTE predicate on the "instance_gen" field.
+func InstanceGenLTE(v int64) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldInstanceGen, v))
+}
+
+// IsoNetHashEQ applies the EQ predicate on the "iso_net_hash" field.
+func IsoNetHashEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldIsoNetHash, v))
+}
+
+// IsoNetHashNEQ applies the NEQ predicate on the "iso_net_hash" field.
+func IsoNetHashNEQ(v string) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldIsoNetHash, v))
+}
+
+// IsoNetHashIn applies the In predicate on the "iso_net_hash" field.
+func IsoNetHashIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldIsoNetHash, vs...))
+}
+
+// IsoNetHashNotIn applies the NotIn predicate on the "iso_net_hash" field.
+func IsoNetHashNotIn(vs ...string) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldIsoNetHash, vs...))
+}
+
+// IsoNetHashGT applies the GT predicate on the "iso_net_hash" field.
+func IsoNetHashGT(v string) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldIsoNetHash, v))
+}
+
+// IsoNetHashGTE applies the GTE predicate on the "iso_net_hash" field.
+func IsoNetHashGTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldIsoNetHash, v))
+}
+
+// IsoNetHashLT applies the LT predicate on the "iso_net_hash" field.
+func IsoNetHashLT(v string) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldIsoNetHash, v))
+}
+
+// IsoNetHashLTE applies the LTE predicate on the "iso_net_hash" field.
+func IsoNetHashLTE(v string) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldIsoNetHash, v))
+}
+
+// IsoNetHashContains applies the Contains predicate on the "iso_net_hash" field.
+func IsoNetHashContains(v string) predicate.Server {
+	return predicate.Server(sql.FieldContains(FieldIsoNetHash, v))
+}
+
+// IsoNetHashHasPrefix applies the HasPrefix predicate on the "iso_net_hash" field.
+func IsoNetHashHasPrefix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasPrefix(FieldIsoNetHash, v))
+}
+
+// IsoNetHashHasSuffix applies the HasSuffix predicate on the "iso_net_hash" field.
+func IsoNetHashHasSuffix(v string) predicate.Server {
+	return predicate.Server(sql.FieldHasSuffix(FieldIsoNetHash, v))
+}
+
+// IsoNetHashEqualFold applies the EqualFold predicate on the "iso_net_hash" field.
+func IsoNetHashEqualFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldEqualFold(FieldIsoNetHash, v))
+}
+
+// IsoNetHashContainsFold applies the ContainsFold predicate on the "iso_net_hash" field.
+func IsoNetHashContainsFold(v string) predicate.Server {
+	return predicate.Server(sql.FieldContainsFold(FieldIsoNetHash, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

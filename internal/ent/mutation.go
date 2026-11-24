@@ -8925,6 +8925,7 @@ type IPAddressMutation struct {
 	pending_gen            *int64
 	addpending_gen         *int64
 	deleting               *bool
+	auto_delete            *bool
 	dns_ptr                *string
 	created_at             *time.Time
 	clearedFields          map[string]struct{}
@@ -9626,6 +9627,42 @@ func (m *IPAddressMutation) ResetDeleting() {
 	m.deleting = nil
 }
 
+// SetAutoDelete sets the "auto_delete" field.
+func (m *IPAddressMutation) SetAutoDelete(b bool) {
+	m.auto_delete = &b
+}
+
+// AutoDelete returns the value of the "auto_delete" field in the mutation.
+func (m *IPAddressMutation) AutoDelete() (r bool, exists bool) {
+	v := m.auto_delete
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutoDelete returns the old "auto_delete" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldAutoDelete(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutoDelete is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutoDelete requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutoDelete: %w", err)
+	}
+	return oldValue.AutoDelete, nil
+}
+
+// ResetAutoDelete resets all changes to the "auto_delete" field.
+func (m *IPAddressMutation) ResetAutoDelete() {
+	m.auto_delete = nil
+}
+
 // SetDNSPtr sets the "dns_ptr" field.
 func (m *IPAddressMutation) SetDNSPtr(s string) {
 	m.dns_ptr = &s
@@ -9907,7 +9944,7 @@ func (m *IPAddressMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *IPAddressMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 17)
 	if m.project != nil {
 		fields = append(fields, ipaddress.FieldProjectID)
 	}
@@ -9949,6 +9986,9 @@ func (m *IPAddressMutation) Fields() []string {
 	}
 	if m.deleting != nil {
 		fields = append(fields, ipaddress.FieldDeleting)
+	}
+	if m.auto_delete != nil {
+		fields = append(fields, ipaddress.FieldAutoDelete)
 	}
 	if m.dns_ptr != nil {
 		fields = append(fields, ipaddress.FieldDNSPtr)
@@ -9992,6 +10032,8 @@ func (m *IPAddressMutation) Field(name string) (ent.Value, bool) {
 		return m.PendingGen()
 	case ipaddress.FieldDeleting:
 		return m.Deleting()
+	case ipaddress.FieldAutoDelete:
+		return m.AutoDelete()
 	case ipaddress.FieldDNSPtr:
 		return m.DNSPtr()
 	case ipaddress.FieldCreatedAt:
@@ -10033,6 +10075,8 @@ func (m *IPAddressMutation) OldField(ctx context.Context, name string) (ent.Valu
 		return m.OldPendingGen(ctx)
 	case ipaddress.FieldDeleting:
 		return m.OldDeleting(ctx)
+	case ipaddress.FieldAutoDelete:
+		return m.OldAutoDelete(ctx)
 	case ipaddress.FieldDNSPtr:
 		return m.OldDNSPtr(ctx)
 	case ipaddress.FieldCreatedAt:
@@ -10143,6 +10187,13 @@ func (m *IPAddressMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDeleting(v)
+		return nil
+	case ipaddress.FieldAutoDelete:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutoDelete(v)
 		return nil
 	case ipaddress.FieldDNSPtr:
 		v, ok := value.(string)
@@ -10296,6 +10347,9 @@ func (m *IPAddressMutation) ResetField(name string) error {
 		return nil
 	case ipaddress.FieldDeleting:
 		m.ResetDeleting()
+		return nil
+	case ipaddress.FieldAutoDelete:
+		m.ResetAutoDelete()
 		return nil
 	case ipaddress.FieldDNSPtr:
 		m.ResetDNSPtr()
@@ -21797,6 +21851,10 @@ type ServerMutation struct {
 	backup_slot             *int
 	addbackup_slot          *int
 	backups_enabled_at      *time.Time
+	net_refresh             *bool
+	instance_gen            *int64
+	addinstance_gen         *int64
+	iso_net_hash            *string
 	created_at              *time.Time
 	clearedFields           map[string]struct{}
 	project                 *int64
@@ -23518,6 +23576,134 @@ func (m *ServerMutation) ResetBackupsEnabledAt() {
 	delete(m.clearedFields, server.FieldBackupsEnabledAt)
 }
 
+// SetNetRefresh sets the "net_refresh" field.
+func (m *ServerMutation) SetNetRefresh(b bool) {
+	m.net_refresh = &b
+}
+
+// NetRefresh returns the value of the "net_refresh" field in the mutation.
+func (m *ServerMutation) NetRefresh() (r bool, exists bool) {
+	v := m.net_refresh
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNetRefresh returns the old "net_refresh" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldNetRefresh(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNetRefresh is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNetRefresh requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNetRefresh: %w", err)
+	}
+	return oldValue.NetRefresh, nil
+}
+
+// ResetNetRefresh resets all changes to the "net_refresh" field.
+func (m *ServerMutation) ResetNetRefresh() {
+	m.net_refresh = nil
+}
+
+// SetInstanceGen sets the "instance_gen" field.
+func (m *ServerMutation) SetInstanceGen(i int64) {
+	m.instance_gen = &i
+	m.addinstance_gen = nil
+}
+
+// InstanceGen returns the value of the "instance_gen" field in the mutation.
+func (m *ServerMutation) InstanceGen() (r int64, exists bool) {
+	v := m.instance_gen
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInstanceGen returns the old "instance_gen" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldInstanceGen(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInstanceGen is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInstanceGen requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInstanceGen: %w", err)
+	}
+	return oldValue.InstanceGen, nil
+}
+
+// AddInstanceGen adds i to the "instance_gen" field.
+func (m *ServerMutation) AddInstanceGen(i int64) {
+	if m.addinstance_gen != nil {
+		*m.addinstance_gen += i
+	} else {
+		m.addinstance_gen = &i
+	}
+}
+
+// AddedInstanceGen returns the value that was added to the "instance_gen" field in this mutation.
+func (m *ServerMutation) AddedInstanceGen() (r int64, exists bool) {
+	v := m.addinstance_gen
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetInstanceGen resets all changes to the "instance_gen" field.
+func (m *ServerMutation) ResetInstanceGen() {
+	m.instance_gen = nil
+	m.addinstance_gen = nil
+}
+
+// SetIsoNetHash sets the "iso_net_hash" field.
+func (m *ServerMutation) SetIsoNetHash(s string) {
+	m.iso_net_hash = &s
+}
+
+// IsoNetHash returns the value of the "iso_net_hash" field in the mutation.
+func (m *ServerMutation) IsoNetHash() (r string, exists bool) {
+	v := m.iso_net_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsoNetHash returns the old "iso_net_hash" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldIsoNetHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsoNetHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsoNetHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsoNetHash: %w", err)
+	}
+	return oldValue.IsoNetHash, nil
+}
+
+// ResetIsoNetHash resets all changes to the "iso_net_hash" field.
+func (m *ServerMutation) ResetIsoNetHash() {
+	m.iso_net_hash = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ServerMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -23696,7 +23882,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 34)
+	fields := make([]string, 0, 37)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -23796,6 +23982,15 @@ func (m *ServerMutation) Fields() []string {
 	if m.backups_enabled_at != nil {
 		fields = append(fields, server.FieldBackupsEnabledAt)
 	}
+	if m.net_refresh != nil {
+		fields = append(fields, server.FieldNetRefresh)
+	}
+	if m.instance_gen != nil {
+		fields = append(fields, server.FieldInstanceGen)
+	}
+	if m.iso_net_hash != nil {
+		fields = append(fields, server.FieldIsoNetHash)
+	}
 	if m.created_at != nil {
 		fields = append(fields, server.FieldCreatedAt)
 	}
@@ -23873,6 +24068,12 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.BackupSlot()
 	case server.FieldBackupsEnabledAt:
 		return m.BackupsEnabledAt()
+	case server.FieldNetRefresh:
+		return m.NetRefresh()
+	case server.FieldInstanceGen:
+		return m.InstanceGen()
+	case server.FieldIsoNetHash:
+		return m.IsoNetHash()
 	case server.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -23950,6 +24151,12 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldBackupSlot(ctx)
 	case server.FieldBackupsEnabledAt:
 		return m.OldBackupsEnabledAt(ctx)
+	case server.FieldNetRefresh:
+		return m.OldNetRefresh(ctx)
+	case server.FieldInstanceGen:
+		return m.OldInstanceGen(ctx)
+	case server.FieldIsoNetHash:
+		return m.OldIsoNetHash(ctx)
 	case server.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -24192,6 +24399,27 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetBackupsEnabledAt(v)
 		return nil
+	case server.FieldNetRefresh:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNetRefresh(v)
+		return nil
+	case server.FieldInstanceGen:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInstanceGen(v)
+		return nil
+	case server.FieldIsoNetHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsoNetHash(v)
+		return nil
 	case server.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -24249,6 +24477,9 @@ func (m *ServerMutation) AddedFields() []string {
 	if m.addbackup_slot != nil {
 		fields = append(fields, server.FieldBackupSlot)
 	}
+	if m.addinstance_gen != nil {
+		fields = append(fields, server.FieldInstanceGen)
+	}
 	return fields
 }
 
@@ -24285,6 +24516,8 @@ func (m *ServerMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedBackupKeep()
 	case server.FieldBackupSlot:
 		return m.AddedBackupSlot()
+	case server.FieldInstanceGen:
+		return m.AddedInstanceGen()
 	}
 	return nil, false
 }
@@ -24391,6 +24624,13 @@ func (m *ServerMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddBackupSlot(v)
+		return nil
+	case server.FieldInstanceGen:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddInstanceGen(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Server numeric field %s", name)
@@ -24574,6 +24814,15 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldBackupsEnabledAt:
 		m.ResetBackupsEnabledAt()
+		return nil
+	case server.FieldNetRefresh:
+		m.ResetNetRefresh()
+		return nil
+	case server.FieldInstanceGen:
+		m.ResetInstanceGen()
+		return nil
+	case server.FieldIsoNetHash:
+		m.ResetIsoNetHash()
 		return nil
 	case server.FieldCreatedAt:
 		m.ResetCreatedAt()

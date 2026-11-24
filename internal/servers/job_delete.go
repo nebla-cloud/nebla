@@ -26,7 +26,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
-	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
 )
@@ -123,7 +122,7 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 		if err := lockFloatingIPsOf(ctx, etx, row.ID); err != nil {
 			return err
 		}
-		if err := ipam.Release(ctx, etx, row.ID); err != nil {
+		if _, err := releasePrimaries(ctx, etx, row.ID); err != nil {
 			return err
 		}
 		if err := detachVolumesTx(ctx, etx, row.ID); err != nil {
@@ -141,7 +140,7 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 	return nil
 }
 
-// lockFloatingIPsOf locks the floating IP rows the server's delete will null, keeping the floating IP → server lock order.
+// lockFloatingIPsOf locks every IP row, floating or primary, the server's delete will change, keeping the IP → server lock order.
 func lockFloatingIPsOf(ctx context.Context, etx *ent.Client, serverID int64) error {
 	_, err := etx.IPAddress.Query().Where(ipaddress.Or(ipaddress.ServerID(serverID), ipaddress.ReleasingFromID(serverID),
 		ipaddress.PreviousServerID(serverID))).Order(ipaddress.ByID()).Unique(false).ForUpdate().IDs(ctx)

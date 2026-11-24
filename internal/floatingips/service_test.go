@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
@@ -109,10 +111,66 @@ func (e *env) rawServer(t *testing.T, project, location, poolID int64, name, ip 
 		SetCores(1).SetMemoryMB(512).SetDiskGB(10).SetSSHKeys([]string{}).SetStatus(st).Save(ctx)
 	require.NoError(t, err)
 	if ip != "" {
-		require.NoError(t, e.App.Ent.IPAllocation.Create().SetPoolID(poolID).SetIP(ip).SetServerID(s.ID).
-			SetOwner(ipallocation.OwnerServer).Exec(ctx))
+		pool := e.App.Ent.IPPool.GetX(ctx, poolID)
+		a := e.App.Ent.IPAllocation.Create().SetPoolID(poolID).SetIP(ip).SetOwner(ipallocation.OwnerPrimary).SaveX(ctx)
+		require.NoError(t, e.App.Ent.IPAddress.Create().SetKind(ipaddress.KindPrimary).SetProjectID(project).SetLocationID(location).
+			SetAllocationID(a.ID).SetFamily(pool.Family).SetIP(ip).SetName(name+"-"+pool.Family).SetLabels(map[string]string{}).
+			SetServerID(s.ID).Exec(ctx))
 	}
 	return s.ID
+}
+
+// primaryOf returns the id of the server's primary row of family.
+func (e *env) primaryOf(t *testing.T, serverID int64, family string) int64 {
+	t.Helper()
+	id, err := e.App.Ent.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(serverID),
+		ipaddress.Family(family)).OnlyID(context.Background())
+	require.NoError(t, err)
+	return id
+}
+
+func TestFloatingIgnoresPrimaryRows(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	web := e.rawServer(t, e.Project, e.Location, e.Pool4, "web", "10.0.0.30", server.StatusRunning)
+	pid := e.primaryOf(t, web, "ipv4")
+
+	free, _, err := e.svc.Create(ctx, e.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	onWeb, act, err := e.svc.Create(ctx, e.Project, floatingips.CreateInput{Family: "ipv4", Server: "web"})
+	require.NoError(t, err, "serverSegment finds the primary IP")
+	require.NotNil(t, act)
+
+	list, total, err := e.svc.List(ctx, e.Project, floatingips.ListFilter{}, 1, 50)
+	require.NoError(t, err)
+	require.Equal(t, 2, total)
+	require.Equal(t, []int64{free.ID, onWeb.ID}, []int64{list[0].ID, list[1].ID})
+	_, total, err = e.svc.List(ctx, e.Project, floatingips.ListFilter{Name: "web-ipv4"}, 1, 50)
+	require.NoError(t, err)
+	require.Zero(t, total)
+
+	_, err = e.svc.Get(ctx, e.Project, pid)
+	requireAPIErr(t, err, http.StatusNotFound, "not_found", "")
+	_, err = e.svc.Assign(ctx, e.Project, pid, "web")
+	requireAPIErr(t, err, http.StatusNotFound, "not_found", "")
+	_, err = e.svc.Unassign(ctx, e.Project, pid)
+	requireAPIErr(t, err, http.StatusNotFound, "not_found", "")
+	_, err = e.svc.Delete(ctx, e.Project, pid)
+	requireAPIErr(t, err, http.StatusNotFound, "not_found", "")
+	name := "renamed"
+	_, err = e.svc.Update(ctx, e.Project, pid, floatingips.UpdateInput{Name: &name})
+	requireAPIErr(t, err, http.StatusNotFound, "not_found", "")
+
+	want := []netip.Addr{netip.MustParseAddr(onWeb.IP)}
+	got, err := floatingips.AllowedIPs(ctx, e.App.Ent, web)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	got, err = floatingips.GuestIPs(ctx, e.App.Ent, web)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	refs, err := e.svc.ServerRefs(ctx, []int64{web})
+	require.NoError(t, err)
+	require.Equal(t, []floatingips.Ref{{ID: onWeb.ID, IP: onWeb.IP}}, refs[web])
 }
 
 // rawFIP inserts a floating IP of the project from poolID; srv and releasing may be nil.

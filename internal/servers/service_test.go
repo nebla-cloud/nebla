@@ -35,9 +35,11 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
@@ -224,9 +226,14 @@ func TestCreateServerReturnsActionAndAllocatesIP(t *testing.T) {
 	require.NoError(t, json.Unmarshal(job.EncodedArgs, &args))
 	require.Equal(t, servers.CreateServerArgs{ServerID: s.ID, ActionID: a.ID, StartAfter: false}, args)
 
-	assignments, err := e.App.Ent.IPAllocation.Query().Where(ipallocation.ServerID(s.ID)).Count(ctx)
+	primaries, err := e.App.Ent.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(s.ID),
+		ipaddress.AutoDelete(true)).All(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 2, assignments)
+	require.Len(t, primaries, 2)
+	for _, p := range primaries {
+		require.Equal(t, "web-1-"+p.Family, p.Name)
+		require.Equal(t, ipallocation.OwnerPrimary, e.App.Ent.IPAllocation.GetX(ctx, p.AllocationID).Owner)
+	}
 
 	got, raw := expect[serverJSON](t, e.C.Get("/v1/servers/"+sid(s.ID)), http.StatusOK)
 	require.Equal(t, s, got)
@@ -592,7 +599,7 @@ func TestUsageUsesServerSnapshot(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	e.CreateServer("a", nil)
-	want := projects.Usage{Servers: 1, VCPU: 2, MemoryMB: 2048, DiskGB: 20, IPs: 1}
+	want := projects.Usage{Servers: 1, VCPU: 2, MemoryMB: 2048, DiskGB: 20}
 	got, err := servers.Usage(ctx, e.App.Ent, e.Project)
 	require.NoError(t, err)
 	require.Equal(t, want, got)
@@ -634,4 +641,48 @@ func TestLockServerBackupInProgress(t *testing.T) {
 	require.Equal(t, http.StatusConflict, ae.Status)
 	require.Equal(t, "backup_in_progress", ae.Code)
 	require.Equal(t, "A backup of this server is running", ae.Msg)
+}
+
+func TestUsageCountsPrimaryOnce(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.CreateServer("web", map[string]any{"public_net": map[string]bool{"ipv4": true, "ipv6": true}})
+	res := e.C.Send(http.MethodPost, "/v1/floating_ips", map[string]any{"type": "ipv4", "location": "eu-1"})
+	require.Equal(t, http.StatusCreated, res.StatusCode, body(t, res))
+
+	own, err := servers.Usage(ctx, e.App.Ent, e.Project)
+	require.NoError(t, err)
+	require.Zero(t, own.IPs, "servers no longer count addresses")
+	hooks, _ := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
+	u, err := hooks.Usage(ctx, e.App.Ent, e.Project)
+	require.NoError(t, err)
+	require.Equal(t, 3, u.IPs)
+}
+
+func TestServerDeleteAutoDelete(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t, nil)
+	s := e.CreateServer("web", map[string]any{"public_net": map[string]bool{"ipv4": true, "ipv6": true}})
+	waitOK(t, e, s.ActionID)
+	of := func(family string) *ent.IPAddress {
+		t.Helper()
+		return e.App.Ent.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(s.ServerID),
+			ipaddress.Family(family)).OnlyX(ctx)
+	}
+	v4, v6 := of("ipv4"), of("ipv6")
+	require.True(t, v4.AutoDelete)
+	require.NoError(t, e.App.Ent.IPAddress.UpdateOneID(v6.ID).SetAutoDelete(false).Exec(ctx))
+
+	del, _ := expect[actionBody](t, e.C.Send(http.MethodDelete, spath(s.ServerID), nil), http.StatusOK)
+	waitOK(t, e, del.Action.ID)
+	_, err := e.App.Ent.IPAddress.Get(ctx, v4.ID)
+	require.True(t, ent.IsNotFound(err), "auto_delete row is deleted")
+	_, err = e.App.Ent.IPAllocation.Get(ctx, v4.AllocationID)
+	require.True(t, ent.IsNotFound(err), "and its address freed")
+	kept, err := e.App.Ent.IPAddress.Get(ctx, v6.ID)
+	require.NoError(t, err)
+	require.Nil(t, kept.ServerID)
+	require.False(t, kept.AutoDelete)
+	_, err = e.App.Ent.IPAllocation.Get(ctx, v6.AllocationID)
+	require.NoError(t, err, "the kept address stays allocated")
 }

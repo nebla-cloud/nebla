@@ -164,6 +164,20 @@ func (_u *IPAddressUpdate) SetNillableDeleting(v *bool) *IPAddressUpdate {
 	return _u
 }
 
+// SetAutoDelete sets the "auto_delete" field.
+func (_u *IPAddressUpdate) SetAutoDelete(v bool) *IPAddressUpdate {
+	_u.mutation.SetAutoDelete(v)
+	return _u
+}
+
+// SetNillableAutoDelete sets the "auto_delete" field if the given value is not nil.
+func (_u *IPAddressUpdate) SetNillableAutoDelete(v *bool) *IPAddressUpdate {
+	if v != nil {
+		_u.SetAutoDelete(*v)
+	}
+	return _u
+}
+
 // SetDNSPtr sets the "dns_ptr" field.
 func (_u *IPAddressUpdate) SetDNSPtr(v string) *IPAddressUpdate {
 	_u.mutation.SetDNSPtr(v)
@@ -301,6 +315,9 @@ func (_u *IPAddressUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Deleting(); ok {
 		_spec.SetField(ipaddress.FieldDeleting, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AutoDelete(); ok {
+		_spec.SetField(ipaddress.FieldAutoDelete, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.DNSPtr(); ok {
 		_spec.SetField(ipaddress.FieldDNSPtr, field.TypeString, value)
@@ -552,6 +569,20 @@ func (_u *IPAddressUpdateOne) SetNillableDeleting(v *bool) *IPAddressUpdateOne {
 	return _u
 }
 
+// SetAutoDelete sets the "auto_delete" field.
+func (_u *IPAddressUpdateOne) SetAutoDelete(v bool) *IPAddressUpdateOne {
+	_u.mutation.SetAutoDelete(v)
+	return _u
+}
+
+// SetNillableAutoDelete sets the "auto_delete" field if the given value is not nil.
+func (_u *IPAddressUpdateOne) SetNillableAutoDelete(v *bool) *IPAddressUpdateOne {
+	if v != nil {
+		_u.SetAutoDelete(*v)
+	}
+	return _u
+}
+
 // SetDNSPtr sets the "dns_ptr" field.
 func (_u *IPAddressUpdateOne) SetDNSPtr(v string) *IPAddressUpdateOne {
 	_u.mutation.SetDNSPtr(v)
@@ -719,6 +750,9 @@ func (_u *IPAddressUpdateOne) sqlSave(ctx context.Context) (_node *IPAddress, er
 	}
 	if value, ok := _u.mutation.Deleting(); ok {
 		_spec.SetField(ipaddress.FieldDeleting, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AutoDelete(); ok {
+		_spec.SetField(ipaddress.FieldAutoDelete, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.DNSPtr(); ok {
 		_spec.SetField(ipaddress.FieldDNSPtr, field.TypeString, value)

@@ -392,6 +392,48 @@ func (_c *ServerCreate) SetNillableBackupsEnabledAt(v *time.Time) *ServerCreate 
 	return _c
 }
 
+// SetNetRefresh sets the "net_refresh" field.
+func (_c *ServerCreate) SetNetRefresh(v bool) *ServerCreate {
+	_c.mutation.SetNetRefresh(v)
+	return _c
+}
+
+// SetNillableNetRefresh sets the "net_refresh" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableNetRefresh(v *bool) *ServerCreate {
+	if v != nil {
+		_c.SetNetRefresh(*v)
+	}
+	return _c
+}
+
+// SetInstanceGen sets the "instance_gen" field.
+func (_c *ServerCreate) SetInstanceGen(v int64) *ServerCreate {
+	_c.mutation.SetInstanceGen(v)
+	return _c
+}
+
+// SetNillableInstanceGen sets the "instance_gen" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableInstanceGen(v *int64) *ServerCreate {
+	if v != nil {
+		_c.SetInstanceGen(*v)
+	}
+	return _c
+}
+
+// SetIsoNetHash sets the "iso_net_hash" field.
+func (_c *ServerCreate) SetIsoNetHash(v string) *ServerCreate {
+	_c.mutation.SetIsoNetHash(v)
+	return _c
+}
+
+// SetNillableIsoNetHash sets the "iso_net_hash" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableIsoNetHash(v *string) *ServerCreate {
+	if v != nil {
+		_c.SetIsoNetHash(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ServerCreate) SetCreatedAt(v time.Time) *ServerCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -515,6 +557,18 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultBackupSlot
 		_c.mutation.SetBackupSlot(v)
 	}
+	if _, ok := _c.mutation.NetRefresh(); !ok {
+		v := server.DefaultNetRefresh
+		_c.mutation.SetNetRefresh(v)
+	}
+	if _, ok := _c.mutation.InstanceGen(); !ok {
+		v := server.DefaultInstanceGen
+		_c.mutation.SetInstanceGen(v)
+	}
+	if _, ok := _c.mutation.IsoNetHash(); !ok {
+		v := server.DefaultIsoNetHash
+		_c.mutation.SetIsoNetHash(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := server.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -599,6 +653,15 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.BackupSlot(); !ok {
 		return &ValidationError{Name: "backup_slot", err: errors.New(`ent: missing required field "Server.backup_slot"`)}
+	}
+	if _, ok := _c.mutation.NetRefresh(); !ok {
+		return &ValidationError{Name: "net_refresh", err: errors.New(`ent: missing required field "Server.net_refresh"`)}
+	}
+	if _, ok := _c.mutation.InstanceGen(); !ok {
+		return &ValidationError{Name: "instance_gen", err: errors.New(`ent: missing required field "Server.instance_gen"`)}
+	}
+	if _, ok := _c.mutation.IsoNetHash(); !ok {
+		return &ValidationError{Name: "iso_net_hash", err: errors.New(`ent: missing required field "Server.iso_net_hash"`)}
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "Server.project"`)}
@@ -760,6 +823,18 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.BackupsEnabledAt(); ok {
 		_spec.SetField(server.FieldBackupsEnabledAt, field.TypeTime, value)
 		_node.BackupsEnabledAt = &value
+	}
+	if value, ok := _c.mutation.NetRefresh(); ok {
+		_spec.SetField(server.FieldNetRefresh, field.TypeBool, value)
+		_node.NetRefresh = value
+	}
+	if value, ok := _c.mutation.InstanceGen(); ok {
+		_spec.SetField(server.FieldInstanceGen, field.TypeInt64, value)
+		_node.InstanceGen = value
+	}
+	if value, ok := _c.mutation.IsoNetHash(); ok {
+		_spec.SetField(server.FieldIsoNetHash, field.TypeString, value)
+		_node.IsoNetHash = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(server.FieldCreatedAt, field.TypeTime, value)
@@ -1380,6 +1455,48 @@ func (u *ServerUpsert) UpdateBackupsEnabledAt() *ServerUpsert {
 // ClearBackupsEnabledAt clears the value of the "backups_enabled_at" field.
 func (u *ServerUpsert) ClearBackupsEnabledAt() *ServerUpsert {
 	u.SetNull(server.FieldBackupsEnabledAt)
+	return u
+}
+
+// SetNetRefresh sets the "net_refresh" field.
+func (u *ServerUpsert) SetNetRefresh(v bool) *ServerUpsert {
+	u.Set(server.FieldNetRefresh, v)
+	return u
+}
+
+// UpdateNetRefresh sets the "net_refresh" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateNetRefresh() *ServerUpsert {
+	u.SetExcluded(server.FieldNetRefresh)
+	return u
+}
+
+// SetInstanceGen sets the "instance_gen" field.
+func (u *ServerUpsert) SetInstanceGen(v int64) *ServerUpsert {
+	u.Set(server.FieldInstanceGen, v)
+	return u
+}
+
+// UpdateInstanceGen sets the "instance_gen" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateInstanceGen() *ServerUpsert {
+	u.SetExcluded(server.FieldInstanceGen)
+	return u
+}
+
+// AddInstanceGen adds v to the "instance_gen" field.
+func (u *ServerUpsert) AddInstanceGen(v int64) *ServerUpsert {
+	u.Add(server.FieldInstanceGen, v)
+	return u
+}
+
+// SetIsoNetHash sets the "iso_net_hash" field.
+func (u *ServerUpsert) SetIsoNetHash(v string) *ServerUpsert {
+	u.Set(server.FieldIsoNetHash, v)
+	return u
+}
+
+// UpdateIsoNetHash sets the "iso_net_hash" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateIsoNetHash() *ServerUpsert {
+	u.SetExcluded(server.FieldIsoNetHash)
 	return u
 }
 
@@ -2021,6 +2138,55 @@ func (u *ServerUpsertOne) UpdateBackupsEnabledAt() *ServerUpsertOne {
 func (u *ServerUpsertOne) ClearBackupsEnabledAt() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearBackupsEnabledAt()
+	})
+}
+
+// SetNetRefresh sets the "net_refresh" field.
+func (u *ServerUpsertOne) SetNetRefresh(v bool) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetNetRefresh(v)
+	})
+}
+
+// UpdateNetRefresh sets the "net_refresh" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateNetRefresh() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateNetRefresh()
+	})
+}
+
+// SetInstanceGen sets the "instance_gen" field.
+func (u *ServerUpsertOne) SetInstanceGen(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetInstanceGen(v)
+	})
+}
+
+// AddInstanceGen adds v to the "instance_gen" field.
+func (u *ServerUpsertOne) AddInstanceGen(v int64) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddInstanceGen(v)
+	})
+}
+
+// UpdateInstanceGen sets the "instance_gen" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateInstanceGen() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateInstanceGen()
+	})
+}
+
+// SetIsoNetHash sets the "iso_net_hash" field.
+func (u *ServerUpsertOne) SetIsoNetHash(v string) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetIsoNetHash(v)
+	})
+}
+
+// UpdateIsoNetHash sets the "iso_net_hash" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateIsoNetHash() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateIsoNetHash()
 	})
 }
 
@@ -2828,6 +2994,55 @@ func (u *ServerUpsertBulk) UpdateBackupsEnabledAt() *ServerUpsertBulk {
 func (u *ServerUpsertBulk) ClearBackupsEnabledAt() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearBackupsEnabledAt()
+	})
+}
+
+// SetNetRefresh sets the "net_refresh" field.
+func (u *ServerUpsertBulk) SetNetRefresh(v bool) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetNetRefresh(v)
+	})
+}
+
+// UpdateNetRefresh sets the "net_refresh" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateNetRefresh() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateNetRefresh()
+	})
+}
+
+// SetInstanceGen sets the "instance_gen" field.
+func (u *ServerUpsertBulk) SetInstanceGen(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetInstanceGen(v)
+	})
+}
+
+// AddInstanceGen adds v to the "instance_gen" field.
+func (u *ServerUpsertBulk) AddInstanceGen(v int64) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.AddInstanceGen(v)
+	})
+}
+
+// UpdateInstanceGen sets the "instance_gen" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateInstanceGen() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateInstanceGen()
+	})
+}
+
+// SetIsoNetHash sets the "iso_net_hash" field.
+func (u *ServerUpsertBulk) SetIsoNetHash(v string) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetIsoNetHash(v)
+	})
+}
+
+// UpdateIsoNetHash sets the "iso_net_hash" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateIsoNetHash() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateIsoNetHash()
 	})
 }
 

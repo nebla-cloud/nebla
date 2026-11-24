@@ -166,6 +166,20 @@ func (_c *IPAddressCreate) SetNillableDeleting(v *bool) *IPAddressCreate {
 	return _c
 }
 
+// SetAutoDelete sets the "auto_delete" field.
+func (_c *IPAddressCreate) SetAutoDelete(v bool) *IPAddressCreate {
+	_c.mutation.SetAutoDelete(v)
+	return _c
+}
+
+// SetNillableAutoDelete sets the "auto_delete" field if the given value is not nil.
+func (_c *IPAddressCreate) SetNillableAutoDelete(v *bool) *IPAddressCreate {
+	if v != nil {
+		_c.SetAutoDelete(*v)
+	}
+	return _c
+}
+
 // SetDNSPtr sets the "dns_ptr" field.
 func (_c *IPAddressCreate) SetDNSPtr(v string) *IPAddressCreate {
 	_c.mutation.SetDNSPtr(v)
@@ -277,6 +291,10 @@ func (_c *IPAddressCreate) defaults() {
 		v := ipaddress.DefaultDeleting
 		_c.mutation.SetDeleting(v)
 	}
+	if _, ok := _c.mutation.AutoDelete(); !ok {
+		v := ipaddress.DefaultAutoDelete
+		_c.mutation.SetAutoDelete(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := ipaddress.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -319,6 +337,9 @@ func (_c *IPAddressCreate) check() error {
 	}
 	if _, ok := _c.mutation.Deleting(); !ok {
 		return &ValidationError{Name: "deleting", err: errors.New(`ent: missing required field "IPAddress.deleting"`)}
+	}
+	if _, ok := _c.mutation.AutoDelete(); !ok {
+		return &ValidationError{Name: "auto_delete", err: errors.New(`ent: missing required field "IPAddress.auto_delete"`)}
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "IPAddress.project"`)}
@@ -393,6 +414,10 @@ func (_c *IPAddressCreate) createSpec() (*IPAddress, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Deleting(); ok {
 		_spec.SetField(ipaddress.FieldDeleting, field.TypeBool, value)
 		_node.Deleting = value
+	}
+	if value, ok := _c.mutation.AutoDelete(); ok {
+		_spec.SetField(ipaddress.FieldAutoDelete, field.TypeBool, value)
+		_node.AutoDelete = value
 	}
 	if value, ok := _c.mutation.DNSPtr(); ok {
 		_spec.SetField(ipaddress.FieldDNSPtr, field.TypeString, value)
@@ -682,6 +707,18 @@ func (u *IPAddressUpsert) UpdateDeleting() *IPAddressUpsert {
 	return u
 }
 
+// SetAutoDelete sets the "auto_delete" field.
+func (u *IPAddressUpsert) SetAutoDelete(v bool) *IPAddressUpsert {
+	u.Set(ipaddress.FieldAutoDelete, v)
+	return u
+}
+
+// UpdateAutoDelete sets the "auto_delete" field to the value that was provided on create.
+func (u *IPAddressUpsert) UpdateAutoDelete() *IPAddressUpsert {
+	u.SetExcluded(ipaddress.FieldAutoDelete)
+	return u
+}
+
 // SetDNSPtr sets the "dns_ptr" field.
 func (u *IPAddressUpsert) SetDNSPtr(v string) *IPAddressUpsert {
 	u.Set(ipaddress.FieldDNSPtr, v)
@@ -913,6 +950,20 @@ func (u *IPAddressUpsertOne) SetDeleting(v bool) *IPAddressUpsertOne {
 func (u *IPAddressUpsertOne) UpdateDeleting() *IPAddressUpsertOne {
 	return u.Update(func(s *IPAddressUpsert) {
 		s.UpdateDeleting()
+	})
+}
+
+// SetAutoDelete sets the "auto_delete" field.
+func (u *IPAddressUpsertOne) SetAutoDelete(v bool) *IPAddressUpsertOne {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.SetAutoDelete(v)
+	})
+}
+
+// UpdateAutoDelete sets the "auto_delete" field to the value that was provided on create.
+func (u *IPAddressUpsertOne) UpdateAutoDelete() *IPAddressUpsertOne {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.UpdateAutoDelete()
 	})
 }
 
@@ -1316,6 +1367,20 @@ func (u *IPAddressUpsertBulk) SetDeleting(v bool) *IPAddressUpsertBulk {
 func (u *IPAddressUpsertBulk) UpdateDeleting() *IPAddressUpsertBulk {
 	return u.Update(func(s *IPAddressUpsert) {
 		s.UpdateDeleting()
+	})
+}
+
+// SetAutoDelete sets the "auto_delete" field.
+func (u *IPAddressUpsertBulk) SetAutoDelete(v bool) *IPAddressUpsertBulk {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.SetAutoDelete(v)
+	})
+}
+
+// UpdateAutoDelete sets the "auto_delete" field to the value that was provided on create.
+func (u *IPAddressUpsertBulk) UpdateAutoDelete() *IPAddressUpsertBulk {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.UpdateAutoDelete()
 	})
 }
 

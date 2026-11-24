@@ -24,7 +24,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
-	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
@@ -97,7 +96,7 @@ func LocationInUse(ctx context.Context, c *ent.Client, locationID int64) (bool, 
 	return c.Server.Query().Where(server.LocationID(locationID)).Exist(ctx)
 }
 
-// Usage is the projects.Hooks.Usage implementation: every server row counts with its snapshotted specs.
+// Usage is the projects.Hooks.Usage implementation: every server row counts with its snapshotted specs; IPs come from floatingips.UsageWith.
 func Usage(ctx context.Context, c *ent.Client, projectID int64) (projects.Usage, error) {
 	rows, err := c.Server.Query().Where(server.ProjectID(projectID)).
 		Select(server.FieldID, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB).All(ctx)
@@ -105,17 +104,10 @@ func Usage(ctx context.Context, c *ent.Client, projectID int64) (projects.Usage,
 		return projects.Usage{}, err
 	}
 	u := projects.Usage{Servers: len(rows)}
-	ids := make([]int64, len(rows))
-	for i, r := range rows {
-		ids[i] = r.ID
+	for _, r := range rows {
 		u.VCPU += r.Cores
 		u.MemoryMB += r.MemoryMB
 		u.DiskGB += r.DiskGB
-	}
-	if len(ids) > 0 {
-		if u.IPs, err = c.IPAllocation.Query().Where(ipallocation.ServerIDIn(ids...)).Count(ctx); err != nil {
-			return projects.Usage{}, err
-		}
 	}
 	return u, nil
 }

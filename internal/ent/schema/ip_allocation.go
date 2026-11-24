@@ -31,9 +31,9 @@ func (IPAllocation) Fields() []ent.Field {
 		field.Int64("id"),
 		field.Int64("pool_id").Immutable(),
 		field.String("ip").Immutable().SchemaType(inet()),
-		// server_id is set exactly when owner is server; floating rows are owned by an ip_addresses row.
+		// server_id is set exactly when owner is server; floating and primary rows are owned by an ip_addresses row.
 		field.Int64("server_id").Optional().Nillable(),
-		field.Enum("owner").Values("server", "floating").Default("server"),
+		field.Enum("owner").Values("server", "floating", "primary").Default("server"),
 		createdAt(),
 	}
 }

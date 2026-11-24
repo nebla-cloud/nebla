@@ -31,7 +31,7 @@ func (IPAddress) Fields() []ent.Field {
 		field.Int64("project_id").Immutable(),
 		field.Int64("location_id").Immutable(),
 		field.Int64("allocation_id").Immutable(),
-		field.Enum("kind").Values("floating").Default("floating").Immutable(),
+		field.Enum("kind").Values("floating", "primary").Default("floating").Immutable(),
 		field.Text("family").Immutable(),
 		field.String("ip").Immutable().SchemaType(inet()),
 		field.Text("name"),
@@ -44,6 +44,8 @@ func (IPAddress) Fields() []ent.Field {
 		// pending_gen is the generation of the in-flight assign/unassign job.
 		field.Int64("pending_gen").Optional().Nillable(),
 		field.Bool("deleting").Default(false),
+		// auto_delete deletes a primary IP with its server; false keeps it unassigned.
+		field.Bool("auto_delete").Default(true),
 		// dns_ptr is stored for later use and not exposed.
 		field.Text("dns_ptr").Optional().Nillable(),
 		createdAt(),
@@ -73,5 +75,7 @@ func (IPAddress) Indexes() []ent.Index {
 		index.Fields("allocation_id").Unique().StorageKey("ip_addresses_allocation_id_key"),
 		index.Fields("server_id").StorageKey("ip_addresses_server_id_idx"),
 		index.Fields("releasing_from_id").StorageKey("ip_addresses_releasing_from_id_idx"),
+		index.Fields("server_id", "family").Unique().StorageKey("ip_addresses_server_family_primary_key").
+			Annotations(entsql.IndexWhere("kind = 'primary' AND server_id IS NOT NULL")),
 	}
 }

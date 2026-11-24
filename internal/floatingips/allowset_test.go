@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/testutil"
@@ -61,6 +62,9 @@ func seed(t *testing.T) seeded {
 		}
 		cr.SaveX(ctx)
 	}
+	pa := c.IPAllocation.Create().SetPoolID(pool.ID).SetIP("203.0.113.100").SetOwner(ipallocation.OwnerPrimary).SaveX(ctx)
+	c.IPAddress.Create().SetKind(ipaddress.KindPrimary).SetProjectID(p.ID).SetLocationID(loc.ID).SetAllocationID(pa.ID).
+		SetFamily("ipv4").SetIP("203.0.113.100").SetName("s1-ipv4").SetLabels(map[string]string{}).SetServerID(s1).SaveX(ctx)
 	return seeded{c: c, sql: sqlDB, s1: s1, s2: s2, add: add}
 }
 

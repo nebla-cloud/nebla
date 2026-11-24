@@ -41,7 +41,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
 	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
-	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/project"
@@ -53,6 +53,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/networks"
+	"github.com/nebla-cloud/nebla/internal/primaryips"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
@@ -353,7 +354,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 				return err
 			}
 			for _, f := range families {
-				if _, err := ipam.Allocate(ctx, etx, loc.ID, f, row.ID); err != nil {
+				if _, err := attachNewPrimary(ctx, etx, projectID, row, f); err != nil {
 					return err
 				}
 			}
@@ -382,6 +383,55 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	}
 	srv, err := s.Get(ctx, projectID, id)
 	return srv, act, err
+}
+
+// attachNewPrimary allocates a new address of family and inserts its primary IP on srv, returning the row id.
+func attachNewPrimary(ctx context.Context, etx *ent.Client, projectID int64, srv *ent.Server, family string) (int64, error) {
+	a, allocID, err := ipam.AllocatePrimary(ctx, etx, srv.LocationID, family, nil)
+	if err != nil {
+		return 0, err
+	}
+	var qerr error
+	name := primaryips.DefaultName(srv.Name, family, allocID, func(n string) bool {
+		taken, err := etx.IPAddress.Query().Where(ipaddress.ProjectID(projectID), ipaddress.Name(n)).Exist(ctx)
+		qerr = errors.Join(qerr, err)
+		return taken
+	})
+	if qerr != nil {
+		return 0, qerr
+	}
+	row, err := etx.IPAddress.Create().SetKind(ipaddress.KindPrimary).SetProjectID(projectID).SetLocationID(srv.LocationID).
+		SetAllocationID(allocID).SetFamily(family).SetIP(a.IP.String()).SetName(name).SetLabels(map[string]string{}).
+		SetServerID(srv.ID).Save(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return row.ID, nil
+}
+
+// releasePrimaries deletes the server's auto_delete primary IPs and frees their addresses, and unassigns the rest.
+func releasePrimaries(ctx context.Context, etx *ent.Client, serverID int64) (freed []int64, err error) {
+	rows, err := etx.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(serverID)).
+		Order(ipaddress.ByID()).ForUpdate().All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if !r.AutoDelete {
+			if err := etx.IPAddress.UpdateOneID(r.ID).ClearServerID().Exec(ctx); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if err := etx.IPAddress.DeleteOneID(r.ID).Exec(ctx); err != nil {
+			return nil, err
+		}
+		if err := ipam.FreeAllocation(ctx, etx, r.AllocationID); err != nil {
+			return nil, err
+		}
+		freed = append(freed, r.ID)
+	}
+	return freed, nil
 }
 
 // lockFirewalls share-locks the project's firewalls ids, before any server row; one outside the project is not found.
@@ -552,26 +602,23 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 	for i, r := range rows {
 		ids[i] = r.ID
 	}
-	allocs, err := s.o.Ent.IPAllocation.Query().Where(ipallocation.ServerIDIn(ids...)).WithPool().All(ctx)
+	prims, err := s.o.Ent.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerIDIn(ids...)).All(ctx)
 	if err != nil {
 		return nil, err
 	}
 	type ips struct{ v4, v6 netip.Addr }
 	byServer := map[int64]*ips{}
-	for _, a := range allocs {
+	for _, a := range prims {
 		ip, err := netip.ParseAddr(a.IP)
 		if err != nil {
 			return nil, err
-		}
-		if a.ServerID == nil {
-			continue
 		}
 		e := byServer[*a.ServerID]
 		if e == nil {
 			e = &ips{}
 			byServer[*a.ServerID] = e
 		}
-		if a.Edges.Pool.Family == "ipv6" {
+		if a.Family == ipam.FamilyIPv6 {
 			e.v6 = ip
 		} else {
 			e.v4 = ip

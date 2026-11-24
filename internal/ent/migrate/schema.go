@@ -378,7 +378,7 @@ var (
 	// IPAddressesColumns holds the columns for the "ip_addresses" table.
 	IPAddressesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "kind", Type: field.TypeEnum, Enums: []string{"floating"}, Default: "floating"},
+		{Name: "kind", Type: field.TypeEnum, Enums: []string{"floating", "primary"}, Default: "floating"},
 		{Name: "family", Type: field.TypeString, Size: 2147483647},
 		{Name: "ip", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
 		{Name: "name", Type: field.TypeString, Size: 2147483647},
@@ -386,6 +386,7 @@ var (
 		{Name: "labels", Type: field.TypeJSON},
 		{Name: "pending_gen", Type: field.TypeInt64, Nullable: true},
 		{Name: "deleting", Type: field.TypeBool, Default: false},
+		{Name: "auto_delete", Type: field.TypeBool, Default: true},
 		{Name: "dns_ptr", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
@@ -403,37 +404,37 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "ip_addresses_projects_project",
-				Columns:    []*schema.Column{IPAddressesColumns[11]},
+				Columns:    []*schema.Column{IPAddressesColumns[12]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "ip_addresses_locations_location",
-				Columns:    []*schema.Column{IPAddressesColumns[12]},
+				Columns:    []*schema.Column{IPAddressesColumns[13]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "ip_addresses_ip_allocations_allocation",
-				Columns:    []*schema.Column{IPAddressesColumns[13]},
+				Columns:    []*schema.Column{IPAddressesColumns[14]},
 				RefColumns: []*schema.Column{IPAllocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "ip_addresses_servers_server",
-				Columns:    []*schema.Column{IPAddressesColumns[14]},
-				RefColumns: []*schema.Column{ServersColumns[0]},
-				OnDelete:   schema.SetNull,
-			},
-			{
-				Symbol:     "ip_addresses_servers_releasing_from",
 				Columns:    []*schema.Column{IPAddressesColumns[15]},
 				RefColumns: []*schema.Column{ServersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
-				Symbol:     "ip_addresses_servers_previous_server",
+				Symbol:     "ip_addresses_servers_releasing_from",
 				Columns:    []*schema.Column{IPAddressesColumns[16]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "ip_addresses_servers_previous_server",
+				Columns:    []*schema.Column{IPAddressesColumns[17]},
 				RefColumns: []*schema.Column{ServersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -442,22 +443,30 @@ var (
 			{
 				Name:    "ip_addresses_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{IPAddressesColumns[11], IPAddressesColumns[4]},
+				Columns: []*schema.Column{IPAddressesColumns[12], IPAddressesColumns[4]},
 			},
 			{
 				Name:    "ip_addresses_allocation_id_key",
 				Unique:  true,
-				Columns: []*schema.Column{IPAddressesColumns[13]},
+				Columns: []*schema.Column{IPAddressesColumns[14]},
 			},
 			{
 				Name:    "ip_addresses_server_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{IPAddressesColumns[14]},
+				Columns: []*schema.Column{IPAddressesColumns[15]},
 			},
 			{
 				Name:    "ip_addresses_releasing_from_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{IPAddressesColumns[15]},
+				Columns: []*schema.Column{IPAddressesColumns[16]},
+			},
+			{
+				Name:    "ip_addresses_server_family_primary_key",
+				Unique:  true,
+				Columns: []*schema.Column{IPAddressesColumns[15], IPAddressesColumns[2]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "kind = 'primary' AND server_id IS NOT NULL",
+				},
 			},
 		},
 	}
@@ -466,7 +475,7 @@ var (
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "ip", Type: field.TypeString, SchemaType: map[string]string{"postgres": "inet"}},
 		{Name: "server_id", Type: field.TypeInt64, Nullable: true},
-		{Name: "owner", Type: field.TypeEnum, Enums: []string{"server", "floating"}, Default: "server"},
+		{Name: "owner", Type: field.TypeEnum, Enums: []string{"server", "floating", "primary"}, Default: "server"},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "pool_id", Type: field.TypeInt64},
 	}
@@ -960,6 +969,9 @@ var (
 		{Name: "backup_keep", Type: field.TypeInt, Default: 7},
 		{Name: "backup_slot", Type: field.TypeInt, Default: 0},
 		{Name: "backups_enabled_at", Type: field.TypeTime, Nullable: true},
+		{Name: "net_refresh", Type: field.TypeBool, Default: false},
+		{Name: "instance_gen", Type: field.TypeInt64, Default: 0},
+		{Name: "iso_net_hash", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -974,25 +986,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "servers_projects_project",
-				Columns:    []*schema.Column{ServersColumns[31]},
+				Columns:    []*schema.Column{ServersColumns[34]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_locations_location",
-				Columns:    []*schema.Column{ServersColumns[32]},
+				Columns:    []*schema.Column{ServersColumns[35]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_server_types_server_type",
-				Columns:    []*schema.Column{ServersColumns[33]},
+				Columns:    []*schema.Column{ServersColumns[36]},
 				RefColumns: []*schema.Column{ServerTypesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_images_image",
-				Columns:    []*schema.Column{ServersColumns[34]},
+				Columns:    []*schema.Column{ServersColumns[37]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -1001,7 +1013,7 @@ var (
 			{
 				Name:    "servers_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{ServersColumns[31], ServersColumns[1]},
+				Columns: []*schema.Column{ServersColumns[34], ServersColumns[1]},
 			},
 			{
 				Name:    "servers_mac_key",
@@ -1011,17 +1023,17 @@ var (
 			{
 				Name:    "servers_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[32], ServersColumns[2]},
+				Columns: []*schema.Column{ServersColumns[35], ServersColumns[2]},
 			},
 			{
 				Name:    "servers_server_type_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[33]},
+				Columns: []*schema.Column{ServersColumns[36]},
 			},
 			{
 				Name:    "servers_image_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[34]},
+				Columns: []*schema.Column{ServersColumns[37]},
 			},
 		},
 	}
