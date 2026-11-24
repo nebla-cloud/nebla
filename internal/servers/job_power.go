@@ -20,6 +20,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
@@ -52,6 +54,9 @@ var powerCommand = map[pve.PowerOp]string{
 	pve.PowerStart: "start_server", pve.PowerStop: "stop_server", pve.PowerShutdown: "shutdown_server",
 	pve.PowerReboot: "reboot_server", pve.PowerReset: "reset_server",
 }
+
+// PowerCommands are the action commands of the power ops.
+func PowerCommands() []string { return slices.Collect(maps.Values(powerCommand)) }
 
 // stops reports whether op leaves the VM stopped.
 func stops(op pve.PowerOp) bool { return op == pve.PowerStop || op == pve.PowerShutdown }

@@ -31,7 +31,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
-	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
@@ -279,7 +278,10 @@ func (o *WorkerOptions) syncServerStatus(ctx context.Context, pc pve.Client, ser
 	}
 }
 
-// userActedSince reports whether an action on the snapshot's server finished after its create began.
+// userCommands are the deliberate power and lifecycle actions that set a server's power state.
+var userCommands = append(servers.PowerCommands(), servers.KindRebuildServer, servers.KindRestoreBackup, servers.KindDeleteServer)
+
+// userActedSince reports whether a user power or lifecycle action on the snapshot's server finished after its create began.
 func userActedSince(ctx context.Context, c *ent.Client, row *ent.Snapshot) (bool, error) {
 	if row.ServerID == nil {
 		return false, nil
@@ -292,7 +294,7 @@ func userActedSince(ctx context.Context, c *ent.Client, row *ent.Snapshot) (bool
 		return false, err
 	}
 	return c.Action.Query().Where(servers.ActionsOf(row.ProjectID, *row.ServerID), action.IDGT(createID), action.FinishedNotNil(),
-		action.CommandNEQ(firewalls.KindApply), action.Not(ActionsOf(row.ProjectID, row.ID))).Exist(ctx)
+		action.CommandIn(userCommands...)).Exist(ctx)
 }
 
 // restartSource starts the snapshot's source server if it was running, then clears was_running; it returns the updated row.
