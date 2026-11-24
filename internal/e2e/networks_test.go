@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -130,11 +131,14 @@ type netEnv struct {
 	fipEnv
 	c2  *testutil.Client
 	rec *reconcile.Reconciler
+	// skew is the clock offset (ns) the networks service sees; a pointer so copies of netEnv share it.
+	skew *atomic.Int64
 }
 
 // reconcilePass runs one reconciler pass over the location, private network pool included.
 func (e netEnv) reconcilePass(t *testing.T) {
 	t.Helper()
+	e.skew.Add(int64(10 * time.Minute)) // step past the cooling-scan throttle
 	if err := e.rec.Run(context.Background(), e.locID); err != nil {
 		t.Logf("reconcile pass: %v", err)
 	}
@@ -148,8 +152,9 @@ func (e netEnv) slot(t *testing.T, vnet string) *ent.VNetSlot {
 }
 
 func newNetEnv(t *testing.T, images []string) netEnv {
-	e := netEnv{fipEnv: newCatalogEnv(t, images, "net")}
+	e := netEnv{fipEnv: newCatalogEnv(t, images, "net"), skew: new(atomic.Int64)}
 	tg, app, admin := e.tg, e.app, e.admin
+	skew := e.skew
 	sh := newPVEShell(t, tg)
 
 	role := envOr("E2E_PVE_ROLE", "Nebla")
@@ -179,7 +184,8 @@ func newNetEnv(t *testing.T, images []string) netEnv {
 	sh.must("pvesh set /cluster/sdn")
 	require.NoError(t, sh.waitLinks(netVNets...))
 
-	nets := networks.New(networks.Options{SQL: app.SQL, Ent: app.Ent, Catalog: app.Catalog, Jobs: app.Jobs, Logger: e.log})
+	nets := networks.New(networks.Options{SQL: app.SQL, Ent: app.Ent, Catalog: app.Catalog, Jobs: app.Jobs, Logger: e.log,
+		Now: func() time.Time { return time.Now().Add(time.Duration(skew.Load())) }})
 	e.rec = reconcile.New(reconcile.Options{SQL: app.SQL, Ent: app.Ent, Catalog: app.Catalog, Jobs: app.Jobs, Logger: e.log,
 		NetworkPool: nets.Reconcile})
 	setSDN := func(zone string) *http.Response {
