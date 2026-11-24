@@ -663,6 +663,20 @@ func (_u *ServerUpdate) ClearIsoLeaseUntil() *ServerUpdate {
 	return _u
 }
 
+// SetInstanceBumpPending sets the "instance_bump_pending" field.
+func (_u *ServerUpdate) SetInstanceBumpPending(v bool) *ServerUpdate {
+	_u.mutation.SetInstanceBumpPending(v)
+	return _u
+}
+
+// SetNillableInstanceBumpPending sets the "instance_bump_pending" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableInstanceBumpPending(v *bool) *ServerUpdate {
+	if v != nil {
+		_u.SetInstanceBumpPending(*v)
+	}
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdate) SetServerType(v *ServerType) *ServerUpdate {
 	return _u.SetServerTypeID(v.ID)
@@ -932,6 +946,9 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.IsoLeaseUntilCleared() {
 		_spec.ClearField(server.FieldIsoLeaseUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.InstanceBumpPending(); ok {
+		_spec.SetField(server.FieldInstanceBumpPending, field.TypeBool, value)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1644,6 +1661,20 @@ func (_u *ServerUpdateOne) ClearIsoLeaseUntil() *ServerUpdateOne {
 	return _u
 }
 
+// SetInstanceBumpPending sets the "instance_bump_pending" field.
+func (_u *ServerUpdateOne) SetInstanceBumpPending(v bool) *ServerUpdateOne {
+	_u.mutation.SetInstanceBumpPending(v)
+	return _u
+}
+
+// SetNillableInstanceBumpPending sets the "instance_bump_pending" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableInstanceBumpPending(v *bool) *ServerUpdateOne {
+	if v != nil {
+		_u.SetInstanceBumpPending(*v)
+	}
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdateOne) SetServerType(v *ServerType) *ServerUpdateOne {
 	return _u.SetServerTypeID(v.ID)
@@ -1943,6 +1974,9 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if _u.mutation.IsoLeaseUntilCleared() {
 		_spec.ClearField(server.FieldIsoLeaseUntil, field.TypeTime)
+	}
+	if value, ok := _u.mutation.InstanceBumpPending(); ok {
+		_spec.SetField(server.FieldInstanceBumpPending, field.TypeBool, value)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{

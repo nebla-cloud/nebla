@@ -21,14 +21,12 @@ import (
 	"strings"
 
 	"entgo.io/ent/dialect/sql"
-	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent"
-	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
-	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/serverlock"
 )
 
 func labelsContain(k, v string) predicate.Server {
@@ -75,16 +73,11 @@ func LabelSelector(sel string) ([]predicate.Server, error) {
 
 // ActionsOf matches the project's actions whose resources include the server.
 func ActionsOf(projectID, serverID int64) predicate.Action {
-	doc, _ := json.Marshal([]actions.Resource{{ID: serverID, Type: ResourceType}})
-	return action.And(action.ProjectID(projectID), func(s *sql.Selector) {
-		s.Where(sql.P(func(b *sql.Builder) {
-			b.Ident(s.C(action.FieldResources)).WriteString(" @> ").Arg(string(doc)).WriteString("::jsonb")
-		}))
-	})
+	return serverlock.ActionsOf(projectID, serverID)
 }
 
 // actionRunning leaves out firewall applies, which run alongside other server work.
-var actionRunning = action.And(action.StatusEQ(action.StatusRunning), action.CommandNEQ(firewalls.KindApply))
+var actionRunning = serverlock.Running
 
 // HasServers is the projects.Hooks.HasServers implementation.
 func HasServers(ctx context.Context, c *ent.Client, projectID int64) (bool, error) {

@@ -239,7 +239,7 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 			u.SetImageID(r.image.id).SetTemplateVmid(r.image.tmpl)
 		}
 		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap).
-			SetInstanceGen(int64(r.b.instGen)).SetNetRefresh(true).SetIsoNetHash(r.b.netHash)
+			SetInstanceGen(int64(r.b.instGen)).SetNetRefresh(true).SetInstanceBumpPending(false).SetIsoNetHash(r.b.netHash)
 		setSlot(u.SetVmid, u.ClearVmid, nu.Vmid)
 		setSlot(u.SetCloneUpid, u.ClearCloneUpid, nu.Upid)
 		setSlot(u.SetCloneNonce, u.ClearCloneNonce, nu.Nonce)

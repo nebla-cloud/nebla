@@ -419,8 +419,12 @@ func init() {
 	serverDescIsoNetHash := serverFields[36].Descriptor()
 	// server.DefaultIsoNetHash holds the default value on creation for the iso_net_hash field.
 	server.DefaultIsoNetHash = serverDescIsoNetHash.Default.(string)
+	// serverDescInstanceBumpPending is the schema descriptor for instance_bump_pending field.
+	serverDescInstanceBumpPending := serverFields[38].Descriptor()
+	// server.DefaultInstanceBumpPending holds the default value on creation for the instance_bump_pending field.
+	server.DefaultInstanceBumpPending = serverDescInstanceBumpPending.Default.(bool)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[38].Descriptor()
+	serverDescCreatedAt := serverFields[39].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servernetworkFields := schema.ServerNetwork{}.Fields()

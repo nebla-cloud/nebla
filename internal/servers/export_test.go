@@ -73,8 +73,8 @@ func ApplyFirewallsNow(ctx context.Context, o WorkerOptions, pc pve.Client, id i
 	return err
 }
 
-// SetFloatingIPBeforeOutcome runs f before the assign wait checks for an unfinished apply.
-func SetFloatingIPBeforeOutcome(w *FloatingIPWorker, f func()) { w.beforeOutcome = f }
+// SetIPChangeBeforeOutcome runs f before the assign wait checks for an unfinished apply.
+func SetIPChangeBeforeOutcome(w *IPChangeWorker, f func()) { w.beforeOutcome = f }
 
 // SetRestoreAfterStep installs a hook called after each restore step is persisted.
 func SetRestoreAfterStep(w *RestoreServerWorker, f func(step int)) { w.afterStep = f }
@@ -100,4 +100,12 @@ func SyncISO(ctx context.Context, o WorkerOptions, id int64, bump bool) (bool, e
 		return false, err
 	}
 	return o.syncISO(ctx, pc, row, bump)
+}
+
+var WithSegment = withSegment
+
+// SetISOBeforeUpdate runs f between a seed ISO upload and its server update until the test ends.
+func SetISOBeforeUpdate(t interface{ Cleanup(func()) }, f func(serverID int64)) {
+	isoBeforeUpdate = f
+	t.Cleanup(func() { isoBeforeUpdate = nil })
 }

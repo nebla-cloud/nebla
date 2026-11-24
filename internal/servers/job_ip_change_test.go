@@ -34,12 +34,15 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/predicate"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/primaryips"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -75,7 +78,7 @@ type fipEnv struct {
 	*testutil.ServerEnv
 	o      servers.WorkerOptions
 	svc    *floatingips.Service
-	w      *servers.FloatingIPWorker
+	w      *servers.IPChangeWorker
 	aw     *servers.ApplyFirewallsWorker
 	bus    *fipBus
 	a, b   int64
@@ -105,7 +108,7 @@ func newFIPEnv(t *testing.T) *fipEnv {
 	proj := projects.New(e.App.Ent, projects.Options{Hooks: hooks})
 	f.svc = floatingips.New(floatingips.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Projects: proj, Jobs: e.App.Jobs,
 		Logger: quiet(), Bus: f.bus})
-	f.w = servers.NewFloatingIPWorker(f.o)
+	f.w = servers.NewIPChangeWorker(f.o)
 	f.aw = servers.NewApplyFirewallsWorker(f.o)
 	return f
 }
@@ -388,7 +391,7 @@ func TestAssignSeesApplyFinishMidCheck(t *testing.T) {
 
 	// b's apply raises applied and finishes its action after the wait read applied.
 	ran := 0
-	servers.SetFloatingIPBeforeOutcome(f.w, func() {
+	servers.SetIPChangeBeforeOutcome(f.w, func() {
 		if ran == 0 {
 			ran = f.runApplies(t, f.b)
 		}
@@ -830,4 +833,459 @@ func TestRebuildISOHasAddressStillReleasingToIt(t *testing.T) {
 	require.Contains(t, netConfig(t, f.ServerEnv, fmt.Sprintf("local:iso/nb-srv-%d-2.iso", f.b)), "- "+ip+"/32\n")
 	require.Equal(t, []int{f.va}, f.holders(ip), "b's new VM is not allowed the address until the release finishes")
 	require.Equal(t, &f.a, f.row(t, id).ReleasingFromID)
+}
+
+const oldServerWarning = "This server was created before IP changes were supported. Changing its IP re-runs its cloud-init user data and gives it new SSH host keys."
+
+// pipEnv is fipEnv plus the primary IP service; servers a and b are stopped.
+type pipEnv struct {
+	*fipEnv
+	psvc *primaryips.Service
+}
+
+func newPIPEnv(t *testing.T) *pipEnv {
+	t.Helper()
+	f := newFIPEnv(t)
+	hooks, _ := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
+	proj := projects.New(f.App.Ent, projects.Options{Hooks: hooks})
+	p := &pipEnv{fipEnv: f, psvc: primaryips.New(primaryips.Options{SQL: f.App.SQL, Ent: f.App.Ent, Catalog: f.App.Catalog,
+		Projects: proj, Jobs: f.App.Jobs})}
+	p.stop(t, f.a)
+	p.stop(t, f.b)
+	return p
+}
+
+func (p *pipEnv) stop(t *testing.T, id int64) {
+	t.Helper()
+	setStatus(t, p.ServerEnv, id, servers.StatusOff)
+	p.App.PVE.SetVMStatus(vmidOf(t, p.ServerEnv, id), "stopped")
+}
+
+// bare builds a stopped server with no public IP.
+func (p *pipEnv) bare(t *testing.T, name string) (int64, int) {
+	t.Helper()
+	s := p.CreateServer(name, map[string]any{"public_net": map[string]bool{"ipv4": false}})
+	require.NoError(t, servers.NewCreateServerWorker(p.o).Work(context.Background(), job(s, 1)))
+	p.stop(t, s.ServerID)
+	return s.ServerID, vmidOf(t, p.ServerEnv, s.ServerID)
+}
+
+func (p *pipEnv) standalone(t *testing.T, typ string) primaryips.PrimaryIP {
+	t.Helper()
+	ip, err := p.psvc.Create(context.Background(), p.Project, primaryips.CreateInput{Type: typ, Location: "eu-1"})
+	require.NoError(t, err)
+	return ip
+}
+
+func (p *pipEnv) primaryOf(t *testing.T, ref string) *ent.IPAddress {
+	t.Helper()
+	row, err := primaryips.ByRef(context.Background(), p.App.Ent, p.Project, ref)
+	require.NoError(t, err)
+	return row
+}
+
+func (p *pipEnv) passign(t *testing.T, id, serverID int64) (actions.Action, []string) {
+	t.Helper()
+	act, warns, err := p.psvc.Assign(context.Background(), p.Project, id, strconv.FormatInt(serverID, 10))
+	require.NoError(t, err)
+	return act, warns
+}
+
+// finishAssign runs the assign until it waits on the server's apply, runs the apply, then finishes it.
+func (p *pipEnv) finishAssign(t *testing.T, actID, serverID int64) {
+	t.Helper()
+	err := p.work(t, actID, 1)
+	require.True(t, snoozed(err), "%v", err)
+	require.Equal(t, 1, p.runApplies(t, serverID))
+	require.NoError(t, p.work(t, actID, 1))
+	require.Equal(t, actions.StatusSuccess, p.action(t, actID).Status)
+}
+
+func (p *pipEnv) pipActions(id int64) predicate.Action {
+	return floatingips.ActionsOfType(p.Project, id, primaryips.ResourceType)
+}
+
+func TestAssignToStoppedServer(t *testing.T) {
+	p := newPIPEnv(t)
+	before := srvRow(t, p.ServerEnv, p.a)
+	ip := p.standalone(t, "ipv6")
+	act, warns := p.passign(t, ip.ID, p.a)
+	require.Empty(t, warns)
+	require.Equal(t, primaryips.KindAssign, act.Command)
+	p.finishAssign(t, act.ID, p.a)
+
+	require.Equal(t, []int{p.va}, p.holders(ip.IP))
+	row := srvRow(t, p.ServerEnv, p.a)
+	require.Equal(t, before.IsoGeneration+1, row.IsoGeneration)
+	vol := genVolid(p.a, row.IsoGeneration)
+	require.Equal(t, vol+",media=cdrom", ide2(t, p.ServerEnv, p.a))
+	require.Contains(t, netConfig(t, p.ServerEnv, vol), ip.IP)
+	require.Equal(t, before.InstanceGen, row.InstanceGen)
+	require.Equal(t, fmt.Sprintf("nb-srv-%d-%d", p.a, before.InstanceGen), instanceID(t, isoFiles(t, p.ServerEnv, vol)))
+	_, gone := p.App.PVE.Volume(genVolid(p.a, before.IsoGeneration))
+	require.False(t, gone, "the old ISO is deleted")
+	r := p.row(t, ip.ID)
+	require.Nil(t, r.PendingGen)
+	require.Equal(t, &p.a, r.ServerID)
+	require.Contains(t, p.waited(), servers.FirewallSettle)
+}
+
+func TestAssignOldServerWarnsAndBumpsInstance(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	require.NoError(t, p.App.Ent.Server.UpdateOneID(p.a).SetNetRefresh(false).Exec(ctx))
+	ip := p.standalone(t, "ipv6")
+	act, warns := p.passign(t, ip.ID, p.a)
+	require.Equal(t, []string{oldServerWarning}, warns)
+	p.finishAssign(t, act.ID, p.a)
+
+	row := srvRow(t, p.ServerEnv, p.a)
+	require.Equal(t, 2, row.IsoGeneration)
+	require.Equal(t, int64(2), row.InstanceGen)
+	require.Equal(t, fmt.Sprintf("nb-srv-%d-2", p.a), instanceID(t, isoFiles(t, p.ServerEnv, genVolid(p.a, 2))))
+}
+
+func TestAssignSetsNet0WhenNoPrimary(t *testing.T) {
+	p := newPIPEnv(t)
+	c, vc := p.bare(t, "c")
+	vm, ok := p.App.PVE.VM(vc)
+	require.True(t, ok)
+	mac := srvRow(t, p.ServerEnv, c).MAC
+	require.Equal(t, "virtio="+mac+",bridge=vmbr0,firewall=1", vm.Config["net0"])
+
+	p.Admin.CreateSegmentPool(p.Location, "ipv4", "vmbr1", new(42), "10.1.0.0/24", "10.1.0.1", "10.1.0.10", "10.1.0.20")
+	id, addr := p.PrimaryIPOn("ipv4", ipam.Segment{Bridge: "vmbr1", VLAN: new(42)})
+	act, _ := p.passign(t, id, c)
+	p.finishAssign(t, act.ID, c)
+
+	vm, _ = p.App.PVE.VM(vc)
+	require.Equal(t, "virtio="+mac+",bridge=vmbr1,tag=42,firewall=1", vm.Config["net0"])
+	require.Equal(t, []int{vc}, p.holders(addr))
+
+	// With a primary IP on the server, a second family leaves net0 alone.
+	p.Admin.CreateSegmentPool(p.Location, "ipv6", "vmbr1", new(42), "2001:db8:1::/64", "2001:db8:1::1", "2001:db8:1::10", "2001:db8:1::20")
+	id6, _ := p.PrimaryIPOn("ipv6", ipam.Segment{Bridge: "vmbr1", VLAN: new(42)})
+	p.App.PVE.SetVMConfig(vc, "net0", "e1000="+mac+",bridge=vmbr1,tag=42,firewall=1,queues=2")
+	act, _ = p.passign(t, id6, c)
+	p.finishAssign(t, act.ID, c)
+	vm, _ = p.App.PVE.VM(vc)
+	require.Equal(t, "e1000="+mac+",bridge=vmbr1,tag=42,firewall=1,queues=2", vm.Config["net0"])
+}
+
+func TestAssignNet0KeepsOtherKeysAndDropsTag(t *testing.T) {
+	p := newPIPEnv(t)
+	c, vc := p.bare(t, "c")
+	mac := srvRow(t, p.ServerEnv, c).MAC
+	p.App.PVE.SetVMConfig(vc, "net0", "e1000="+mac+",bridge=vmbr9,tag=7,firewall=1,queues=2")
+	ip := p.standalone(t, "ipv4")
+	act, _ := p.passign(t, ip.ID, c)
+	p.finishAssign(t, act.ID, c)
+	vm, _ := p.App.PVE.VM(vc)
+	require.Equal(t, "e1000="+mac+",bridge=vmbr0,firewall=1,queues=2", vm.Config["net0"])
+}
+
+func TestStartRefusedDuringPrimaryAssign(t *testing.T) {
+	p := newPIPEnv(t)
+	ip := p.standalone(t, "ipv6")
+	act, _ := p.passign(t, ip.ID, p.a)
+	expectErr(t, p.C.Send(http.MethodPost, spath(p.a)+"/actions/poweron", nil), http.StatusConflict, "locked")
+	p.finishAssign(t, act.ID, p.a)
+	startAction(t, p.ServerEnv, p.a, "poweron", nil)
+}
+
+func TestUnassignOrdering(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	c, vc := p.bare(t, "c")
+	pip := p.primaryOf(t, "a-ipv4")
+	require.Equal(t, []int{p.va}, p.holders(pip.IP))
+	isoBefore := srvRow(t, p.ServerEnv, p.a).IsoGeneration
+
+	var mu sync.Mutex
+	var seen [][]int
+	p.App.PVE.OnIPSetWrite(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		seen = append(seen, p.holders(pip.IP))
+	})
+	un, warns, err := p.psvc.Unassign(ctx, p.Project, pip.ID)
+	require.NoError(t, err)
+	require.Empty(t, warns)
+	require.Equal(t, primaryips.KindUnassign, un.Command)
+	require.Equal(t, "releasing", primaryips.Status(p.row(t, pip.ID)))
+	_, _, err = p.psvc.Assign(ctx, p.Project, pip.ID, strconv.FormatInt(c, 10))
+	requireAPIErr(t, err, http.StatusConflict, "locked", "the primary IP has a running action")
+
+	require.NoError(t, p.work(t, un.ID, 1))
+	require.Equal(t, actions.StatusSuccess, p.action(t, un.ID).Status)
+	require.Empty(t, p.holders(pip.IP))
+	r := p.row(t, pip.ID)
+	require.Nil(t, r.ServerID)
+	require.Nil(t, r.ReleasingFromID)
+	aRow := srvRow(t, p.ServerEnv, p.a)
+	require.Equal(t, isoBefore+1, aRow.IsoGeneration)
+	require.NotContains(t, netConfig(t, p.ServerEnv, genVolid(p.a, aRow.IsoGeneration)), pip.IP)
+
+	act, _ := p.passign(t, pip.ID, c)
+	err = p.work(t, act.ID, 1)
+	require.True(t, snoozed(err), "%v", err)
+	require.Empty(t, p.holders(pip.IP), "c holds it only after its apply")
+	require.Equal(t, 1, p.runApplies(t, c))
+	require.NoError(t, p.work(t, act.ID, 1))
+	p.App.PVE.OnIPSetWrite(nil)
+	require.Equal(t, actions.StatusSuccess, p.action(t, act.ID).Status)
+	require.Equal(t, []int{vc}, p.holders(pip.IP))
+
+	mu.Lock()
+	defer mu.Unlock()
+	for i, h := range seen {
+		require.LessOrEqual(t, len(h), 1, "write %d left the address in %v", i, h)
+	}
+	require.NotEmpty(t, seen)
+	require.Empty(t, seen[0], "a's removal is the first write")
+	require.Equal(t, []int{vc}, seen[len(seen)-1])
+	for _, h := range seen {
+		require.NotContains(t, h, p.va, "a never regains the address")
+	}
+}
+
+func TestUnassignRefusedWithFloating(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	setStatus(t, p.ServerEnv, p.a, servers.StatusRunning)
+	p.settled(t)
+	p.stop(t, p.a)
+	_, _, err := p.psvc.Unassign(ctx, p.Project, p.primaryOf(t, "a-ipv4").ID)
+	requireAPIErr(t, err, http.StatusConflict, "floating_ips_attached", "Unassign this server's IPv4 floating IPs first.")
+}
+
+func TestUnassignUnreachableThenReconciler(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	c, vc := p.bare(t, "c")
+	pip := p.primaryOf(t, "a-ipv4")
+	un, _, err := p.psvc.Unassign(ctx, p.Project, pip.ID)
+	require.NoError(t, err)
+	p.App.PVE.SetDown(true)
+	p.failRelease(t, un.ID)
+	r := p.row(t, pip.ID)
+	require.Equal(t, "releasing", primaryips.Status(r))
+	require.Equal(t, &p.a, r.ReleasingFromID)
+	_, _, err = p.psvc.Assign(ctx, p.Project, pip.ID, strconv.FormatInt(c, 10))
+	requireAPIErr(t, err, http.StatusConflict, "locked", "The address is still being released from the previous server.")
+
+	p.App.PVE.SetDown(false)
+	require.NoError(t, p.psvc.ResumeStuck(ctx))
+	n, err := p.App.Ent.Action.Query().Where(p.pipActions(pip.ID), action.StatusEQ(action.StatusRunning)).Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n, "a fresh release_pending failure cools down")
+	acts, err := p.App.Ent.Action.Query().Where(p.pipActions(pip.ID), action.FinishedNotNil()).All(ctx)
+	require.NoError(t, err)
+	for _, a := range acts {
+		require.NoError(t, a.Update().SetFinished(a.Finished.Add(-5*time.Minute)).Exec(ctx))
+	}
+	require.NoError(t, p.psvc.ResumeStuck(ctx))
+	running, err := p.App.Ent.Action.Query().Where(p.pipActions(pip.ID), action.StatusEQ(action.StatusRunning)).All(ctx)
+	require.NoError(t, err)
+	require.Len(t, running, 1)
+	require.Equal(t, primaryips.KindUnassign, running[0].Command)
+	require.NoError(t, p.work(t, running[0].ID, 1))
+	require.Equal(t, actions.StatusSuccess, p.action(t, running[0].ID).Status)
+	require.Empty(t, p.holders(pip.IP))
+	require.Equal(t, "active", primaryips.Status(p.row(t, pip.ID)))
+
+	act, _ := p.passign(t, pip.ID, c)
+	p.finishAssign(t, act.ID, c)
+	require.Equal(t, []int{vc}, p.holders(pip.IP))
+}
+
+func requireAPIErr(t *testing.T, err error, status int, code, msg string) {
+	t.Helper()
+	var ae apierr.E
+	require.True(t, errors.As(err, &ae), "%v", err)
+	require.Equal(t, status, ae.Status, ae.Msg)
+	require.Equal(t, code, ae.Code, ae.Msg)
+	if msg != "" {
+		require.Equal(t, msg, ae.Msg)
+	}
+}
+
+// agePIP moves the finish time of the primary IP's finished actions back by d.
+func (p *pipEnv) agePIP(t *testing.T, id int64, d time.Duration) {
+	t.Helper()
+	ctx := context.Background()
+	acts, err := p.App.Ent.Action.Query().Where(p.pipActions(id), action.FinishedNotNil()).All(ctx)
+	require.NoError(t, err)
+	for _, a := range acts {
+		require.NoError(t, a.Update().SetFinished(a.Finished.Add(-d)).Exec(ctx))
+	}
+}
+
+func (p *pipEnv) runningPIP(t *testing.T, id int64) []*ent.Action {
+	t.Helper()
+	acts, err := p.App.Ent.Action.Query().Where(p.pipActions(id), action.StatusEQ(action.StatusRunning)).All(context.Background())
+	require.NoError(t, err)
+	return acts
+}
+
+// vlanIP is an unassigned primary IPv4 on vmbr1 tag 42.
+func (p *pipEnv) vlanIP(t *testing.T) int64 {
+	t.Helper()
+	p.Admin.CreateSegmentPool(p.Location, "ipv4", "vmbr1", new(42), "10.1.0.0/24", "10.1.0.1", "10.1.0.10", "10.1.0.20")
+	id, _ := p.PrimaryIPOn("ipv4", ipam.Segment{Bridge: "vmbr1", VLAN: new(42)})
+	return id
+}
+
+func TestResumeAssignWaitsForStoppedServer(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	c, vc := p.bare(t, "c")
+	id := p.vlanIP(t)
+	act, _ := p.passign(t, id, c)
+	vm, _ := p.App.PVE.VM(vc)
+	net0 := vm.Config["net0"]
+	// The job was lost and the action failed as orphaned; the member then starts the server.
+	require.NoError(t, actions.Fail(ctx, p.App.Ent, act.ID, actions.CodeFailed, "orphaned"))
+	setStatus(t, p.ServerEnv, c, servers.StatusRunning)
+	p.agePIP(t, id, time.Hour)
+
+	require.NoError(t, p.psvc.ResumeStuck(ctx))
+	require.Empty(t, p.runningPIP(t, id), "no assign is resumed on a running server")
+	vm, _ = p.App.PVE.VM(vc)
+	require.Equal(t, net0, vm.Config["net0"])
+
+	p.stop(t, c)
+	require.NoError(t, p.psvc.ResumeStuck(ctx))
+	res := p.runningPIP(t, id)
+	require.Len(t, res, 1)
+	p.finishAssign(t, res[0].ID, c)
+	vm, _ = p.App.PVE.VM(vc)
+	require.Contains(t, vm.Config["net0"], "bridge=vmbr1,tag=42")
+}
+
+func TestOldServerFailedAssignBumpsOnce(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	require.NoError(t, p.App.Ent.Server.UpdateOneID(p.a).SetNetRefresh(false).Exec(ctx))
+	before := srvRow(t, p.ServerEnv, p.a)
+	ip := p.standalone(t, "ipv6")
+	act, _ := p.passign(t, ip.ID, p.a)
+	require.True(t, srvRow(t, p.ServerEnv, p.a).InstanceBumpPending)
+	acts := p.applies(t, p.a)
+	require.Len(t, acts, 1)
+	require.NoError(t, actions.Fail(ctx, p.App.Ent, acts[0].ID, actions.CodeFirewallUnenforced, "off"))
+	require.True(t, cancelled(p.work(t, act.ID, 1)))
+	require.Equal(t, actions.StatusError, p.action(t, act.ID).Status)
+	require.NotNil(t, p.row(t, ip.ID).PendingGen, "a primary assign is resumed after a failure")
+
+	// The generic sync, as queued by the failed job, still bumps the instance.
+	require.True(t, syncNow(t, p.o, p.a, false))
+	row := srvRow(t, p.ServerEnv, p.a)
+	require.False(t, row.InstanceBumpPending)
+	require.Equal(t, before.IsoGeneration+1, row.IsoGeneration)
+	require.Equal(t, int64(row.IsoGeneration), row.InstanceGen)
+	require.NotEqual(t, before.InstanceGen, row.InstanceGen)
+	require.Contains(t, netConfig(t, p.ServerEnv, genVolid(p.a, row.IsoGeneration)), ip.IP)
+	require.False(t, syncNow(t, p.o, p.a, false), "the bump happens once")
+	require.Equal(t, row.InstanceGen, srvRow(t, p.ServerEnv, p.a).InstanceGen)
+}
+
+func TestNet0FailureRetriedByResume(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	c, vc := p.bare(t, "c")
+	id := p.vlanIP(t)
+	act, _ := p.passign(t, id, c)
+	p.App.PVE.SetDown(true)
+	for attempt := 1; attempt < servers.MaxAttempts; attempt++ {
+		err := p.work(t, act.ID, attempt)
+		require.Error(t, err)
+		require.False(t, cancelled(err), "%v", err)
+	}
+	require.True(t, cancelled(p.work(t, act.ID, servers.MaxAttempts)))
+	require.Equal(t, actions.StatusError, p.action(t, act.ID).Status)
+	require.NotNil(t, p.row(t, id).PendingGen)
+	p.App.PVE.SetDown(false)
+
+	require.NoError(t, p.psvc.ResumeStuck(ctx))
+	require.Empty(t, p.runningPIP(t, id), "a fresh failure cools down")
+	p.agePIP(t, id, 5*time.Minute)
+	require.NoError(t, p.psvc.ResumeStuck(ctx))
+	res := p.runningPIP(t, id)
+	require.Len(t, res, 1)
+	require.Equal(t, primaryips.KindAssign, res[0].Command)
+	p.finishAssign(t, res[0].ID, c)
+	vm, _ := p.App.PVE.VM(vc)
+	require.Equal(t, "virtio="+srvRow(t, p.ServerEnv, c).MAC+",bridge=vmbr1,tag=42,firewall=1", vm.Config["net0"])
+	require.Nil(t, p.row(t, id).PendingGen)
+}
+
+func TestRebuildClearsInstanceBump(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	require.NoError(t, p.App.Ent.Server.UpdateOneID(p.a).SetNetRefresh(false).SetInstanceBumpPending(true).Exec(ctx))
+	p.App.PVE.AddTemplate("pve1", 9001, "ceph")
+	p.Admin.CreateImage("debian", p.Location, 9001)
+	rid := startAction(t, p.ServerEnv, p.a, "rebuild", map[string]any{"image": "debian"})
+	w := servers.NewRebuildServerWorker(p.o)
+	require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.RebuildServerArgs](t, p.ServerEnv, rid), 1)))
+	require.Equal(t, actions.StatusSuccess, p.action(t, rid).Status)
+	row := srvRow(t, p.ServerEnv, p.a)
+	require.False(t, row.InstanceBumpPending)
+	require.True(t, row.NetRefresh)
+}
+
+func TestWithSegment(t *testing.T) {
+	got, err := servers.WithSegment("virtio=AA,bridge=vmbr0", "vmbr1", new(5))
+	require.NoError(t, err)
+	require.Equal(t, "virtio=AA,bridge=vmbr1,tag=5,firewall=1", got)
+	got, err = servers.WithSegment("virtio=AA,bridge=vmbr0,tag=3,firewall=0", "vmbr2", nil)
+	require.NoError(t, err)
+	require.Equal(t, "virtio=AA,bridge=vmbr2,firewall=1", got)
+	_, err = servers.WithSegment("", "vmbr0", nil)
+	require.Error(t, err)
+}
+
+func TestISOSyncKeepsBumpRequestedMidSync(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	before := srvRow(t, p.ServerEnv, p.a)
+	// A stale hash gives the generic sync work to do.
+	require.NoError(t, p.App.Ent.Server.UpdateOneID(p.a).SetIsoNetHash("stale").Exec(ctx))
+	once := false
+	servers.SetISOBeforeUpdate(t, func(id int64) {
+		if once || id != p.a {
+			return
+		}
+		once = true
+		// An Assign on the old server commits its bump request while the sync uploads.
+		require.NoError(t, p.App.Ent.Server.UpdateOneID(p.a).SetInstanceBumpPending(true).Exec(ctx))
+	})
+	_, err := servers.SyncISO(ctx, p.o, p.a, false)
+	require.Error(t, err, "the sync that read no bump must not clear one")
+	require.True(t, once)
+	row := srvRow(t, p.ServerEnv, p.a)
+	require.True(t, row.InstanceBumpPending)
+	require.Equal(t, before.InstanceGen, row.InstanceGen)
+
+	require.True(t, syncNow(t, p.o, p.a, false))
+	row = srvRow(t, p.ServerEnv, p.a)
+	require.False(t, row.InstanceBumpPending)
+	require.Equal(t, int64(row.IsoGeneration), row.InstanceGen)
+	require.NotEqual(t, before.InstanceGen, row.InstanceGen)
+}
+
+func TestServerDeleteClearsPrimaryPendingGen(t *testing.T) {
+	ctx := context.Background()
+	p := newPIPEnv(t)
+	ip := p.standalone(t, "ipv6")
+	require.NoError(t, p.App.Ent.IPAddress.UpdateOneID(ip.ID).SetAutoDelete(false).Exec(ctx))
+	act, _ := p.passign(t, ip.ID, p.a)
+	require.NoError(t, actions.Fail(ctx, p.App.Ent, act.ID, actions.CodeFailed, "lost"))
+	require.NotNil(t, p.row(t, ip.ID).PendingGen)
+	del, _ := expect[actionBody](t, p.C.Send(http.MethodDelete, spath(p.a), nil), http.StatusOK)
+	require.NoError(t, servers.NewDeleteServerWorker(p.o).Work(ctx, jobOf(queuedArgs[servers.DeleteServerArgs](t, p.ServerEnv, del.Action.ID), 1)))
+	r := p.row(t, ip.ID)
+	require.Nil(t, r.ServerID)
+	require.Nil(t, r.PendingGen)
 }

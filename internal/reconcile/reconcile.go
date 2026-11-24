@@ -68,7 +68,7 @@ type Options struct {
 	Logger *slog.Logger
 	// VolumeRescue repairs orphaned volume actions; it runs at the end of every pass.
 	VolumeRescue func(ctx context.Context) error
-	// FloatingIPResume restarts floating IP changes left without an action; it runs once per pass.
+	// FloatingIPResume restarts floating and primary IP changes left without an action; it runs once per pass.
 	FloatingIPResume func(ctx context.Context) error
 	// NetworkPool discovers private network slots, thaws cooling ones and resumes stuck attachments for one location; errors are logged.
 	NetworkPool func(ctx context.Context, pc pve.Client, locationID int64) error

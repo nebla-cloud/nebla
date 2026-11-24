@@ -96,6 +96,8 @@ type Server struct {
 	IsoNetHash string `json:"iso_net_hash,omitempty"`
 	// IsoLeaseUntil holds the value of the "iso_lease_until" field.
 	IsoLeaseUntil *time.Time `json:"iso_lease_until,omitempty"`
+	// InstanceBumpPending holds the value of the "instance_bump_pending" field.
+	InstanceBumpPending bool `json:"instance_bump_pending,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -170,7 +172,7 @@ func (*Server) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case server.FieldLabels, server.FieldSSHKeys:
 			values[i] = new([]byte)
-		case server.FieldBackupsEnabled, server.FieldNetRefresh:
+		case server.FieldBackupsEnabled, server.FieldNetRefresh, server.FieldInstanceBumpPending:
 			values[i] = new(sql.NullBool)
 		case server.FieldID, server.FieldProjectID, server.FieldLocationID, server.FieldVmid, server.FieldTemplateVmid, server.FieldServerTypeID, server.FieldImageID, server.FieldIsoGeneration, server.FieldInstanceGeneration, server.FieldCreateStep, server.FieldRebuildVmid, server.FieldRebuildStep, server.FieldCores, server.FieldMemoryMB, server.FieldDiskGB, server.FieldFirewallGenDesired, server.FieldFirewallGenApplied, server.FieldBackupKeep, server.FieldBackupSlot, server.FieldInstanceGen:
 			values[i] = new(sql.NullInt64)
@@ -435,6 +437,12 @@ func (_m *Server) assignValues(columns []string, values []any) error {
 				_m.IsoLeaseUntil = new(time.Time)
 				*_m.IsoLeaseUntil = value.Time
 			}
+		case server.FieldInstanceBumpPending:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field instance_bump_pending", values[i])
+			} else if value.Valid {
+				_m.InstanceBumpPending = value.Bool
+			}
 		case server.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -625,6 +633,9 @@ func (_m *Server) String() string {
 		builder.WriteString("iso_lease_until=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("instance_bump_pending=")
+	builder.WriteString(fmt.Sprintf("%v", _m.InstanceBumpPending))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

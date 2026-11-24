@@ -28,6 +28,8 @@ const (
 	ResourceType = "primary_ip"
 	KindAssign   = "assign_primary_ip"
 	KindUnassign = "unassign_primary_ip"
+	// MaxAssignFailures is how many failed assigns in a row ResumeStuck retries before it stops.
+	MaxAssignFailures = 5
 )
 
 // DefaultName is <server>-<family>, or <server>-<family>-<allocID> when taken; it matches the data migration.

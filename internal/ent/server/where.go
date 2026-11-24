@@ -225,6 +225,11 @@ func IsoLeaseUntil(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldIsoLeaseUntil, v))
 }
 
+// InstanceBumpPending applies equality check predicate on the "instance_bump_pending" field. It's identical to InstanceBumpPendingEQ.
+func InstanceBumpPending(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldInstanceBumpPending, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreatedAt, v))
@@ -1818,6 +1823,16 @@ func IsoLeaseUntilIsNil() predicate.Server {
 // IsoLeaseUntilNotNil applies the NotNil predicate on the "iso_lease_until" field.
 func IsoLeaseUntilNotNil() predicate.Server {
 	return predicate.Server(sql.FieldNotNull(FieldIsoLeaseUntil))
+}
+
+// InstanceBumpPendingEQ applies the EQ predicate on the "instance_bump_pending" field.
+func InstanceBumpPendingEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldInstanceBumpPending, v))
+}
+
+// InstanceBumpPendingNEQ applies the NEQ predicate on the "instance_bump_pending" field.
+func InstanceBumpPendingNEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldInstanceBumpPending, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

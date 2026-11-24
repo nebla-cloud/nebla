@@ -448,6 +448,20 @@ func (_c *ServerCreate) SetNillableIsoLeaseUntil(v *time.Time) *ServerCreate {
 	return _c
 }
 
+// SetInstanceBumpPending sets the "instance_bump_pending" field.
+func (_c *ServerCreate) SetInstanceBumpPending(v bool) *ServerCreate {
+	_c.mutation.SetInstanceBumpPending(v)
+	return _c
+}
+
+// SetNillableInstanceBumpPending sets the "instance_bump_pending" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableInstanceBumpPending(v *bool) *ServerCreate {
+	if v != nil {
+		_c.SetInstanceBumpPending(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ServerCreate) SetCreatedAt(v time.Time) *ServerCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -583,6 +597,10 @@ func (_c *ServerCreate) defaults() {
 		v := server.DefaultIsoNetHash
 		_c.mutation.SetIsoNetHash(v)
 	}
+	if _, ok := _c.mutation.InstanceBumpPending(); !ok {
+		v := server.DefaultInstanceBumpPending
+		_c.mutation.SetInstanceBumpPending(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := server.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -676,6 +694,9 @@ func (_c *ServerCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsoNetHash(); !ok {
 		return &ValidationError{Name: "iso_net_hash", err: errors.New(`ent: missing required field "Server.iso_net_hash"`)}
+	}
+	if _, ok := _c.mutation.InstanceBumpPending(); !ok {
+		return &ValidationError{Name: "instance_bump_pending", err: errors.New(`ent: missing required field "Server.instance_bump_pending"`)}
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "Server.project"`)}
@@ -853,6 +874,10 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsoLeaseUntil(); ok {
 		_spec.SetField(server.FieldIsoLeaseUntil, field.TypeTime, value)
 		_node.IsoLeaseUntil = &value
+	}
+	if value, ok := _c.mutation.InstanceBumpPending(); ok {
+		_spec.SetField(server.FieldInstanceBumpPending, field.TypeBool, value)
+		_node.InstanceBumpPending = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(server.FieldCreatedAt, field.TypeTime, value)
@@ -1533,6 +1558,18 @@ func (u *ServerUpsert) UpdateIsoLeaseUntil() *ServerUpsert {
 // ClearIsoLeaseUntil clears the value of the "iso_lease_until" field.
 func (u *ServerUpsert) ClearIsoLeaseUntil() *ServerUpsert {
 	u.SetNull(server.FieldIsoLeaseUntil)
+	return u
+}
+
+// SetInstanceBumpPending sets the "instance_bump_pending" field.
+func (u *ServerUpsert) SetInstanceBumpPending(v bool) *ServerUpsert {
+	u.Set(server.FieldInstanceBumpPending, v)
+	return u
+}
+
+// UpdateInstanceBumpPending sets the "instance_bump_pending" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateInstanceBumpPending() *ServerUpsert {
+	u.SetExcluded(server.FieldInstanceBumpPending)
 	return u
 }
 
@@ -2244,6 +2281,20 @@ func (u *ServerUpsertOne) UpdateIsoLeaseUntil() *ServerUpsertOne {
 func (u *ServerUpsertOne) ClearIsoLeaseUntil() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearIsoLeaseUntil()
+	})
+}
+
+// SetInstanceBumpPending sets the "instance_bump_pending" field.
+func (u *ServerUpsertOne) SetInstanceBumpPending(v bool) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetInstanceBumpPending(v)
+	})
+}
+
+// UpdateInstanceBumpPending sets the "instance_bump_pending" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateInstanceBumpPending() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateInstanceBumpPending()
 	})
 }
 
@@ -3121,6 +3172,20 @@ func (u *ServerUpsertBulk) UpdateIsoLeaseUntil() *ServerUpsertBulk {
 func (u *ServerUpsertBulk) ClearIsoLeaseUntil() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.ClearIsoLeaseUntil()
+	})
+}
+
+// SetInstanceBumpPending sets the "instance_bump_pending" field.
+func (u *ServerUpsertBulk) SetInstanceBumpPending(v bool) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetInstanceBumpPending(v)
+	})
+}
+
+// UpdateInstanceBumpPending sets the "instance_bump_pending" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateInstanceBumpPending() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateInstanceBumpPending()
 	})
 }
 

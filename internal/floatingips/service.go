@@ -128,21 +128,24 @@ var floating = ipaddress.KindEQ(ipaddress.KindFloating)
 
 var nameRE = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
-func validName(n string) error {
+// ValidName checks a floating or primary IP name.
+func ValidName(n string) error {
 	if !nameRE.MatchString(n) {
 		return invalid("name must match %s", nameRE)
 	}
 	return nil
 }
 
-func validDescription(d string) error {
+// ValidDescription checks the description length.
+func ValidDescription(d string) error {
 	if utf8.RuneCountInString(d) > MaxDescription {
 		return invalid("description must be at most %d characters", MaxDescription)
 	}
 	return nil
 }
 
-func validLabels(l map[string]string) error {
+// ValidLabels checks label count, keys and values.
+func ValidLabels(l map[string]string) error {
 	if len(l) > MaxLabels {
 		return invalid("at most %d labels", MaxLabels)
 	}
@@ -159,7 +162,12 @@ func validLabels(l map[string]string) error {
 
 // ActionsOf matches the project's actions whose resources include the floating IP.
 func ActionsOf(projectID, id int64) predicate.Action {
-	doc, _ := json.Marshal([]actions.Resource{{ID: id, Type: ResourceType}})
+	return ActionsOfType(projectID, id, ResourceType)
+}
+
+// ActionsOfType matches the project's actions whose resources include the resource of that type.
+func ActionsOfType(projectID, id int64, typ string) predicate.Action {
+	doc, _ := json.Marshal([]actions.Resource{{ID: id, Type: typ}})
 	return action.And(action.ProjectID(projectID), func(s *entsql.Selector) {
 		s.Where(entsql.P(func(b *entsql.Builder) {
 			b.Ident(s.C(action.FieldResources)).WriteString(" @> ").Arg(string(doc)).WriteString("::jsonb")
@@ -171,14 +179,18 @@ func hasRunningAction(ctx context.Context, c *ent.Client, projectID, id int64) (
 	return c.Action.Query().Where(ActionsOf(projectID, id), action.StatusEQ(action.StatusRunning)).Exist(ctx)
 }
 
-// withTx runs fn with a 10s lock timeout; a timeout becomes the busy error.
-func (s *Service) withTx(ctx context.Context, fn func(tx *sql.Tx, etx *ent.Client) error) error {
-	return lockErr(db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+// WithTx runs fn with a 10s lock timeout; a timeout becomes busy.
+func WithTx(ctx context.Context, sqlDB *sql.DB, busy error, fn func(tx *sql.Tx, etx *ent.Client) error) error {
+	return LockErr(db.WithTx(ctx, sqlDB, func(tx *sql.Tx, etx *ent.Client) error {
 		if _, err := tx.ExecContext(ctx, "SET LOCAL lock_timeout = '10s'"); err != nil {
 			return err
 		}
 		return fn(tx, etx)
-	}))
+	}), busy)
+}
+
+func (s *Service) withTx(ctx context.Context, fn func(tx *sql.Tx, etx *ent.Client) error) error {
+	return WithTx(ctx, s.o.SQL, errBusy, fn)
 }
 
 // lockFIP locks the project's floating IP row; a running action on it gives 409 locked.
@@ -212,14 +224,14 @@ func lockServers(ctx context.Context, tx *ent.Client, projectID int64, ids ...in
 	}
 	for _, id := range ids {
 		if out[id] == nil {
-			return nil, errServerNotFound
+			return nil, ErrServerNotFound
 		}
 	}
 	return out, nil
 }
 
-// serverByRef finds the project's server by id, then by name.
-func serverByRef(ctx context.Context, c *ent.Client, projectID int64, ref string) (*ent.Server, error) {
+// ServerByRef finds the project's server by id, then by name; an unknown one is ErrServerNotFound.
+func ServerByRef(ctx context.Context, c *ent.Client, projectID int64, ref string) (*ent.Server, error) {
 	if id, err := strconv.ParseInt(ref, 10, 64); err == nil {
 		row, err := c.Server.Query().Where(server.ID(id), server.ProjectID(projectID)).Only(ctx)
 		if err == nil {
@@ -231,7 +243,7 @@ func serverByRef(ctx context.Context, c *ent.Client, projectID int64, ref string
 	}
 	row, err := c.Server.Query().Where(server.Name(ref), server.ProjectID(projectID)).Only(ctx)
 	if ent.IsNotFound(err) {
-		return nil, errServerNotFound
+		return nil, ErrServerNotFound
 	}
 	return row, err
 }
@@ -250,7 +262,8 @@ func serverSegment(ctx context.Context, c *ent.Client, serverID int64, family st
 	return ipam.Segment{Bridge: p.Bridge, VLAN: p.VlanTag}, nil
 }
 
-func sameSegment(a, b ipam.Segment) bool {
+// SameSegment reports whether a and b are the same bridge and VLAN.
+func SameSegment(a, b ipam.Segment) bool {
 	if a.Bridge != b.Bridge || (a.VLAN == nil) != (b.VLAN == nil) {
 		return false
 	}
@@ -269,7 +282,7 @@ func checkTarget(ctx context.Context, tx *ent.Client, target *ent.Server, locati
 	if err != nil {
 		return ipam.Segment{}, err
 	}
-	if seg != nil && !sameSegment(*seg, got) {
+	if seg != nil && !SameSegment(*seg, got) {
 		return ipam.Segment{}, errSegment
 	}
 	n, err := tx.IPAddress.Query().Where(ipaddress.ServerID(target.ID), floating).Count(ctx)
@@ -311,12 +324,16 @@ func (s *Service) start(ctx context.Context, tx *sql.Tx, etx *ent.Client, projec
 	}, nil)
 }
 
-// assignFresh points an unassigned row at target, bumps its firewall and records the generation to wait for.
 func (s *Service) assignFresh(ctx context.Context, tx *sql.Tx, etx *ent.Client, projectID, id, target int64) error {
+	return AssignFresh(ctx, tx, etx, s.o.Jobs, projectID, id, target)
+}
+
+// AssignFresh points an unassigned row at target, bumps its firewall and records the generation to wait for.
+func AssignFresh(ctx context.Context, tx *sql.Tx, etx *ent.Client, j *jobs.Jobs, projectID, id, target int64) error {
 	if err := etx.IPAddress.UpdateOneID(id).SetServerID(target).ClearPreviousServerID().Exec(ctx); err != nil {
 		return err
 	}
-	if _, err := firewalls.Bump(ctx, tx, etx, s.o.Jobs, projectID, []int64{target}, nil); err != nil {
+	if _, err := firewalls.Bump(ctx, tx, etx, j, projectID, []int64{target}, nil); err != nil {
 		return err
 	}
 	srv, err := etx.Server.Get(ctx, target)
@@ -329,14 +346,14 @@ func (s *Service) assignFresh(ctx context.Context, tx *sql.Tx, etx *ent.Client, 
 // Create allocates a floating IP in a location, or on a server's segment and assigned to it.
 func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (FloatingIP, *actions.Action, error) {
 	if in.Name != "" {
-		if err := validName(in.Name); err != nil {
+		if err := ValidName(in.Name); err != nil {
 			return FloatingIP{}, nil, err
 		}
 	}
-	if err := validDescription(in.Description); err != nil {
+	if err := ValidDescription(in.Description); err != nil {
 		return FloatingIP{}, nil, err
 	}
-	if err := validLabels(in.Labels); err != nil {
+	if err := ValidLabels(in.Labels); err != nil {
 		return FloatingIP{}, nil, err
 	}
 	if in.Family != ipam.FamilyIPv4 && in.Family != ipam.FamilyIPv6 {
@@ -356,7 +373,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			return FloatingIP{}, nil, errNoJobs
 		}
 		var err error
-		if target, err = serverByRef(ctx, s.o.Ent, projectID, in.Server); err != nil {
+		if target, err = ServerByRef(ctx, s.o.Ent, projectID, in.Server); err != nil {
 			return FloatingIP{}, nil, err
 		}
 		locationID = target.LocationID
@@ -452,8 +469,8 @@ func (s *Service) mutate(ctx context.Context, projectID, id int64,
 	return act, err
 }
 
-// release records that the row's current server must drop the address before anything else happens.
-func release(ctx context.Context, etx *ent.Client, row *ent.IPAddress, to *int64) error {
+// Release records that the row's current server must drop the address before anything else happens.
+func Release(ctx context.Context, etx *ent.Client, row *ent.IPAddress, to *int64) error {
 	u := etx.IPAddress.UpdateOneID(row.ID).SetReleasingFromID(*row.ServerID).SetPreviousServerID(*row.ServerID).ClearPendingGen()
 	if to == nil {
 		u.ClearServerID()
@@ -466,7 +483,7 @@ func release(ctx context.Context, etx *ent.Client, row *ent.IPAddress, to *int64
 // Assign assigns the floating IP to the project's server ref, moving it when it is assigned elsewhere.
 func (s *Service) Assign(ctx context.Context, projectID, id int64, serverRef string) (actions.Action, error) {
 	return s.mutate(ctx, projectID, id, func(tx *sql.Tx, etx *ent.Client, row *ent.IPAddress) (string, []actions.Resource, error) {
-		target, err := serverByRef(ctx, etx, projectID, serverRef)
+		target, err := ServerByRef(ctx, etx, projectID, serverRef)
 		if err != nil {
 			return "", nil, err
 		}
@@ -499,7 +516,7 @@ func (s *Service) Assign(ctx context.Context, projectID, id int64, serverRef str
 		if row.ServerID == nil {
 			err = s.assignFresh(ctx, tx, etx, projectID, id, target.ID)
 		} else {
-			err = release(ctx, etx, row, &target.ID)
+			err = Release(ctx, etx, row, &target.ID)
 		}
 		return KindAssign, resources(id, &target.ID, row.ServerID), err
 	})
@@ -523,7 +540,7 @@ func (s *Service) Unassign(ctx context.Context, projectID, id int64) (actions.Ac
 		if srvs[*row.ServerID].Status == server.StatusDeleting {
 			return "", nil, errServerDeleting
 		}
-		return KindUnassign, resources(id, row.ServerID), release(ctx, etx, row, nil)
+		return KindUnassign, resources(id, row.ServerID), Release(ctx, etx, row, nil)
 	})
 }
 
@@ -572,7 +589,7 @@ func (s *Service) ResumeStuck(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			if cool, err := coolingDown(ctx, etx, row); err != nil || cool {
+			if cool, err := CoolingDown(ctx, etx, row, ResourceType); err != nil || cool {
 				return err
 			}
 			var kind string
@@ -603,24 +620,29 @@ func (s *Service) ResumeStuck(ctx context.Context) error {
 // resumeCooldown is the wait after the nth release_pending failure in a row; the last entry caps it.
 var resumeCooldown = []time.Duration{5 * time.Minute, 15 * time.Minute, time.Hour}
 
-// coolingDown reports a row whose latest action failed with release_pending within the cooldown for its failure streak.
-func coolingDown(ctx context.Context, etx *ent.Client, row *ent.IPAddress) (bool, error) {
-	acts, err := etx.Action.Query().Where(ActionsOf(row.ProjectID, row.ID)).Order(ent.Desc(action.FieldID)).
-		Limit(len(resumeCooldown)).All(ctx)
-	if err != nil {
+// CoolingDown reports a row whose latest action failed within the cooldown for its failure streak; floating rows count only release_pending.
+func CoolingDown(ctx context.Context, etx *ent.Client, row *ent.IPAddress, typ string) (bool, error) {
+	streak, err := FailureStreak(ctx, etx, row, typ, len(resumeCooldown))
+	if err != nil || len(streak) == 0 {
 		return false, err
 	}
-	n := 0
-	for _, a := range acts {
-		if a.Status != action.StatusError || a.ErrorCode == nil || *a.ErrorCode != actions.CodeReleasePending || a.Finished == nil {
-			break
+	return time.Since(*streak[0].Finished) < resumeCooldown[len(streak)-1], nil
+}
+
+// FailureStreak lists the row's latest failed actions in a row, newest first, up to max; floating rows count only release_pending.
+func FailureStreak(ctx context.Context, etx *ent.Client, row *ent.IPAddress, typ string, max int) ([]*ent.Action, error) {
+	acts, err := etx.Action.Query().Where(ActionsOfType(row.ProjectID, row.ID, typ)).Order(ent.Desc(action.FieldID)).
+		Limit(max).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i, a := range acts {
+		pending := a.ErrorCode != nil && *a.ErrorCode == actions.CodeReleasePending
+		if a.Status != action.StatusError || a.Finished == nil || !pending && row.Kind != ipaddress.KindPrimary {
+			return acts[:i], nil
 		}
-		n++
 	}
-	if n == 0 {
-		return false, nil
-	}
-	return time.Since(*acts[0].Finished) < resumeCooldown[n-1], nil
+	return acts, nil
 }
 
 func (s *Service) get(ctx context.Context, projectID, id int64) (*ent.IPAddress, error) {
@@ -651,8 +673,8 @@ func (s *Service) List(ctx context.Context, projectID int64, f ListFilter, page,
 		q = q.Where(ipaddress.Name(f.Name))
 	}
 	if f.Server != "" {
-		srv, err := serverByRef(ctx, s.o.Ent, projectID, f.Server)
-		if errors.Is(err, errServerNotFound) {
+		srv, err := ServerByRef(ctx, s.o.Ent, projectID, f.Server)
+		if errors.Is(err, ErrServerNotFound) {
 			return []FloatingIP{}, 0, nil
 		}
 		if err != nil {
@@ -760,12 +782,12 @@ func guestConfig(r *ent.IPAddress, ip netip.Addr, srvs map[int64]*ent.Server) *G
 // Update changes the name, description and labels; a running action on the floating IP gives 409 locked.
 func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInput) (FloatingIP, error) {
 	if in.Name != nil {
-		if err := validName(*in.Name); err != nil {
+		if err := ValidName(*in.Name); err != nil {
 			return FloatingIP{}, err
 		}
 	}
 	if in.Description != nil {
-		if err := validDescription(*in.Description); err != nil {
+		if err := ValidDescription(*in.Description); err != nil {
 			return FloatingIP{}, err
 		}
 	}
@@ -774,7 +796,7 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		if lbls = *in.Labels; lbls == nil {
 			lbls = map[string]string{}
 		}
-		if err := validLabels(lbls); err != nil {
+		if err := ValidLabels(lbls); err != nil {
 			return FloatingIP{}, err
 		}
 	}

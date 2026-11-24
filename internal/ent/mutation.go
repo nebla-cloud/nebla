@@ -21856,6 +21856,7 @@ type ServerMutation struct {
 	addinstance_gen         *int64
 	iso_net_hash            *string
 	iso_lease_until         *time.Time
+	instance_bump_pending   *bool
 	created_at              *time.Time
 	clearedFields           map[string]struct{}
 	project                 *int64
@@ -23754,6 +23755,42 @@ func (m *ServerMutation) ResetIsoLeaseUntil() {
 	delete(m.clearedFields, server.FieldIsoLeaseUntil)
 }
 
+// SetInstanceBumpPending sets the "instance_bump_pending" field.
+func (m *ServerMutation) SetInstanceBumpPending(b bool) {
+	m.instance_bump_pending = &b
+}
+
+// InstanceBumpPending returns the value of the "instance_bump_pending" field in the mutation.
+func (m *ServerMutation) InstanceBumpPending() (r bool, exists bool) {
+	v := m.instance_bump_pending
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldInstanceBumpPending returns the old "instance_bump_pending" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldInstanceBumpPending(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldInstanceBumpPending is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldInstanceBumpPending requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldInstanceBumpPending: %w", err)
+	}
+	return oldValue.InstanceBumpPending, nil
+}
+
+// ResetInstanceBumpPending resets all changes to the "instance_bump_pending" field.
+func (m *ServerMutation) ResetInstanceBumpPending() {
+	m.instance_bump_pending = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ServerMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -23932,7 +23969,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 38)
+	fields := make([]string, 0, 39)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -24044,6 +24081,9 @@ func (m *ServerMutation) Fields() []string {
 	if m.iso_lease_until != nil {
 		fields = append(fields, server.FieldIsoLeaseUntil)
 	}
+	if m.instance_bump_pending != nil {
+		fields = append(fields, server.FieldInstanceBumpPending)
+	}
 	if m.created_at != nil {
 		fields = append(fields, server.FieldCreatedAt)
 	}
@@ -24129,6 +24169,8 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.IsoNetHash()
 	case server.FieldIsoLeaseUntil:
 		return m.IsoLeaseUntil()
+	case server.FieldInstanceBumpPending:
+		return m.InstanceBumpPending()
 	case server.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -24214,6 +24256,8 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldIsoNetHash(ctx)
 	case server.FieldIsoLeaseUntil:
 		return m.OldIsoLeaseUntil(ctx)
+	case server.FieldInstanceBumpPending:
+		return m.OldInstanceBumpPending(ctx)
 	case server.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -24483,6 +24527,13 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetIsoLeaseUntil(v)
+		return nil
+	case server.FieldInstanceBumpPending:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetInstanceBumpPending(v)
 		return nil
 	case server.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -24896,6 +24947,9 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldIsoLeaseUntil:
 		m.ResetIsoLeaseUntil()
+		return nil
+	case server.FieldInstanceBumpPending:
+		m.ResetInstanceBumpPending()
 		return nil
 	case server.FieldCreatedAt:
 		m.ResetCreatedAt()

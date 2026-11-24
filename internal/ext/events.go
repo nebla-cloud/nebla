@@ -41,6 +41,8 @@ const (
 	FloatingIPDeleted EventKind = "floating_ip.deleted"
 	NetworkCreated    EventKind = "network.created"
 	NetworkDeleted    EventKind = "network.deleted"
+	PrimaryIPCreated  EventKind = "primary_ip.created"
+	PrimaryIPDeleted  EventKind = "primary_ip.deleted"
 )
 
 type Event struct {

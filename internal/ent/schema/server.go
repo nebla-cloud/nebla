@@ -83,6 +83,8 @@ func (Server) Fields() []ent.Field {
 		field.Text("iso_net_hash").Default(""),
 		// iso_lease_until is held by the one seed ISO writer working on the server.
 		field.Time("iso_lease_until").Optional().Nillable(),
+		// instance_bump_pending makes the next seed ISO write bump instance_gen.
+		field.Bool("instance_bump_pending").Default(false),
 		createdAt(),
 	}
 }

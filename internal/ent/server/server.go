@@ -89,6 +89,8 @@ const (
 	FieldIsoNetHash = "iso_net_hash"
 	// FieldIsoLeaseUntil holds the string denoting the iso_lease_until field in the database.
 	FieldIsoLeaseUntil = "iso_lease_until"
+	// FieldInstanceBumpPending holds the string denoting the instance_bump_pending field in the database.
+	FieldInstanceBumpPending = "instance_bump_pending"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -171,6 +173,7 @@ var Columns = []string{
 	FieldInstanceGen,
 	FieldIsoNetHash,
 	FieldIsoLeaseUntil,
+	FieldInstanceBumpPending,
 	FieldCreatedAt,
 }
 
@@ -213,6 +216,8 @@ var (
 	DefaultInstanceGen int64
 	// DefaultIsoNetHash holds the default value on creation for the "iso_net_hash" field.
 	DefaultIsoNetHash string
+	// DefaultInstanceBumpPending holds the default value on creation for the "instance_bump_pending" field.
+	DefaultInstanceBumpPending bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -431,6 +436,11 @@ func ByIsoNetHash(opts ...sql.OrderTermOption) OrderOption {
 // ByIsoLeaseUntil orders the results by the iso_lease_until field.
 func ByIsoLeaseUntil(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsoLeaseUntil, opts...).ToFunc()
+}
+
+// ByInstanceBumpPending orders the results by the instance_bump_pending field.
+func ByInstanceBumpPending(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldInstanceBumpPending, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

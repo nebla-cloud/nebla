@@ -80,7 +80,7 @@ func RegisterWorkers(w *river.Workers, o WorkerOptions) {
 	river.AddWorker(w, NewUsageWorker(o))
 	river.AddWorker(w, NewChangeTypeWorker(o))
 	river.AddWorker(w, NewApplyFirewallsWorker(o))
-	river.AddWorker(w, NewFloatingIPWorker(o))
+	river.AddWorker(w, NewIPChangeWorker(o))
 	nw := NewNetworkWorker(o)
 	river.AddWorker(w, nw.Attach())
 	river.AddWorker(w, nw.Detach())

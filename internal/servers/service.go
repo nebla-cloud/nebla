@@ -37,7 +37,6 @@ import (
 	"github.com/nebla-cloud/nebla/internal/cloudinit"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
-	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ent/firewall"
 	"github.com/nebla-cloud/nebla/internal/ent/firewallresource"
@@ -56,6 +55,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/primaryips"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/serverlock"
 	"github.com/riverqueue/river"
 )
 
@@ -75,7 +75,7 @@ const (
 	KindCreateServer = "create_server"
 	KindDeleteServer = "delete_server"
 	// KindCreateBackup is the action command of a running backup, which locks the server.
-	KindCreateBackup = "create_backup"
+	KindCreateBackup = serverlock.KindCreateBackup
 	// ResourceType is the actions resource type for servers.
 	ResourceType = jobs.ServerResource
 	// MaxUserData is the largest accepted user_data in bytes.
@@ -183,8 +183,7 @@ var (
 
 	errNotFound  = apierr.New(http.StatusNotFound, "not_found", "not found")
 	errNoJobs    = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
-	errLocked    = apierr.New(http.StatusConflict, "locked", "the server has a running action")
-	errBackingUp = apierr.New(http.StatusConflict, "backup_in_progress", "A backup of this server is running")
+	errLocked    = serverlock.ErrLocked
 	errNoBackups = apierr.New(http.StatusUnprocessableEntity, "backups_unavailable", "Backups are not available in this location")
 	ErrMissing   = apierr.New(http.StatusConflict, "server_missing", "the server's VM is missing in Proxmox")
 	errNotReady  = apierr.New(http.StatusConflict, "server_not_ready", "the server has no usable VM")
@@ -418,7 +417,7 @@ func releasePrimaries(ctx context.Context, etx *ent.Client, serverID int64) (fre
 	}
 	for _, r := range rows {
 		if !r.AutoDelete {
-			if err := etx.IPAddress.UpdateOneID(r.ID).ClearServerID().Exec(ctx); err != nil {
+			if err := etx.IPAddress.UpdateOneID(r.ID).ClearServerID().ClearPendingGen().Exec(ctx); err != nil {
 				return nil, err
 			}
 			continue
@@ -847,30 +846,12 @@ func (s *Service) relabel(ctx context.Context, tx *sql.Tx, etx *ent.Client, row 
 
 // HasRunningAction reports whether any running action other than a firewall apply lists the server.
 func HasRunningAction(ctx context.Context, c *ent.Client, projectID, serverID int64) (bool, error) {
-	return c.Action.Query().Where(ActionsOf(projectID, serverID), actionRunning).Exist(ctx)
+	return serverlock.HasRunningAction(ctx, c, projectID, serverID)
 }
 
-// LockServer locks the project's server row in tx; another running action on it gives 409 locked.
+// LockServer locks the project's server row in tx; another running action on it gives 409 locked, or backup_in_progress for a backup.
 func LockServer(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.Server, error) {
-	row, err := tx.Server.Query().Where(server.ID(id), server.ProjectID(projectID)).ForUpdate().Only(ctx)
-	if err != nil {
-		return nil, notFound(err)
-	}
-	busy, err := HasRunningAction(ctx, tx, projectID, id)
-	if err != nil {
-		return nil, err
-	}
-	if busy {
-		backingUp, err := tx.Action.Query().Where(ActionsOf(projectID, id), action.StatusEQ(action.StatusRunning), action.Command(KindCreateBackup)).Exist(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if backingUp {
-			return nil, errBackingUp
-		}
-		return nil, errLocked
-	}
-	return row, nil
+	return serverlock.Lock(ctx, tx, projectID, id, errNotFound)
 }
 
 // queue runs prepare under the server lock and starts the job it returns args for.

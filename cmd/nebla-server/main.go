@@ -38,6 +38,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/mail"
 	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/primaryips"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/reconcile"
@@ -94,12 +95,14 @@ func run() error {
 		Jobs: func() *jobs.Jobs { return runner }})
 	var fips *floatingips.Service
 	var nets *networks.Service
+	var pips *primaryips.Service
+	resumeIPs := func(ctx context.Context) error { return errors.Join(fips.ResumeStuck(ctx), pips.ResumeStuck(ctx)) }
 	rec := reconcile.New(reconcile.Options{SQL: sqlDB, Ent: client, Catalog: cat, Logger: log,
 		VolumeRescue: func(ctx context.Context) error {
 			_, err := volumes.RescueOrphaned(ctx, client, sqlDB, bus)
 			return err
 		},
-		FloatingIPResume: func(ctx context.Context) error { return fips.ResumeStuck(ctx) },
+		FloatingIPResume: resumeIPs,
 		NetworkPool: func(ctx context.Context, pc pve.Client, locationID int64) error {
 			return nets.Reconcile(ctx, pc, locationID)
 		}})
@@ -122,6 +125,7 @@ func run() error {
 	fips = floatingips.New(floatingips.Options{SQL: sqlDB, Ent: client, Catalog: cat, Jobs: runner, Logger: log, Bus: bus})
 	netProjects := projects.New(client, projects.Options{Logger: log, Hooks: projectHooks, DefaultQuota: cfg.DefaultQuota})
 	nets = networks.New(networks.Options{SQL: sqlDB, Ent: client, Catalog: cat, Projects: netProjects, Jobs: runner, Logger: log, Bus: bus})
+	pips = primaryips.New(primaryips.Options{SQL: sqlDB, Ent: client, Catalog: cat, Jobs: runner, Bus: bus})
 	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
 	if err := rec.RescueAll(ctx); err != nil {
 		return err
@@ -182,9 +186,9 @@ func run() error {
 	if n > 0 {
 		log.Warn("failed orphaned actions", "count", n)
 	}
-	// After the orphan sweep, so floating IPs whose action was just failed resume too; the reconciler retries the rest.
-	if err := fips.ResumeStuck(ctx); err != nil {
-		log.Warn("resume floating IPs", "err", err)
+	// After the orphan sweep, so IPs whose action was just failed resume too; the reconciler retries the rest.
+	if err := resumeIPs(ctx); err != nil {
+		log.Warn("resume IP changes", "err", err)
 	}
 	// River gets its own context so a signal stops it via Stop, not by cancelling Start's context.
 	if err := runner.Start(context.WithoutCancel(ctx)); err != nil {

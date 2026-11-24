@@ -35,9 +35,10 @@ const (
 	MaxAttempts = 5
 )
 
-// ChangeArgs is the floating_ip_change job for one action.
+// ChangeArgs is the floating_ip_change job for one action, floating or primary.
 type ChangeArgs struct {
-	ActionID     int64 `json:"action_id"`
+	ActionID int64 `json:"action_id"`
+	// FloatingIPID is any ip_addresses id; the name is kept for jobs already queued.
 	FloatingIPID int64 `json:"floating_ip_id"`
 }
 

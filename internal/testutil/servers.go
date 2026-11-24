@@ -17,6 +17,7 @@ package testutil
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -25,8 +26,12 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/db"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -57,6 +62,38 @@ func (c *Client) CreateIPPool(locationID int64, family, cidr, gateway, start, en
 	body := map[string]any{"location_id": locationID, "family": family, "bridge": "vmbr0", "cidr": cidr, "gateway": gateway,
 		"dns": []string{gateway}, "range_start": start, "range_end": end}
 	return c.createID(http.MethodPost, "/v1/admin/ip_pools", body)
+}
+
+// CreateSegmentPool creates an IP pool on bridge, tagged with vlan when it is not nil, via the admin API.
+func (c *Client) CreateSegmentPool(locationID int64, family, bridge string, vlan *int, cidr, gateway, start, end string) int64 {
+	c.app.t.Helper()
+	body := map[string]any{"location_id": locationID, "family": family, "bridge": bridge, "cidr": cidr, "gateway": gateway,
+		"dns": []string{gateway}, "range_start": start, "range_end": end}
+	if vlan != nil {
+		body["vlan_tag"] = *vlan
+	}
+	return c.createID(http.MethodPost, "/v1/admin/ip_pools", body)
+}
+
+// PrimaryIPOn creates an unassigned primary IP in the project on a pool of seg in eu-1.
+func (e *ServerEnv) PrimaryIPOn(family string, seg ipam.Segment) (int64, string) {
+	e.App.t.Helper()
+	ctx := context.Background()
+	var row *ent.IPAddress
+	err := db.WithTx(ctx, e.App.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		a, allocID, err := ipam.AllocatePrimary(ctx, etx, e.Location, family, &seg)
+		if err != nil {
+			return err
+		}
+		row, err = etx.IPAddress.Create().SetKind(ipaddress.KindPrimary).SetProjectID(e.Project).SetLocationID(e.Location).
+			SetAllocationID(allocID).SetFamily(family).SetIP(a.IP.String()).SetName("seg-" + strconv.FormatInt(allocID, 10)).
+			SetLabels(map[string]string{}).Save(ctx)
+		return err
+	})
+	if err != nil {
+		e.App.t.Fatal(err)
+	}
+	return row.ID, row.IP
 }
 
 // SetQuota sets a project's quota via the admin API.

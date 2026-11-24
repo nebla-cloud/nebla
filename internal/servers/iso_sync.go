@@ -191,7 +191,10 @@ func renderISO(ctx context.Context, c *ent.Client, row *ent.Server, instanceGen 
 	}, nil
 }
 
-// syncISO writes a new seed ISO when the network config changed or bumpInstance is set.
+// isoBeforeUpdate is a test hook run between the ISO upload and the server update.
+var isoBeforeUpdate func(serverID int64)
+
+// syncISO writes a new seed ISO when the network config changed, bumpInstance is set or a bump is pending.
 func (o *WorkerOptions) syncISO(ctx context.Context, pc pve.Client, row *ent.Server, bumpInstance bool) (changed bool, err error) {
 	err = o.withISOLease(ctx, row.ID, func(l *isoLeaseHeld) error {
 		cur, err := o.Ent.Server.Get(ctx, row.ID)
@@ -207,6 +210,7 @@ func (o *WorkerOptions) syncISO(ctx context.Context, pc pve.Client, row *ent.Ser
 		if !isoSteady(cur) {
 			return nil
 		}
+		bumpInstance = bumpInstance || cur.InstanceBumpPending
 		gen, inst := cur.IsoGeneration+1, cur.InstanceGen
 		if bumpInstance {
 			inst = int64(gen)
@@ -239,8 +243,13 @@ func (o *WorkerOptions) syncISO(ctx context.Context, pc pve.Client, row *ent.Ser
 		if err := pc.SetConfig(ctx, cur.Node, *cur.Vmid, map[string]string{"ide2": volid + ",media=cdrom"}); err != nil {
 			return err
 		}
-		n, err := o.Ent.Server.Update().Where(server.ID(cur.ID), server.IsoGeneration(cur.IsoGeneration), server.IsoLeaseUntil(l.until)).
-			SetIsoGeneration(gen).SetIsoVolid(volid).SetIsoNetHash(hash).SetInstanceGen(inst).Save(ctx)
+		if isoBeforeUpdate != nil {
+			isoBeforeUpdate(cur.ID)
+		}
+		// A bump requested after cur was read must survive; the retry applies it.
+		n, err := o.Ent.Server.Update().Where(server.ID(cur.ID), server.IsoGeneration(cur.IsoGeneration), server.IsoLeaseUntil(l.until),
+			server.InstanceBumpPending(cur.InstanceBumpPending)).
+			SetIsoGeneration(gen).SetIsoVolid(volid).SetIsoNetHash(hash).SetInstanceGen(inst).SetInstanceBumpPending(false).Save(ctx)
 		if err != nil {
 			return err
 		}

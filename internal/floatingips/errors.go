@@ -27,7 +27,7 @@ import (
 
 var (
 	errNotFound       = apierr.New(http.StatusNotFound, "not_found", "not found")
-	errServerNotFound = apierr.New(http.StatusNotFound, "not_found", "server not found")
+	ErrServerNotFound = apierr.New(http.StatusNotFound, "not_found", "server not found")
 	errNoJobs         = apierr.New(http.StatusServiceUnavailable, "service_unavailable", "the job runtime is not running")
 	errNameTaken      = apierr.New(http.StatusConflict, "uniqueness_error", "floating IP name is already taken")
 	errSegment        = apierr.New(http.StatusUnprocessableEntity, "invalid_input", "This floating IP can't be used with that server; it's in a different network.")
@@ -50,20 +50,23 @@ func notFound(err error) error {
 	return err
 }
 
-// writeErr maps constraint violations on ip_addresses rows.
-func writeErr(err error) error {
+// WriteErr maps constraint violations on ip_addresses rows; a duplicate name gives nameTaken.
+func WriteErr(err, nameTaken error) error {
 	var pe *pgconn.PgError
 	if errors.As(err, &pe) && pe.ConstraintName == "ip_addresses_project_name_key" {
-		return errNameTaken
+		return nameTaken
 	}
 	return notFound(err)
 }
 
-// lockErr turns a lock timeout or deadlock into the busy error.
-func lockErr(err error) error {
+// LockErr turns a lock timeout or deadlock into busy.
+func LockErr(err, busy error) error {
 	var pe *pgconn.PgError
 	if errors.As(err, &pe) && (pe.Code == "55P03" || pe.Code == "40P01") {
-		return errBusy
+		return busy
 	}
 	return err
 }
+
+func writeErr(err error) error { return WriteErr(err, errNameTaken) }
+func lockErr(err error) error  { return LockErr(err, errBusy) }

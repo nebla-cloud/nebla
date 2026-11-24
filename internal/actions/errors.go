@@ -57,6 +57,8 @@ var verbs = map[string]string{
 	"create_backup":        "back up the server",
 	"restore_backup":       "restore the backup",
 	"delete_backup":        "delete the backup",
+	"assign_primary_ip":    "assign the primary IP",
+	"unassign_primary_ip":  "unassign the primary IP",
 }
 
 var templates = map[string]string{
