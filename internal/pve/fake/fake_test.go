@@ -692,3 +692,21 @@ func TestFakeFailImport(t *testing.T) {
 		t.Fatalf("retry after one failure: %v", err)
 	}
 }
+
+func TestFakeSharedStorageAcrossNodes(t *testing.T) {
+	ctx := context.Background()
+	s, c, boot := importEnv(t)
+	s.AddNode("pve2", 4, 8192)
+	s.AddStorage("pve1", "shr", []string{"images"}, true)
+	s.AddStorage("pve2", "shr", []string{"images"}, true)
+	if err := waitCreate(t, c, 300, map[string]string{"scsi0": "shr:0,import-from=" + boot}); err != nil {
+		t.Fatal(err)
+	}
+	up, err := c.CreateVM(ctx, "pve2", 301, map[string]string{"scsi0": "shr:0,import-from=shr:vm-300-disk-0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WaitTask(ctx, "pve2", up); err != nil {
+		t.Fatalf("import on the other node: %v", err)
+	}
+}

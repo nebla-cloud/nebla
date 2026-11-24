@@ -68,16 +68,16 @@ test('take, build from, restore and delete a snapshot', async ({ page }) => {
     timeout: 90_000,
   })
 
-  await nav.getByRole('link', { name: 'Servers', exact: true }).click()
-  await page.getByRole('link', { name: new RegExp(source) }).click()
-  await expect(page.getByRole('heading', { level: 1, name: source })).toBeVisible()
-  await tabs.getByRole('link', { name: 'Snapshots' }).click()
+  await nav.getByRole('link', { name: 'Snapshots', exact: true }).click()
   await page.getByRole('button', { name: `Restore ${snap}` }).click()
   const restore = page.getByRole('dialog')
   await expect(restore.getByText(new RegExp(`^Restore ${source} to ${snap}\\?`))).toBeVisible()
   await expect(restore.getByText(/Volumes stay attached/)).toBeVisible()
   await restore.getByRole('button', { name: 'Restore', exact: true }).click()
   await expect(restore).toBeHidden()
+  await expect(page.getByText(`${source} rebuilt`, { exact: true })).toBeVisible({
+    timeout: 90_000,
+  })
   await expect(serverHeader(page).getByText('Running', { exact: true })).toBeVisible({
     timeout: 90_000,
   })
