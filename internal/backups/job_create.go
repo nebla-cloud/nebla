@@ -237,6 +237,10 @@ func (w *CreateBackupWorker) lock(ctx context.Context, jobID, id int64, node str
 		if srv.Status == server.StatusDeleting || srv.Status == server.StatusRebuilding || srv.Vmid == nil {
 			return etx.Backup.DeleteOneID(id).Exec(ctx)
 		}
+		// Turned off since it was queued; it would land with no quota check.
+		if b.Status == backup.StatusQueued && !srv.BackupsEnabled {
+			return etx.Backup.DeleteOneID(id).Exec(ctx)
+		}
 		if srv.Node != node {
 			return errWaitServer
 		}

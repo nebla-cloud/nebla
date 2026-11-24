@@ -698,12 +698,12 @@ func (s *Service) checkBackups(b BackupSettings, loc catalog.Location, wasOn boo
 // StoredBackups matches the backups that count against a project's backup quota.
 var StoredBackups = backup.StatusNotIn(backup.StatusQueued, backup.StatusError)
 
-// BackupReservation is what the server reserves of its project's backup quota: its keep when on, else its stored backups.
-func BackupReservation(ctx context.Context, c *ent.Client, row *ent.Server) (int, error) {
-	if row.BackupsEnabled {
-		return row.BackupKeep, nil
+// BackupReservation is what a server reserves of its project's backup quota: its stored backups, and at least its keep when on.
+func BackupReservation(enabled bool, keep, stored int) int {
+	if enabled {
+		return max(keep, stored)
 	}
-	return c.Backup.Query().Where(backup.ServerID(row.ID), StoredBackups).Count(ctx)
+	return stored
 }
 
 // applyBackups reserves the change in keep under the project lock and sets the backup columns on u.
@@ -715,18 +715,19 @@ func (s *Service) applyBackups(ctx context.Context, etx *ent.Client, row *ent.Se
 	if err := s.checkBackups(b, loc, row.BackupsEnabled); err != nil {
 		return err
 	}
-	old, err := BackupReservation(ctx, etx, row)
+	stored, err := etx.Backup.Query().Where(backup.ServerID(row.ID), StoredBackups).Count(ctx)
 	if err != nil {
 		return err
 	}
-	next := b.Keep
-	if !b.Enabled {
-		if next, err = etx.Backup.Query().Where(backup.ServerID(row.ID), StoredBackups).Count(ctx); err != nil {
+	old, next := BackupReservation(row.BackupsEnabled, row.BackupKeep, stored), BackupReservation(b.Enabled, b.Keep, stored)
+	if next > old {
+		if err := s.o.Projects.ReserveQuota(ctx, etx, row.ProjectID, projects.Usage{BackupsReserved: next - old}); err != nil {
 			return err
 		}
 	}
-	if next > old {
-		if err := s.o.Projects.ReserveQuota(ctx, etx, row.ProjectID, projects.Usage{BackupsReserved: next - old}); err != nil {
+	if !b.Enabled {
+		// A queued backup would land after this with no quota check.
+		if err := dropQueuedBackups(ctx, etx, row.ID); err != nil {
 			return err
 		}
 	}

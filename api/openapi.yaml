@@ -3153,7 +3153,7 @@ components:
         volumes: { type: integer }
         volume_gb: { type: integer }
         backups: { type: integer, description: Stored backups }
-        backups_reserved: { type: integer, description: "Backup slots held: keep for servers with backups on, else their stored count" }
+        backups_reserved: { type: integer, description: "Backup slots held: each server's stored count, and at least its keep while backups are on" }
     AdminProject:
       type: object
       required: [id, name, quota, owner_email, usage, member_count, created]

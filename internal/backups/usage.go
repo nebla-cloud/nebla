@@ -52,11 +52,7 @@ func UsageWith(next projects.UsageFunc) projects.UsageFunc {
 			return projects.Usage{}, err
 		}
 		for _, s := range srvs {
-			if s.BackupsEnabled {
-				u.BackupsReserved += s.BackupKeep
-			} else {
-				u.BackupsReserved += stored[s.ID]
-			}
+			u.BackupsReserved += servers.BackupReservation(s.BackupsEnabled, s.BackupKeep, stored[s.ID])
 		}
 		return u, nil
 	}

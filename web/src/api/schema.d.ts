@@ -1978,7 +1978,7 @@ export interface components {
             volume_gb: number;
             /** @description Stored backups */
             backups: number;
-            /** @description Backup slots held: keep for servers with backups on, else their stored count */
+            /** @description Backup slots held: each server's stored count, and at least its keep while backups are on */
             backups_reserved: number;
         };
         AdminProject: {

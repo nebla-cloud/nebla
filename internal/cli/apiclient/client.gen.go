@@ -1207,7 +1207,7 @@ type ProjectUsage struct {
 	// Backups Stored backups
 	Backups int `json:"backups"`
 
-	// BackupsReserved Backup slots held: keep for servers with backups on, else their stored count
+	// BackupsReserved Backup slots held: each server's stored count, and at least its keep while backups are on
 	BackupsReserved int `json:"backups_reserved"`
 	DiskGb          int `json:"disk_gb"`
 	Ips             int `json:"ips"`
