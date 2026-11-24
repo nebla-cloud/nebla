@@ -242,7 +242,7 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
             <template v-if="location.backup_storage_ok">
               Backups are ready on {{ location.backup_storage }}.
             </template>
-            Scheduled backups run between {{ location.backup_window.start }} to
+            Scheduled backups run between {{ location.backup_window.start }} and
             {{ location.backup_window.end }} UTC.
           </p>
           <UAlert

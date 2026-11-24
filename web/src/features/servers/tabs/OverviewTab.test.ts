@@ -287,6 +287,10 @@ describe('OverviewTab', () => {
     expect(await openDelete(3)).toContain('3 backups will also be deleted.')
   })
 
+  it('the delete dialog uses the singular for one backup', async () => {
+    expect(await openDelete(1)).toContain('1 backup will also be deleted.')
+  })
+
   it('the delete dialog is silent when there are no backups', async () => {
     expect(await openDelete(0)).not.toContain('backups will also be deleted')
   })

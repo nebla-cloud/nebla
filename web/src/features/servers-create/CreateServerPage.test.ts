@@ -486,6 +486,16 @@ describe('CreateServerPage', () => {
       expect(document.body.textContent).not.toContain('Enable daily backups')
     })
 
+    it('blocks Create when the reserved slots would pass the backup limit', async () => {
+      serveCatalog(locations, 5)
+      await mountCreate()
+      expect(createButton().disabled).toBe(false)
+      box()!.click()
+      await settle()
+      expect(createButton().disabled).toBe(true)
+      expect(document.body.textContent).toContain("Daily backups don't fit in the project's backup quota.")
+    })
+
     it('sends backups only when ticked', async () => {
       serveCatalog()
       let body: Record<string, unknown> = {}

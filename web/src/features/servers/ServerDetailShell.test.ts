@@ -56,8 +56,18 @@ const locationList = (backups: boolean) => ({
   meta: { pagination: { page: 1, per_page: 50, total_entries: 1 } },
 })
 
+let runningActions: Action[] = []
+
 function serve(s: Server, backups = false) {
+  runningActions = []
   server.use(
+    http.get('*/v1/servers/:id/actions', ({ request }) => {
+      const list = new URL(request.url).searchParams.get('status') ? runningActions : []
+      return json(200, {
+        actions: list,
+        meta: { pagination: { page: 1, per_page: 25, total_entries: list.length } },
+      })
+    }),
     http.get('*/v1/locations', () => json(200, locationList(backups))),
     http.get('*/v1/projects/1', () =>
       json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
@@ -297,6 +307,26 @@ describe('ServerDetailShell', () => {
     expect(tabs.indexOf('Backups')).toBe(tabs.indexOf('Volumes') + 1)
     const link = on.wrapper.findAll('nav a').find((a) => a.text() === 'Backups')!
     expect(link.attributes('href')).toBe('/p/1/servers/5/backups')
+  })
+
+  it('keeps the Backups tab while backups exist even if the location stopped offering them', async () => {
+    const labels = (w: VueWrapper) =>
+      w.findAll('nav[aria-label="Server sections"] a').map((a) => a.text())
+    const base = makeServer({ id: 5 })
+    serve({ ...base, backups: { ...base.backups, count: 2 } }, false)
+    const { wrapper } = await mountDetail('/p/1/servers/5')
+    await vi.waitFor(() => expect(labels(wrapper)).toContain('Backups'))
+  })
+
+  it('the chip says Restoring after a reload while the restore still runs', async () => {
+    serve(makeServer({ id: 5, status: 'rebuilding' }), true)
+    runningActions = [
+      action({ id: 3, command: 'restore_backup', resources: [{ id: 5, type: 'server' }] }),
+    ]
+    const { wrapper } = await mountDetail('/p/1/servers/5')
+    const header = wrapper.findAll('header').find((h) => h.find('h1').exists())!
+    await vi.waitFor(() => expect(header.text()).toContain('Restoring'))
+    expect(header.text()).not.toContain('Rebuilding')
   })
 
   it('the status chip says Restoring while a restore_backup action runs', async () => {

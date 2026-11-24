@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { computed, type ComputedRef } from 'vue'
-import type { Location, Role } from '@/api/types'
+import type { Location, Role, Server } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
 import {
   useRouter,
@@ -42,7 +42,7 @@ declare module 'vue-router' {
       label: string
       order: number
       // Hides the tab; the location is undefined until the project's locations load.
-      visible?: (location: Location | undefined) => boolean
+      visible?: (location: Location | undefined, server: Server) => boolean
     }
   }
 }

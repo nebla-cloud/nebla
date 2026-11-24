@@ -208,8 +208,19 @@ describe('admin locations', () => {
     it('shows the window and a ready state when permitted', async () => {
       const box = await show({ backup_storage: 'pbs', backup_storage_ok: true })
       expect(box.text()).toContain('Backups are ready')
-      expect(box.text()).toContain('02:00 to 06:00 UTC')
+      expect(box.text()).toContain('02:00 and 06:00 UTC')
       expect(box.text()).not.toContain('pveum')
+    })
+
+    it('uses the singular for one backup on an earlier storage', async () => {
+      const box = await show({
+        backup_storage: 'pbs',
+        backup_storage_ok: true,
+        backups_on_other_storage: 1,
+      })
+      expect(box.text()).toContain(
+        '1 backup remains on an earlier storage and stays restorable until it rotates out.',
+      )
     })
 
     it('counts backups left on an earlier storage', async () => {

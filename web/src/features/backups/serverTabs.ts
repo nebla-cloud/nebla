@@ -24,7 +24,9 @@ export default [
       serverTab: {
         label: 'Backups',
         order: 57,
-        visible: (location) => location?.backups_available === true,
+        // Kept while backups exist, so they stay restorable after the location stops offering them.
+        visible: (location, server) =>
+          location?.backups_available === true || server.backups.count > 0,
       },
     },
   },

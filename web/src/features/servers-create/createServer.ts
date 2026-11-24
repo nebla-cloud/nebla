@@ -152,7 +152,7 @@ export function userDataBytes(s: string): number {
 export function createBlocker(
   form: CreateForm,
   ctx: CreateContext,
-  opts: { quotaOk: boolean; existing: string[] },
+  opts: { quotaOk: boolean; existing: string[]; backupsOk?: boolean },
 ): string | null {
   const loc = ctx.locations.find((l) => l.id === form.locationId)
   if (!loc) return 'Pick a location.'
@@ -169,5 +169,6 @@ export function createBlocker(
   if (userDataBytes(form.userData) > MAX_USER_DATA)
     return 'Cloud-init user data must be 32 KiB or less.'
   if (!opts.quotaOk) return "This server doesn't fit in the project's quota."
+  if (opts.backupsOk === false) return "Daily backups don't fit in the project's backup quota."
   return null
 }

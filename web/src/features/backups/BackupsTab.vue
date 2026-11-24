@@ -27,6 +27,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ListGroup from '@/components/ListGroup.vue'
 import Panel from '@/components/Panel.vue'
+import { useLocations } from '@/features/servers-create/queries'
 import { serverBusyKey } from '@/features/servers/shell'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useCurrentProject } from '@/lib/project'
@@ -59,6 +60,13 @@ const busy = inject(
 )
 const serverId = computed(() => props.server.id)
 const { data: backups, isPending: loading, error: loadError } = useBackups(serverId)
+
+const locations = useLocations()
+// Unknown counts as available, so the toggle doesn't flicker while locations load.
+const available = computed(
+  () =>
+    locations.data.value?.find((l) => l.id === props.server.location.id)?.backups_available ?? true,
+)
 
 const keeps = Array.from({ length: MAX_KEEP - MIN_KEEP + 1 }, (_, i) => MIN_KEEP + i)
 const keep = ref(props.server.backups.keep || DEFAULT_KEEP)
@@ -175,7 +183,7 @@ const confirmDelete = () =>
           <USwitch
             :model-value="server.backups.enabled"
             label="Daily backups"
-            :disabled="locked"
+            :disabled="locked || !available"
             @update:model-value="(v: boolean) => save(v)"
           />
           <label class="flex items-center gap-2 text-sm text-muted">
@@ -199,6 +207,9 @@ const confirmDelete = () =>
             Last backup: {{ formatDateTime(server.backups.last_backup_at) }}
           </p>
         </div>
+        <p v-if="!available" class="text-sm text-muted">
+          Backups are turned off for this location. Existing backups stay restorable.
+        </p>
         <div class="flex flex-wrap items-center gap-3">
           <UButton
             color="neutral"

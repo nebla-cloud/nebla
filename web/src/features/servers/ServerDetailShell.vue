@@ -30,6 +30,7 @@ import { actionDone } from '@/components/actionLabel'
 import PageHeader from '@/components/PageHeader.vue'
 import Panel from '@/components/Panel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { useActions } from '@/features/activity/queries'
 import { useLocations } from '@/features/servers-create/queries'
 import { useCrumbs } from '@/lib/crumbs'
 import { formatDate } from '@/lib/format'
@@ -59,8 +60,17 @@ const { action, running, error: actionError } = useActionPoll(actionId, { onDone
 const { data: server, error: loadError } = useServer(serverId, running)
 const locations = useLocations()
 const here = computed(() => locations.data.value?.find((l) => l.id === server.value?.location.id))
-const tabs = computed(() => allTabs.filter((t) => t.visible?.(here.value) ?? true))
-const restoring = computed(() => running.value && action.value?.command === 'restore_backup')
+const tabs = computed(() => allTabs.filter((t) => !server.value || (t.visible?.(here.value, server.value) ?? true)))
+const runningActions = useActions({ serverId, status: ref('running') })
+// Also true after a reload, when the in-session action is gone.
+const restoring = computed(
+  () =>
+    (running.value && action.value?.command === 'restore_backup') ||
+    (runningActions.data.value?.pages.some((p) =>
+      p.actions.some((a) => a.status === 'running' && a.command === 'restore_backup'),
+    ) ??
+      false),
+)
 provide(serverBusyKey, running)
 
 useCrumbs(() => [

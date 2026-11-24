@@ -24,7 +24,6 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import type { AdminLocation } from '@/api/types'
-import { selectFullClass } from '@/lib/ui'
 import { useSaveLocation, type LocationInput } from './queries'
 
 const props = defineProps<{ location?: AdminLocation; backupStorages?: string[] }>()
@@ -53,7 +52,7 @@ const form = reactive({
 })
 // The reported PBS storages, plus the one in use even if the last report no longer lists it.
 const pbsOptions = computed(() => [
-  ...new Set([...(props.backupStorages ?? []), ...(form.backup_storage ? [form.backup_storage] : [])]),
+  ...new Set([...(props.backupStorages ?? []), ...(props.location?.backup_storage ? [props.location.backup_storage] : [])]),
 ])
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
@@ -93,7 +92,7 @@ function body(): LocationInput {
   if (edit || form.import_storage.trim()) out.import_storage = form.import_storage.trim()
   if (edit || form.volume_storage.trim()) out.volume_storage = form.volume_storage.trim()
   if (edit) {
-    out.backup_storage = form.backup_storage
+    out.backup_storage = form.backup_storage.trim()
     out.backup_window = { start: form.window_start, end: form.window_end }
   }
   return out
@@ -108,6 +107,8 @@ async function submit() {
     const message = errorMessage(e)
     if (message.startsWith('import_storage ')) {
       errors.value.import_storage = message
+    } else if (message.startsWith('backup storage ')) {
+      errors.value.backup_storage = message
     } else {
       formError.value = message
     }
@@ -254,12 +255,20 @@ async function submit() {
       <UFormField
         label="Backup storage"
         name="backup_storage"
-        help="A Proxmox Backup Server storage. Choose None to turn backups off here. Existing backups stay restorable."
+        help="A Proxmox Backup Server storage. Leave blank to turn backups off here. Existing backups stay restorable."
+        :error="errors.backup_storage"
       >
-        <select v-model="form.backup_storage" name="backup_storage" :class="selectFullClass">
-          <option value="">None</option>
-          <option v-for="s in pbsOptions" :key="s" :value="s">{{ s }}</option>
-        </select>
+        <UInput
+          v-model="form.backup_storage"
+          name="backup_storage"
+          list="backup-storages"
+          placeholder="None"
+          autocomplete="off"
+          class="w-full"
+        />
+        <datalist id="backup-storages">
+          <option v-for="s in pbsOptions" :key="s" :value="s" />
+        </datalist>
       </UFormField>
       <UFormField
         label="Backup window (UTC)"

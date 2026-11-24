@@ -163,14 +163,14 @@ describe('LocationForm', () => {
 
   describe('backups', () => {
     const select = (w: ReturnType<typeof mountApp>['wrapper']) =>
-      w.find('select[name="backup_storage"]')
+      w.find('input[name="backup_storage"]')
 
     it('is not on the create form', () => {
       const { wrapper } = mountApp(LocationForm)
       expect(select(wrapper).exists()).toBe(false)
     })
 
-    it('offers None, the reported PBS storages and the current one', async () => {
+    it('suggests the reported PBS storages and the current one', async () => {
       const { wrapper } = mountApp(LocationForm, {
         props: {
           location: { ...existing, backup_storage: 'old' },
@@ -179,12 +179,10 @@ describe('LocationForm', () => {
       })
       expect(wrapper.text()).toContain('Backup storage')
       expect(wrapper.text()).toContain('Backup window (UTC)')
-      expect(select(wrapper).findAll('option').map((o) => o.text())).toEqual([
-        'None',
-        'pbs',
-        'old',
-      ])
-      expect((select(wrapper).element as HTMLSelectElement).value).toBe('old')
+      expect(
+        wrapper.findAll('datalist#backup-storages option').map((o) => o.attributes('value')),
+      ).toEqual(['pbs', 'old'])
+      expect((select(wrapper).element as HTMLInputElement).value).toBe('old')
       expect((wrapper.find('input[name="backup_window_start"]').element as HTMLInputElement).value).toBe('02:00')
       expect((wrapper.find('input[name="backup_window_end"]').element as HTMLInputElement).value).toBe('06:00')
     })
@@ -209,6 +207,27 @@ describe('LocationForm', () => {
         backup_storage: 'pbs',
         backup_window: { start: '01:30', end: '05:00' },
       })
+    })
+
+    it('shows the server message on the field', async () => {
+      server.use(
+        http.put('*/v1/admin/locations/1', () =>
+          json(422, {
+            error: {
+              code: 'invalid_input',
+              message:
+                'backup storage must be a Proxmox Backup Server storage with backup content',
+            },
+          }),
+        ),
+      )
+      const { wrapper } = mountApp(LocationForm, { props: { location: existing } })
+      await select(wrapper).setValue('nope')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      expect(wrapper.text()).toContain(
+        'backup storage must be a Proxmox Backup Server storage',
+      )
     })
 
     it('refuses a window that starts when it ends', async () => {

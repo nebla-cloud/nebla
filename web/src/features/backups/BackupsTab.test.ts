@@ -17,7 +17,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Action, Server } from '@/api/types'
 import { makeServer } from '@/features/servers/fixtures'
 import { formatDateTime } from '@/lib/format'
+import { json, server } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
+import { http } from 'msw'
+import { makeLocation } from '../volumes/fixtures'
 import BackupsTab from './BackupsTab.vue'
 import { makeBackup, type Backup } from './fixtures'
 import { backupAction, button, serveBackups, settle, type Calls } from './testkit'
@@ -26,6 +29,7 @@ let backups: Backup[]
 let calls: Calls
 let unmount: () => void
 let started: Action[]
+let offered = true
 
 const on = (over: Partial<Server['backups']> = {}) =>
   makeServer({
@@ -44,6 +48,7 @@ beforeEach(() => {
   backups = [makeBackup()]
   calls = { list: 0, posts: [], deletes: [], restores: [], puts: [] }
   started = []
+  offered = true
   serveBackups(() => backups, calls)
 })
 
@@ -53,6 +58,14 @@ afterEach(() => {
 })
 
 async function mountTab(s: Server = on()) {
+  server.use(
+    http.get('*/v1/locations', () =>
+      json(200, {
+        locations: [makeLocation({ id: 1, backups_available: offered })],
+        meta: { pagination: { page: 1, per_page: 50, total_entries: 1 } },
+      }),
+    ),
+  )
   const router = testRouter([
     { path: '/p/:projectId/servers/:serverId/backups', name: 'server-backups', component: BackupsTab },
   ])
@@ -179,6 +192,28 @@ describe('BackupsTab', () => {
     await settle()
     expect(calls.deletes).toEqual(['1'])
     expect(started.map((a) => a.command)).toEqual([backupAction('delete_backup').command])
+  })
+
+  it('keeps the list and Back up now but locks the toggle where backups are off', async () => {
+    offered = false
+    await mountTab()
+    const sw = document.body.querySelector('button[role=switch]') as HTMLButtonElement
+    expect(sw.disabled).toBe(true)
+    expect(document.body.textContent).toContain(
+      'Backups are turned off for this location. Existing backups stay restorable.',
+    )
+    expect(button('Back up now').disabled).toBe(false)
+    expect(rows()).toHaveLength(1)
+    expect(rows()[0]!.querySelector('button[aria-label^="Restore"]')).toBeTruthy()
+    expect(rows()[0]!.querySelector('button[aria-label^="Delete"]')).toBeTruthy()
+  })
+
+  it('says nothing about it where backups are offered', async () => {
+    await mountTab()
+    expect(document.body.textContent).not.toContain('Backups are turned off')
+    expect((document.body.querySelector('button[role=switch]') as HTMLButtonElement).disabled).toBe(
+      false,
+    )
   })
 
   it('explains an empty list', async () => {

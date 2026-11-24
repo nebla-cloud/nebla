@@ -21,12 +21,12 @@ import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
+import UCheckbox from '@nuxt/ui/components/Checkbox.vue'
 import UCollapsible from '@nuxt/ui/components/Collapsible.vue'
 import UIcon from '@nuxt/ui/components/Icon.vue'
 import { api } from '@/api/client'
 import { errorMessage, unwrap } from '@/api/errors'
 import type { components } from '@/api/schema'
-import UCheckbox from '@nuxt/ui/components/Checkbox.vue'
 import ChoiceCard from '@/components/ChoiceCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -139,6 +139,12 @@ const backupLimit = computed(() => {
   const max = project.value?.quota?.max_backups ?? 0
   return max > 0 ? String(max) : 'unlimited'
 })
+const backupsOk = computed(() => {
+  const p = project.value
+  if (!backupsOn.value || !p?.quota || !p.usage) return true
+  const max = p.quota.max_backups
+  return max <= 0 || p.usage.backups_reserved + DEFAULT_KEEP <= max
+})
 const existing = computed(() => (servers.value ?? []).map((s) => s.name))
 
 function applyReconcile() {
@@ -201,7 +207,11 @@ const quota = computed(() => {
 const blocker = computed(() =>
   submitting.value
     ? null
-    : createBlocker(form, ctx.value, { quotaOk: quota.value.ok, existing: existing.value }),
+    : createBlocker(form, ctx.value, {
+        quotaOk: quota.value.ok,
+        existing: existing.value,
+        backupsOk: backupsOk.value,
+      }),
 )
 
 const userDataSize = computed(() => userDataBytes(form.userData))
