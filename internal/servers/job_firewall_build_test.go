@@ -62,7 +62,7 @@ func (s *settles) get() ([]time.Duration, []int) {
 func createWithFirewall(t *testing.T, e *testutil.ServerEnv, name string, fw ...int64) testutil.CreatedServer {
 	t.Helper()
 	srv, a, err := serverService(e).Create(context.Background(), e.Project, servers.CreateInput{Name: name, ServerType: "small",
-		Image: "ubuntu", Location: "eu-1", IPv4: true, Firewalls: fw})
+		Image: "ubuntu", Location: "eu-1", IPv4: servers.IPChoice{New: true}, Firewalls: fw})
 	require.NoError(t, err)
 	return testutil.CreatedServer{ServerID: srv.ID, ActionID: a.ID}
 }

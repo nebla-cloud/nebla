@@ -128,7 +128,7 @@ describe('OverviewTab', () => {
   it('puts the facts in a panel with a description list', async () => {
     const w = await mountTab(
       makeServer({
-        public_net: { ipv4: { ip: '203.0.113.10' }, ipv6: { ip: '2001:db8::10' }, floating_ips: [] },
+        public_net: { ipv4: { id: 1, ip: '203.0.113.10' }, ipv6: { id: 2, ip: '2001:db8::10' }, floating_ips: [] },
         labels: { env: 'prod' },
       }),
     )
@@ -162,7 +162,7 @@ describe('OverviewTab', () => {
     const w = await mountTab(
       makeServer({
         public_net: {
-          ipv4: { ip: '203.0.113.10' },
+          ipv4: { id: 1, ip: '203.0.113.10' },
           ipv6: null,
           floating_ips: [
             { id: 3, ip: '203.0.113.50' },

@@ -301,6 +301,60 @@ func (e LocationEnrollmentState) Valid() bool {
 	}
 }
 
+// Defines values for PrimaryIpStatus.
+const (
+	PrimaryIpStatusActive    PrimaryIpStatus = "active"
+	PrimaryIpStatusReleasing PrimaryIpStatus = "releasing"
+)
+
+// Valid indicates whether the value is a known member of the PrimaryIpStatus enum.
+func (e PrimaryIpStatus) Valid() bool {
+	switch e {
+	case PrimaryIpStatusActive:
+		return true
+	case PrimaryIpStatusReleasing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrimaryIpType.
+const (
+	PrimaryIpTypeIpv4 PrimaryIpType = "ipv4"
+	PrimaryIpTypeIpv6 PrimaryIpType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the PrimaryIpType enum.
+func (e PrimaryIpType) Valid() bool {
+	switch e {
+	case PrimaryIpTypeIpv4:
+		return true
+	case PrimaryIpTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrimaryIpInputType.
+const (
+	PrimaryIpInputTypeIpv4 PrimaryIpInputType = "ipv4"
+	PrimaryIpInputTypeIpv6 PrimaryIpInputType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the PrimaryIpInputType enum.
+func (e PrimaryIpInputType) Valid() bool {
+	switch e {
+	case PrimaryIpInputTypeIpv4:
+		return true
+	case PrimaryIpInputTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PrivateNetworkPoolState.
 const (
 	FirewallOff PrivateNetworkPoolState = "firewall_off"
@@ -460,6 +514,24 @@ const (
 func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 	switch e {
 	case Unavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetPrimaryIpsParamsType.
+const (
+	GetPrimaryIpsParamsTypeIpv4 GetPrimaryIpsParamsType = "ipv4"
+	GetPrimaryIpsParamsTypeIpv6 GetPrimaryIpsParamsType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the GetPrimaryIpsParamsType enum.
+func (e GetPrimaryIpsParamsType) Valid() bool {
+	switch e {
+	case GetPrimaryIpsParamsTypeIpv4:
+		return true
+	case GetPrimaryIpsParamsTypeIpv6:
 		return true
 	default:
 		return false
@@ -1296,6 +1368,70 @@ type PasswordChange struct {
 	NewPassword     string `json:"new_password"`
 }
 
+// PrimaryIp defines model for PrimaryIp.
+type PrimaryIp struct {
+	// AutoDelete Delete the address when its server is deleted
+	AutoDelete  bool      `json:"auto_delete"`
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	Id          int64     `json:"id"`
+
+	// Ip The bare address
+	Ip string `json:"ip"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+	Server   *struct {
+		Id   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"server"`
+	Status PrimaryIpStatus `json:"status"`
+	Type   PrimaryIpType   `json:"type"`
+}
+
+// PrimaryIpStatus defines model for PrimaryIp.Status.
+type PrimaryIpStatus string
+
+// PrimaryIpType defines model for PrimaryIp.Type.
+type PrimaryIpType string
+
+// PrimaryIpAssignInput defines model for PrimaryIpAssignInput.
+type PrimaryIpAssignInput struct {
+	// Server Server id or name
+	Server string `json:"server"`
+}
+
+// PrimaryIpInput defines model for PrimaryIpInput.
+type PrimaryIpInput struct {
+	AutoDelete  *bool   `json:"auto_delete,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name
+	Location string `json:"location"`
+
+	// Name Generated when omitted
+	Name *string            `json:"name,omitempty"`
+	Type PrimaryIpInputType `json:"type"`
+}
+
+// PrimaryIpInputType defines model for PrimaryIpInput.Type.
+type PrimaryIpInputType string
+
+// PrimaryIpUpdate defines model for PrimaryIpUpdate.
+type PrimaryIpUpdate struct {
+	AutoDelete  *bool   `json:"auto_delete,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
+}
+
 // PrivateNetworkPool Read-only: the location's private network pool
 type PrivateNetworkPool struct {
 	Available int `json:"available"`
@@ -1506,8 +1642,11 @@ type ServerInput struct {
 		Network string `json:"network"`
 	} `json:"networks,omitempty"`
 	PublicNet *struct {
-		Ipv4 *bool `json:"ipv4,omitempty"`
-		Ipv6 *bool `json:"ipv6,omitempty"`
+		// Ipv4 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+		Ipv4 *ServerInput_PublicNet_Ipv4 `json:"ipv4,omitempty"`
+
+		// Ipv6 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+		Ipv6 *ServerInput_PublicNet_Ipv6 `json:"ipv6,omitempty"`
 	} `json:"public_net,omitempty"`
 
 	// ServerType Server type id or name
@@ -1521,8 +1660,32 @@ type ServerInput struct {
 	UserData *string `json:"user_data,omitempty"`
 }
 
+// ServerInputPublicNetIpv40 defines model for ServerInput.PublicNet.Ipv4.0.
+type ServerInputPublicNetIpv40 = bool
+
+// ServerInputPublicNetIpv41 defines model for ServerInput.PublicNet.Ipv4.1.
+type ServerInputPublicNetIpv41 = string
+
+// ServerInput_PublicNet_Ipv4 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+type ServerInput_PublicNet_Ipv4 struct {
+	union json.RawMessage
+}
+
+// ServerInputPublicNetIpv60 defines model for ServerInput.PublicNet.Ipv6.0.
+type ServerInputPublicNetIpv60 = bool
+
+// ServerInputPublicNetIpv61 defines model for ServerInput.PublicNet.Ipv6.1.
+type ServerInputPublicNetIpv61 = string
+
+// ServerInput_PublicNet_Ipv6 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+type ServerInput_PublicNet_Ipv6 struct {
+	union json.RawMessage
+}
+
 // ServerIp defines model for ServerIp.
 type ServerIp struct {
+	// Id The primary IP's id
+	Id int64  `json:"id"`
 	Ip string `json:"ip"`
 }
 
@@ -1713,6 +1876,12 @@ type ActionsCreated struct {
 type NetworkActionCreated struct {
 	Action      Action              `json:"action"`
 	GuestConfig *NetworkGuestConfig `json:"guest_config"`
+}
+
+// PrimaryIpActionCreated defines model for PrimaryIpActionCreated.
+type PrimaryIpActionCreated struct {
+	Action   Action   `json:"action"`
+	Warnings []string `json:"warnings"`
 }
 
 // GetActionsParams defines parameters for GetActions.
@@ -1927,6 +2096,42 @@ type GetNetworksParams struct {
 
 // GetNetworkActionsParams defines parameters for GetNetworkActions.
 type GetNetworkActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// GetPrimaryIpsParams defines parameters for GetPrimaryIps.
+type GetPrimaryIpsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact primary IP name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Server Only primary IPs assigned to this server id or name
+	Server *string `form:"server,omitempty" json:"server,omitempty"`
+
+	// Location Only primary IPs in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+
+	// Type Only primary IPs of this family
+	Type *GetPrimaryIpsParamsType `form:"type,omitempty" json:"type,omitempty"`
+}
+
+// GetPrimaryIpsParamsType defines parameters for GetPrimaryIps.
+type GetPrimaryIpsParamsType string
+
+// GetPrimaryIpActionsParams defines parameters for GetPrimaryIpActions.
+type GetPrimaryIpActionsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
 	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
 
@@ -2169,6 +2374,15 @@ type PostNetworksJSONRequestBody = NetworkInput
 // PutNetworkJSONRequestBody defines body for PutNetwork for application/json ContentType.
 type PutNetworkJSONRequestBody = NetworkUpdate
 
+// PostPrimaryIpsJSONRequestBody defines body for PostPrimaryIps for application/json ContentType.
+type PostPrimaryIpsJSONRequestBody = PrimaryIpInput
+
+// PutPrimaryIpJSONRequestBody defines body for PutPrimaryIp for application/json ContentType.
+type PutPrimaryIpJSONRequestBody = PrimaryIpUpdate
+
+// AssignPrimaryIpJSONRequestBody defines body for AssignPrimaryIp for application/json ContentType.
+type AssignPrimaryIpJSONRequestBody = PrimaryIpAssignInput
+
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody = ProjectInput
 
@@ -2228,6 +2442,130 @@ type AttachVolumeJSONRequestBody = VolumeAttachInput
 
 // ResizeVolumeJSONRequestBody defines body for ResizeVolume for application/json ContentType.
 type ResizeVolumeJSONRequestBody = VolumeResizeInput
+
+// AsServerInputPublicNetIpv40 returns the union data inside the ServerInput_PublicNet_Ipv4 as a ServerInputPublicNetIpv40
+func (t ServerInput_PublicNet_Ipv4) AsServerInputPublicNetIpv40() (ServerInputPublicNetIpv40, error) {
+	var body ServerInputPublicNetIpv40
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv40 overwrites any union data inside the ServerInput_PublicNet_Ipv4 as the provided ServerInputPublicNetIpv40
+func (t *ServerInput_PublicNet_Ipv4) FromServerInputPublicNetIpv40(v ServerInputPublicNetIpv40) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv40 performs a merge with any union data inside the ServerInput_PublicNet_Ipv4, using the provided ServerInputPublicNetIpv40
+func (t *ServerInput_PublicNet_Ipv4) MergeServerInputPublicNetIpv40(v ServerInputPublicNetIpv40) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerInputPublicNetIpv41 returns the union data inside the ServerInput_PublicNet_Ipv4 as a ServerInputPublicNetIpv41
+func (t ServerInput_PublicNet_Ipv4) AsServerInputPublicNetIpv41() (ServerInputPublicNetIpv41, error) {
+	var body ServerInputPublicNetIpv41
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv41 overwrites any union data inside the ServerInput_PublicNet_Ipv4 as the provided ServerInputPublicNetIpv41
+func (t *ServerInput_PublicNet_Ipv4) FromServerInputPublicNetIpv41(v ServerInputPublicNetIpv41) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv41 performs a merge with any union data inside the ServerInput_PublicNet_Ipv4, using the provided ServerInputPublicNetIpv41
+func (t *ServerInput_PublicNet_Ipv4) MergeServerInputPublicNetIpv41(v ServerInputPublicNetIpv41) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ServerInput_PublicNet_Ipv4) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ServerInput_PublicNet_Ipv4) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsServerInputPublicNetIpv60 returns the union data inside the ServerInput_PublicNet_Ipv6 as a ServerInputPublicNetIpv60
+func (t ServerInput_PublicNet_Ipv6) AsServerInputPublicNetIpv60() (ServerInputPublicNetIpv60, error) {
+	var body ServerInputPublicNetIpv60
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv60 overwrites any union data inside the ServerInput_PublicNet_Ipv6 as the provided ServerInputPublicNetIpv60
+func (t *ServerInput_PublicNet_Ipv6) FromServerInputPublicNetIpv60(v ServerInputPublicNetIpv60) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv60 performs a merge with any union data inside the ServerInput_PublicNet_Ipv6, using the provided ServerInputPublicNetIpv60
+func (t *ServerInput_PublicNet_Ipv6) MergeServerInputPublicNetIpv60(v ServerInputPublicNetIpv60) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerInputPublicNetIpv61 returns the union data inside the ServerInput_PublicNet_Ipv6 as a ServerInputPublicNetIpv61
+func (t ServerInput_PublicNet_Ipv6) AsServerInputPublicNetIpv61() (ServerInputPublicNetIpv61, error) {
+	var body ServerInputPublicNetIpv61
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv61 overwrites any union data inside the ServerInput_PublicNet_Ipv6 as the provided ServerInputPublicNetIpv61
+func (t *ServerInput_PublicNet_Ipv6) FromServerInputPublicNetIpv61(v ServerInputPublicNetIpv61) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv61 performs a merge with any union data inside the ServerInput_PublicNet_Ipv6, using the provided ServerInputPublicNetIpv61
+func (t *ServerInput_PublicNet_Ipv6) MergeServerInputPublicNetIpv61(v ServerInputPublicNetIpv61) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ServerInput_PublicNet_Ipv6) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ServerInput_PublicNet_Ipv6) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -3153,6 +3491,73 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /networks/{id}/actions (the `GetNetworkActions` operationId).
 	GetNetworkActions(ctx context.Context, id ID, params *GetNetworkActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPrimaryIps List the project's primary IPs
+	//
+	// Corresponds with GET /primary_ips (the `GetPrimaryIps` operationId).
+	GetPrimaryIps(ctx context.Context, params *GetPrimaryIpsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostPrimaryIpsWithBody Reserve a primary IP in a location
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+	PostPrimaryIpsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostPrimaryIps Reserve a primary IP in a location
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+	PostPrimaryIps(ctx context.Context, body PostPrimaryIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePrimaryIp Delete an unassigned primary IP
+	//
+	// Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
+	DeletePrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPrimaryIp Get a primary IP
+	//
+	// Corresponds with GET /primary_ips/{id} (the `GetPrimaryIp` operationId).
+	GetPrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutPrimaryIpWithBody Rename a primary IP, change its description, labels or auto-delete
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+	PutPrimaryIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutPrimaryIp Rename a primary IP, change its description, labels or auto-delete
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+	PutPrimaryIp(ctx context.Context, id ID, body PutPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPrimaryIpActions List a primary IP's actions
+	//
+	// Corresponds with GET /primary_ips/{id}/actions (the `GetPrimaryIpActions` operationId).
+	GetPrimaryIpActions(ctx context.Context, id ID, params *GetPrimaryIpActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AssignPrimaryIpWithBody Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+	AssignPrimaryIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AssignPrimaryIp Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+	AssignPrimaryIp(ctx context.Context, id ID, body AssignPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnassignPrimaryIp Unassign a primary IP from its stopped server; it takes effect when the server starts
+	//
+	// Corresponds with POST /primary_ips/{id}/actions/unassign (the `UnassignPrimaryIp` operationId).
+	UnassignPrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProjects List the caller's projects
 	//
@@ -5830,6 +6235,183 @@ func (c *Client) PutNetwork(ctx context.Context, id ID, body PutNetworkJSONReque
 // Corresponds with GET /networks/{id}/actions (the `GetNetworkActions` operationId).
 func (c *Client) GetNetworkActions(ctx context.Context, id ID, params *GetNetworkActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetNetworkActionsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetPrimaryIps List the project's primary IPs
+//
+// Corresponds with GET /primary_ips (the `GetPrimaryIps` operationId).
+func (c *Client) GetPrimaryIps(ctx context.Context, params *GetPrimaryIpsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPrimaryIpsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostPrimaryIpsWithBody Reserve a primary IP in a location
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+func (c *Client) PostPrimaryIpsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostPrimaryIpsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostPrimaryIps Reserve a primary IP in a location
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+func (c *Client) PostPrimaryIps(ctx context.Context, body PostPrimaryIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostPrimaryIpsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeletePrimaryIp Delete an unassigned primary IP
+//
+// Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
+func (c *Client) DeletePrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePrimaryIpRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetPrimaryIp Get a primary IP
+//
+// Corresponds with GET /primary_ips/{id} (the `GetPrimaryIp` operationId).
+func (c *Client) GetPrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPrimaryIpRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutPrimaryIpWithBody Rename a primary IP, change its description, labels or auto-delete
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+func (c *Client) PutPrimaryIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutPrimaryIpRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutPrimaryIp Rename a primary IP, change its description, labels or auto-delete
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+func (c *Client) PutPrimaryIp(ctx context.Context, id ID, body PutPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutPrimaryIpRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetPrimaryIpActions List a primary IP's actions
+//
+// Corresponds with GET /primary_ips/{id}/actions (the `GetPrimaryIpActions` operationId).
+func (c *Client) GetPrimaryIpActions(ctx context.Context, id ID, params *GetPrimaryIpActionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPrimaryIpActionsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AssignPrimaryIpWithBody Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+func (c *Client) AssignPrimaryIpWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssignPrimaryIpRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AssignPrimaryIp Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+func (c *Client) AssignPrimaryIp(ctx context.Context, id ID, body AssignPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAssignPrimaryIpRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UnassignPrimaryIp Unassign a primary IP from its stopped server; it takes effect when the server starts
+//
+// Corresponds with POST /primary_ips/{id}/actions/unassign (the `UnassignPrimaryIp` operationId).
+func (c *Client) UnassignPrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnassignPrimaryIpRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -11545,6 +12127,465 @@ func NewGetNetworkActionsRequest(server string, id ID, params *GetNetworkActions
 	return req, nil
 }
 
+// NewGetPrimaryIpsRequest constructs an http.Request for the GetPrimaryIps method
+func NewGetPrimaryIpsRequest(server string, params *GetPrimaryIpsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "label_selector", *params.LabelSelector, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Server != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "server", *params.Server, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "location", *params.Location, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Type != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "type", *params.Type, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostPrimaryIpsRequest calls the generic PostPrimaryIps builder with application/json body
+func NewPostPrimaryIpsRequest(server string, body PostPrimaryIpsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostPrimaryIpsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostPrimaryIpsRequestWithBody constructs an http.Request for the PostPrimaryIps method, with any body, and a specified content type
+func NewPostPrimaryIpsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeletePrimaryIpRequest constructs an http.Request for the DeletePrimaryIp method
+func NewDeletePrimaryIpRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetPrimaryIpRequest constructs an http.Request for the GetPrimaryIp method
+func NewGetPrimaryIpRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutPrimaryIpRequest calls the generic PutPrimaryIp builder with application/json body
+func NewPutPrimaryIpRequest(server string, id ID, body PutPrimaryIpJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutPrimaryIpRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutPrimaryIpRequestWithBody constructs an http.Request for the PutPrimaryIp method, with any body, and a specified content type
+func NewPutPrimaryIpRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetPrimaryIpActionsRequest constructs an http.Request for the GetPrimaryIpActions method
+func NewGetPrimaryIpActionsRequest(server string, id ID, params *GetPrimaryIpActionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips/%s/actions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PerPage != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "per_page", *params.PerPage, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAssignPrimaryIpRequest calls the generic AssignPrimaryIp builder with application/json body
+func NewAssignPrimaryIpRequest(server string, id ID, body AssignPrimaryIpJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAssignPrimaryIpRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewAssignPrimaryIpRequestWithBody constructs an http.Request for the AssignPrimaryIp method, with any body, and a specified content type
+func NewAssignPrimaryIpRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips/%s/actions/assign", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUnassignPrimaryIpRequest constructs an http.Request for the UnassignPrimaryIp method
+func NewUnassignPrimaryIpRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/primary_ips/%s/actions/unassign", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetProjectsRequest constructs an http.Request for the GetProjects method
 func NewGetProjectsRequest(server string) (*http.Request, error) {
 	var err error
@@ -15142,6 +16183,83 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /networks/{id}/actions (the `GetNetworkActions` operationId).
 	GetNetworkActionsWithResponse(ctx context.Context, id ID, params *GetNetworkActionsParams, reqEditors ...RequestEditorFn) (*GetNetworkActionsResponse, error)
+
+	// GetPrimaryIpsWithResponse List the project's primary IPs
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /primary_ips (the `GetPrimaryIps` operationId).
+	GetPrimaryIpsWithResponse(ctx context.Context, params *GetPrimaryIpsParams, reqEditors ...RequestEditorFn) (*GetPrimaryIpsResponse, error)
+
+	// PostPrimaryIpsWithBodyWithResponse Reserve a primary IP in a location
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+	PostPrimaryIpsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPrimaryIpsResponse, error)
+
+	// PostPrimaryIpsWithResponse Reserve a primary IP in a location
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+	PostPrimaryIpsWithResponse(ctx context.Context, body PostPrimaryIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPrimaryIpsResponse, error)
+
+	// DeletePrimaryIpWithResponse Delete an unassigned primary IP
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
+	DeletePrimaryIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeletePrimaryIpResponse, error)
+
+	// GetPrimaryIpWithResponse Get a primary IP
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /primary_ips/{id} (the `GetPrimaryIp` operationId).
+	GetPrimaryIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetPrimaryIpResponse, error)
+
+	// PutPrimaryIpWithBodyWithResponse Rename a primary IP, change its description, labels or auto-delete
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+	PutPrimaryIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPrimaryIpResponse, error)
+
+	// PutPrimaryIpWithResponse Rename a primary IP, change its description, labels or auto-delete
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+	PutPrimaryIpWithResponse(ctx context.Context, id ID, body PutPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPrimaryIpResponse, error)
+
+	// GetPrimaryIpActionsWithResponse List a primary IP's actions
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /primary_ips/{id}/actions (the `GetPrimaryIpActions` operationId).
+	GetPrimaryIpActionsWithResponse(ctx context.Context, id ID, params *GetPrimaryIpActionsParams, reqEditors ...RequestEditorFn) (*GetPrimaryIpActionsResponse, error)
+
+	// AssignPrimaryIpWithBodyWithResponse Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+	AssignPrimaryIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssignPrimaryIpResponse, error)
+
+	// AssignPrimaryIpWithResponse Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+	AssignPrimaryIpWithResponse(ctx context.Context, id ID, body AssignPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*AssignPrimaryIpResponse, error)
+
+	// UnassignPrimaryIpWithResponse Unassign a primary IP from its stopped server; it takes effect when the server starts
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /primary_ips/{id}/actions/unassign (the `UnassignPrimaryIp` operationId).
+	UnassignPrimaryIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*UnassignPrimaryIpResponse, error)
 
 	// GetProjectsWithResponse List the caller's projects
 	//
@@ -22819,6 +23937,637 @@ func (r GetNetworkActionsResponse) ContentType() string {
 	return ""
 }
 
+type GetPrimaryIpsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Meta       Meta        `json:"meta"`
+		PrimaryIps []PrimaryIp `json:"primary_ips"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetPrimaryIpsResponse) GetJSON200() *struct {
+	Meta       Meta        `json:"meta"`
+	PrimaryIps []PrimaryIp `json:"primary_ips"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetPrimaryIpsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetPrimaryIpsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetPrimaryIpsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetPrimaryIpsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPrimaryIpsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPrimaryIpsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPrimaryIpsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPrimaryIpsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostPrimaryIpsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *struct {
+		PrimaryIp PrimaryIp `json:"primary_ip"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostPrimaryIpsResponse) GetJSON201() *struct {
+	PrimaryIp PrimaryIp `json:"primary_ip"`
+} {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostPrimaryIpsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostPrimaryIpsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostPrimaryIpsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostPrimaryIpsResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostPrimaryIpsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostPrimaryIpsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostPrimaryIpsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostPrimaryIpsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostPrimaryIpsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostPrimaryIpsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeletePrimaryIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeletePrimaryIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeletePrimaryIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeletePrimaryIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeletePrimaryIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeletePrimaryIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeletePrimaryIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePrimaryIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePrimaryIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeletePrimaryIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetPrimaryIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PrimaryIp
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetPrimaryIpResponse) GetJSON200() *PrimaryIp {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetPrimaryIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetPrimaryIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetPrimaryIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPrimaryIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPrimaryIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPrimaryIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPrimaryIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutPrimaryIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PrimaryIp
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PutPrimaryIpResponse) GetJSON200() *PrimaryIp {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PutPrimaryIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PutPrimaryIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PutPrimaryIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PutPrimaryIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PutPrimaryIpResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PutPrimaryIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PutPrimaryIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PutPrimaryIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutPrimaryIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutPrimaryIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetPrimaryIpActionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Actions []Action `json:"actions"`
+		Meta    Meta     `json:"meta"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetPrimaryIpActionsResponse) GetJSON200() *struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetPrimaryIpActionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetPrimaryIpActionsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetPrimaryIpActionsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetPrimaryIpActionsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPrimaryIpActionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPrimaryIpActionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPrimaryIpActionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPrimaryIpActionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AssignPrimaryIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *PrimaryIpActionCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AssignPrimaryIpResponse) GetJSON201() *PrimaryIpActionCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r AssignPrimaryIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r AssignPrimaryIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r AssignPrimaryIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r AssignPrimaryIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r AssignPrimaryIpResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r AssignPrimaryIpResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r AssignPrimaryIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AssignPrimaryIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AssignPrimaryIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AssignPrimaryIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AssignPrimaryIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UnassignPrimaryIpResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *PrimaryIpActionCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSON201() *PrimaryIpActionCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r UnassignPrimaryIpResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UnassignPrimaryIpResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UnassignPrimaryIpResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UnassignPrimaryIpResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UnassignPrimaryIpResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28891,6 +30640,149 @@ func (c *ClientWithResponses) GetNetworkActionsWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetNetworkActionsResponse(rsp)
+}
+
+// GetPrimaryIpsWithResponse List the project's primary IPs
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /primary_ips (the `GetPrimaryIps` operationId).
+func (c *ClientWithResponses) GetPrimaryIpsWithResponse(ctx context.Context, params *GetPrimaryIpsParams, reqEditors ...RequestEditorFn) (*GetPrimaryIpsResponse, error) {
+	rsp, err := c.GetPrimaryIps(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPrimaryIpsResponse(rsp)
+}
+
+// PostPrimaryIpsWithBodyWithResponse Reserve a primary IP in a location
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+func (c *ClientWithResponses) PostPrimaryIpsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPrimaryIpsResponse, error) {
+	rsp, err := c.PostPrimaryIpsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostPrimaryIpsResponse(rsp)
+}
+
+// PostPrimaryIpsWithResponse Reserve a primary IP in a location
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /primary_ips (the `PostPrimaryIps` operationId).
+func (c *ClientWithResponses) PostPrimaryIpsWithResponse(ctx context.Context, body PostPrimaryIpsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPrimaryIpsResponse, error) {
+	rsp, err := c.PostPrimaryIps(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostPrimaryIpsResponse(rsp)
+}
+
+// DeletePrimaryIpWithResponse Delete an unassigned primary IP
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
+func (c *ClientWithResponses) DeletePrimaryIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeletePrimaryIpResponse, error) {
+	rsp, err := c.DeletePrimaryIp(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePrimaryIpResponse(rsp)
+}
+
+// GetPrimaryIpWithResponse Get a primary IP
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /primary_ips/{id} (the `GetPrimaryIp` operationId).
+func (c *ClientWithResponses) GetPrimaryIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetPrimaryIpResponse, error) {
+	rsp, err := c.GetPrimaryIp(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPrimaryIpResponse(rsp)
+}
+
+// PutPrimaryIpWithBodyWithResponse Rename a primary IP, change its description, labels or auto-delete
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+func (c *ClientWithResponses) PutPrimaryIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPrimaryIpResponse, error) {
+	rsp, err := c.PutPrimaryIpWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutPrimaryIpResponse(rsp)
+}
+
+// PutPrimaryIpWithResponse Rename a primary IP, change its description, labels or auto-delete
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /primary_ips/{id} (the `PutPrimaryIp` operationId).
+func (c *ClientWithResponses) PutPrimaryIpWithResponse(ctx context.Context, id ID, body PutPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPrimaryIpResponse, error) {
+	rsp, err := c.PutPrimaryIp(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutPrimaryIpResponse(rsp)
+}
+
+// GetPrimaryIpActionsWithResponse List a primary IP's actions
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /primary_ips/{id}/actions (the `GetPrimaryIpActions` operationId).
+func (c *ClientWithResponses) GetPrimaryIpActionsWithResponse(ctx context.Context, id ID, params *GetPrimaryIpActionsParams, reqEditors ...RequestEditorFn) (*GetPrimaryIpActionsResponse, error) {
+	rsp, err := c.GetPrimaryIpActions(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPrimaryIpActionsResponse(rsp)
+}
+
+// AssignPrimaryIpWithBodyWithResponse Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+func (c *ClientWithResponses) AssignPrimaryIpWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AssignPrimaryIpResponse, error) {
+	rsp, err := c.AssignPrimaryIpWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssignPrimaryIpResponse(rsp)
+}
+
+// AssignPrimaryIpWithResponse Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /primary_ips/{id}/actions/assign (the `AssignPrimaryIp` operationId).
+func (c *ClientWithResponses) AssignPrimaryIpWithResponse(ctx context.Context, id ID, body AssignPrimaryIpJSONRequestBody, reqEditors ...RequestEditorFn) (*AssignPrimaryIpResponse, error) {
+	rsp, err := c.AssignPrimaryIp(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAssignPrimaryIpResponse(rsp)
+}
+
+// UnassignPrimaryIpWithResponse Unassign a primary IP from its stopped server; it takes effect when the server starts
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /primary_ips/{id}/actions/unassign (the `UnassignPrimaryIp` operationId).
+func (c *ClientWithResponses) UnassignPrimaryIpWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*UnassignPrimaryIpResponse, error) {
+	rsp, err := c.UnassignPrimaryIp(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnassignPrimaryIpResponse(rsp)
 }
 
 // GetProjectsWithResponse List the caller's projects
@@ -35550,6 +37442,512 @@ func ParseGetNetworkActionsResponse(rsp *http.Response) (*GetNetworkActionsRespo
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPrimaryIpsResponse parses an HTTP response from a GetPrimaryIpsWithResponse call
+func ParseGetPrimaryIpsResponse(rsp *http.Response) (*GetPrimaryIpsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPrimaryIpsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Meta       Meta        `json:"meta"`
+			PrimaryIps []PrimaryIp `json:"primary_ips"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostPrimaryIpsResponse parses an HTTP response from a PostPrimaryIpsWithResponse call
+func ParsePostPrimaryIpsResponse(rsp *http.Response) (*PostPrimaryIpsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostPrimaryIpsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			PrimaryIp PrimaryIp `json:"primary_ip"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePrimaryIpResponse parses an HTTP response from a DeletePrimaryIpWithResponse call
+func ParseDeletePrimaryIpResponse(rsp *http.Response) (*DeletePrimaryIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePrimaryIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPrimaryIpResponse parses an HTTP response from a GetPrimaryIpWithResponse call
+func ParseGetPrimaryIpResponse(rsp *http.Response) (*GetPrimaryIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPrimaryIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PrimaryIp
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutPrimaryIpResponse parses an HTTP response from a PutPrimaryIpWithResponse call
+func ParsePutPrimaryIpResponse(rsp *http.Response) (*PutPrimaryIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutPrimaryIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PrimaryIp
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPrimaryIpActionsResponse parses an HTTP response from a GetPrimaryIpActionsWithResponse call
+func ParseGetPrimaryIpActionsResponse(rsp *http.Response) (*GetPrimaryIpActionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPrimaryIpActionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Actions []Action `json:"actions"`
+			Meta    Meta     `json:"meta"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAssignPrimaryIpResponse parses an HTTP response from a AssignPrimaryIpWithResponse call
+func ParseAssignPrimaryIpResponse(rsp *http.Response) (*AssignPrimaryIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AssignPrimaryIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest PrimaryIpActionCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUnassignPrimaryIpResponse parses an HTTP response from a UnassignPrimaryIpWithResponse call
+func ParseUnassignPrimaryIpResponse(rsp *http.Response) (*UnassignPrimaryIpResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UnassignPrimaryIpResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest PrimaryIpActionCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error

@@ -17,6 +17,7 @@
 package servers
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -47,7 +48,9 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/sshkey"
+	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/firewalls"
+	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
@@ -88,6 +91,8 @@ type CreateServerArgs struct {
 	ServerID   int64 `json:"server_id"`
 	ActionID   int64 `json:"action_id"`
 	StartAfter bool  `json:"start_after"`
+	// KeptIPs are the existing primary IPs this create attached; a failed create gives them back.
+	KeptIPs []int64 `json:"kept_ips,omitempty"`
 }
 
 func (CreateServerArgs) Kind() string { return KindCreateServer }
@@ -111,6 +116,8 @@ type Options struct {
 	BackupInfo func(ctx context.Context, ids []int64) (map[int64]ServerBackups, error)
 	// Networks nil disables private networks: a create that names one fails with 422.
 	Networks *networks.Service
+	// Bus nil drops events.
+	Bus Publisher
 }
 
 type Service struct{ o Options }
@@ -128,9 +135,11 @@ type Server struct {
 	Labels        map[string]string
 	DiskGB        int
 	IPv4, IPv6    netip.Addr
-	CreatedAt     time.Time
-	Firewalls     []firewalls.Applied
-	Backups       ServerBackups
+	// IPv4ID and IPv6ID are the primary IP ids, zero when unassigned.
+	IPv4ID, IPv6ID int64
+	CreatedAt      time.Time
+	Firewalls      []firewalls.Applied
+	Backups        ServerBackups
 }
 
 // ServerBackups is a server's backup settings and state.
@@ -160,13 +169,19 @@ type CreateInput struct {
 	// SSHKeys are the project's key ids or names.
 	SSHKeys    []string
 	UserData   string
-	IPv4, IPv6 bool
+	IPv4, IPv6 IPChoice
 	Labels     map[string]string
 	StartAfter bool
 	Firewalls  []int64
 	// Backups nil leaves backups off.
 	Backups  *BackupSettings
 	Networks []networks.CreateRef
+}
+
+// IPChoice is a new address, an existing primary IP (id or name), or neither.
+type IPChoice struct {
+	New      bool
+	Existing string
 }
 
 // UpdateInput changes only the non-nil fields.
@@ -233,6 +248,8 @@ func writeErr(err error) error {
 		switch {
 		case pe.ConstraintName == "servers_project_name_key":
 			return errNameTaken
+		case pe.ConstraintName == "ip_addresses_project_name_key":
+			return primaryips.ErrNameTaken
 		case pe.ConstraintName == "servers_mac_key":
 			return errMACTaken
 		case pe.Code == "23503":
@@ -288,13 +305,26 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	if err != nil {
 		return Server{}, actions.Action{}, err
 	}
-	var families []string
-	if in.IPv4 {
-		families = append(families, "ipv4")
+	var newFamilies []string
+	var kept []keptIP
+	for _, c := range []struct {
+		family string
+		choice IPChoice
+	}{{ipam.FamilyIPv4, in.IPv4}, {ipam.FamilyIPv6, in.IPv6}} {
+		switch {
+		case c.choice.New && c.choice.Existing != "":
+			return Server{}, actions.Action{}, invalid("choose a new %s address or an existing primary IP, not both", c.family)
+		case c.choice.New:
+			newFamilies = append(newFamilies, c.family)
+		case c.choice.Existing != "":
+			row, err := primaryips.ByRef(ctx, s.o.Ent, projectID, c.choice.Existing)
+			if err != nil {
+				return Server{}, actions.Action{}, err
+			}
+			kept = append(kept, keptIP{id: row.ID, family: c.family})
+		}
 	}
-	if in.IPv6 {
-		families = append(families, "ipv6")
-	}
+	slices.SortFunc(kept, func(a, b keptIP) int { return cmp.Compare(a.id, b.id) })
 	labels := in.Labels
 	if labels == nil {
 		labels = map[string]string{}
@@ -303,7 +333,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 		return Server{}, actions.Action{}, invalid("Private networks aren't available in this location.")
 	}
 	fwIDs := slices.Compact(slices.Sorted(slices.Values(in.Firewalls)))
-	delta := projects.Usage{Servers: 1, VCPU: typ.Cores, MemoryMB: typ.MemoryMB, DiskGB: typ.DiskGB, IPs: len(families)}
+	delta := projects.Usage{Servers: 1, VCPU: typ.Cores, MemoryMB: typ.MemoryMB, DiskGB: typ.DiskGB, IPs: len(newFamilies)}
 	if in.Backups != nil {
 		if err := s.checkBackups(*in.Backups, loc, false); err != nil {
 			return Server{}, actions.Action{}, err
@@ -315,9 +345,14 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 
 	var id int64
 	var act actions.Action
+	var created []*ent.IPAddress
 	for range 3 {
 		err = db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 			if err := s.o.Projects.ReserveQuota(ctx, etx, projectID, delta); err != nil {
+				return err
+			}
+			seg, err := lockKept(ctx, etx, projectID, loc.ID, kept)
+			if err != nil {
 				return err
 			}
 			if err := lockFirewalls(ctx, etx, projectID, fwIDs); err != nil {
@@ -352,10 +387,18 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			if err := etx.Server.UpdateOneID(row.ID).SetBackupSlot(int(row.ID * backupSlotPrime % 1440)).Exec(ctx); err != nil {
 				return err
 			}
-			for _, f := range families {
-				if _, err := attachNewPrimary(ctx, etx, projectID, row, f); err != nil {
+			created = nil
+			for _, k := range kept {
+				if err := etx.IPAddress.UpdateOneID(k.id).SetServerID(row.ID).Exec(ctx); err != nil {
 					return err
 				}
+			}
+			for _, f := range newFamilies {
+				r, err := attachNewPrimary(ctx, etx, projectID, row, f, seg)
+				if err != nil {
+					return err
+				}
+				created = append(created, r)
 			}
 			if err := attachFirewalls(ctx, etx, projectID, row.ID, labels, fwIDs); err != nil {
 				return err
@@ -368,7 +411,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindCreateServer,
 				[]actions.Resource{{ID: row.ID, Type: ResourceType}},
 				func(actionID int64) river.JobArgs {
-					return CreateServerArgs{ServerID: row.ID, ActionID: actionID, StartAfter: in.StartAfter}
+					return CreateServerArgs{ServerID: row.ID, ActionID: actionID, StartAfter: in.StartAfter, KeptIPs: keptIDs(kept)}
 				}, nil)
 			id = row.ID
 			return err
@@ -380,15 +423,64 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 	if err != nil {
 		return Server{}, actions.Action{}, err
 	}
+	for _, r := range created {
+		s.publishPrimary(ctx, ext.PrimaryIPCreated, r)
+	}
 	srv, err := s.Get(ctx, projectID, id)
 	return srv, act, err
 }
 
-// attachNewPrimary allocates a new address of family and inserts its primary IP on srv, returning the row id.
-func attachNewPrimary(ctx context.Context, etx *ent.Client, projectID int64, srv *ent.Server, family string) (int64, error) {
-	a, allocID, err := ipam.AllocatePrimary(ctx, etx, srv.LocationID, family, nil)
+type keptIP struct {
+	id     int64
+	family string
+}
+
+func keptIDs(k []keptIP) []int64 {
+	ids := make([]int64, len(k))
+	for i, x := range k {
+		ids[i] = x.id
+	}
+	return ids
+}
+
+// lockKept locks the existing primary IPs in id order and returns their shared network, if any.
+func lockKept(ctx context.Context, etx *ent.Client, projectID, locationID int64, kept []keptIP) (*ipam.Segment, error) {
+	var seg *ipam.Segment
+	for _, k := range kept {
+		row, err := primaryips.LockForCreate(ctx, etx, projectID, k.id, locationID, k.family)
+		if err != nil {
+			return nil, err
+		}
+		got, err := primaryips.SegmentOf(ctx, etx, row.AllocationID)
+		if err != nil {
+			return nil, err
+		}
+		if seg != nil && !floatingips.SameSegment(*seg, got) {
+			return nil, primaryips.ErrSegment
+		}
+		seg = &got
+	}
+	return seg, nil
+}
+
+// publishPrimary sends a billing event for a primary IP row.
+func (s *Service) publishPrimary(ctx context.Context, kind ext.EventKind, r *ent.IPAddress) {
+	publishPrimary(ctx, s.o.Bus, kind, r)
+}
+
+func publishPrimary(ctx context.Context, bus Publisher, kind ext.EventKind, r *ent.IPAddress) {
+	if bus == nil {
+		return
+	}
+	bus.Publish(ctx, ext.Event{Kind: kind, ProjectID: r.ProjectID, ResourceType: primaryips.ResourceType, ResourceID: r.ID,
+		At: time.Now(), Data: map[string]any{"ip": r.IP, "family": r.Family, "location_id": r.LocationID}})
+}
+
+// attachNewPrimary allocates a new address of family (on seg when set) and inserts its primary IP on srv.
+func attachNewPrimary(ctx context.Context, etx *ent.Client, projectID int64, srv *ent.Server, family string, seg *ipam.Segment) (*ent.IPAddress, error) {
+	a, allocID, err := ipam.AllocatePrimary(ctx, etx, srv.LocationID, family, seg)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	var qerr error
 	name := primaryips.DefaultName(srv.Name, family, allocID, func(n string) bool {
@@ -397,19 +489,19 @@ func attachNewPrimary(ctx context.Context, etx *ent.Client, projectID int64, srv
 		return taken
 	})
 	if qerr != nil {
-		return 0, qerr
+		return nil, qerr
 	}
 	row, err := etx.IPAddress.Create().SetKind(ipaddress.KindPrimary).SetProjectID(projectID).SetLocationID(srv.LocationID).
 		SetAllocationID(allocID).SetFamily(family).SetIP(a.IP.String()).SetName(name).SetLabels(map[string]string{}).
 		SetServerID(srv.ID).Save(ctx)
 	if err != nil {
-		return 0, err
+		return nil, writeErr(err)
 	}
-	return row.ID, nil
+	return row, nil
 }
 
 // releasePrimaries deletes the server's auto_delete primary IPs and frees their addresses, and unassigns the rest.
-func releasePrimaries(ctx context.Context, etx *ent.Client, serverID int64) (freed []int64, err error) {
+func releasePrimaries(ctx context.Context, etx *ent.Client, serverID int64) (freed []*ent.IPAddress, err error) {
 	rows, err := etx.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(serverID)).
 		Order(ipaddress.ByID()).ForUpdate().All(ctx)
 	if err != nil {
@@ -428,7 +520,7 @@ func releasePrimaries(ctx context.Context, etx *ent.Client, serverID int64) (fre
 		if err := ipam.FreeAllocation(ctx, etx, r.AllocationID); err != nil {
 			return nil, err
 		}
-		freed = append(freed, r.ID)
+		freed = append(freed, r)
 	}
 	return freed, nil
 }
@@ -605,7 +697,10 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 	if err != nil {
 		return nil, err
 	}
-	type ips struct{ v4, v6 netip.Addr }
+	type ips struct {
+		v4, v6   netip.Addr
+		id4, id6 int64
+	}
 	byServer := map[int64]*ips{}
 	for _, a := range prims {
 		ip, err := netip.ParseAddr(a.IP)
@@ -618,9 +713,9 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			byServer[*a.ServerID] = e
 		}
 		if a.Family == ipam.FamilyIPv6 {
-			e.v6 = ip
+			e.v6, e.id6 = ip, a.ID
 		} else {
-			e.v4 = ip
+			e.v4, e.id4 = ip, a.ID
 		}
 	}
 	atts := map[int64]firewalls.Attachments{}
@@ -656,7 +751,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			out[i].Labels = map[string]string{}
 		}
 		if e := byServer[r.ID]; e != nil {
-			out[i].IPv4, out[i].IPv6 = e.v4, e.v6
+			out[i].IPv4, out[i].IPv6, out[i].IPv4ID, out[i].IPv6ID = e.v4, e.v6, e.id4, e.id6
 		}
 		att, ok := atts[r.ProjectID]
 		if !ok {

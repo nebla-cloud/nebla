@@ -123,10 +123,18 @@ func serverCreateCmd(a *app) *cobra.Command {
 			StartAfterCreate: &start,
 		}
 		v4, v6 := !withoutIPv4, withIPv6
+		var u4 apiclient.ServerInput_PublicNet_Ipv4
+		var u6 apiclient.ServerInput_PublicNet_Ipv6
+		if err := u4.FromServerInputPublicNetIpv40(v4); err != nil {
+			return err
+		}
+		if err := u6.FromServerInputPublicNetIpv60(v6); err != nil {
+			return err
+		}
 		body.PublicNet = &struct {
-			Ipv4 *bool `json:"ipv4,omitempty"`
-			Ipv6 *bool `json:"ipv6,omitempty"`
-		}{Ipv4: &v4, Ipv6: &v6}
+			Ipv4 *apiclient.ServerInput_PublicNet_Ipv4 `json:"ipv4,omitempty"`
+			Ipv6 *apiclient.ServerInput_PublicNet_Ipv6 `json:"ipv6,omitempty"`
+		}{Ipv4: &u4, Ipv6: &u6}
 		if lbl != nil {
 			body.Labels = &lbl
 		}

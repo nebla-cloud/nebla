@@ -542,7 +542,7 @@ func TestCreateWithFirewalls(t *testing.T) {
 	f, _, err := fw.Create(ctx, e.Project, firewalls.CreateInput{Name: "fw", Rules: []firewalls.RuleInput{tcpIn("22")}})
 	require.NoError(t, err)
 	svc := serverService(e)
-	in := servers.CreateInput{Name: "web", ServerType: "small", Image: "ubuntu", Location: "eu-1", IPv4: true, Firewalls: []int64{f.ID}}
+	in := servers.CreateInput{Name: "web", ServerType: "small", Image: "ubuntu", Location: "eu-1", IPv4: servers.IPChoice{New: true}, Firewalls: []int64{f.ID}}
 	srv, _, err := svc.Create(ctx, e.Project, in)
 	require.NoError(t, err)
 	n, err := e.App.Ent.FirewallResource.Query().Where(firewallresource.FirewallID(f.ID), firewallresource.ServerID(srv.ID)).Count(ctx)

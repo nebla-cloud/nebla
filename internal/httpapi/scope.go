@@ -87,6 +87,15 @@ var projectScopedOps = map[string]bool{
 	"AttachServerToNetwork":   true,
 	"DetachServerFromNetwork": true,
 
+	"GetPrimaryIps":       true,
+	"PostPrimaryIps":      true,
+	"GetPrimaryIp":        true,
+	"PutPrimaryIp":        true,
+	"DeletePrimaryIp":     true,
+	"GetPrimaryIpActions": true,
+	"AssignPrimaryIp":     true,
+	"UnassignPrimaryIp":   true,
+
 	"GetFirewalls":                true,
 	"PostFirewalls":               true,
 	"GetFirewall":                 true,

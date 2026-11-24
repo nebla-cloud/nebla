@@ -2021,6 +2021,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/primary_ips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the project's primary IPs */
+        get: operations["getPrimaryIps"];
+        put?: never;
+        /** Reserve a primary IP in a location */
+        post: operations["postPrimaryIps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/primary_ips/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** Get a primary IP */
+        get: operations["getPrimaryIp"];
+        /** Rename a primary IP, change its description, labels or auto-delete */
+        put: operations["putPrimaryIp"];
+        post?: never;
+        /** Delete an unassigned primary IP */
+        delete: operations["deletePrimaryIp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/primary_ips/{id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** List a primary IP's actions */
+        get: operations["getPrimaryIpActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/primary_ips/{id}/actions/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign an unassigned primary IP to a stopped server; it takes effect when the server starts */
+        post: operations["assignPrimaryIp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/primary_ips/{id}/actions/unassign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unassign a primary IP from its stopped server; it takes effect when the server starts */
+        post: operations["unassignPrimaryIp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2780,10 +2876,16 @@ export interface components {
             /** @description Cloud-init user data, at most 32 KiB */
             user_data?: string;
             public_net?: {
-                /** @default true */
-                ipv4: boolean;
-                /** @default false */
-                ipv6: boolean;
+                /**
+                 * @description true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+                 * @default true
+                 */
+                ipv4: boolean | string;
+                /**
+                 * @description true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+                 * @default false
+                 */
+                ipv6: boolean | string;
             };
             labels?: components["schemas"]["Labels"];
             /** @default true */
@@ -2834,6 +2936,11 @@ export interface components {
             upgrade_disk: boolean;
         };
         ServerIp: {
+            /**
+             * Format: int64
+             * @description The primary IP's id
+             */
+            id: number;
             ip: string;
         } | null;
         Server: {
@@ -2986,6 +3093,51 @@ export interface components {
             /** @description Server id or name */
             server: string;
         };
+        PrimaryIp: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            description: string;
+            labels: components["schemas"]["Labels"];
+            /** @enum {string} */
+            type: "ipv4" | "ipv6";
+            /** @description The bare address */
+            ip: string;
+            location: components["schemas"]["LocationRef"];
+            server: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+            } | null;
+            /** @description Delete the address when its server is deleted */
+            auto_delete: boolean;
+            /** @enum {string} */
+            status: "active" | "releasing";
+            /** Format: date-time */
+            created: string;
+        };
+        PrimaryIpInput: {
+            /** @description Generated when omitted */
+            name?: string;
+            description?: string;
+            labels?: components["schemas"]["Labels"];
+            /** @enum {string} */
+            type: "ipv4" | "ipv6";
+            /** @description Location id or name */
+            location: string;
+            /** @default true */
+            auto_delete: boolean;
+        };
+        PrimaryIpUpdate: {
+            name?: string;
+            description?: string;
+            labels?: components["schemas"]["Labels"];
+            auto_delete?: boolean;
+        };
+        PrimaryIpAssignInput: {
+            /** @description Server id or name */
+            server: string;
+        };
         /** @description Commands to run inside the servers so they use the address; new and rebuilt servers set this up automatically */
         GuestConfig: {
             /** @description Where the commands run */
@@ -3043,6 +3195,18 @@ export interface components {
                 "application/json": {
                     action: components["schemas"]["Action"];
                     guest_config: components["schemas"]["NetworkGuestConfig"] | null;
+                };
+            };
+        };
+        /** @description The action, with warnings for the member */
+        PrimaryIpActionCreated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    action: components["schemas"]["Action"];
+                    warnings: string[];
                 };
             };
         };
@@ -7430,6 +7594,242 @@ export interface operations {
         };
         responses: {
             201: components["responses"]["NetworkActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getPrimaryIps: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key) */
+                label_selector?: string;
+                /** @description Exact primary IP name */
+                name?: string;
+                /** @description Only primary IPs assigned to this server id or name */
+                server?: string;
+                /** @description Only primary IPs in this location id or name */
+                location?: string;
+                /** @description Only primary IPs of this family */
+                type?: "ipv4" | "ipv6";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        primary_ips: components["schemas"]["PrimaryIp"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postPrimaryIps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrimaryIpInput"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        primary_ip: components["schemas"]["PrimaryIp"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getPrimaryIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrimaryIp"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    putPrimaryIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrimaryIpUpdate"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrimaryIp"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deletePrimaryIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getPrimaryIpActions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                per_page?: components["parameters"]["PerPage"];
+                /** @description Only actions in these statuses (running, success, error); repeat the parameter or separate with commas */
+                status?: string[];
+                /** @description id, id:asc or id:desc (default) */
+                sort?: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        actions: components["schemas"]["Action"][];
+                        meta: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    assignPrimaryIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrimaryIpAssignInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["PrimaryIpActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    unassignPrimaryIp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["PrimaryIpActionCreated"];
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];

@@ -301,6 +301,60 @@ func (e LocationEnrollmentState) Valid() bool {
 	}
 }
 
+// Defines values for PrimaryIpStatus.
+const (
+	PrimaryIpStatusActive    PrimaryIpStatus = "active"
+	PrimaryIpStatusReleasing PrimaryIpStatus = "releasing"
+)
+
+// Valid indicates whether the value is a known member of the PrimaryIpStatus enum.
+func (e PrimaryIpStatus) Valid() bool {
+	switch e {
+	case PrimaryIpStatusActive:
+		return true
+	case PrimaryIpStatusReleasing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrimaryIpType.
+const (
+	PrimaryIpTypeIpv4 PrimaryIpType = "ipv4"
+	PrimaryIpTypeIpv6 PrimaryIpType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the PrimaryIpType enum.
+func (e PrimaryIpType) Valid() bool {
+	switch e {
+	case PrimaryIpTypeIpv4:
+		return true
+	case PrimaryIpTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrimaryIpInputType.
+const (
+	PrimaryIpInputTypeIpv4 PrimaryIpInputType = "ipv4"
+	PrimaryIpInputTypeIpv6 PrimaryIpInputType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the PrimaryIpInputType enum.
+func (e PrimaryIpInputType) Valid() bool {
+	switch e {
+	case PrimaryIpInputTypeIpv4:
+		return true
+	case PrimaryIpInputTypeIpv6:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PrivateNetworkPoolState.
 const (
 	FirewallOff PrivateNetworkPoolState = "firewall_off"
@@ -460,6 +514,24 @@ const (
 func (e GetHealthz503JSONResponseBodyStatus) Valid() bool {
 	switch e {
 	case Unavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetPrimaryIpsParamsType.
+const (
+	GetPrimaryIpsParamsTypeIpv4 GetPrimaryIpsParamsType = "ipv4"
+	GetPrimaryIpsParamsTypeIpv6 GetPrimaryIpsParamsType = "ipv6"
+)
+
+// Valid indicates whether the value is a known member of the GetPrimaryIpsParamsType enum.
+func (e GetPrimaryIpsParamsType) Valid() bool {
+	switch e {
+	case GetPrimaryIpsParamsTypeIpv4:
+		return true
+	case GetPrimaryIpsParamsTypeIpv6:
 		return true
 	default:
 		return false
@@ -1296,6 +1368,70 @@ type PasswordChange struct {
 	NewPassword     string `json:"new_password"`
 }
 
+// PrimaryIp defines model for PrimaryIp.
+type PrimaryIp struct {
+	// AutoDelete Delete the address when its server is deleted
+	AutoDelete  bool      `json:"auto_delete"`
+	Created     time.Time `json:"created"`
+	Description string    `json:"description"`
+	Id          int64     `json:"id"`
+
+	// Ip The bare address
+	Ip string `json:"ip"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels   Labels      `json:"labels"`
+	Location LocationRef `json:"location"`
+	Name     string      `json:"name"`
+	Server   *struct {
+		Id   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"server"`
+	Status PrimaryIpStatus `json:"status"`
+	Type   PrimaryIpType   `json:"type"`
+}
+
+// PrimaryIpStatus defines model for PrimaryIp.Status.
+type PrimaryIpStatus string
+
+// PrimaryIpType defines model for PrimaryIp.Type.
+type PrimaryIpType string
+
+// PrimaryIpAssignInput defines model for PrimaryIpAssignInput.
+type PrimaryIpAssignInput struct {
+	// Server Server id or name
+	Server string `json:"server"`
+}
+
+// PrimaryIpInput defines model for PrimaryIpInput.
+type PrimaryIpInput struct {
+	AutoDelete  *bool   `json:"auto_delete,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Location Location id or name
+	Location string `json:"location"`
+
+	// Name Generated when omitted
+	Name *string            `json:"name,omitempty"`
+	Type PrimaryIpInputType `json:"type"`
+}
+
+// PrimaryIpInputType defines model for PrimaryIpInput.Type.
+type PrimaryIpInputType string
+
+// PrimaryIpUpdate defines model for PrimaryIpUpdate.
+type PrimaryIpUpdate struct {
+	AutoDelete  *bool   `json:"auto_delete,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
+	Labels *Labels `json:"labels,omitempty"`
+	Name   *string `json:"name,omitempty"`
+}
+
 // PrivateNetworkPool Read-only: the location's private network pool
 type PrivateNetworkPool struct {
 	Available int `json:"available"`
@@ -1506,8 +1642,11 @@ type ServerInput struct {
 		Network string `json:"network"`
 	} `json:"networks,omitempty"`
 	PublicNet *struct {
-		Ipv4 *bool `json:"ipv4,omitempty"`
-		Ipv6 *bool `json:"ipv6,omitempty"`
+		// Ipv4 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+		Ipv4 *ServerInput_PublicNet_Ipv4 `json:"ipv4,omitempty"`
+
+		// Ipv6 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+		Ipv6 *ServerInput_PublicNet_Ipv6 `json:"ipv6,omitempty"`
 	} `json:"public_net,omitempty"`
 
 	// ServerType Server type id or name
@@ -1521,8 +1660,32 @@ type ServerInput struct {
 	UserData *string `json:"user_data,omitempty"`
 }
 
+// ServerInputPublicNetIpv40 defines model for ServerInput.PublicNet.Ipv4.0.
+type ServerInputPublicNetIpv40 = bool
+
+// ServerInputPublicNetIpv41 defines model for ServerInput.PublicNet.Ipv4.1.
+type ServerInputPublicNetIpv41 = string
+
+// ServerInput_PublicNet_Ipv4 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+type ServerInput_PublicNet_Ipv4 struct {
+	union json.RawMessage
+}
+
+// ServerInputPublicNetIpv60 defines model for ServerInput.PublicNet.Ipv6.0.
+type ServerInputPublicNetIpv60 = bool
+
+// ServerInputPublicNetIpv61 defines model for ServerInput.PublicNet.Ipv6.1.
+type ServerInputPublicNetIpv61 = string
+
+// ServerInput_PublicNet_Ipv6 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+type ServerInput_PublicNet_Ipv6 struct {
+	union json.RawMessage
+}
+
 // ServerIp defines model for ServerIp.
 type ServerIp struct {
+	// Id The primary IP's id
+	Id int64  `json:"id"`
 	Ip string `json:"ip"`
 }
 
@@ -1713,6 +1876,12 @@ type ActionsCreated struct {
 type NetworkActionCreated struct {
 	Action      Action              `json:"action"`
 	GuestConfig *NetworkGuestConfig `json:"guest_config"`
+}
+
+// PrimaryIpActionCreated defines model for PrimaryIpActionCreated.
+type PrimaryIpActionCreated struct {
+	Action   Action   `json:"action"`
+	Warnings []string `json:"warnings"`
 }
 
 // GetActionsParams defines parameters for GetActions.
@@ -1927,6 +2096,42 @@ type GetNetworksParams struct {
 
 // GetNetworkActionsParams defines parameters for GetNetworkActions.
 type GetNetworkActionsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// Status Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+	Status *[]string `form:"status,omitempty" json:"status,omitempty"`
+
+	// Sort id, id:asc or id:desc (default)
+	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// GetPrimaryIpsParams defines parameters for GetPrimaryIps.
+type GetPrimaryIpsParams struct {
+	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
+	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
+
+	// LabelSelector Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)
+	LabelSelector *string `form:"label_selector,omitempty" json:"label_selector,omitempty"`
+
+	// Name Exact primary IP name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Server Only primary IPs assigned to this server id or name
+	Server *string `form:"server,omitempty" json:"server,omitempty"`
+
+	// Location Only primary IPs in this location id or name
+	Location *string `form:"location,omitempty" json:"location,omitempty"`
+
+	// Type Only primary IPs of this family
+	Type *GetPrimaryIpsParamsType `form:"type,omitempty" json:"type,omitempty"`
+}
+
+// GetPrimaryIpsParamsType defines parameters for GetPrimaryIps.
+type GetPrimaryIpsParamsType string
+
+// GetPrimaryIpActionsParams defines parameters for GetPrimaryIpActions.
+type GetPrimaryIpActionsParams struct {
 	Page    *Page    `form:"page,omitempty" json:"page,omitempty"`
 	PerPage *PerPage `form:"per_page,omitempty" json:"per_page,omitempty"`
 
@@ -2169,6 +2374,15 @@ type PostNetworksJSONRequestBody = NetworkInput
 // PutNetworkJSONRequestBody defines body for PutNetwork for application/json ContentType.
 type PutNetworkJSONRequestBody = NetworkUpdate
 
+// PostPrimaryIpsJSONRequestBody defines body for PostPrimaryIps for application/json ContentType.
+type PostPrimaryIpsJSONRequestBody = PrimaryIpInput
+
+// PutPrimaryIpJSONRequestBody defines body for PutPrimaryIp for application/json ContentType.
+type PutPrimaryIpJSONRequestBody = PrimaryIpUpdate
+
+// AssignPrimaryIpJSONRequestBody defines body for AssignPrimaryIp for application/json ContentType.
+type AssignPrimaryIpJSONRequestBody = PrimaryIpAssignInput
+
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody = ProjectInput
 
@@ -2228,6 +2442,130 @@ type AttachVolumeJSONRequestBody = VolumeAttachInput
 
 // ResizeVolumeJSONRequestBody defines body for ResizeVolume for application/json ContentType.
 type ResizeVolumeJSONRequestBody = VolumeResizeInput
+
+// AsServerInputPublicNetIpv40 returns the union data inside the ServerInput_PublicNet_Ipv4 as a ServerInputPublicNetIpv40
+func (t ServerInput_PublicNet_Ipv4) AsServerInputPublicNetIpv40() (ServerInputPublicNetIpv40, error) {
+	var body ServerInputPublicNetIpv40
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv40 overwrites any union data inside the ServerInput_PublicNet_Ipv4 as the provided ServerInputPublicNetIpv40
+func (t *ServerInput_PublicNet_Ipv4) FromServerInputPublicNetIpv40(v ServerInputPublicNetIpv40) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv40 performs a merge with any union data inside the ServerInput_PublicNet_Ipv4, using the provided ServerInputPublicNetIpv40
+func (t *ServerInput_PublicNet_Ipv4) MergeServerInputPublicNetIpv40(v ServerInputPublicNetIpv40) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerInputPublicNetIpv41 returns the union data inside the ServerInput_PublicNet_Ipv4 as a ServerInputPublicNetIpv41
+func (t ServerInput_PublicNet_Ipv4) AsServerInputPublicNetIpv41() (ServerInputPublicNetIpv41, error) {
+	var body ServerInputPublicNetIpv41
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv41 overwrites any union data inside the ServerInput_PublicNet_Ipv4 as the provided ServerInputPublicNetIpv41
+func (t *ServerInput_PublicNet_Ipv4) FromServerInputPublicNetIpv41(v ServerInputPublicNetIpv41) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv41 performs a merge with any union data inside the ServerInput_PublicNet_Ipv4, using the provided ServerInputPublicNetIpv41
+func (t *ServerInput_PublicNet_Ipv4) MergeServerInputPublicNetIpv41(v ServerInputPublicNetIpv41) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ServerInput_PublicNet_Ipv4) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ServerInput_PublicNet_Ipv4) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsServerInputPublicNetIpv60 returns the union data inside the ServerInput_PublicNet_Ipv6 as a ServerInputPublicNetIpv60
+func (t ServerInput_PublicNet_Ipv6) AsServerInputPublicNetIpv60() (ServerInputPublicNetIpv60, error) {
+	var body ServerInputPublicNetIpv60
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv60 overwrites any union data inside the ServerInput_PublicNet_Ipv6 as the provided ServerInputPublicNetIpv60
+func (t *ServerInput_PublicNet_Ipv6) FromServerInputPublicNetIpv60(v ServerInputPublicNetIpv60) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv60 performs a merge with any union data inside the ServerInput_PublicNet_Ipv6, using the provided ServerInputPublicNetIpv60
+func (t *ServerInput_PublicNet_Ipv6) MergeServerInputPublicNetIpv60(v ServerInputPublicNetIpv60) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerInputPublicNetIpv61 returns the union data inside the ServerInput_PublicNet_Ipv6 as a ServerInputPublicNetIpv61
+func (t ServerInput_PublicNet_Ipv6) AsServerInputPublicNetIpv61() (ServerInputPublicNetIpv61, error) {
+	var body ServerInputPublicNetIpv61
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerInputPublicNetIpv61 overwrites any union data inside the ServerInput_PublicNet_Ipv6 as the provided ServerInputPublicNetIpv61
+func (t *ServerInput_PublicNet_Ipv6) FromServerInputPublicNetIpv61(v ServerInputPublicNetIpv61) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerInputPublicNetIpv61 performs a merge with any union data inside the ServerInput_PublicNet_Ipv6, using the provided ServerInputPublicNetIpv61
+func (t *ServerInput_PublicNet_Ipv6) MergeServerInputPublicNetIpv61(v ServerInputPublicNetIpv61) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ServerInput_PublicNet_Ipv6) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ServerInput_PublicNet_Ipv6) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -2525,6 +2863,30 @@ type ServerInterface interface {
 	// GetNetworkActions List a private network's actions
 	// (GET /networks/{id}/actions)
 	GetNetworkActions(w http.ResponseWriter, r *http.Request, id ID, params GetNetworkActionsParams)
+	// GetPrimaryIps List the project's primary IPs
+	// (GET /primary_ips)
+	GetPrimaryIps(w http.ResponseWriter, r *http.Request, params GetPrimaryIpsParams)
+	// PostPrimaryIps Reserve a primary IP in a location
+	// (POST /primary_ips)
+	PostPrimaryIps(w http.ResponseWriter, r *http.Request)
+	// DeletePrimaryIp Delete an unassigned primary IP
+	// (DELETE /primary_ips/{id})
+	DeletePrimaryIp(w http.ResponseWriter, r *http.Request, id ID)
+	// GetPrimaryIp Get a primary IP
+	// (GET /primary_ips/{id})
+	GetPrimaryIp(w http.ResponseWriter, r *http.Request, id ID)
+	// PutPrimaryIp Rename a primary IP, change its description, labels or auto-delete
+	// (PUT /primary_ips/{id})
+	PutPrimaryIp(w http.ResponseWriter, r *http.Request, id ID)
+	// GetPrimaryIpActions List a primary IP's actions
+	// (GET /primary_ips/{id}/actions)
+	GetPrimaryIpActions(w http.ResponseWriter, r *http.Request, id ID, params GetPrimaryIpActionsParams)
+	// AssignPrimaryIp Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+	// (POST /primary_ips/{id}/actions/assign)
+	AssignPrimaryIp(w http.ResponseWriter, r *http.Request, id ID)
+	// UnassignPrimaryIp Unassign a primary IP from its stopped server; it takes effect when the server starts
+	// (POST /primary_ips/{id}/actions/unassign)
+	UnassignPrimaryIp(w http.ResponseWriter, r *http.Request, id ID)
 	// GetProjects List the caller's projects
 	// (GET /projects)
 	GetProjects(w http.ResponseWriter, r *http.Request)
@@ -3284,6 +3646,54 @@ func (_ Unimplemented) PutNetwork(w http.ResponseWriter, r *http.Request, id ID)
 // GetNetworkActions List a private network's actions
 // (GET /networks/{id}/actions)
 func (_ Unimplemented) GetNetworkActions(w http.ResponseWriter, r *http.Request, id ID, params GetNetworkActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetPrimaryIps List the project's primary IPs
+// (GET /primary_ips)
+func (_ Unimplemented) GetPrimaryIps(w http.ResponseWriter, r *http.Request, params GetPrimaryIpsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostPrimaryIps Reserve a primary IP in a location
+// (POST /primary_ips)
+func (_ Unimplemented) PostPrimaryIps(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeletePrimaryIp Delete an unassigned primary IP
+// (DELETE /primary_ips/{id})
+func (_ Unimplemented) DeletePrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetPrimaryIp Get a primary IP
+// (GET /primary_ips/{id})
+func (_ Unimplemented) GetPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutPrimaryIp Rename a primary IP, change its description, labels or auto-delete
+// (PUT /primary_ips/{id})
+func (_ Unimplemented) PutPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetPrimaryIpActions List a primary IP's actions
+// (GET /primary_ips/{id}/actions)
+func (_ Unimplemented) GetPrimaryIpActions(w http.ResponseWriter, r *http.Request, id ID, params GetPrimaryIpActionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AssignPrimaryIp Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+// (POST /primary_ips/{id}/actions/assign)
+func (_ Unimplemented) AssignPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UnassignPrimaryIp Unassign a primary IP from its stopped server; it takes effect when the server starts
+// (POST /primary_ips/{id}/actions/unassign)
+func (_ Unimplemented) UnassignPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6505,6 +6915,342 @@ func (siw *ServerInterfaceWrapper) GetNetworkActions(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetPrimaryIps operation middleware
+func (siw *ServerInterfaceWrapper) GetPrimaryIps(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetPrimaryIpsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "label_selector" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "label_selector", r.URL.Query(), &params.LabelSelector, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "label_selector"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "label_selector", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "name" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "name", r.URL.Query(), &params.Name, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "name"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "server" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "server", r.URL.Query(), &params.Server, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "server"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "server", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location", r.URL.Query(), &params.Location, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "location"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", r.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "type", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrimaryIps(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostPrimaryIps operation middleware
+func (siw *ServerInterfaceWrapper) PostPrimaryIps(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostPrimaryIps(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeletePrimaryIp operation middleware
+func (siw *ServerInterfaceWrapper) DeletePrimaryIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePrimaryIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPrimaryIp operation middleware
+func (siw *ServerInterfaceWrapper) GetPrimaryIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrimaryIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutPrimaryIp operation middleware
+func (siw *ServerInterfaceWrapper) PutPrimaryIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutPrimaryIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPrimaryIpActions operation middleware
+func (siw *ServerInterfaceWrapper) GetPrimaryIpActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetPrimaryIpActionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", r.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "per_page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "per_page", r.URL.Query(), &params.PerPage, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "per_page"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "per_page", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrimaryIpActions(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AssignPrimaryIp operation middleware
+func (siw *ServerInterfaceWrapper) AssignPrimaryIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AssignPrimaryIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnassignPrimaryIp operation middleware
+func (siw *ServerInterfaceWrapper) UnassignPrimaryIp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnassignPrimaryIp(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProjects operation middleware
 func (siw *ServerInterfaceWrapper) GetProjects(w http.ResponseWriter, r *http.Request) {
 
@@ -8855,6 +9601,30 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/servers/{id}/actions/detach_from_network", wrapper.DetachServerFromNetwork)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/primary_ips", wrapper.GetPrimaryIps)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/primary_ips", wrapper.PostPrimaryIps)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/primary_ips/{id}", wrapper.DeletePrimaryIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/primary_ips/{id}", wrapper.GetPrimaryIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/primary_ips/{id}", wrapper.PutPrimaryIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/primary_ips/{id}/actions", wrapper.GetPrimaryIpActions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/primary_ips/{id}/actions/assign", wrapper.AssignPrimaryIp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/primary_ips/{id}/actions/unassign", wrapper.UnassignPrimaryIp)
+	})
 
 	return r
 }
@@ -8872,6 +9642,11 @@ type ErrorJSONResponse Error
 type NetworkActionCreatedJSONResponse struct {
 	Action      Action              `json:"action"`
 	GuestConfig *NetworkGuestConfig `json:"guest_config"`
+}
+
+type PrimaryIpActionCreatedJSONResponse struct {
+	Action   Action   `json:"action"`
+	Warnings []string `json:"warnings"`
 }
 
 type GetActionsRequestObject struct {
@@ -17523,6 +18298,803 @@ func (response GetNetworkActionsdefaultJSONResponse) VisitGetNetworkActionsRespo
 	return err
 }
 
+type GetPrimaryIpsRequestObject struct {
+	Params GetPrimaryIpsParams
+}
+
+type GetPrimaryIpsResponseObject interface {
+	VisitGetPrimaryIpsResponse(w http.ResponseWriter) error
+}
+
+type GetPrimaryIps200JSONResponse struct {
+	Meta       Meta        `json:"meta"`
+	PrimaryIps []PrimaryIp `json:"primary_ips"`
+}
+
+func (response GetPrimaryIps200JSONResponse) VisitGetPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIps401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetPrimaryIps401JSONResponse) VisitGetPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIps404JSONResponse Error
+
+func (response GetPrimaryIps404JSONResponse) VisitGetPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIps422JSONResponse Error
+
+func (response GetPrimaryIps422JSONResponse) VisitGetPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetPrimaryIpsdefaultJSONResponse) VisitGetPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostPrimaryIpsRequestObject struct {
+	Body *PostPrimaryIpsJSONRequestBody
+}
+
+type PostPrimaryIpsResponseObject interface {
+	VisitPostPrimaryIpsResponse(w http.ResponseWriter) error
+}
+
+type PostPrimaryIps201JSONResponse struct {
+	PrimaryIp PrimaryIp `json:"primary_ip"`
+}
+
+func (response PostPrimaryIps201JSONResponse) VisitPostPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostPrimaryIps401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostPrimaryIps401JSONResponse) VisitPostPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostPrimaryIps403JSONResponse Error
+
+func (response PostPrimaryIps403JSONResponse) VisitPostPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostPrimaryIps404JSONResponse Error
+
+func (response PostPrimaryIps404JSONResponse) VisitPostPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostPrimaryIps409JSONResponse Error
+
+func (response PostPrimaryIps409JSONResponse) VisitPostPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostPrimaryIps422JSONResponse Error
+
+func (response PostPrimaryIps422JSONResponse) VisitPostPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostPrimaryIpsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostPrimaryIpsdefaultJSONResponse) VisitPostPrimaryIpsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePrimaryIpRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeletePrimaryIpResponseObject interface {
+	VisitDeletePrimaryIpResponse(w http.ResponseWriter) error
+}
+
+type DeletePrimaryIp204Response struct {
+}
+
+func (response DeletePrimaryIp204Response) VisitDeletePrimaryIpResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeletePrimaryIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeletePrimaryIp401JSONResponse) VisitDeletePrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePrimaryIp403JSONResponse Error
+
+func (response DeletePrimaryIp403JSONResponse) VisitDeletePrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePrimaryIp404JSONResponse Error
+
+func (response DeletePrimaryIp404JSONResponse) VisitDeletePrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePrimaryIp409JSONResponse Error
+
+func (response DeletePrimaryIp409JSONResponse) VisitDeletePrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePrimaryIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeletePrimaryIpdefaultJSONResponse) VisitDeletePrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetPrimaryIpResponseObject interface {
+	VisitGetPrimaryIpResponse(w http.ResponseWriter) error
+}
+
+type GetPrimaryIp200JSONResponse PrimaryIp
+
+func (response GetPrimaryIp200JSONResponse) VisitGetPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetPrimaryIp401JSONResponse) VisitGetPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIp404JSONResponse Error
+
+func (response GetPrimaryIp404JSONResponse) VisitGetPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetPrimaryIpdefaultJSONResponse) VisitGetPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPrimaryIpRequestObject struct {
+	Id   ID `json:"id"`
+	Body *PutPrimaryIpJSONRequestBody
+}
+
+type PutPrimaryIpResponseObject interface {
+	VisitPutPrimaryIpResponse(w http.ResponseWriter) error
+}
+
+type PutPrimaryIp200JSONResponse PrimaryIp
+
+func (response PutPrimaryIp200JSONResponse) VisitPutPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPrimaryIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PutPrimaryIp401JSONResponse) VisitPutPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPrimaryIp403JSONResponse Error
+
+func (response PutPrimaryIp403JSONResponse) VisitPutPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPrimaryIp404JSONResponse Error
+
+func (response PutPrimaryIp404JSONResponse) VisitPutPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPrimaryIp409JSONResponse Error
+
+func (response PutPrimaryIp409JSONResponse) VisitPutPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPrimaryIp422JSONResponse Error
+
+func (response PutPrimaryIp422JSONResponse) VisitPutPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPrimaryIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutPrimaryIpdefaultJSONResponse) VisitPutPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpActionsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetPrimaryIpActionsParams
+}
+
+type GetPrimaryIpActionsResponseObject interface {
+	VisitGetPrimaryIpActionsResponse(w http.ResponseWriter) error
+}
+
+type GetPrimaryIpActions200JSONResponse struct {
+	Actions []Action `json:"actions"`
+	Meta    Meta     `json:"meta"`
+}
+
+func (response GetPrimaryIpActions200JSONResponse) VisitGetPrimaryIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpActions401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetPrimaryIpActions401JSONResponse) VisitGetPrimaryIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpActions404JSONResponse Error
+
+func (response GetPrimaryIpActions404JSONResponse) VisitGetPrimaryIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpActions422JSONResponse Error
+
+func (response GetPrimaryIpActions422JSONResponse) VisitGetPrimaryIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrimaryIpActionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetPrimaryIpActionsdefaultJSONResponse) VisitGetPrimaryIpActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIpRequestObject struct {
+	Id   ID `json:"id"`
+	Body *AssignPrimaryIpJSONRequestBody
+}
+
+type AssignPrimaryIpResponseObject interface {
+	VisitAssignPrimaryIpResponse(w http.ResponseWriter) error
+}
+
+type AssignPrimaryIp201JSONResponse struct {
+	PrimaryIpActionCreatedJSONResponse
+}
+
+func (response AssignPrimaryIp201JSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response AssignPrimaryIp401JSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIp403JSONResponse Error
+
+func (response AssignPrimaryIp403JSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIp404JSONResponse Error
+
+func (response AssignPrimaryIp404JSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIp409JSONResponse Error
+
+func (response AssignPrimaryIp409JSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIp422JSONResponse Error
+
+func (response AssignPrimaryIp422JSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIp503JSONResponse Error
+
+func (response AssignPrimaryIp503JSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignPrimaryIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response AssignPrimaryIpdefaultJSONResponse) VisitAssignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIpRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type UnassignPrimaryIpResponseObject interface {
+	VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error
+}
+
+type UnassignPrimaryIp201JSONResponse struct {
+	PrimaryIpActionCreatedJSONResponse
+}
+
+func (response UnassignPrimaryIp201JSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIp401JSONResponse struct{ ErrorJSONResponse }
+
+func (response UnassignPrimaryIp401JSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIp403JSONResponse Error
+
+func (response UnassignPrimaryIp403JSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIp404JSONResponse Error
+
+func (response UnassignPrimaryIp404JSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIp409JSONResponse Error
+
+func (response UnassignPrimaryIp409JSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIp422JSONResponse Error
+
+func (response UnassignPrimaryIp422JSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIp503JSONResponse Error
+
+func (response UnassignPrimaryIp503JSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignPrimaryIpdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UnassignPrimaryIpdefaultJSONResponse) VisitUnassignPrimaryIpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProjectsRequestObject struct {
 }
 
@@ -23100,6 +24672,30 @@ type StrictServerInterface interface {
 	// GetNetworkActions List a private network's actions
 	// (GET /networks/{id}/actions)
 	GetNetworkActions(ctx context.Context, request GetNetworkActionsRequestObject) (GetNetworkActionsResponseObject, error)
+	// GetPrimaryIps List the project's primary IPs
+	// (GET /primary_ips)
+	GetPrimaryIps(ctx context.Context, request GetPrimaryIpsRequestObject) (GetPrimaryIpsResponseObject, error)
+	// PostPrimaryIps Reserve a primary IP in a location
+	// (POST /primary_ips)
+	PostPrimaryIps(ctx context.Context, request PostPrimaryIpsRequestObject) (PostPrimaryIpsResponseObject, error)
+	// DeletePrimaryIp Delete an unassigned primary IP
+	// (DELETE /primary_ips/{id})
+	DeletePrimaryIp(ctx context.Context, request DeletePrimaryIpRequestObject) (DeletePrimaryIpResponseObject, error)
+	// GetPrimaryIp Get a primary IP
+	// (GET /primary_ips/{id})
+	GetPrimaryIp(ctx context.Context, request GetPrimaryIpRequestObject) (GetPrimaryIpResponseObject, error)
+	// PutPrimaryIp Rename a primary IP, change its description, labels or auto-delete
+	// (PUT /primary_ips/{id})
+	PutPrimaryIp(ctx context.Context, request PutPrimaryIpRequestObject) (PutPrimaryIpResponseObject, error)
+	// GetPrimaryIpActions List a primary IP's actions
+	// (GET /primary_ips/{id}/actions)
+	GetPrimaryIpActions(ctx context.Context, request GetPrimaryIpActionsRequestObject) (GetPrimaryIpActionsResponseObject, error)
+	// AssignPrimaryIp Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+	// (POST /primary_ips/{id}/actions/assign)
+	AssignPrimaryIp(ctx context.Context, request AssignPrimaryIpRequestObject) (AssignPrimaryIpResponseObject, error)
+	// UnassignPrimaryIp Unassign a primary IP from its stopped server; it takes effect when the server starts
+	// (POST /primary_ips/{id}/actions/unassign)
+	UnassignPrimaryIp(ctx context.Context, request UnassignPrimaryIpRequestObject) (UnassignPrimaryIpResponseObject, error)
 	// GetProjects List the caller's projects
 	// (GET /projects)
 	GetProjects(ctx context.Context, request GetProjectsRequestObject) (GetProjectsResponseObject, error)
@@ -26074,6 +27670,234 @@ func (sh *strictHandler) GetNetworkActions(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetNetworkActionsResponseObject); ok {
 		if err := validResponse.VisitGetNetworkActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPrimaryIps operation middleware
+func (sh *strictHandler) GetPrimaryIps(w http.ResponseWriter, r *http.Request, params GetPrimaryIpsParams) {
+	var request GetPrimaryIpsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrimaryIps(ctx, request.(GetPrimaryIpsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrimaryIps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrimaryIpsResponseObject); ok {
+		if err := validResponse.VisitGetPrimaryIpsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostPrimaryIps operation middleware
+func (sh *strictHandler) PostPrimaryIps(w http.ResponseWriter, r *http.Request) {
+	var request PostPrimaryIpsRequestObject
+
+	var body PostPrimaryIpsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostPrimaryIps(ctx, request.(PostPrimaryIpsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostPrimaryIps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostPrimaryIpsResponseObject); ok {
+		if err := validResponse.VisitPostPrimaryIpsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeletePrimaryIp operation middleware
+func (sh *strictHandler) DeletePrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeletePrimaryIpRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePrimaryIp(ctx, request.(DeletePrimaryIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePrimaryIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePrimaryIpResponseObject); ok {
+		if err := validResponse.VisitDeletePrimaryIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPrimaryIp operation middleware
+func (sh *strictHandler) GetPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetPrimaryIpRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrimaryIp(ctx, request.(GetPrimaryIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrimaryIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrimaryIpResponseObject); ok {
+		if err := validResponse.VisitGetPrimaryIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutPrimaryIp operation middleware
+func (sh *strictHandler) PutPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PutPrimaryIpRequestObject
+
+	request.Id = id
+
+	var body PutPrimaryIpJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutPrimaryIp(ctx, request.(PutPrimaryIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutPrimaryIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutPrimaryIpResponseObject); ok {
+		if err := validResponse.VisitPutPrimaryIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPrimaryIpActions operation middleware
+func (sh *strictHandler) GetPrimaryIpActions(w http.ResponseWriter, r *http.Request, id ID, params GetPrimaryIpActionsParams) {
+	var request GetPrimaryIpActionsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrimaryIpActions(ctx, request.(GetPrimaryIpActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrimaryIpActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrimaryIpActionsResponseObject); ok {
+		if err := validResponse.VisitGetPrimaryIpActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AssignPrimaryIp operation middleware
+func (sh *strictHandler) AssignPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request AssignPrimaryIpRequestObject
+
+	request.Id = id
+
+	var body AssignPrimaryIpJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AssignPrimaryIp(ctx, request.(AssignPrimaryIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AssignPrimaryIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AssignPrimaryIpResponseObject); ok {
+		if err := validResponse.VisitAssignPrimaryIpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnassignPrimaryIp operation middleware
+func (sh *strictHandler) UnassignPrimaryIp(w http.ResponseWriter, r *http.Request, id ID) {
+	var request UnassignPrimaryIpRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnassignPrimaryIp(ctx, request.(UnassignPrimaryIpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnassignPrimaryIp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnassignPrimaryIpResponseObject); ok {
+		if err := validResponse.VisitUnassignPrimaryIpResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

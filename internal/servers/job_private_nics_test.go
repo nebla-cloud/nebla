@@ -66,7 +66,7 @@ func newPrivEnv(t *testing.T) *privEnv {
 // create makes a server on the named networks and returns it with its create action.
 func (p *privEnv) create(t *testing.T, name string, refs ...string) testutil.CreatedServer {
 	t.Helper()
-	in := servers.CreateInput{Name: name, ServerType: "small", Image: "ubuntu", Location: "eu-1", IPv4: true, StartAfter: true}
+	in := servers.CreateInput{Name: name, ServerType: "small", Image: "ubuntu", Location: "eu-1", IPv4: servers.IPChoice{New: true}, StartAfter: true}
 	for _, r := range refs {
 		in.Networks = append(in.Networks, networks.CreateRef{Network: r})
 	}

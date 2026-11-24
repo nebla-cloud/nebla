@@ -37,6 +37,8 @@ const labels: Record<string, string> = {
   delete_backup: 'Deleting backup',
   attach_to_network: 'Attaching to network',
   detach_from_network: 'Detaching from network',
+  assign_primary_ip: 'Assigning primary IP',
+  unassign_primary_ip: 'Unassigning primary IP',
 }
 
 const done: Record<string, string> = {
@@ -72,6 +74,8 @@ const titles: Record<string, string> = {
   delete_backup: 'Delete backup',
   attach_to_network: 'Attach to network',
   detach_from_network: 'Detach from network',
+  assign_primary_ip: 'Assign primary IP',
+  unassign_primary_ip: 'Unassign primary IP',
 }
 
 function sentence(command: string): string {

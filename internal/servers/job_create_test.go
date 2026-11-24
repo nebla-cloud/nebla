@@ -58,6 +58,11 @@ func (r *recorder) all() []ext.Event {
 	return slices.Clone(r.events)
 }
 
+// servers returns the events about servers, leaving out the primary IP ones.
+func (r *recorder) servers() []ext.Event {
+	return slices.DeleteFunc(r.all(), func(e ext.Event) bool { return e.ResourceType != "server" })
+}
+
 // workerEnv runs the real create worker through River.
 func workerEnv(t *testing.T, sink ext.BillingSink) *testutil.ServerEnv {
 	t.Helper()
@@ -187,8 +192,8 @@ func TestCreateServerHappyPath(t *testing.T) {
 	require.Contains(t, ud, "htop")
 	require.Contains(t, ud, key)
 
-	require.Eventually(t, func() bool { return len(rec.all()) == 1 }, testWait, testTick)
-	ev := rec.all()[0]
+	require.Eventually(t, func() bool { return len(rec.servers()) == 1 }, testWait, testTick)
+	ev := rec.servers()[0]
 	require.Equal(t, ext.ServerCreated, ev.Kind)
 	require.Equal(t, s.ServerID, ev.ServerID)
 	require.Equal(t, e.Project, ev.ProjectID)

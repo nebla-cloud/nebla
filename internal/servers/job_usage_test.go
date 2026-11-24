@@ -73,7 +73,7 @@ func TestServerEventsCarryResource(t *testing.T) {
 	o.Bus.(*ext.Bus).Close()
 
 	kinds := map[ext.EventKind]bool{}
-	for _, ev := range rec.all() {
+	for _, ev := range rec.servers() {
 		kinds[ev.Kind] = true
 		require.Equal(t, "server", ev.ResourceType, ev.Kind)
 		require.Equal(t, ev.ServerID, ev.ResourceID, ev.Kind)

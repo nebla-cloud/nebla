@@ -128,11 +128,14 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 	if err != nil {
 		return &stepError{"delete cloud-init iso", err}
 	}
+	var freed []*ent.IPAddress
 	err = db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
-		if err := lockFloatingIPsOf(ctx, etx, row.ID); err != nil {
+		freed = nil
+		if err := lockIPsOf(ctx, etx, row.ID); err != nil {
 			return err
 		}
-		if _, err := releasePrimaries(ctx, etx, row.ID); err != nil {
+		var err error
+		if freed, err = releasePrimaries(ctx, etx, row.ID); err != nil {
 			return err
 		}
 		if err := detachVolumesTx(ctx, etx, row.ID); err != nil {
@@ -146,12 +149,15 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 	if err != nil {
 		return err
 	}
+	for _, r := range freed {
+		publishPrimary(ctx, w.o.Bus, ext.PrimaryIPDeleted, r)
+	}
 	w.o.publish(ctx, ext.ServerDeleted, row, map[string]any{"location": loc.Name})
 	return nil
 }
 
-// lockFloatingIPsOf locks every IP row, floating or primary, the server's delete will change, keeping the IP → server lock order.
-func lockFloatingIPsOf(ctx context.Context, etx *ent.Client, serverID int64) error {
+// lockIPsOf locks every IP row, floating or primary, the server's delete will change, keeping the IP → server lock order.
+func lockIPsOf(ctx context.Context, etx *ent.Client, serverID int64) error {
 	_, err := etx.IPAddress.Query().Where(ipaddress.Or(ipaddress.ServerID(serverID), ipaddress.ReleasingFromID(serverID),
 		ipaddress.PreviousServerID(serverID))).Order(ipaddress.ByID()).Unique(false).ForUpdate().IDs(ctx)
 	return err

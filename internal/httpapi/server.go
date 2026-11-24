@@ -46,6 +46,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/mail"
 	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/primaryips"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -105,6 +106,7 @@ type server struct {
 	backups     *backups.Service
 	floatingIPs *floatingips.Service
 	networks    *networks.Service
+	primaryIPs  *primaryips.Service
 	console     *console.Service
 	enroll      *enroll.Service
 	loginLimit  *ratelimit.Limiter
@@ -167,23 +169,23 @@ func New(deps Deps) http.Handler {
 	bk := backups.New(backups.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Jobs: deps.Jobs, Logger: log})
 	nets := newNetworks(deps, proj, log)
 	s := &server{
-		deps:     deps,
-		log:      log,
-		auth:     au,
-		passkeys: deps.Passkeys,
-		projects: proj,
-		settings: st,
-		catalog:  deps.Catalog,
-		osimages: deps.OSImages,
-		ipam:     ipam.New(deps.SQL, deps.Ent),
-		sshkeys:  sshkeys.New(deps.Ent),
-		servers: servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs,
-			BackupInfo: bk.BackupInfo, Networks: nets}),
+		deps:        deps,
+		log:         log,
+		auth:        au,
+		passkeys:    deps.Passkeys,
+		projects:    proj,
+		settings:    st,
+		catalog:     deps.Catalog,
+		osimages:    deps.OSImages,
+		ipam:        ipam.New(deps.SQL, deps.Ent),
+		sshkeys:     sshkeys.New(deps.Ent),
+		servers:     newServers(deps, proj, bk, nets),
 		firewalls:   firewalls.New(firewalls.Options{Ent: deps.Ent, SQL: deps.SQL, Jobs: deps.Jobs}),
 		backups:     bk,
 		volumes:     volumes.New(volumes.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
 		floatingIPs: newFloatingIPs(deps, proj, log),
 		networks:    nets,
+		primaryIPs:  newPrimaryIPs(deps, proj, log),
 		enroll:      deps.Enroll,
 		loginLimit:  ratelimit.New(rate.Every(90*time.Second), 10),
 		apiLimit:    newAPILimiter(deps.APILimiter),
@@ -322,4 +324,21 @@ func newNetworks(deps Deps, proj *projects.Service, log *slog.Logger) *networks.
 		o.Bus = deps.Bus
 	}
 	return networks.New(o)
+}
+
+func newPrimaryIPs(deps Deps, proj *projects.Service, log *slog.Logger) *primaryips.Service {
+	o := primaryips.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs}
+	if deps.Bus != nil {
+		o.Bus = deps.Bus
+	}
+	return primaryips.New(o)
+}
+
+func newServers(deps Deps, proj *projects.Service, bk *backups.Service, nets *networks.Service) *servers.Service {
+	o := servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, BackupInfo: bk.BackupInfo,
+		Networks: nets}
+	if deps.Bus != nil {
+		o.Bus = deps.Bus
+	}
+	return servers.New(o)
 }

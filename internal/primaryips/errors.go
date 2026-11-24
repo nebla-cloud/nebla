@@ -40,11 +40,18 @@ var (
 	errNotAssigned = apierr.New(http.StatusUnprocessableEntity, "invalid_input", "The primary IP isn't assigned.")
 )
 
+// ErrNameTaken is the 409 for a duplicate primary IP name.
+var ErrNameTaken = errNameTaken
+
 // OldServerWarning is returned with an IP change on a server without boot-time network refresh.
 const OldServerWarning = "This server was created before IP changes were supported. Changing its IP re-runs its cloud-init user data and gives it new SSH host keys."
 
 func errInUseOn(server string) error {
 	return apierr.New(http.StatusConflict, "ip_in_use", fmt.Sprintf("Unassign it from %s first.", server))
+}
+
+func errWrongFamily(family string) error {
+	return apierr.New(http.StatusUnprocessableEntity, "invalid_input", fmt.Sprintf("That IP isn't an %s address.", familyName(family)))
 }
 
 func errHasIP(family string) error {

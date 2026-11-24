@@ -3221,6 +3221,200 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
         default: { $ref: "#/components/responses/Error" }
+  /primary_ips:
+    get:
+      operationId: getPrimaryIps
+      x-nebla-scope: project
+      summary: List the project's primary IPs
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: label_selector
+          in: query
+          description: "Comma-separated terms: k=v, k!=v, k (has key) or !k (lacks key)"
+          schema: { type: string }
+        - name: name
+          in: query
+          description: Exact primary IP name
+          schema: { type: string }
+        - name: server
+          in: query
+          description: Only primary IPs assigned to this server id or name
+          schema: { type: string }
+        - name: location
+          in: query
+          description: Only primary IPs in this location id or name
+          schema: { type: string }
+        - name: type
+          in: query
+          description: Only primary IPs of this family
+          schema: { type: string, enum: [ipv4, ipv6] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [primary_ips, meta]
+                properties:
+                  primary_ips:
+                    type: array
+                    items: { $ref: "#/components/schemas/PrimaryIp" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: postPrimaryIps
+      x-nebla-scope: project
+      summary: Reserve a primary IP in a location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrimaryIpInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [primary_ip]
+                properties:
+                  primary_ip: { $ref: "#/components/schemas/PrimaryIp" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /primary_ips/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getPrimaryIp
+      x-nebla-scope: project
+      summary: Get a primary IP
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrimaryIp" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    put:
+      operationId: putPrimaryIp
+      x-nebla-scope: project
+      summary: Rename a primary IP, change its description, labels or auto-delete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrimaryIpUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PrimaryIp" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deletePrimaryIp
+      x-nebla-scope: project
+      summary: Delete an unassigned primary IP
+      responses:
+        "204": { description: No content }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /primary_ips/{id}/actions:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getPrimaryIpActions
+      x-nebla-scope: project
+      summary: List a primary IP's actions
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          description: Only actions in these statuses (running, success, error); repeat the parameter or separate with commas
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - name: sort
+          in: query
+          description: "id, id:asc or id:desc (default)"
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [actions, meta]
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /primary_ips/{id}/actions/assign:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: assignPrimaryIp
+      x-nebla-scope: project
+      summary: Assign an unassigned primary IP to a stopped server; it takes effect when the server starts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrimaryIpAssignInput" }
+      responses:
+        "201": { $ref: "#/components/responses/PrimaryIpActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /primary_ips/{id}/actions/unassign:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: unassignPrimaryIp
+      x-nebla-scope: project
+      summary: Unassign a primary IP from its stopped server; it takes effect when the server starts
+      responses:
+        "201": { $ref: "#/components/responses/PrimaryIpActionCreated" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
 components:
   responses:
     ActionCreated:
@@ -3245,6 +3439,18 @@ components:
                 nullable: true
                 allOf:
                   - $ref: "#/components/schemas/NetworkGuestConfig"
+    PrimaryIpActionCreated:
+      description: The action, with warnings for the member
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [action, warnings]
+            properties:
+              action: { $ref: "#/components/schemas/Action" }
+              warnings:
+                type: array
+                items: { type: string }
     ActionsCreated:
       description: One apply_firewalls action per affected server
       content:
@@ -4179,8 +4385,18 @@ components:
         public_net:
           type: object
           properties:
-            ipv4: { type: boolean, default: true }
-            ipv6: { type: boolean, default: false }
+            ipv4:
+              description: true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+              oneOf:
+                - { type: boolean }
+                - { type: string }
+              default: true
+            ipv6:
+              description: true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
+              oneOf:
+                - { type: boolean }
+                - { type: string }
+              default: false
         labels: { $ref: "#/components/schemas/Labels" }
         start_after_create: { type: boolean, default: true }
         firewalls:
@@ -4246,8 +4462,9 @@ components:
     ServerIp:
       type: object
       nullable: true
-      required: [ip]
+      required: [id, ip]
       properties:
+        id: { type: integer, format: int64, description: The primary IP's id }
         ip: { type: string }
     Server:
       type: object
@@ -4410,6 +4627,51 @@ components:
         description: { type: string, maxLength: 255 }
         labels: { $ref: "#/components/schemas/Labels" }
     FloatingIpAssignInput:
+      type: object
+      required: [server]
+      properties:
+        server: { type: string, description: Server id or name }
+    PrimaryIp:
+      type: object
+      required: [id, name, description, labels, type, ip, location, server, auto_delete, status, created]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        labels: { $ref: "#/components/schemas/Labels" }
+        type: { type: string, enum: [ipv4, ipv6] }
+        ip: { type: string, description: The bare address }
+        location: { $ref: "#/components/schemas/LocationRef" }
+        server:
+          type: object
+          nullable: true
+          required: [id, name]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+        auto_delete: { type: boolean, description: Delete the address when its server is deleted }
+        status:
+          type: string
+          enum: [active, releasing]
+        created: { type: string, format: date-time }
+    PrimaryIpInput:
+      type: object
+      required: [type, location]
+      properties:
+        name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", description: Generated when omitted }
+        description: { type: string, maxLength: 255 }
+        labels: { $ref: "#/components/schemas/Labels" }
+        type: { type: string, enum: [ipv4, ipv6] }
+        location: { type: string, description: Location id or name }
+        auto_delete: { type: boolean, default: true }
+    PrimaryIpUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string, maxLength: 255 }
+        labels: { $ref: "#/components/schemas/Labels" }
+        auto_delete: { type: boolean }
+    PrimaryIpAssignInput:
       type: object
       required: [server]
       properties:

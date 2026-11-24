@@ -17,8 +17,11 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"strings"
 
+	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/apigen"
 	"github.com/nebla-cloud/nebla/internal/floatingips"
 	"github.com/nebla-cloud/nebla/internal/networks"
@@ -50,10 +53,10 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref, pn []priv
 		out.Firewalls[i] = apigen.ServerFirewall{Id: f.FirewallID, Name: f.Name, Via: f.Via}
 	}
 	if s.IPv4.IsValid() {
-		out.PublicNet.Ipv4 = &apigen.ServerIp{Ip: s.IPv4.String()}
+		out.PublicNet.Ipv4 = &apigen.ServerIp{Id: s.IPv4ID, Ip: s.IPv4.String()}
 	}
 	if s.IPv6.IsValid() {
-		out.PublicNet.Ipv6 = &apigen.ServerIp{Ip: s.IPv6.String()}
+		out.PublicNet.Ipv6 = &apigen.ServerIp{Id: s.IPv6ID, Ip: s.IPv6.String()}
 	}
 	return out
 }
@@ -70,6 +73,29 @@ func (s *server) serverExtras(ctx context.Context, srv servers.Server) ([]int64,
 	}
 	pn, err := s.privateNets(ctx, []int64{srv.ID}, map[int64]bool{srv.ID: isRunning(srv.Status)})
 	return m[srv.ID], f[srv.ID], pn[srv.ID], err
+}
+
+// ipChoice reads a public_net family: true for a new address, false for none, a string for an existing primary IP.
+// The generated union keeps raw JSON, so re-marshal it to tell a bool from a string.
+func ipChoice(raw func() ([]byte, error)) (servers.IPChoice, error) {
+	b, err := raw()
+	if err != nil {
+		return servers.IPChoice{}, err
+	}
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		return servers.IPChoice{}, apierr.New(http.StatusUnprocessableEntity, "invalid_input", "public_net IP must be true, false or a primary IP id or name")
+	}
+	switch v := v.(type) {
+	case bool:
+		return servers.IPChoice{New: v}, nil
+	case string:
+		if v == "" {
+			break
+		}
+		return servers.IPChoice{Existing: v}, nil
+	}
+	return servers.IPChoice{}, apierr.New(http.StatusUnprocessableEntity, "invalid_input", "public_net IP must be true, false or a primary IP id or name")
 }
 
 func splitList(vs *[]string) []string {
@@ -129,15 +155,21 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 	}
 	b := req.Body
 	in := servers.CreateInput{Name: b.Name, ServerType: b.ServerType, Image: b.Image, Location: b.Location,
-		SSHKeys: deref(b.SshKeys), UserData: deref(b.UserData), IPv4: true, StartAfter: true}
+		SSHKeys: deref(b.SshKeys), UserData: deref(b.UserData), IPv4: servers.IPChoice{New: true}, StartAfter: true}
 	if b.Labels != nil {
 		in.Labels = *b.Labels
 	}
 	if b.PublicNet != nil {
 		if b.PublicNet.Ipv4 != nil {
-			in.IPv4 = *b.PublicNet.Ipv4
+			if in.IPv4, err = ipChoice(b.PublicNet.Ipv4.MarshalJSON); err != nil {
+				return nil, err
+			}
 		}
-		in.IPv6 = deref(b.PublicNet.Ipv6)
+		if b.PublicNet.Ipv6 != nil {
+			if in.IPv6, err = ipChoice(b.PublicNet.Ipv6.MarshalJSON); err != nil {
+				return nil, err
+			}
+		}
 	}
 	for _, f := range deref(b.Firewalls) {
 		in.Firewalls = append(in.Firewalls, f.Firewall)

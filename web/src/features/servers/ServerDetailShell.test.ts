@@ -480,7 +480,7 @@ describe('ServerDetailShell', () => {
     serve(
       makeServer({
         status: 'running',
-        public_net: { ipv4: { ip: '203.0.113.10' }, ipv6: { ip: '2001:db8::10' }, floating_ips: [] },
+        public_net: { ipv4: { id: 1, ip: '203.0.113.10' }, ipv6: { id: 2, ip: '2001:db8::10' }, floating_ips: [] },
       }),
     )
     const { wrapper } = await mountDetail()

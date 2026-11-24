@@ -26,6 +26,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ext"
@@ -260,7 +261,9 @@ func (c *createRun) cleanup(ctx context.Context, f failure) error {
 	if !gone {
 		f.detail += fmt.Sprintf("; cleanup incomplete: VM %d could not be removed", *c.row.Vmid)
 	}
+	var freed []*ent.IPAddress
 	err := db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+		freed = nil
 		if w.cleanupTxHook != nil {
 			if err := w.cleanupTxHook(); err != nil {
 				return err
@@ -268,7 +271,15 @@ func (c *createRun) cleanup(ctx context.Context, f failure) error {
 		}
 		u := etx.Server.UpdateOneID(c.row.ID).SetStatus(server.Status(StatusError))
 		if gone {
-			if _, err := releasePrimaries(ctx, etx, c.row.ID); err != nil {
+			// Existing IPs go back to unassigned first, so releasePrimaries doesn't delete an auto_delete one.
+			if len(c.args.KeptIPs) > 0 {
+				if err := etx.IPAddress.Update().Where(ipaddress.IDIn(c.args.KeptIPs...), ipaddress.ServerID(c.row.ID)).
+					ClearServerID().ClearPendingGen().Exec(ctx); err != nil {
+					return err
+				}
+			}
+			var err error
+			if freed, err = releasePrimaries(ctx, etx, c.row.ID); err != nil {
 				return err
 			}
 			if _, err := etx.ServerNetwork.Delete().Where(servernetwork.ServerID(c.row.ID), servernetwork.StateEQ(servernetwork.StateAttaching)).Exec(ctx); err != nil {
@@ -280,6 +291,9 @@ func (c *createRun) cleanup(ctx context.Context, f failure) error {
 	})
 	if err != nil {
 		return err
+	}
+	for _, r := range freed {
+		publishPrimary(ctx, w.o.Bus, ext.PrimaryIPDeleted, r)
 	}
 	return failAction(ctx, w.o.Ent, c.args.ActionID, f)
 }

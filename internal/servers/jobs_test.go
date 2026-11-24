@@ -460,7 +460,7 @@ func TestRebuildKeepsIPAndMAC(t *testing.T) {
 	got, _ := expect[serverJSON](t, e.C.Get(spath(s.ServerID)), http.StatusOK)
 	require.Equal(t, "10.0.0.10", got.PublicNet.IPv4.IP)
 	require.Equal(t, "debian", got.Image.Name)
-	require.Len(t, rec.all(), 1, "rebuild publishes nothing")
+	require.Len(t, rec.servers(), 1, "rebuild publishes nothing")
 
 	// An off server stays off.
 	waitOK(t, e, startAction(t, e, s.ServerID, "poweroff", nil))
