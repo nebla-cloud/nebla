@@ -322,10 +322,15 @@ type fipEnv struct {
 	c      *testutil.Client
 	pc     pve.Client
 	loc    string
+	locID  int64
 	poolID int64
+	log    *slog.Logger
 }
 
-func newFIPEnv(t *testing.T, images []string) fipEnv {
+func newFIPEnv(t *testing.T, images []string) fipEnv { return newCatalogEnv(t, images, "fip") }
+
+// newCatalogEnv is a panel with location e2e-<name>, the catalog images built there, an IP pool and project e2e.
+func newCatalogEnv(t *testing.T, images []string, name string) fipEnv {
 	tg := loadTarget(t)
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	workers := func(w *river.Workers, d *httpapi.Deps, _ *fake.Server) {
@@ -345,13 +350,13 @@ func newFIPEnv(t *testing.T, images []string) fipEnv {
 		preexisting[v.VMID] = true
 	}
 
-	const email = "e2e-fip@example.com"
+	email := "e2e-" + name + "@example.com"
 	res := app.PostJSON("/v1/setup", map[string]string{"email": email, "password": testutil.Password, "name": "e2e"})
 	require.Equal(t, http.StatusCreated, res.StatusCode, app.Body(res))
 	res.Body.Close()
 	admin := app.Login(email)
 
-	const locName = "e2e-fip"
+	locName := "e2e-" + name
 	var id struct {
 		ID int64 `json:"id"`
 	}
@@ -410,7 +415,8 @@ func newFIPEnv(t *testing.T, images []string) fipEnv {
 	}
 
 	proj := admin.CreateProject("e2e")
-	return fipEnv{tg: tg, app: app, admin: admin, c: admin.WithProject(proj), pc: pc, loc: locName, poolID: pool.ID}
+	return fipEnv{tg: tg, app: app, admin: admin, c: admin.WithProject(proj), pc: pc, loc: locName, locID: loc, poolID: pool.ID,
+		log: log}
 }
 
 func (e fipEnv) allocated(t *testing.T) int {
