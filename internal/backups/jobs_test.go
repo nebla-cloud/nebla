@@ -559,6 +559,24 @@ func TestDeleteBackupJob(t *testing.T) {
 	require.Equal(t, entbackup.StatusMissing, e.App.Ent.Backup.GetX(ctx, missing.ID).Status)
 }
 
+func TestDeleteBackupOnOldStorage(t *testing.T) {
+	ctx := context.Background()
+	e := newJobEnv(t)
+	id := e.running(t, "a")
+	b := e.backUp(t, id)
+	for _, n := range []string{"pve1", "pve2"} {
+		e.App.PVE.AddStorage(n, "pbs2", []string{"backup"}, true)
+	}
+	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.Location).SetBackupStorage("pbs2").Exec(ctx))
+
+	act, err := e.svc.Delete(ctx, e.Project, id, b.ID)
+	require.NoError(t, err)
+	require.NoError(t, backups.NewDeleteBackupWorker(e.o).Work(ctx, deleteJob(t, e, act)))
+	require.False(t, e.App.Ent.Backup.Query().Where(entbackup.ID(b.ID)).ExistX(ctx))
+	require.Empty(t, e.archives(t), "deleted from the storage it was written to")
+	require.Equal(t, entaction.StatusSuccess, e.App.Ent.Action.GetX(ctx, act.ID).Status)
+}
+
 func TestDeadJobDoesNotBlockNode(t *testing.T) {
 	ctx := context.Background()
 	e := newJobEnv(t)

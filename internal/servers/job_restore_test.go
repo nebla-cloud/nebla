@@ -164,6 +164,24 @@ func TestRestoreSwapsAndKeepsVolumes(t *testing.T) {
 	require.Equal(t, 1, vmCount(t, e.ServerEnv))
 }
 
+func TestRestoreFromOldStorage(t *testing.T) {
+	ctx := context.Background()
+	e := newRestoreEnv(t)
+	old := vmidOf(t, e.ServerEnv, e.s.ServerID)
+	b := e.backUp(t, e.sameNet(t))
+	for _, n := range []string{"pve1", "pve2"} {
+		e.App.PVE.AddStorage(n, "pbs2", []string{"backup"}, true)
+	}
+	require.NoError(t, e.App.Ent.Location.UpdateOneID(e.Location).SetBackupStorage("pbs2").Exec(ctx))
+
+	a, job := e.request(t, b, 1)
+	require.NoError(t, e.w.Work(ctx, job))
+	require.Equal(t, actions.StatusSuccess, testutil.WaitAction(t, e.App.Ent, a.ID).Status)
+	require.NotEqual(t, old, vmidOf(t, e.ServerEnv, e.s.ServerID), "restored from the archive on pbs")
+	require.Equal(t, servers.StatusRunning, status(t, e.ServerEnv, e.s.ServerID))
+	require.Equal(t, entbackup.StatusAvailable, e.backupStatus(t, b.ID))
+}
+
 func TestRestoreKeepsIdentityWhenNetworkSame(t *testing.T) {
 	ctx := context.Background()
 	e := newRestoreEnv(t)
