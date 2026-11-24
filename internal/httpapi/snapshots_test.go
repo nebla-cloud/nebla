@@ -202,9 +202,7 @@ func TestSnapshotErrorCodes(t *testing.T) {
 	res.Body.Close()
 	requireCode(e.C.Send(http.MethodDelete, "/v1/snapshots/"+itoa(gold.ID), nil), http.StatusConflict, "snapshot_in_use")
 
-	for _, n := range []string{"pve1", "pve2"} {
-		e.App.PVE.AddStorage(n, "ceph", []string{"iso"}, true)
-	}
+	e.App.Ent.Node.Update().SetEnabled(false).ExecX(context.Background())
 	requireCode(e.C.Send(http.MethodPost, "/v1/snapshots", map[string]any{"server": "web1", "name": "x"}), http.StatusUnprocessableEntity, "snapshots_unavailable")
 }
 
@@ -237,10 +235,13 @@ func TestLocationSnapshotsAvailable(t *testing.T) {
 		return one.SnapshotsAvailable
 	}
 	require.True(t, avail())
+	before := len(e.App.PVE.Calls())
 	e.App.PVE.SetDown(true)
-	require.False(t, avail(), "an unreachable Proxmox hides snapshots without failing the read")
+	require.True(t, avail(), "location reads never call Proxmox")
 	e.App.PVE.SetDown(false)
-	require.True(t, avail())
+	require.Len(t, e.App.PVE.Calls(), before)
+	e.App.Ent.Node.Update().SetEnabled(false).ExecX(context.Background())
+	require.False(t, avail(), "no enabled online node")
 }
 
 func TestAdminLocationSnapshotStorage(t *testing.T) {

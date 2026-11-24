@@ -17,10 +17,9 @@ package snapshots
 
 import (
 	"context"
-	"slices"
 
 	"github.com/nebla-cloud/nebla/internal/catalog"
-	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/ent/node"
 )
 
 // ResolveStorage is the storage snapshots on n live in: the location's snapshot storage, else n's disk storage.
@@ -31,31 +30,10 @@ func ResolveStorage(loc catalog.Location, n catalog.Node) string {
 	return n.DiskStorage(loc)
 }
 
-// Available reports whether an enabled online node's snapshot storage holds images, as Proxmox says now.
-// An unreachable location counts as unavailable.
+// Available reports, from the DB only, whether the location has an enabled online node.
 func (s *Service) Available(ctx context.Context, locationID int64) (bool, error) {
-	loc, err := s.o.Catalog.GetLocation(ctx, locationID)
-	if err != nil {
+	if _, err := s.o.Catalog.GetLocation(ctx, locationID); err != nil {
 		return false, err
 	}
-	pc, err := s.o.Catalog.ProxmoxFor(ctx, locationID)
-	if err != nil {
-		s.o.Logger.WarnContext(ctx, "snapshots: connect for availability", "location_id", locationID, "err", err)
-		return false, nil
-	}
-	for _, n := range loc.Nodes {
-		if !n.Enabled || n.Status != "online" {
-			continue
-		}
-		list, err := pc.Storages(ctx, n.Name)
-		if err != nil {
-			s.o.Logger.WarnContext(ctx, "snapshots: list storages for availability", "location_id", locationID, "node", n.Name, "err", err)
-			continue
-		}
-		want := ResolveStorage(loc, n)
-		if slices.ContainsFunc(list, func(st pve.Storage) bool { return st.ID == want && slices.Contains(st.Content, "images") }) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return s.o.Ent.Node.Query().Where(node.LocationID(locationID), node.Enabled(true), node.Status("online")).Exist(ctx)
 }

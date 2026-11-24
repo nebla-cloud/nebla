@@ -109,23 +109,12 @@ func (s *server) locationWithNetworks(ctx context.Context, l catalog.Location) (
 		s.log.WarnContext(ctx, "private networks availability", "location", l.ID, "err", err)
 		private = false
 	}
-	snaps := s.snapshotsAvailable(ctx, l.ID)
-	return apiLocation(l, v4, v6, vols, s.catalog.BackupsAvailable(l), private, snaps), nil
-}
-
-// snapshotAvailableTimeout bounds the live Proxmox check so a slow node can't stall location reads.
-const snapshotAvailableTimeout = 2 * time.Second
-
-// snapshotsAvailable is false when Proxmox is slow, unreachable or fails.
-func (s *server) snapshotsAvailable(ctx context.Context, locationID int64) bool {
-	cctx, cancel := context.WithTimeout(ctx, snapshotAvailableTimeout)
-	defer cancel()
-	ok, err := s.snapshots.Available(cctx, locationID)
+	snaps, err := s.snapshots.Available(ctx, l.ID)
 	if err != nil {
-		s.log.WarnContext(ctx, "snapshots availability", "location", locationID, "err", err)
-		return false
+		s.log.WarnContext(ctx, "snapshots availability", "location", l.ID, "err", err)
+		snaps = false
 	}
-	return ok
+	return apiLocation(l, v4, v6, vols, s.catalog.BackupsAvailable(l), private, snaps), nil
 }
 
 func locationInput(b *apigen.LocationInput) (catalog.LocationInput, error) {

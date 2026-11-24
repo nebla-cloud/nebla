@@ -192,9 +192,7 @@ func TestCreateSnapshotUnavailable(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	e.RunningServer("web1")
-	for _, n := range []string{"pve1", "pve2"} {
-		e.App.PVE.AddStorage(n, "ceph", []string{"iso"}, true)
-	}
+	e.App.Ent.Node.Update().SetEnabled(false).ExecX(ctx)
 	_, _, err := e.svc.Create(ctx, e.Project, snapshots.CreateInput{Server: "web1", Name: "x"})
 	requireAPIErr(t, err, http.StatusUnprocessableEntity, "snapshots_unavailable")
 }
@@ -326,17 +324,21 @@ func TestAvailable(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	// Same as server disks: ceph has no images content.
-	for _, n := range []string{"pve1", "pve2"} {
-		e.App.PVE.AddStorage(n, "ceph", []string{"iso"}, true)
-	}
-	ok, err = e.svc.Available(ctx, e.Location)
-	require.NoError(t, err)
-	require.False(t, ok)
-
-	// An explicit snapshot storage with images content makes it available again.
-	e.App.Ent.Location.UpdateOneID(e.Location).SetSnapshotStorage("local-lvm").ExecX(ctx)
+	// Read from the DB alone: no Proxmox call.
+	before := len(e.App.PVE.Calls())
+	e.App.PVE.SetDown(true)
 	ok, err = e.svc.Available(ctx, e.Location)
 	require.NoError(t, err)
 	require.True(t, ok)
+	e.App.PVE.SetDown(false)
+	require.Len(t, e.App.PVE.Calls(), before)
+
+	e.App.Ent.Node.Update().SetEnabled(false).ExecX(ctx)
+	ok, err = e.svc.Available(ctx, e.Location)
+	require.NoError(t, err)
+	require.False(t, ok, "no enabled node")
+	e.App.Ent.Node.Update().SetEnabled(true).SetStatus("offline").ExecX(ctx)
+	ok, err = e.svc.Available(ctx, e.Location)
+	require.NoError(t, err)
+	require.False(t, ok, "no online node")
 }

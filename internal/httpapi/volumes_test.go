@@ -377,7 +377,7 @@ func TestAdminQuotaVolumes(t *testing.T) {
 	// A body without the volume fields keeps them.
 	q = decodeJSON[quota](t, app, admin.Send(http.MethodPut, path, quota{"max_servers": 9, "max_vcpu": 2, "max_memory_mb": 3,
 		"max_disk_gb": 4, "max_ips": 5}), http.StatusOK)
-	require.Equal(t, quota{"max_servers": 9, "max_vcpu": 2, "max_memory_mb": 3, "max_disk_gb": 4, "max_ips": 5, "max_volumes": 6, "max_volume_gb": 70, "max_backups": 0, "max_networks": 0}, q)
+	require.Equal(t, quota{"max_servers": 9, "max_vcpu": 2, "max_memory_mb": 3, "max_disk_gb": 4, "max_ips": 5, "max_volumes": 6, "max_volume_gb": 70, "max_backups": 0, "max_networks": 0, "max_snapshots": 0, "max_snapshot_gb": 0}, q)
 	q = decodeJSON[quota](t, app, admin.Send(http.MethodPut, path, quota{"max_servers": 9, "max_vcpu": 2, "max_memory_mb": 3,
 		"max_disk_gb": 4, "max_ips": 5, "max_volume_gb": 0}), http.StatusOK)
 	require.Equal(t, 6, q["max_volumes"])
