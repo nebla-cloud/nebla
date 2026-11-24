@@ -39,9 +39,12 @@ func RescueOrphaned(ctx context.Context, sqlDB *sql.DB, j *jobs.Jobs) error {
 		if err := releaseRestoring(ctx, tx); err != nil {
 			return err
 		}
-		// Startup only: a running prune also holds rows deleting without an action.
+		// Startup only: a running prune also holds rows deleting without an action. A delete job's from is the status before it.
 		_, err := tx.ExecContext(ctx, `
-			update backups b set status = case when b.volid is null then 'error' else 'available' end
+			update backups b set status = coalesce(
+				(select j.args->>'from' from river_job j where j.kind = $1 and (j.args->>'backup_id')::bigint = b.id
+					order by j.id desc limit 1),
+				case when b.volid is null then 'error' else 'available' end)
 			where b.status = 'deleting' and not exists (
 				select 1 from actions a join river_job j on j.id = a.river_job_id
 				where a.command = $1 and a.status = 'running' and (j.args->>'backup_id')::bigint = b.id and `+live+`)`,

@@ -26,6 +26,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/pve"
@@ -58,6 +59,8 @@ type DeleteBackupArgs struct {
 	BackupID int64 `json:"backup_id"`
 	ServerID int64 `json:"server_id"`
 	ActionID int64 `json:"action_id"`
+	// From is the backup's status before the delete, which a failed delete puts back.
+	From backup.Status `json:"from,omitempty"`
 }
 
 func (DeleteBackupArgs) Kind() string                 { return KindDeleteBackup }

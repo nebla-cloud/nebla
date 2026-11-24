@@ -227,7 +227,7 @@ func (s *Service) Delete(ctx context.Context, projectID, serverID, id int64) (ac
 		act, err = s.o.Jobs.StartAction(ctx, tx, etx, projectID, KindDeleteBackup,
 			[]actions.Resource{{ID: serverID, Type: servers.ResourceType}},
 			func(actionID int64) river.JobArgs {
-				return DeleteBackupArgs{BackupID: id, ServerID: serverID, ActionID: actionID}
+				return DeleteBackupArgs{BackupID: id, ServerID: serverID, ActionID: actionID, From: b.Status}
 			}, nil)
 		return err
 	})

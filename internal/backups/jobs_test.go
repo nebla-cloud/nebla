@@ -549,6 +549,14 @@ func TestDeleteBackupJob(t *testing.T) {
 	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, kept.ID).Status)
 	require.Equal(t, entaction.StatusError, e.App.Ent.Action.GetX(ctx, act.ID).Status)
 	require.Len(t, e.archives(t), 1)
+
+	// A missing backup whose delete fails stays missing.
+	missing := e.put(t, id, entbackup.StatusMissing)
+	act, err = e.svc.Delete(ctx, e.Project, id, missing.ID)
+	require.NoError(t, err)
+	e.App.PVE.FailNext("/content/"+*missing.Volid, 400)
+	require.ErrorAs(t, w.Work(ctx, deleteJob(t, e, act)), &cancel)
+	require.Equal(t, entbackup.StatusMissing, e.App.Ent.Backup.GetX(ctx, missing.ID).Status)
 }
 
 func TestDeadJobDoesNotBlockNode(t *testing.T) {

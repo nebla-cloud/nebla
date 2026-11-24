@@ -83,9 +83,13 @@ func (w *DeleteBackupWorker) Work(ctx context.Context, job *river.Job[DeleteBack
 		return nil
 	}
 	fail := func(ctx context.Context, f servers.Failure) error {
-		st := backup.StatusAvailable
-		if row.Volid == nil {
+		st := a.From
+		switch {
+		case st != "":
+		case row.Volid == nil:
 			st = backup.StatusError
+		default:
+			st = backup.StatusAvailable
 		}
 		err := w.o.Ent.Backup.Update().Where(backup.ID(row.ID), backup.StatusEQ(backup.StatusDeleting)).SetStatus(st).Exec(ctx)
 		if err != nil {

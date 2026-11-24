@@ -48,9 +48,16 @@ func TestRescueBackups(t *testing.T) {
 	_, err := e.svc.Delete(ctx, e.Project, d, deleting.ID)
 	require.NoError(t, err)
 
+	// A missing backup whose delete lost its action.
+	missing := e.put(t, c, entbackup.StatusMissing)
+	act, err := e.svc.Delete(ctx, e.Project, c, missing.ID)
+	require.NoError(t, err)
+	require.NoError(t, actions.Fail(ctx, e.App.Ent, act.ID, actions.CodeFailed, "lost"))
+
 	for range 2 {
 		require.NoError(t, backups.RescueOrphaned(ctx, e.App.SQL, e.App.Jobs))
 	}
+	require.Equal(t, entbackup.StatusMissing, e.App.Ent.Backup.GetX(ctx, missing.ID).Status)
 	require.Equal(t, 1, e.createJobs(t, lost.ID))
 	require.Equal(t, entbackup.StatusCreating, e.App.Ent.Backup.GetX(ctx, lost.ID).Status)
 	require.Equal(t, 1, e.createJobs(t, live))
