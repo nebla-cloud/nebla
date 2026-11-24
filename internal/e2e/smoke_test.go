@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/nebla-cloud/nebla/internal/backups"
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
@@ -213,6 +214,8 @@ func newEnv(t *testing.T) env {
 		servers.RegisterWorkers(w, servers.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
 			PollInterval: time.Second, Jobs: func() *jobs.Jobs { return d.Jobs }})
 		volumes.RegisterWorkers(w, volumes.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log})
+		backups.RegisterWorkers(w, backups.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
+			Jobs: func() *jobs.Jobs { return d.Jobs }})
 	}
 	app := testutil.NewAppWithWorkers(t, workers, func(d *httpapi.Deps) {
 		d.Logger = log

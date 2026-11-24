@@ -205,7 +205,10 @@ The end-to-end smoke test in [internal/e2e](internal/e2e/smoke_test.go) creates 
 disposable or nested Proxmox VE. It skips unless `E2E_PVE_URL` is set, and then needs `E2E_PVE_TOKEN_ID`,
 `E2E_PVE_SECRET`, `E2E_PVE_FINGERPRINT` (or `E2E_PVE_INSECURE=1`), `E2E_TEMPLATE_VMID`, `E2E_NODE`, `E2E_POOL_CIDR`,
 `E2E_GATEWAY`, `E2E_RANGE` (`<start>-<end>`) and `E2E_BRIDGE`. `E2E_DISK_STORAGE` and `E2E_ISO_STORAGE` default to
-`local-lvm` and `local`.
+`local-lvm` and `local`. `TestBackups` also needs `E2E_BACKUP_STORAGE`, a Proxmox Backup Server storage with the backup
+content type that the token can back up to (`VM.Backup` on the VMs, `Datastore.AllocateSpace` and `Datastore.Audit` on
+`/storage/<name>`), and the guest agent: the token needs `VM.GuestAgent.Audit` and `VM.GuestAgent.Unrestricted`.
+`TestVolumesFileStorage` runs only when `E2E_FILE_VOLUME_STORAGE` names a file storage (dir, nfs, ...).
 
 ```sh
 go test -tags e2e -timeout 60m -v ./internal/e2e/
