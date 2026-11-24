@@ -88,6 +88,7 @@ nebla server rebuild web2 --image debian
 nebla server change-type web2 --type medium --upgrade-disk
 nebla server ssh web2 -u admin -p 2222 -- -A
 nebla server delete web2
+nebla server backup enable web2 --keep 7   # also: disable, now, list, delete, restore
 
 # Firewalls
 nebla firewall create --name web --label env=prod
@@ -115,6 +116,8 @@ Servers, keys and other objects can be named by id or by name. A number is tried
 Firewalls are allow-lists that filter the public network only. A server can have up to five firewalls and
 250 rules across them. IPv4 and IPv6 portions of a rule count separately, and long address lists can
 split into multiple rules.
+
+Backups copy a server's boot disk every day and restore it in place; see [Backups](backups.md).
 
 A floating IP is one address that you can move between servers in its location. `assign` and `create --server` wait,
 then print the commands to run inside the server; see [Floating IPs](floating-ips.md).

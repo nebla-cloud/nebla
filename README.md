@@ -159,6 +159,13 @@ The panel reads its settings from environment variables. With compose they go in
 - **`PANEL_MAX_PROJECTS_PER_USER`**: How many projects a non-admin user may own. `0` means unlimited. Panel admins are
   never capped.
 
+### Backup storage
+
+Backups need no environment variable either. Each location has a `backup_storage` setting (Backup storage on the admin
+location page, with a backup window in UTC) that names a Proxmox Backup Server storage. Leave it empty to turn backups
+off there. New non-admin projects get `backups=35` from `PANEL_DEFAULT_QUOTA`. See
+[Proxmox setup: Backups](docs/proxmox-setup.md#10-backups) for admins and the [backups guide](docs/backups.md).
+
 ### Volume storage
 
 Volumes need no environment variable. Each location has a `volume_storage` setting (Volume storage on the admin location
@@ -212,6 +219,7 @@ The API, jobs, reconciler, console proxy and metrics are done, and the web panel
 - projects, members and invites, API tokens and SSH keys
 - servers: create, power actions, rebuild, change type, the web console, metrics graphs and activity
 - volumes: extra disks that attach to servers and keep their data when detached ([guide](docs/volumes.md))
+- backups: daily copies of a server's boot disk that you can restore in place ([guide](docs/backups.md))
 - firewalls: inbound and outbound rules, applied to servers directly or by label
 - floating IPs: addresses that belong to the project and move between servers ([guide](docs/floating-ips.md))
 - the admin area: one-line Proxmox setup, locations, OS images, server types, IP pools, users, projects, settings and

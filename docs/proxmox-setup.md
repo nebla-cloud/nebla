@@ -21,7 +21,8 @@ page to get another. You can read the script first at `<panel>/v1/enroll.sh`. It
 The script needs root and Proxmox VE 8 or 9, and refuses anything else. It checks with the panel before it changes
 anything. Then it:
 
-- creates or resets the roles `Nebla` and `NeblaISO`. `Nebla` gets the privileges from step 1 for your PVE version, plus
+- creates or resets the roles `Nebla` and `NeblaISO`, and `NeblaBackup` when you pass `--backup-storage` (see
+  [Backups](#10-backups)). `Nebla` gets the privileges from step 1 for your PVE version, plus
   `Sys.AccessNetwork` and `VM.Config.HWType` when this install knows them.
 - creates the user `nebla@pve` if it is missing.
 - grants `Nebla` on `/`, and `NeblaISO` on every storage whose content includes `iso`, `import` or `images` (`images`
@@ -91,13 +92,13 @@ cloud-init seed ISOs it uploads, plus the import and volume storages (step 8 and
 On **PVE 8**:
 
 ```sh
-pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
 ```
 
 On **PVE 9**, `VM.Monitor` no longer exists. Use `VM.GuestAgent.Audit` in its place:
 
 ```sh
-pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
 ```
 
 `VM.Config.Cloudinit` lets Nebla remove a Proxmox cloud-init drive that a cloned template carries. That drive would clash
@@ -327,3 +328,63 @@ An attached volume shows up in the server VM's config as `virtio1` to `virtio15`
 
 Don't rename, move or delete these disks by hand. Nebla only touches disks with this exact name, and it marks a volume
 whose disk disappeared as missing.
+
+## 10. Backups
+
+Backups are daily copies of a server's boot disk that go to a Proxmox Backup Server (PBS). Each location has its own
+backup storage. The [backups guide](backups.md) covers the user side.
+
+**Add the storage.** Add the PBS datastore to Proxmox as a storage of type `pbs`, in Datacenter > Storage or with
+`pvesm add pbs`. Nebla doesn't create it and never holds PBS credentials.
+
+**Grant access.** Run setup again with the storage ID. On the location page, use Re-run setup and add the flag to the
+command:
+
+```sh
+curl -fsSL '<panel>/v1/enroll.sh' | NEBLA_TOKEN=nbe_... bash -s -- --backup-storage <id>
+```
+
+The script checks that the storage exists and is of type `pbs`, then grants the access below. Pass the flag on every
+re-run, because the roles are reset each time.
+
+**Pick it.** On the location page, choose Edit connection and set Backup storage to the storage ID. Set the Backup
+window (UTC) too. It defaults to 02:00 to 06:00 and may cross midnight. Nebla spreads servers across it. Leave Backup
+storage blank to turn backups off for the location. Existing backups stay restorable.
+
+**Roles.** Backups need two things:
+
+- `Nebla` gets `VM.Backup`, so it can back up and restore its servers' VMs. The script adds it to the role. By hand:
+
+  ```sh
+  pveum role modify Nebla --append 1 --privs "VM.Backup"
+  ```
+
+- `NeblaBackup` has `Datastore.AllocateSpace` and `Datastore.Audit`, granted on `/storage/<backup_storage>` only. It lets
+  Nebla write, list and delete backups on that storage. It doesn't need `Datastore.Allocate`.
+
+  ```sh
+  pveum role add NeblaBackup --privs "Datastore.AllocateSpace Datastore.Audit"
+  pveum acl modify /storage/<id> --users nebla@pve --roles NeblaBackup
+  ```
+
+Nebla checks the access with Proxmox when nodes sync and when the location is saved. Until it passes, the location page
+says "Backups need one more permission" with the commands to run, and members don't see backups in that location. Run
+them, then choose Sync nodes.
+
+**What Nebla does on the PBS.** Each backup is a `vzdump` of one server in snapshot mode. It carries the note
+`nebla server <server id> backup <backup id>`, so you can tell Nebla's backups apart in the PBS interface. Nebla only
+deletes backups it recorded itself. It never prunes a group, so your own backup jobs on the same datastore, and backups
+of an earlier server with the same VMID, are safe.
+
+**Housekeeping stays with you.** Nebla doesn't run garbage collection or verify jobs on the PBS. Schedule them there.
+Deleting a backup frees its space only after a garbage collection. If the datastore has a prune job, leave backups with
+a note starting `nebla server` out of it, or keep it looser than the members' Keep setting. Never prune or delete
+those backups by hand. Nebla would mark them missing, and a server could lose the backups the member counts on.
+
+**Changing the storage.** Each backup remembers its storage. After you change a location's Backup storage, old backups
+stay restorable and deletable on the old one, so keep it connected until they rotate out. The location page shows how
+many backups remain on an earlier storage.
+
+**Limits.** Backups count against the project quota `max_backups` (default 35, `0` means unlimited). To stop a project
+using backups, set a small limit. See `PANEL_DEFAULT_QUOTA` in the README. Backups cover the boot disk only. Volumes
+carry `backup=0`, so vzdump skips them.
