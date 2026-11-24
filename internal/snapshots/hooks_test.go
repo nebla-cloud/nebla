@@ -45,7 +45,7 @@ func TestProjectDeleteRefusedWithSnapshots(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(raw, &v))
 	require.Equal(t, "project_not_empty", v.Error.Code)
-	require.Equal(t, "Delete the project's servers, volumes, floating IPs and snapshots first.", v.Error.Message)
+	require.Equal(t, "Delete the project's servers, volumes, floating IPs, networks and snapshots first.", v.Error.Message)
 }
 
 func TestUsageCountsSnapshots(t *testing.T) {
