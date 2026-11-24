@@ -421,8 +421,8 @@ curl -fsSL '<panel>/v1/enroll.sh' | NEBLA_TOKEN=nbe_... NEBLA_SDN_VNETS=20 bash
 It also reads `NEBLA_SDN_ZONE` (default `nebla`, 1 to 8 lowercase letters or digits, starting with a letter) and
 `NEBLA_SDN_PREFIX` (default `nb`, 1 to 4 lowercase letters or digits, starting with a letter). It creates the zone if it
 is missing: `simple` on a single node, `vxlan` with every node's IP as `peers` on a cluster. It creates the VNets
-`<prefix>0001` up to the number you gave, skipping any that exist, and applies SDN once. Run again with a larger number
-to add more. On VXLAN it prints the firewall rule below.
+`<prefix>0001` up to the number you gave, skipping any that exist, and applies SDN. Running it again creates nothing that exists and applies SDN again. Run again with a larger number
+to add more. On VXLAN it prints the firewall rules below. It stops if a VNet with one of those names exists in another zone.
 
 **By hand.** The same steps, on one node:
 
@@ -453,12 +453,16 @@ Simple.
 **Adding more VNets later.** Create more with the same prefix, for example `nb0021` to `nb0040`, and run
 `pvesh set /cluster/sdn`. Nebla finds them on its next pass or when you save the location.
 
-**VXLAN host firewall.** VXLAN uses UDP 4789, and Linux accepts it from any sender. Add a host firewall rule on every
-node that accepts UDP 4789 only from the other cluster nodes (Datacenter > Firewall, or the node's firewall):
+**VXLAN host firewall.** VXLAN uses UDP 4789, and Linux accepts it from any sender. On every node, add two host
+firewall rules (Datacenter > Firewall, or the node's firewall), in this order: accept UDP 4789 from the other cluster
+nodes, then drop it from everyone else. The drop rule makes this hold whatever the input policy is.
 
 ```
 IN ACCEPT -source 10.0.0.1,10.0.0.2,10.0.0.3 -p udp -dport 4789
+IN DROP -p udp -dport 4789
 ```
+
+No earlier rule may accept UDP 4789, for example a broad allow for your LAN. The first matching rule wins.
 
 Nebla also drops VXLAN traffic out of every server's public interface, so a server can't speak VXLAN to the hosts.
 VXLAN is implemented and tested with fakes only; it hasn't run on a real multi-node cluster yet.
