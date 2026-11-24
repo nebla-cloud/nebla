@@ -68,13 +68,11 @@ func snapshotCreateCmd(a *app) *cobra.Command {
 			return err
 		}
 		if srv.Status == apiclient.ServerStatusRunning {
-			msg := fmt.Sprintf("%s is running. It will be shut down, saved and started again.", srv.Name)
+			fmt.Fprintf(a.env.Stderr, "%s is running. It will be shut down, saved and started again.\n", srv.Name)
 			if a.stdinTTY() && !yes {
-				if err := a.confirm(cmd.Context(), msg+" Continue?"); err != nil {
+				if err := a.confirm(cmd.Context(), "Continue?"); err != nil {
 					return err
 				}
-			} else {
-				fmt.Fprintln(a.env.Stderr, msg)
 			}
 		}
 		body := apiclient.PostSnapshotsJSONRequestBody{Server: id64(srv.Id)}

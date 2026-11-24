@@ -16,9 +16,12 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -91,6 +94,63 @@ func TestSnapshotCreatePromptRunning(t *testing.T) {
 	}
 	if strings.Contains(errOut, "[y/N]") || strings.Contains(out, "[y/N]") {
 		t.Fatalf("prompted without a TTY: %q %q", out, errOut)
+	}
+}
+
+// runTTY runs the CLI with stdin as a terminal holding input.
+func (h *harness) runTTY(t *testing.T, input string, args ...string) (string, string, int) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { r.Close() })
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	var stdout, stderr bytes.Buffer
+	e := Env{Stdin: r, Stdout: &stdout, Stderr: &stderr, Getenv: func(string) string { return "" }, ConfigDir: h.dir,
+		HTTPClient: http.DefaultClient, IsTerminal: func(int) bool { return true }}
+	code := Run(context.Background(), append([]string{"--config", h.configFile()}, args...), e)
+	return stdout.String(), stderr.String(), code
+}
+
+func TestSnapshotCreateRunningWarning(t *testing.T) {
+	const warn = "web1 is running. It will be shut down, saved and started again."
+	t.Run("a terminal asks", func(t *testing.T) {
+		h := newHarnessQueueOnly(t)
+		h.Env.RunningServer("web1")
+		_, errOut, code := h.runTTY(t, "n\n", "snapshot", "create", "web1", "--no-wait")
+		if code != 1 || !strings.Contains(errOut, warn) || !strings.Contains(errOut, "Continue? [y/N]") {
+			t.Fatalf("create: %d %q", code, errOut)
+		}
+	})
+	t.Run("--yes warns without asking", func(t *testing.T) {
+		h := newHarnessQueueOnly(t)
+		h.Env.RunningServer("web1")
+		out, errOut, code := h.runTTY(t, "", "snapshot", "create", "web1", "--no-wait", "--yes")
+		if code != 0 || !strings.Contains(out, "is being created") || !strings.Contains(errOut, warn) || strings.Contains(errOut, "[y/N]") {
+			t.Fatalf("create: %d %q %q", code, out, errOut)
+		}
+	})
+}
+
+func TestServerCreateFromSnapshotWithoutLocation(t *testing.T) {
+	ctx := context.Background()
+	h := newHarnessQueueOnly(t)
+	web := h.Env.RunningServer("web1")
+	addCLISnapshot(t, h, "before", web.ServerID, "")
+	out, errOut, code := h.run("server", "create", "--name", "web2", "--type", "small", "--snapshot", "before", "--no-wait")
+	if code != 0 || !strings.Contains(out, "is being created") {
+		t.Fatalf("create: %d %q %q", code, out, errOut)
+	}
+	if got := h.Env.App.Ent.Server.Query().Where(server.Name("web2")).OnlyX(ctx).LocationID; got != h.Env.Location {
+		t.Fatalf("location = %d, want the snapshot's %d", got, h.Env.Location)
+	}
+	_, errOut, code = h.run("server", "create", "--name", "web3", "--type", "small", "--image", "ubuntu", "--no-wait")
+	if code != 1 || !strings.Contains(errOut, "--location is required with --image") {
+		t.Fatalf("image without location: %d %q", code, errOut)
 	}
 }
 
