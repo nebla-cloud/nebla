@@ -32,6 +32,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
@@ -694,8 +695,7 @@ func TestAvailable(t *testing.T) {
 	e.createNet(t, e.Project, "n", "10.1.0.0/24")
 	ok, err = e.svc.Available(ctx, e.Location)
 	require.NoError(t, err)
-	require.False(t, ok, "no free slot")
-	e.slot(t, e.Location, "nb0002", vnetslot.StateFree)
+	require.True(t, ok, "a full pool still lets servers join existing networks")
 	f := false
 	e.setFirewall(t, &f)
 	ok, err = e.svc.Available(ctx, e.Location)
@@ -726,4 +726,60 @@ func TestProjectNotEmpty(t *testing.T) {
 	require.NoError(t, err)
 	err = e.proj.AdminDelete(ctx, p)
 	requireAPIErr(t, err, http.StatusConflict, "project_not_empty", "Delete the project's servers, volumes, floating IPs and networks first.")
+}
+
+func (e *env) bareLocation(t *testing.T, name string) int64 {
+	t.Helper()
+	return e.App.Ent.Location.Create().SetName(name).SetPveURL("https://"+name+".invalid").SetTokenID("t").SetTokenSecret([]byte("s")).
+		SetDiskStorage("local").SetIsoStorage("local").SaveX(context.Background()).ID
+}
+
+func TestDeleteLocationWithNetworkNamesReason(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.bareLocation(t, "doomed")
+	e.slot(t, loc, "nb0001", vnetslot.StateInUse)
+	n := e.App.Ent.Network.Create().SetProjectID(e.Project).SetLocationID(loc).SetName("n").SetLabels(map[string]string{}).
+		SetIPRange("10.1.0.0/24").SaveX(ctx)
+	e.App.Ent.VNetSlot.Update().Where(vnetslot.LocationID(loc)).SetNetworkID(n.ID).ExecX(ctx)
+
+	err := e.App.Catalog.DeleteLocation(ctx, loc)
+	requireAPIErr(t, err, http.StatusConflict, "location_in_use", "Delete this location's private networks first.")
+}
+
+func TestDeleteLocationWithCoolingSlotNamesReason(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.bareLocation(t, "doomed")
+	s := e.slot(t, loc, "nb0001", vnetslot.StateCooling)
+	e.App.Ent.VNetSlot.UpdateOne(s).SetReason("still used by VM 7 (snapshot)").ExecX(ctx)
+
+	err := e.App.Catalog.DeleteLocation(ctx, loc)
+	requireAPIErr(t, err, http.StatusConflict, "location_in_use",
+		"Private networks in this location are still being released (nb0001: still used by VM 7 (snapshot)).")
+	require.Equal(t, 1, e.App.Ent.VNetSlot.Query().Where(vnetslot.LocationID(loc)).CountX(ctx))
+}
+
+func TestDeleteLocationDropsIdleSlots(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	loc := e.bareLocation(t, "doomed")
+	e.slot(t, loc, "nb0001", vnetslot.StateFree)
+	e.slot(t, loc, "nb0002", vnetslot.StateUnusable)
+	e.slot(t, loc, "nb0003", vnetslot.StateGone)
+
+	require.NoError(t, e.App.Catalog.DeleteLocation(ctx, loc))
+	require.Zero(t, e.App.Ent.VNetSlot.Query().Where(vnetslot.LocationID(loc)).CountX(ctx))
+	require.False(t, e.App.Ent.Location.Query().Where(location.ID(loc)).ExistX(ctx))
+}
+
+func TestAttachRefusedWhenLocationNotReady(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	e.ready(t, 1)
+	n := e.createNet(t, e.Project, "n", "10.1.0.0/24")
+	srv := e.rawServer(t, e.Project, e.Location, "s", server.StatusOff)
+	e.App.Ent.Location.UpdateOneID(e.Location).ClearSdnZone().ExecX(ctx)
+	_, _, err := e.svc.Attach(ctx, e.Project, srv, ref(n.ID), "")
+	requireAPIErr(t, err, http.StatusUnprocessableEntity, "invalid_input", msgNotSetUp)
 }

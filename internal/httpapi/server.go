@@ -259,7 +259,7 @@ func ServerHooks(p projects.Hooks, c catalog.Hooks) (projects.Hooks, catalog.Hoo
 		p.Usage = networks.UsageWith(floatingips.UsageWith(backups.UsageWith(volumes.UsageWith(servers.Usage))))
 	}
 	if c.LocationInUse == nil {
-		c.LocationInUse = servers.LocationInUse
+		c.LocationInUse = networks.LocationInUseWith(servers.LocationInUse)
 	}
 	if c.TemplatesPending == nil {
 		c.TemplatesPending = osimages.TemplatesPending

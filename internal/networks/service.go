@@ -611,8 +611,8 @@ func addRow(ctx context.Context, etx *ent.Client, loc *ent.Location, n *ent.Netw
 	if err != nil {
 		return nil, err
 	}
-	if poolState(loc) == "firewall_off" {
-		return nil, errPaused
+	if err := requireOpen(loc); err != nil {
+		return nil, err
 	}
 	rng, err := netip.ParsePrefix(n.IPRange)
 	if err != nil {
@@ -826,7 +826,7 @@ func (s *Service) ForServers(ctx context.Context, c *ent.Client, ids []int64) (m
 	return out, nil
 }
 
-// Available reports whether new networks can be made in the location right now.
+// Available reports whether the location's private networks are open: set up, audited and firewalled.
 func (s *Service) Available(ctx context.Context, locationID int64) (bool, error) {
 	loc, err := s.o.Ent.Location.Get(ctx, locationID)
 	if err != nil {
@@ -835,8 +835,33 @@ func (s *Service) Available(ctx context.Context, locationID int64) (bool, error)
 	if poolState(loc) != "ready" {
 		return false, nil
 	}
-	return s.o.Ent.VNetSlot.Query().Where(vnetslot.LocationID(locationID), vnetslot.StateEQ(vnetslot.StateFree),
-		vnetslot.HealthEQ(vnetslot.HealthOk)).Exist(ctx)
+	return true, nil
+}
+
+// LocationInUseWith refuses the delete while the location has networks or cooling slots; otherwise it drops its idle slots.
+func LocationInUseWith(next func(context.Context, *ent.Client, int64) (bool, error)) func(context.Context, *ent.Client, int64) (bool, error) {
+	return func(ctx context.Context, tx *ent.Client, locationID int64) (bool, error) {
+		if busy, err := next(ctx, tx, locationID); err != nil || busy {
+			return busy, err
+		}
+		if has, err := tx.Network.Query().Where(network.LocationID(locationID)).Exist(ctx); err != nil || has {
+			if err == nil {
+				err = errLocationHasNetworks
+			}
+			return false, err
+		}
+		cooling, err := tx.VNetSlot.Query().Where(vnetslot.LocationID(locationID), vnetslot.StateEQ(vnetslot.StateCooling)).
+			Order(vnetslot.ByID()).First(ctx)
+		if err == nil {
+			return false, apierr.New(http.StatusConflict, "location_in_use",
+				fmt.Sprintf("Private networks in this location are still being released (%s: %s).", cooling.Vnet, cooling.Reason))
+		}
+		if !ent.IsNotFound(err) {
+			return false, err
+		}
+		_, err = tx.VNetSlot.Delete().Where(vnetslot.LocationID(locationID), vnetslot.NetworkIDIsNil()).Exec(ctx)
+		return false, err
+	}
 }
 
 // HasWith reports next's answer, or whether the project still owns networks.
