@@ -183,7 +183,7 @@ const confirmDelete = () =>
           <USwitch
             :model-value="server.backups.enabled"
             label="Daily backups"
-            :disabled="locked || !available"
+            :disabled="locked || (!available && !server.backups.enabled)"
             @update:model-value="(v: boolean) => save(v)"
           />
           <label class="flex items-center gap-2 text-sm text-muted">
@@ -215,7 +215,7 @@ const confirmDelete = () =>
             color="neutral"
             variant="outline"
             icon="i-lucide-archive"
-            :disabled="locked || waiting || !available"
+            :disabled="locked || waiting || !available || !server.backups.enabled"
             @click="now"
           >
             Back up now
