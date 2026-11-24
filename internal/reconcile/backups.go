@@ -36,7 +36,7 @@ import (
 
 const backupNotesPrefix = "nebla server "
 
-// syncBackups marks available backups whose archive is gone as missing and retries tombstones;
+// syncBackups marks available backups whose archive is gone as missing, and missing ones listed again available, and retries tombstones;
 // it never deletes an archive it has no record of.
 func (r *Reconciler) syncBackups(ctx context.Context, log *slog.Logger, locationID int64, pc pve.Client, vms view) error {
 	rows, err := r.o.Ent.Backup.Query().Where(backup.LocationID(locationID)).All(ctx)
@@ -92,10 +92,17 @@ func (r *Reconciler) syncBackups(ctx context.Context, log *slog.Logger, location
 			log.Warn("reconcile: backup archive without a row left alone", "volid", it.Volid, "notes", it.Notes)
 		}
 		for _, b := range rows {
-			if b.Storage != storage || b.Status != backup.StatusAvailable || b.Volid == nil || listed[*b.Volid] {
+			if b.Storage != storage || b.Volid == nil {
 				continue
 			}
-			if err := r.markBackupMissing(ctx, log, b.ID, *b.Volid, listedAt); err != nil {
+			var err error
+			switch {
+			case b.Status == backup.StatusAvailable && !listed[*b.Volid]:
+				err = r.markBackupMissing(ctx, log, b.ID, *b.Volid, listedAt)
+			case b.Status == backup.StatusMissing && listed[*b.Volid]:
+				err = r.markBackupFound(ctx, log, b.ID, *b.Volid)
+			}
+			if err != nil {
 				errs = append(errs, fmt.Errorf("backup %d: %w", b.ID, err))
 			}
 		}
@@ -146,4 +153,14 @@ func (r *Reconciler) markBackupMissing(ctx context.Context, log *slog.Logger, id
 		log.Warn("reconcile: backup archive gone", "backup_id", id, "server_id", row.ServerID)
 		return etx.Backup.UpdateOneID(id).SetStatus(backup.StatusMissing).Exec(ctx)
 	})
+}
+
+// markBackupFound makes a backup available again if it is still missing with the listed archive.
+func (r *Reconciler) markBackupFound(ctx context.Context, log *slog.Logger, id int64, volid string) error {
+	n, err := r.o.Ent.Backup.Update().Where(backup.ID(id), backup.StatusEQ(backup.StatusMissing), backup.Volid(volid)).
+		SetStatus(backup.StatusAvailable).Save(ctx)
+	if n > 0 {
+		log.Info("reconcile: backup archive back", "backup_id", id)
+	}
+	return err
 }

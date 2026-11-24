@@ -90,6 +90,22 @@ func TestReconcileMarksMissing(t *testing.T) {
 	require.Equal(t, backup.StatusAvailable, backupStatus(e, fresh.ID), "completed after the listing")
 }
 
+func TestReconcileFindsMissingBackupAgain(t *testing.T) {
+	ctx := context.Background()
+	e, pc := backupEnv(t)
+	r := newReconciler(e, quiet())
+	srv, vmid := running(t, e, "web")
+	back := backupRow(t, e, srv, "pbs", archive(t, pc, vmid, "pbs", "nebla server 1 backup 1"))
+	gone := backupRow(t, e, srv, "pbs", "pbs:backup/vm/1/gone")
+	for _, id := range []int64{back.ID, gone.ID} {
+		require.NoError(t, e.App.Ent.Backup.UpdateOneID(id).SetStatus(backup.StatusMissing).Exec(ctx))
+	}
+
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, backup.StatusAvailable, backupStatus(e, back.ID), "its archive is listed again")
+	require.Equal(t, backup.StatusMissing, backupStatus(e, gone.ID))
+}
+
 func TestReconcileRetriesTombstones(t *testing.T) {
 	ctx := context.Background()
 	e, pc := backupEnv(t)
