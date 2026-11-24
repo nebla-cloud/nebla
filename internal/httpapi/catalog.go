@@ -17,6 +17,8 @@ package httpapi
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/nebla-cloud/nebla/internal/apigen"
 	"github.com/nebla-cloud/nebla/internal/catalog"
@@ -54,20 +56,31 @@ func apiNode(n catalog.Node) apigen.Node {
 		MaxCpu: n.MaxCPU, MaxMem: n.MaxMem, Cpu: n.CPU, Mem: n.Mem, Updated: n.UpdatedAt}
 }
 
-func apiAdminLocation(l catalog.Location) apigen.AdminLocation {
+func apiAdminLocation(l catalog.Location, onOtherStorage int) apigen.AdminLocation {
 	out := apigen.AdminLocation{Id: l.ID, Name: l.Name, Description: l.Description, DiskStorage: l.DiskStorage, IsoStorage: l.ISOStorage, ImportStorage: l.ImportStorage,
 		FirewallEnabled: l.FirewallEnabled,
 		VolumeStorage:   l.VolumeStorage, VolumeStorageOk: l.VolumeStorageOK,
-		Pve:   apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
-		Nodes: make([]apigen.Node, len(l.Nodes)), Created: l.CreatedAt, Updated: l.UpdatedAt}
+		BackupStorage: l.BackupStorage, BackupStorageOk: l.BackupStorageOK, BackupsOnOtherStorage: onOtherStorage,
+		BackupWindow: apigen.BackupWindow{Start: hhmm(l.BackupWindowStart), End: hhmm(l.BackupWindowEnd)},
+		Pve:          apigen.PveConnection{Url: l.PVEURL, TokenId: l.TokenID, HasSecret: l.HasSecret, CaFingerprint: l.CAFingerprint, InsecureTls: l.InsecureTLS},
+		Nodes:        make([]apigen.Node, len(l.Nodes)), Created: l.CreatedAt, Updated: l.UpdatedAt}
 	for i, n := range l.Nodes {
 		out.Nodes[i] = apiNode(n)
 	}
 	return out
 }
 
-func apiLocation(l catalog.Location, ipv4, ipv6, volumes bool) apigen.Location {
-	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description, VolumesAvailable: volumes}
+// adminLocation maps l with its count of backups kept on a storage other than the current one.
+func (s *server) adminLocation(ctx context.Context, l catalog.Location) (apigen.AdminLocation, error) {
+	n, err := s.catalog.BackupsOnOtherStorage(ctx, l)
+	if err != nil {
+		return apigen.AdminLocation{}, err
+	}
+	return apiAdminLocation(l, n), nil
+}
+
+func apiLocation(l catalog.Location, ipv4, ipv6, volumes, backups bool) apigen.Location {
+	out := apigen.Location{Id: l.ID, Name: l.Name, Description: l.Description, VolumesAvailable: volumes, BackupsAvailable: backups}
 	out.Networks.Ipv4, out.Networks.Ipv6 = ipv4, ipv6
 	return out
 }
@@ -84,14 +97,38 @@ func (s *server) locationWithNetworks(ctx context.Context, l catalog.Location) (
 		s.log.WarnContext(ctx, "volumes availability", "location", l.ID, "err", err)
 		vols = false
 	}
-	return apiLocation(l, v4, v6, vols), nil
+	return apiLocation(l, v4, v6, vols, s.catalog.BackupsAvailable(l)), nil
 }
 
-func locationInput(b *apigen.LocationInput) catalog.LocationInput {
-	return catalog.LocationInput{Name: b.Name, Description: deref(b.Description), DiskStorage: b.DiskStorage, ISOStorage: b.IsoStorage, ImportStorage: deref(b.ImportStorage),
-		VolumeStorage: b.VolumeStorage,
+func locationInput(b *apigen.LocationInput) (catalog.LocationInput, error) {
+	in := catalog.LocationInput{Name: b.Name, Description: deref(b.Description), DiskStorage: b.DiskStorage, ISOStorage: b.IsoStorage, ImportStorage: deref(b.ImportStorage),
+		VolumeStorage: b.VolumeStorage, BackupStorage: b.BackupStorage,
 		PVE: catalog.PVEInput{URL: b.Pve.Url, TokenID: b.Pve.TokenId, TokenSecret: b.Pve.TokenSecret,
 			CAFingerprint: deref(b.Pve.CaFingerprint), InsecureTLS: deref(b.Pve.InsecureTls)}}
+	if w := b.BackupWindow; w != nil {
+		start, err := parseHHMM("backup_window.start", w.Start)
+		if err != nil {
+			return in, err
+		}
+		end, err := parseHHMM("backup_window.end", w.End)
+		if err != nil {
+			return in, err
+		}
+		in.BackupWindowStart, in.BackupWindowEnd = &start, &end
+	}
+	return in, nil
+}
+
+// hhmm formats minutes from 00:00 UTC as HH:MM.
+func hhmm(min int) string { return fmt.Sprintf("%02d:%02d", min/60, min%60) }
+
+// parseHHMM reads a strict 24-hour HH:MM into minutes from 00:00.
+func parseHHMM(field, v string) (int, error) {
+	t, err := time.Parse("15:04", v)
+	if err != nil || len(v) != 5 {
+		return 0, invalidInput(field + " must be a time as HH:MM")
+	}
+	return t.Hour()*60 + t.Minute(), nil
 }
 
 func apiServerType(t catalog.ServerType) apigen.ServerType {
@@ -140,17 +177,23 @@ func (s *server) GetAdminLocations(ctx context.Context, req apigen.GetAdminLocat
 	}
 	out := apigen.GetAdminLocations200JSONResponse{Locations: make([]apigen.AdminLocation, len(ls)), Meta: meta(page, perPage, total)}
 	for i, l := range ls {
-		out.Locations[i] = apiAdminLocation(l)
+		if out.Locations[i], err = s.adminLocation(ctx, l); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
 
 func (s *server) PostAdminLocations(ctx context.Context, req apigen.PostAdminLocationsRequestObject) (apigen.PostAdminLocationsResponseObject, error) {
-	l, err := s.catalog.CreateLocation(ctx, locationInput(req.Body))
+	in, err := locationInput(req.Body)
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PostAdminLocations201JSONResponse(apiAdminLocation(l)), nil
+	l, err := s.catalog.CreateLocation(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.PostAdminLocations201JSONResponse(apiAdminLocation(l, 0)), nil
 }
 
 func (s *server) GetAdminLocation(ctx context.Context, req apigen.GetAdminLocationRequestObject) (apigen.GetAdminLocationResponseObject, error) {
@@ -158,15 +201,21 @@ func (s *server) GetAdminLocation(ctx context.Context, req apigen.GetAdminLocati
 	if err != nil {
 		return nil, err
 	}
-	return apigen.GetAdminLocation200JSONResponse(apiAdminLocation(l)), nil
+	out, err := s.adminLocation(ctx, l)
+	return apigen.GetAdminLocation200JSONResponse(out), err
 }
 
 func (s *server) PutAdminLocation(ctx context.Context, req apigen.PutAdminLocationRequestObject) (apigen.PutAdminLocationResponseObject, error) {
-	l, err := s.catalog.UpdateLocation(ctx, req.Id, locationInput(req.Body))
+	in, err := locationInput(req.Body)
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PutAdminLocation200JSONResponse(apiAdminLocation(l)), nil
+	l, err := s.catalog.UpdateLocation(ctx, req.Id, in)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.adminLocation(ctx, l)
+	return apigen.PutAdminLocation200JSONResponse(out), err
 }
 
 func (s *server) DeleteAdminLocation(ctx context.Context, req apigen.DeleteAdminLocationRequestObject) (apigen.DeleteAdminLocationResponseObject, error) {
@@ -181,7 +230,8 @@ func (s *server) PostAdminLocationSyncNodes(ctx context.Context, req apigen.Post
 	if err != nil {
 		return nil, err
 	}
-	return apigen.PostAdminLocationSyncNodes200JSONResponse(apiAdminLocation(l)), nil
+	out, err := s.adminLocation(ctx, l)
+	return apigen.PostAdminLocationSyncNodes200JSONResponse(out), err
 }
 
 func (s *server) PutAdminLocationNode(ctx context.Context, req apigen.PutAdminLocationNodeRequestObject) (apigen.PutAdminLocationNodeResponseObject, error) {

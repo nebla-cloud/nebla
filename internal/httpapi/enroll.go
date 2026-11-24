@@ -204,7 +204,11 @@ func (s *server) PostAdminLocationEnrollmentFinish(ctx context.Context, req apig
 	if err != nil {
 		return nil, err
 	}
-	out := apigen.PostAdminLocationEnrollmentFinish200JSONResponse{Location: apiAdminLocation(f.Location), Cleanup: f.Cleanup}
+	loc, err := s.adminLocation(ctx, f.Location)
+	if err != nil {
+		return nil, err
+	}
+	out := apigen.PostAdminLocationEnrollmentFinish200JSONResponse{Location: loc, Cleanup: f.Cleanup}
 	if out.Cleanup == nil {
 		out.Cleanup = []string{}
 	}

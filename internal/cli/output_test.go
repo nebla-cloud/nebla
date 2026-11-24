@@ -51,7 +51,7 @@ func TestObjectJSONAndYAML(t *testing.T) {
 	if err := (Printer{Format: "json", Out: &b}).Object(s); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(b.String(), "{\n  \"created\"") || !strings.Contains(b.String(), `"public_net": {`) || !strings.HasSuffix(b.String(), "}\n") {
+	if !strings.HasPrefix(b.String(), "{\n  \"backups\"") || !strings.Contains(b.String(), `"public_net": {`) || !strings.HasSuffix(b.String(), "}\n") {
 		t.Fatalf("json=%s", b.String())
 	}
 	b.Reset()

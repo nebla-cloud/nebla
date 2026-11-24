@@ -32,6 +32,8 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref) apigen.Se
 	}
 	out := apigen.Server{Id: s.ID, Name: s.Name, Status: apigen.ServerStatus(s.Status), Location: apigen.LocationRef{Id: s.Location.ID, Name: s.Location.Name, Description: s.Location.Description},
 		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, Created: s.CreatedAt,
+		Backups: apigen.ServerBackups{Enabled: s.Backups.Enabled, Keep: s.Backups.Keep, Count: s.Backups.Count,
+			LastBackupAt: s.Backups.LastBackupAt, NextBackupAt: s.Backups.NextBackupAt},
 		Firewalls: make([]apigen.ServerFirewall, len(s.Firewalls))}
 	out.PublicNet.FloatingIps = make([]struct {
 		Id int64  `json:"id"`
@@ -124,6 +126,7 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 	for _, f := range deref(b.Firewalls) {
 		in.Firewalls = append(in.Firewalls, f.Firewall)
 	}
+	in.Backups = backupSettings(b.Backups)
 	if b.StartAfterCreate != nil {
 		in.StartAfter = *b.StartAfterCreate
 	}
@@ -155,7 +158,7 @@ func (s *server) PutServer(ctx context.Context, req apigen.PutServerRequestObjec
 	if err != nil {
 		return nil, err
 	}
-	in := servers.UpdateInput{Name: req.Body.Name}
+	in := servers.UpdateInput{Name: req.Body.Name, Backups: backupSettings(req.Body.Backups)}
 	if req.Body.Labels != nil {
 		l := map[string]string(*req.Body.Labels)
 		in.Labels = &l

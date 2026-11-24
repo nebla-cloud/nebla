@@ -18,6 +18,7 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -856,4 +857,9 @@ func (s *Service) forget(locationID int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.clients, locationID)
+}
+
+// BackupsOnOtherStorage counts the location's backups kept on a storage other than its current backup storage.
+func (s *Service) BackupsOnOtherStorage(ctx context.Context, loc Location) (int, error) {
+	return s.db.Backup.Query().Where(backup.LocationID(loc.ID), backup.StorageNEQ(loc.BackupStorage)).Count(ctx)
 }

@@ -1448,7 +1448,7 @@ export interface paths {
         };
         /** Get a server */
         get: operations["getServer"];
-        /** Rename a server or replace its labels */
+        /** Rename a server, replace its labels or change its backup settings */
         put: operations["putServer"];
         post?: never;
         /** Delete a server */
@@ -1586,6 +1586,69 @@ export interface paths {
         /** Reinstall a server from an image, keeping its IPs and MAC */
         post: operations["rebuildServer"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{id}/actions/restore_backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a server in place from one of its backups */
+        post: operations["restoreServerBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{id}/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /** List a server's backups, newest first */
+        get: operations["getServerBackups"];
+        put?: never;
+        /**
+         * Back up a server now
+         * @description Queues a manual backup; while one is already queued or running, that one is returned instead
+         */
+        post: operations["postServerBackups"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{id}/backups/{backup}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+                backup: number;
+            };
+            cookie?: never;
+        };
+        /** Get a backup */
+        get: operations["getServerBackup"];
+        put?: never;
+        post?: never;
+        /** Delete a backup */
+        delete: operations["deleteServerBackup"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1878,8 +1941,10 @@ export interface components {
             max_ips: number;
             max_volumes: number;
             max_volume_gb: number;
+            /** @description Stored plus reserved backups; 0 is unlimited */
+            max_backups: number;
         };
-        /** @description An omitted max_volumes or max_volume_gb keeps the current value */
+        /** @description An omitted max_volumes, max_volume_gb or max_backups keeps the current value */
         QuotaInput: {
             max_servers: number;
             max_vcpu: number;
@@ -1888,6 +1953,7 @@ export interface components {
             max_ips: number;
             max_volumes?: number;
             max_volume_gb?: number;
+            max_backups?: number;
         };
         ProjectInput: {
             name: string;
@@ -1910,6 +1976,10 @@ export interface components {
             ips: number;
             volumes: number;
             volume_gb: number;
+            /** @description Stored backups */
+            backups: number;
+            /** @description Backup slots held: keep for servers with backups on, else their stored count */
+            backups_reserved: number;
         };
         AdminProject: {
             /** Format: int64 */
@@ -2158,6 +2228,16 @@ export interface components {
             import_storage?: string;
             /** @description Storage with the images content type for volumes; empty uses each node's disk storage. Omitted on update keeps the current value */
             volume_storage?: string;
+            /** @description PBS storage with the backup content type; empty turns backups off. Omitted on update keeps the current value */
+            backup_storage?: string;
+            backup_window?: components["schemas"]["BackupWindow"];
+        };
+        /** @description When scheduled backups start, as HH:MM UTC; the window may cross midnight */
+        BackupWindow: {
+            /** @example 02:00 */
+            start: string;
+            /** @example 06:00 */
+            end: string;
         };
         Node: {
             /** Format: int64 */
@@ -2206,6 +2286,13 @@ export interface components {
             volume_storage: string;
             /** @description Read-only: whether the token may allocate on every resolved volume storage */
             volume_storage_ok: boolean;
+            /** @description Empty means backups are off */
+            backup_storage: string;
+            /** @description Read-only: whether the token may use the backup storage and run backups */
+            backup_storage_ok: boolean;
+            backup_window: components["schemas"]["BackupWindow"];
+            /** @description Read-only: backups of this location kept on a storage other than backup_storage */
+            backups_on_other_storage: number;
             nodes: components["schemas"]["Node"][];
             /** Format: date-time */
             created: string;
@@ -2304,6 +2391,8 @@ export interface components {
             };
             /** @description Whether volumes can be created here */
             volumes_available: boolean;
+            /** @description Whether backups can be turned on here */
+            backups_available: boolean;
         };
         ServerTypeInput: {
             name: string;
@@ -2505,6 +2594,51 @@ export interface components {
             /** @description "direct", or the label selector that applies it */
             via: string;
         };
+        BackupSettings: {
+            enabled: boolean;
+            /** @description How many backups to keep */
+            keep: number;
+        };
+        ServerBackups: {
+            enabled: boolean;
+            keep: number;
+            /** @description Stored backups */
+            count: number;
+            /** Format: date-time */
+            last_backup_at: string | null;
+            /**
+             * Format: date-time
+             * @description Null while backups are off or unavailable
+             */
+            next_backup_at: string | null;
+        };
+        /** @enum {string} */
+        BackupStatus: "queued" | "creating" | "available" | "restoring" | "deleting" | "error" | "missing";
+        /** @enum {string} */
+        BackupKind: "scheduled" | "manual";
+        Backup: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            server: number;
+            kind: components["schemas"]["BackupKind"];
+            status: components["schemas"]["BackupStatus"];
+            /**
+             * Format: int64
+             * @description Bytes; 0 until the backup completes
+             */
+            size: number;
+            /** Format: date-time */
+            created: string;
+            /** Format: date-time */
+            completed: string | null;
+            /** @description Whether restoring now gives the server a new cloud-init instance id, so host keys and user data run again */
+            restore_resets_identity: boolean;
+        };
+        RestoreBackupInput: {
+            /** Format: int64 */
+            backup: number;
+        };
         ServerInput: {
             name: string;
             /** @description Server type id or name */
@@ -2531,10 +2665,12 @@ export interface components {
                 /** Format: int64 */
                 firewall: number;
             }[];
+            backups?: components["schemas"]["BackupSettings"];
         };
         ServerUpdate: {
             name?: string;
             labels?: components["schemas"]["Labels"];
+            backups?: components["schemas"]["BackupSettings"];
         };
         RebuildInput: {
             /** @description Image id or name */
@@ -2590,6 +2726,7 @@ export interface components {
             firewalls: components["schemas"]["ServerFirewall"][];
             /** @description Ids of the attached volumes */
             volumes: number[];
+            backups: components["schemas"]["ServerBackups"];
             /** Format: date-time */
             created: string;
         };
@@ -6111,6 +6248,156 @@ export interface operations {
             404: components["responses"]["Error"];
             409: components["responses"]["Error"];
             422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    restoreServerBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreBackupInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["ActionCreated"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getServerBackups: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["BackupStatus"];
+                kind?: components["schemas"]["BackupKind"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        backups: components["schemas"]["Backup"][];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    postServerBackups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A backup is already queued or running; this is it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backup"];
+                };
+            };
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backup"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getServerBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+                backup: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backup"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteServerBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+                backup: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The delete_backup action */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        action: components["schemas"]["Action"];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
             503: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };

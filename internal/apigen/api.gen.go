@@ -61,6 +61,57 @@ func (e AdminActionStatus) Valid() bool {
 	}
 }
 
+// Defines values for BackupKind.
+const (
+	Manual    BackupKind = "manual"
+	Scheduled BackupKind = "scheduled"
+)
+
+// Valid indicates whether the value is a known member of the BackupKind enum.
+func (e BackupKind) Valid() bool {
+	switch e {
+	case Manual:
+		return true
+	case Scheduled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackupStatus.
+const (
+	BackupStatusAvailable BackupStatus = "available"
+	BackupStatusCreating  BackupStatus = "creating"
+	BackupStatusDeleting  BackupStatus = "deleting"
+	BackupStatusError     BackupStatus = "error"
+	BackupStatusMissing   BackupStatus = "missing"
+	BackupStatusQueued    BackupStatus = "queued"
+	BackupStatusRestoring BackupStatus = "restoring"
+)
+
+// Valid indicates whether the value is a known member of the BackupStatus enum.
+func (e BackupStatus) Valid() bool {
+	switch e {
+	case BackupStatusAvailable:
+		return true
+	case BackupStatusCreating:
+		return true
+	case BackupStatusDeleting:
+		return true
+	case BackupStatusError:
+		return true
+	case BackupStatusMissing:
+		return true
+	case BackupStatusQueued:
+		return true
+	case BackupStatusRestoring:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FirewallResourceAppliedToResourcesType.
 const (
 	FirewallResourceAppliedToResourcesTypeServer FirewallResourceAppliedToResourcesType = "server"
@@ -456,9 +507,20 @@ type AdminImage struct {
 
 // AdminLocation defines model for AdminLocation.
 type AdminLocation struct {
-	Created     time.Time `json:"created"`
-	Description string    `json:"description"`
-	DiskStorage string    `json:"disk_storage"`
+	// BackupStorage Empty means backups are off
+	BackupStorage string `json:"backup_storage"`
+
+	// BackupStorageOk Read-only: whether the token may use the backup storage and run backups
+	BackupStorageOk bool `json:"backup_storage_ok"`
+
+	// BackupWindow When scheduled backups start, as HH:MM UTC; the window may cross midnight
+	BackupWindow BackupWindow `json:"backup_window"`
+
+	// BackupsOnOtherStorage Read-only: backups of this location kept on a storage other than backup_storage
+	BackupsOnOtherStorage int       `json:"backups_on_other_storage"`
+	Created               time.Time `json:"created"`
+	Description           string    `json:"description"`
+	DiskStorage           string    `json:"disk_storage"`
 
 	// FirewallEnabled Whether the datacenter firewall was on at the last check; null until checked
 	FirewallEnabled *bool         `json:"firewall_enabled"`
@@ -532,6 +594,45 @@ type ApiToken struct {
 	LastUsed   *time.Time      `json:"last_used"`
 	Name       string          `json:"name"`
 	Permission TokenPermission `json:"permission"`
+}
+
+// Backup defines model for Backup.
+type Backup struct {
+	Completed *time.Time `json:"completed"`
+	Created   time.Time  `json:"created"`
+	Id        int64      `json:"id"`
+	Kind      BackupKind `json:"kind"`
+
+	// RestoreResetsIdentity Whether restoring now gives the server a new cloud-init instance id, so host keys and user data run again
+	RestoreResetsIdentity bool  `json:"restore_resets_identity"`
+	Server                int64 `json:"server"`
+
+	// Size Bytes; 0 until the backup completes
+	Size   int64        `json:"size"`
+	Status BackupStatus `json:"status"`
+}
+
+// BackupKind defines model for BackupKind.
+type BackupKind string
+
+// BackupSettings defines model for BackupSettings.
+type BackupSettings struct {
+	Enabled bool `json:"enabled"`
+
+	// Keep How many backups to keep
+	Keep int `json:"keep"`
+}
+
+// BackupStatus defines model for BackupStatus.
+type BackupStatus string
+
+// BackupWindow When scheduled backups start, as HH:MM UTC; the window may cross midnight
+type BackupWindow struct {
+	// End Example: 06:00
+	End string `json:"end"`
+
+	// Start Example: 02:00
+	Start string `json:"start"`
 }
 
 // CatalogEntry defines model for CatalogEntry.
@@ -887,9 +988,11 @@ type Labels map[string]string
 
 // Location defines model for Location.
 type Location struct {
-	Description string `json:"description"`
-	Id          int64  `json:"id"`
-	Name        string `json:"name"`
+	// BackupsAvailable Whether backups can be turned on here
+	BackupsAvailable bool   `json:"backups_available"`
+	Description      string `json:"description"`
+	Id               int64  `json:"id"`
+	Name             string `json:"name"`
 
 	// Networks Whether the location has a free address of each family
 	Networks struct {
@@ -955,8 +1058,13 @@ type LocationEnrollmentInput struct {
 
 // LocationInput defines model for LocationInput.
 type LocationInput struct {
-	Description *string `json:"description,omitempty"`
-	DiskStorage string  `json:"disk_storage"`
+	// BackupStorage PBS storage with the backup content type; empty turns backups off. Omitted on update keeps the current value
+	BackupStorage *string `json:"backup_storage,omitempty"`
+
+	// BackupWindow When scheduled backups start, as HH:MM UTC; the window may cross midnight
+	BackupWindow *BackupWindow `json:"backup_window,omitempty"`
+	Description  *string       `json:"description,omitempty"`
+	DiskStorage  string        `json:"disk_storage"`
 
 	// ImportStorage Storage with the import content type, for building catalog templates; empty disables it
 	ImportStorage *string            `json:"import_storage,omitempty"`
@@ -1096,13 +1204,18 @@ type ProjectInput struct {
 
 // ProjectUsage defines model for ProjectUsage.
 type ProjectUsage struct {
-	DiskGb   int `json:"disk_gb"`
-	Ips      int `json:"ips"`
-	MemoryMb int `json:"memory_mb"`
-	Servers  int `json:"servers"`
-	Vcpu     int `json:"vcpu"`
-	VolumeGb int `json:"volume_gb"`
-	Volumes  int `json:"volumes"`
+	// Backups Stored backups
+	Backups int `json:"backups"`
+
+	// BackupsReserved Backup slots held: keep for servers with backups on, else their stored count
+	BackupsReserved int `json:"backups_reserved"`
+	DiskGb          int `json:"disk_gb"`
+	Ips             int `json:"ips"`
+	MemoryMb        int `json:"memory_mb"`
+	Servers         int `json:"servers"`
+	Vcpu            int `json:"vcpu"`
+	VolumeGb        int `json:"volume_gb"`
+	Volumes         int `json:"volumes"`
 }
 
 // PveConnection defines model for PveConnection.
@@ -1130,6 +1243,8 @@ type PveConnectionInput struct {
 
 // Quota defines model for Quota.
 type Quota struct {
+	// MaxBackups Stored plus reserved backups; 0 is unlimited
+	MaxBackups  int `json:"max_backups"`
 	MaxDiskGb   int `json:"max_disk_gb"`
 	MaxIps      int `json:"max_ips"`
 	MaxMemoryMb int `json:"max_memory_mb"`
@@ -1139,8 +1254,9 @@ type Quota struct {
 	MaxVolumes  int `json:"max_volumes"`
 }
 
-// QuotaInput An omitted max_volumes or max_volume_gb keeps the current value
+// QuotaInput An omitted max_volumes, max_volume_gb or max_backups keeps the current value
 type QuotaInput struct {
+	MaxBackups  *int `json:"max_backups,omitempty"`
 	MaxDiskGb   int  `json:"max_disk_gb"`
 	MaxIps      int  `json:"max_ips"`
 	MaxMemoryMb int  `json:"max_memory_mb"`
@@ -1156,13 +1272,19 @@ type RebuildInput struct {
 	Image string `json:"image"`
 }
 
+// RestoreBackupInput defines model for RestoreBackupInput.
+type RestoreBackupInput struct {
+	Backup int64 `json:"backup"`
+}
+
 // Role defines model for Role.
 type Role string
 
 // Server defines model for Server.
 type Server struct {
-	Created time.Time `json:"created"`
-	DiskGb  int       `json:"disk_gb"`
+	Backups ServerBackups `json:"backups"`
+	Created time.Time     `json:"created"`
+	DiskGb  int           `json:"disk_gb"`
 
 	// Firewalls Firewalls in effect on the server and why each applies
 	Firewalls []ServerFirewall `json:"firewalls"`
@@ -1192,6 +1314,18 @@ type Server struct {
 // ServerStatus defines model for Server.Status.
 type ServerStatus string
 
+// ServerBackups defines model for ServerBackups.
+type ServerBackups struct {
+	// Count Stored backups
+	Count        int        `json:"count"`
+	Enabled      bool       `json:"enabled"`
+	Keep         int        `json:"keep"`
+	LastBackupAt *time.Time `json:"last_backup_at"`
+
+	// NextBackupAt Null while backups are off or unavailable
+	NextBackupAt *time.Time `json:"next_backup_at"`
+}
+
 // ServerFirewall defines model for ServerFirewall.
 type ServerFirewall struct {
 	Id   int64  `json:"id"`
@@ -1203,6 +1337,8 @@ type ServerFirewall struct {
 
 // ServerInput defines model for ServerInput.
 type ServerInput struct {
+	Backups *BackupSettings `json:"backups,omitempty"`
+
 	// Firewalls The project's firewalls to apply directly; the server boots with their rules in place
 	Firewalls *[]struct {
 		Firewall int64 `json:"firewall"`
@@ -1271,6 +1407,8 @@ type ServerTypeList struct {
 
 // ServerUpdate defines model for ServerUpdate.
 type ServerUpdate struct {
+	Backups *BackupSettings `json:"backups,omitempty"`
+
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
@@ -1664,6 +1802,12 @@ type GetServerActionsParams struct {
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
+// GetServerBackupsParams defines parameters for GetServerBackups.
+type GetServerBackupsParams struct {
+	Status *BackupStatus `form:"status,omitempty" json:"status,omitempty"`
+	Kind   *BackupKind   `form:"kind,omitempty" json:"kind,omitempty"`
+}
+
 // GetServerMetricsParams defines parameters for GetServerMetrics.
 type GetServerMetricsParams struct {
 	// Type Required. cpu, disk and/or network; repeat the parameter or separate with commas
@@ -1860,6 +2004,9 @@ type ChangeServerTypeJSONRequestBody = ChangeTypeInput
 
 // RebuildServerJSONRequestBody defines body for RebuildServer for application/json ContentType.
 type RebuildServerJSONRequestBody = RebuildInput
+
+// RestoreServerBackupJSONRequestBody defines body for RestoreServerBackup for application/json ContentType.
+type RestoreServerBackupJSONRequestBody = RestoreBackupInput
 
 // PostSetupJSONRequestBody defines body for PostSetup for application/json ContentType.
 type PostSetupJSONRequestBody = Credentials
@@ -2226,7 +2373,7 @@ type ServerInterface interface {
 	// GetServer Get a server
 	// (GET /servers/{id})
 	GetServer(w http.ResponseWriter, r *http.Request, id ID)
-	// PutServer Rename a server or replace its labels
+	// PutServer Rename a server, replace its labels or change its backup settings
 	// (PUT /servers/{id})
 	PutServer(w http.ResponseWriter, r *http.Request, id ID)
 	// GetServerActions List a server's actions
@@ -2253,9 +2400,24 @@ type ServerInterface interface {
 	// ResetServer Reset a server
 	// (POST /servers/{id}/actions/reset)
 	ResetServer(w http.ResponseWriter, r *http.Request, id ID)
+	// RestoreServerBackup Restore a server in place from one of its backups
+	// (POST /servers/{id}/actions/restore_backup)
+	RestoreServerBackup(w http.ResponseWriter, r *http.Request, id ID)
 	// ShutdownServer Shut a server down gracefully
 	// (POST /servers/{id}/actions/shutdown)
 	ShutdownServer(w http.ResponseWriter, r *http.Request, id ID)
+	// GetServerBackups List a server's backups, newest first
+	// (GET /servers/{id}/backups)
+	GetServerBackups(w http.ResponseWriter, r *http.Request, id ID, params GetServerBackupsParams)
+	// PostServerBackups Back up a server now
+	// (POST /servers/{id}/backups)
+	PostServerBackups(w http.ResponseWriter, r *http.Request, id ID)
+	// DeleteServerBackup Delete a backup
+	// (DELETE /servers/{id}/backups/{backup})
+	DeleteServerBackup(w http.ResponseWriter, r *http.Request, id ID, backup int64)
+	// GetServerBackup Get a backup
+	// (GET /servers/{id}/backups/{backup})
+	GetServerBackup(w http.ResponseWriter, r *http.Request, id ID, backup int64)
 	// GetServerMetrics Server metrics from Proxmox RRD data
 	// (GET /servers/{id}/metrics)
 	GetServerMetrics(w http.ResponseWriter, r *http.Request, id ID, params GetServerMetricsParams)
@@ -2994,7 +3156,7 @@ func (_ Unimplemented) GetServer(w http.ResponseWriter, r *http.Request, id ID) 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// PutServer Rename a server or replace its labels
+// PutServer Rename a server, replace its labels or change its backup settings
 // (PUT /servers/{id})
 func (_ Unimplemented) PutServer(w http.ResponseWriter, r *http.Request, id ID) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -3048,9 +3210,39 @@ func (_ Unimplemented) ResetServer(w http.ResponseWriter, r *http.Request, id ID
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// RestoreServerBackup Restore a server in place from one of its backups
+// (POST /servers/{id}/actions/restore_backup)
+func (_ Unimplemented) RestoreServerBackup(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ShutdownServer Shut a server down gracefully
 // (POST /servers/{id}/actions/shutdown)
 func (_ Unimplemented) ShutdownServer(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetServerBackups List a server's backups, newest first
+// (GET /servers/{id}/backups)
+func (_ Unimplemented) GetServerBackups(w http.ResponseWriter, r *http.Request, id ID, params GetServerBackupsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PostServerBackups Back up a server now
+// (POST /servers/{id}/backups)
+func (_ Unimplemented) PostServerBackups(w http.ResponseWriter, r *http.Request, id ID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteServerBackup Delete a backup
+// (DELETE /servers/{id}/backups/{backup})
+func (_ Unimplemented) DeleteServerBackup(w http.ResponseWriter, r *http.Request, id ID, backup int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetServerBackup Get a backup
+// (GET /servers/{id}/backups/{backup})
+func (_ Unimplemented) GetServerBackup(w http.ResponseWriter, r *http.Request, id ID, backup int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6709,6 +6901,32 @@ func (siw *ServerInterfaceWrapper) ResetServer(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// RestoreServerBackup operation middleware
+func (siw *ServerInterfaceWrapper) RestoreServerBackup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RestoreServerBackup(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ShutdownServer operation middleware
 func (siw *ServerInterfaceWrapper) ShutdownServer(w http.ResponseWriter, r *http.Request) {
 
@@ -6726,6 +6944,157 @@ func (siw *ServerInterfaceWrapper) ShutdownServer(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ShutdownServer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetServerBackups operation middleware
+func (siw *ServerInterfaceWrapper) GetServerBackups(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetServerBackupsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServerBackups(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostServerBackups operation middleware
+func (siw *ServerInterfaceWrapper) PostServerBackups(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostServerBackups(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteServerBackup operation middleware
+func (siw *ServerInterfaceWrapper) DeleteServerBackup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "backup" -------------
+	var backup int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "backup", chi.URLParam(r, "backup"), &backup, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "backup", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteServerBackup(w, r, id, backup)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetServerBackup operation middleware
+func (siw *ServerInterfaceWrapper) GetServerBackup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "backup" -------------
+	var backup int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "backup", chi.URLParam(r, "backup"), &backup, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "backup", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetServerBackup(w, r, id, backup)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7807,6 +8176,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/servers/{id}/actions/rebuild", wrapper.RebuildServer)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/actions/restore_backup", wrapper.RestoreServerBackup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/servers/{id}/backups", wrapper.GetServerBackups)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/servers/{id}/backups", wrapper.PostServerBackups)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/servers/{id}/backups/{backup}", wrapper.DeleteServerBackup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/servers/{id}/backups/{backup}", wrapper.GetServerBackup)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/servers/{id}/actions/change_type", wrapper.ChangeServerType)
@@ -18715,6 +19099,130 @@ func (response ResetServerdefaultJSONResponse) VisitResetServerResponse(w http.R
 	return err
 }
 
+type RestoreServerBackupRequestObject struct {
+	Id   ID `json:"id"`
+	Body *RestoreServerBackupJSONRequestBody
+}
+
+type RestoreServerBackupResponseObject interface {
+	VisitRestoreServerBackupResponse(w http.ResponseWriter) error
+}
+
+type RestoreServerBackup201JSONResponse struct{ ActionCreatedJSONResponse }
+
+func (response RestoreServerBackup201JSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreServerBackup401JSONResponse struct{ ErrorJSONResponse }
+
+func (response RestoreServerBackup401JSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreServerBackup403JSONResponse Error
+
+func (response RestoreServerBackup403JSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreServerBackup404JSONResponse Error
+
+func (response RestoreServerBackup404JSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreServerBackup409JSONResponse Error
+
+func (response RestoreServerBackup409JSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreServerBackup422JSONResponse Error
+
+func (response RestoreServerBackup422JSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreServerBackup503JSONResponse Error
+
+func (response RestoreServerBackup503JSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RestoreServerBackupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RestoreServerBackupdefaultJSONResponse) VisitRestoreServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ShutdownServerRequestObject struct {
 	Id ID `json:"id"`
 }
@@ -18813,6 +19321,393 @@ type ShutdownServerdefaultJSONResponse struct {
 }
 
 func (response ShutdownServerdefaultJSONResponse) VisitShutdownServerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackupsRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetServerBackupsParams
+}
+
+type GetServerBackupsResponseObject interface {
+	VisitGetServerBackupsResponse(w http.ResponseWriter) error
+}
+
+type GetServerBackups200JSONResponse struct {
+	Backups []Backup `json:"backups"`
+}
+
+func (response GetServerBackups200JSONResponse) VisitGetServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackups401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServerBackups401JSONResponse) VisitGetServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackups404JSONResponse Error
+
+func (response GetServerBackups404JSONResponse) VisitGetServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackups422JSONResponse Error
+
+func (response GetServerBackups422JSONResponse) VisitGetServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackupsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServerBackupsdefaultJSONResponse) VisitGetServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackupsRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type PostServerBackupsResponseObject interface {
+	VisitPostServerBackupsResponse(w http.ResponseWriter) error
+}
+
+type PostServerBackups200JSONResponse Backup
+
+func (response PostServerBackups200JSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackups202JSONResponse Backup
+
+func (response PostServerBackups202JSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackups401JSONResponse struct{ ErrorJSONResponse }
+
+func (response PostServerBackups401JSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackups403JSONResponse Error
+
+func (response PostServerBackups403JSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackups404JSONResponse Error
+
+func (response PostServerBackups404JSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackups422JSONResponse Error
+
+func (response PostServerBackups422JSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackups503JSONResponse Error
+
+func (response PostServerBackups503JSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostServerBackupsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PostServerBackupsdefaultJSONResponse) VisitPostServerBackupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerBackupRequestObject struct {
+	Id     ID    `json:"id"`
+	Backup int64 `json:"backup"`
+}
+
+type DeleteServerBackupResponseObject interface {
+	VisitDeleteServerBackupResponse(w http.ResponseWriter) error
+}
+
+type DeleteServerBackup200JSONResponse struct {
+	Action Action `json:"action"`
+}
+
+func (response DeleteServerBackup200JSONResponse) VisitDeleteServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerBackup401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteServerBackup401JSONResponse) VisitDeleteServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerBackup403JSONResponse Error
+
+func (response DeleteServerBackup403JSONResponse) VisitDeleteServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerBackup404JSONResponse Error
+
+func (response DeleteServerBackup404JSONResponse) VisitDeleteServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerBackup409JSONResponse Error
+
+func (response DeleteServerBackup409JSONResponse) VisitDeleteServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerBackup503JSONResponse Error
+
+func (response DeleteServerBackup503JSONResponse) VisitDeleteServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteServerBackupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteServerBackupdefaultJSONResponse) VisitDeleteServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackupRequestObject struct {
+	Id     ID    `json:"id"`
+	Backup int64 `json:"backup"`
+}
+
+type GetServerBackupResponseObject interface {
+	VisitGetServerBackupResponse(w http.ResponseWriter) error
+}
+
+type GetServerBackup200JSONResponse Backup
+
+func (response GetServerBackup200JSONResponse) VisitGetServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackup401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetServerBackup401JSONResponse) VisitGetServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackup404JSONResponse Error
+
+func (response GetServerBackup404JSONResponse) VisitGetServerBackupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetServerBackupdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetServerBackupdefaultJSONResponse) VisitGetServerBackupResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -20844,7 +21739,7 @@ type StrictServerInterface interface {
 	// GetServer Get a server
 	// (GET /servers/{id})
 	GetServer(ctx context.Context, request GetServerRequestObject) (GetServerResponseObject, error)
-	// PutServer Rename a server or replace its labels
+	// PutServer Rename a server, replace its labels or change its backup settings
 	// (PUT /servers/{id})
 	PutServer(ctx context.Context, request PutServerRequestObject) (PutServerResponseObject, error)
 	// GetServerActions List a server's actions
@@ -20871,9 +21766,24 @@ type StrictServerInterface interface {
 	// ResetServer Reset a server
 	// (POST /servers/{id}/actions/reset)
 	ResetServer(ctx context.Context, request ResetServerRequestObject) (ResetServerResponseObject, error)
+	// RestoreServerBackup Restore a server in place from one of its backups
+	// (POST /servers/{id}/actions/restore_backup)
+	RestoreServerBackup(ctx context.Context, request RestoreServerBackupRequestObject) (RestoreServerBackupResponseObject, error)
 	// ShutdownServer Shut a server down gracefully
 	// (POST /servers/{id}/actions/shutdown)
 	ShutdownServer(ctx context.Context, request ShutdownServerRequestObject) (ShutdownServerResponseObject, error)
+	// GetServerBackups List a server's backups, newest first
+	// (GET /servers/{id}/backups)
+	GetServerBackups(ctx context.Context, request GetServerBackupsRequestObject) (GetServerBackupsResponseObject, error)
+	// PostServerBackups Back up a server now
+	// (POST /servers/{id}/backups)
+	PostServerBackups(ctx context.Context, request PostServerBackupsRequestObject) (PostServerBackupsResponseObject, error)
+	// DeleteServerBackup Delete a backup
+	// (DELETE /servers/{id}/backups/{backup})
+	DeleteServerBackup(ctx context.Context, request DeleteServerBackupRequestObject) (DeleteServerBackupResponseObject, error)
+	// GetServerBackup Get a backup
+	// (GET /servers/{id}/backups/{backup})
+	GetServerBackup(ctx context.Context, request GetServerBackupRequestObject) (GetServerBackupResponseObject, error)
 	// GetServerMetrics Server metrics from Proxmox RRD data
 	// (GET /servers/{id}/metrics)
 	GetServerMetrics(ctx context.Context, request GetServerMetricsRequestObject) (GetServerMetricsResponseObject, error)
@@ -24415,6 +25325,39 @@ func (sh *strictHandler) ResetServer(w http.ResponseWriter, r *http.Request, id 
 	}
 }
 
+// RestoreServerBackup operation middleware
+func (sh *strictHandler) RestoreServerBackup(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RestoreServerBackupRequestObject
+
+	request.Id = id
+
+	var body RestoreServerBackupJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RestoreServerBackup(ctx, request.(RestoreServerBackupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RestoreServerBackup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RestoreServerBackupResponseObject); ok {
+		if err := validResponse.VisitRestoreServerBackupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ShutdownServer operation middleware
 func (sh *strictHandler) ShutdownServer(w http.ResponseWriter, r *http.Request, id ID) {
 	var request ShutdownServerRequestObject
@@ -24434,6 +25377,113 @@ func (sh *strictHandler) ShutdownServer(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ShutdownServerResponseObject); ok {
 		if err := validResponse.VisitShutdownServerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetServerBackups operation middleware
+func (sh *strictHandler) GetServerBackups(w http.ResponseWriter, r *http.Request, id ID, params GetServerBackupsParams) {
+	var request GetServerBackupsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServerBackups(ctx, request.(GetServerBackupsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServerBackups")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServerBackupsResponseObject); ok {
+		if err := validResponse.VisitGetServerBackupsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostServerBackups operation middleware
+func (sh *strictHandler) PostServerBackups(w http.ResponseWriter, r *http.Request, id ID) {
+	var request PostServerBackupsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostServerBackups(ctx, request.(PostServerBackupsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostServerBackups")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostServerBackupsResponseObject); ok {
+		if err := validResponse.VisitPostServerBackupsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteServerBackup operation middleware
+func (sh *strictHandler) DeleteServerBackup(w http.ResponseWriter, r *http.Request, id ID, backup int64) {
+	var request DeleteServerBackupRequestObject
+
+	request.Id = id
+	request.Backup = backup
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteServerBackup(ctx, request.(DeleteServerBackupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteServerBackup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteServerBackupResponseObject); ok {
+		if err := validResponse.VisitDeleteServerBackupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetServerBackup operation middleware
+func (sh *strictHandler) GetServerBackup(w http.ResponseWriter, r *http.Request, id ID, backup int64) {
+	var request GetServerBackupRequestObject
+
+	request.Id = id
+	request.Backup = backup
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetServerBackup(ctx, request.(GetServerBackupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetServerBackup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetServerBackupResponseObject); ok {
+		if err := validResponse.VisitGetServerBackupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

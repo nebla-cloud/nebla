@@ -101,6 +101,7 @@ type server struct {
 	servers     *servers.Service
 	firewalls   *firewalls.Service
 	volumes     *volumes.Service
+	backups     *backups.Service
 	floatingIPs *floatingips.Service
 	console     *console.Service
 	enroll      *enroll.Service
@@ -176,6 +177,7 @@ func New(deps Deps) http.Handler {
 		servers: servers.New(servers.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs,
 			BackupInfo: bk.BackupInfo}),
 		firewalls:   firewalls.New(firewalls.Options{Ent: deps.Ent, SQL: deps.SQL, Jobs: deps.Jobs}),
+		backups:     bk,
 		volumes:     volumes.New(volumes.Options{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Projects: proj, Jobs: deps.Jobs, Logger: log}),
 		floatingIPs: newFloatingIPs(deps, proj, log),
 		enroll:      deps.Enroll,

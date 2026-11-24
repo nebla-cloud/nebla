@@ -61,6 +61,57 @@ func (e AdminActionStatus) Valid() bool {
 	}
 }
 
+// Defines values for BackupKind.
+const (
+	Manual    BackupKind = "manual"
+	Scheduled BackupKind = "scheduled"
+)
+
+// Valid indicates whether the value is a known member of the BackupKind enum.
+func (e BackupKind) Valid() bool {
+	switch e {
+	case Manual:
+		return true
+	case Scheduled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackupStatus.
+const (
+	BackupStatusAvailable BackupStatus = "available"
+	BackupStatusCreating  BackupStatus = "creating"
+	BackupStatusDeleting  BackupStatus = "deleting"
+	BackupStatusError     BackupStatus = "error"
+	BackupStatusMissing   BackupStatus = "missing"
+	BackupStatusQueued    BackupStatus = "queued"
+	BackupStatusRestoring BackupStatus = "restoring"
+)
+
+// Valid indicates whether the value is a known member of the BackupStatus enum.
+func (e BackupStatus) Valid() bool {
+	switch e {
+	case BackupStatusAvailable:
+		return true
+	case BackupStatusCreating:
+		return true
+	case BackupStatusDeleting:
+		return true
+	case BackupStatusError:
+		return true
+	case BackupStatusMissing:
+		return true
+	case BackupStatusQueued:
+		return true
+	case BackupStatusRestoring:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FirewallResourceAppliedToResourcesType.
 const (
 	FirewallResourceAppliedToResourcesTypeServer FirewallResourceAppliedToResourcesType = "server"
@@ -456,9 +507,20 @@ type AdminImage struct {
 
 // AdminLocation defines model for AdminLocation.
 type AdminLocation struct {
-	Created     time.Time `json:"created"`
-	Description string    `json:"description"`
-	DiskStorage string    `json:"disk_storage"`
+	// BackupStorage Empty means backups are off
+	BackupStorage string `json:"backup_storage"`
+
+	// BackupStorageOk Read-only: whether the token may use the backup storage and run backups
+	BackupStorageOk bool `json:"backup_storage_ok"`
+
+	// BackupWindow When scheduled backups start, as HH:MM UTC; the window may cross midnight
+	BackupWindow BackupWindow `json:"backup_window"`
+
+	// BackupsOnOtherStorage Read-only: backups of this location kept on a storage other than backup_storage
+	BackupsOnOtherStorage int       `json:"backups_on_other_storage"`
+	Created               time.Time `json:"created"`
+	Description           string    `json:"description"`
+	DiskStorage           string    `json:"disk_storage"`
 
 	// FirewallEnabled Whether the datacenter firewall was on at the last check; null until checked
 	FirewallEnabled *bool         `json:"firewall_enabled"`
@@ -532,6 +594,45 @@ type ApiToken struct {
 	LastUsed   *time.Time      `json:"last_used"`
 	Name       string          `json:"name"`
 	Permission TokenPermission `json:"permission"`
+}
+
+// Backup defines model for Backup.
+type Backup struct {
+	Completed *time.Time `json:"completed"`
+	Created   time.Time  `json:"created"`
+	Id        int64      `json:"id"`
+	Kind      BackupKind `json:"kind"`
+
+	// RestoreResetsIdentity Whether restoring now gives the server a new cloud-init instance id, so host keys and user data run again
+	RestoreResetsIdentity bool  `json:"restore_resets_identity"`
+	Server                int64 `json:"server"`
+
+	// Size Bytes; 0 until the backup completes
+	Size   int64        `json:"size"`
+	Status BackupStatus `json:"status"`
+}
+
+// BackupKind defines model for BackupKind.
+type BackupKind string
+
+// BackupSettings defines model for BackupSettings.
+type BackupSettings struct {
+	Enabled bool `json:"enabled"`
+
+	// Keep How many backups to keep
+	Keep int `json:"keep"`
+}
+
+// BackupStatus defines model for BackupStatus.
+type BackupStatus string
+
+// BackupWindow When scheduled backups start, as HH:MM UTC; the window may cross midnight
+type BackupWindow struct {
+	// End Example: 06:00
+	End string `json:"end"`
+
+	// Start Example: 02:00
+	Start string `json:"start"`
 }
 
 // CatalogEntry defines model for CatalogEntry.
@@ -887,9 +988,11 @@ type Labels map[string]string
 
 // Location defines model for Location.
 type Location struct {
-	Description string `json:"description"`
-	Id          int64  `json:"id"`
-	Name        string `json:"name"`
+	// BackupsAvailable Whether backups can be turned on here
+	BackupsAvailable bool   `json:"backups_available"`
+	Description      string `json:"description"`
+	Id               int64  `json:"id"`
+	Name             string `json:"name"`
 
 	// Networks Whether the location has a free address of each family
 	Networks struct {
@@ -955,8 +1058,13 @@ type LocationEnrollmentInput struct {
 
 // LocationInput defines model for LocationInput.
 type LocationInput struct {
-	Description *string `json:"description,omitempty"`
-	DiskStorage string  `json:"disk_storage"`
+	// BackupStorage PBS storage with the backup content type; empty turns backups off. Omitted on update keeps the current value
+	BackupStorage *string `json:"backup_storage,omitempty"`
+
+	// BackupWindow When scheduled backups start, as HH:MM UTC; the window may cross midnight
+	BackupWindow *BackupWindow `json:"backup_window,omitempty"`
+	Description  *string       `json:"description,omitempty"`
+	DiskStorage  string        `json:"disk_storage"`
 
 	// ImportStorage Storage with the import content type, for building catalog templates; empty disables it
 	ImportStorage *string            `json:"import_storage,omitempty"`
@@ -1096,13 +1204,18 @@ type ProjectInput struct {
 
 // ProjectUsage defines model for ProjectUsage.
 type ProjectUsage struct {
-	DiskGb   int `json:"disk_gb"`
-	Ips      int `json:"ips"`
-	MemoryMb int `json:"memory_mb"`
-	Servers  int `json:"servers"`
-	Vcpu     int `json:"vcpu"`
-	VolumeGb int `json:"volume_gb"`
-	Volumes  int `json:"volumes"`
+	// Backups Stored backups
+	Backups int `json:"backups"`
+
+	// BackupsReserved Backup slots held: keep for servers with backups on, else their stored count
+	BackupsReserved int `json:"backups_reserved"`
+	DiskGb          int `json:"disk_gb"`
+	Ips             int `json:"ips"`
+	MemoryMb        int `json:"memory_mb"`
+	Servers         int `json:"servers"`
+	Vcpu            int `json:"vcpu"`
+	VolumeGb        int `json:"volume_gb"`
+	Volumes         int `json:"volumes"`
 }
 
 // PveConnection defines model for PveConnection.
@@ -1130,6 +1243,8 @@ type PveConnectionInput struct {
 
 // Quota defines model for Quota.
 type Quota struct {
+	// MaxBackups Stored plus reserved backups; 0 is unlimited
+	MaxBackups  int `json:"max_backups"`
 	MaxDiskGb   int `json:"max_disk_gb"`
 	MaxIps      int `json:"max_ips"`
 	MaxMemoryMb int `json:"max_memory_mb"`
@@ -1139,8 +1254,9 @@ type Quota struct {
 	MaxVolumes  int `json:"max_volumes"`
 }
 
-// QuotaInput An omitted max_volumes or max_volume_gb keeps the current value
+// QuotaInput An omitted max_volumes, max_volume_gb or max_backups keeps the current value
 type QuotaInput struct {
+	MaxBackups  *int `json:"max_backups,omitempty"`
 	MaxDiskGb   int  `json:"max_disk_gb"`
 	MaxIps      int  `json:"max_ips"`
 	MaxMemoryMb int  `json:"max_memory_mb"`
@@ -1156,13 +1272,19 @@ type RebuildInput struct {
 	Image string `json:"image"`
 }
 
+// RestoreBackupInput defines model for RestoreBackupInput.
+type RestoreBackupInput struct {
+	Backup int64 `json:"backup"`
+}
+
 // Role defines model for Role.
 type Role string
 
 // Server defines model for Server.
 type Server struct {
-	Created time.Time `json:"created"`
-	DiskGb  int       `json:"disk_gb"`
+	Backups ServerBackups `json:"backups"`
+	Created time.Time     `json:"created"`
+	DiskGb  int           `json:"disk_gb"`
 
 	// Firewalls Firewalls in effect on the server and why each applies
 	Firewalls []ServerFirewall `json:"firewalls"`
@@ -1192,6 +1314,18 @@ type Server struct {
 // ServerStatus defines model for Server.Status.
 type ServerStatus string
 
+// ServerBackups defines model for ServerBackups.
+type ServerBackups struct {
+	// Count Stored backups
+	Count        int        `json:"count"`
+	Enabled      bool       `json:"enabled"`
+	Keep         int        `json:"keep"`
+	LastBackupAt *time.Time `json:"last_backup_at"`
+
+	// NextBackupAt Null while backups are off or unavailable
+	NextBackupAt *time.Time `json:"next_backup_at"`
+}
+
 // ServerFirewall defines model for ServerFirewall.
 type ServerFirewall struct {
 	Id   int64  `json:"id"`
@@ -1203,6 +1337,8 @@ type ServerFirewall struct {
 
 // ServerInput defines model for ServerInput.
 type ServerInput struct {
+	Backups *BackupSettings `json:"backups,omitempty"`
+
 	// Firewalls The project's firewalls to apply directly; the server boots with their rules in place
 	Firewalls *[]struct {
 		Firewall int64 `json:"firewall"`
@@ -1271,6 +1407,8 @@ type ServerTypeList struct {
 
 // ServerUpdate defines model for ServerUpdate.
 type ServerUpdate struct {
+	Backups *BackupSettings `json:"backups,omitempty"`
+
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
@@ -1664,6 +1802,12 @@ type GetServerActionsParams struct {
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 }
 
+// GetServerBackupsParams defines parameters for GetServerBackups.
+type GetServerBackupsParams struct {
+	Status *BackupStatus `form:"status,omitempty" json:"status,omitempty"`
+	Kind   *BackupKind   `form:"kind,omitempty" json:"kind,omitempty"`
+}
+
 // GetServerMetricsParams defines parameters for GetServerMetrics.
 type GetServerMetricsParams struct {
 	// Type Required. cpu, disk and/or network; repeat the parameter or separate with commas
@@ -1860,6 +2004,9 @@ type ChangeServerTypeJSONRequestBody = ChangeTypeInput
 
 // RebuildServerJSONRequestBody defines body for RebuildServer for application/json ContentType.
 type RebuildServerJSONRequestBody = RebuildInput
+
+// RestoreServerBackupJSONRequestBody defines body for RestoreServerBackup for application/json ContentType.
+type RestoreServerBackupJSONRequestBody = RestoreBackupInput
 
 // PostSetupJSONRequestBody defines body for PostSetup for application/json ContentType.
 type PostSetupJSONRequestBody = Credentials
@@ -2921,14 +3068,14 @@ type ClientInterface interface {
 	// Corresponds with GET /servers/{id} (the `GetServer` operationId).
 	GetServer(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutServerWithBody Rename a server or replace its labels
+	// PutServerWithBody Rename a server, replace its labels or change its backup settings
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /servers/{id} (the `PutServer` operationId).
 	PutServerWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutServer Rename a server or replace its labels
+	// PutServer Rename a server, replace its labels or change its backup settings
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -2995,10 +3142,46 @@ type ClientInterface interface {
 	// Corresponds with POST /servers/{id}/actions/reset (the `ResetServer` operationId).
 	ResetServer(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RestoreServerBackupWithBody Restore a server in place from one of its backups
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+	RestoreServerBackupWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RestoreServerBackup Restore a server in place from one of its backups
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+	RestoreServerBackup(ctx context.Context, id ID, body RestoreServerBackupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ShutdownServer Shut a server down gracefully
 	//
 	// Corresponds with POST /servers/{id}/actions/shutdown (the `ShutdownServer` operationId).
 	ShutdownServer(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetServerBackups List a server's backups, newest first
+	//
+	// Corresponds with GET /servers/{id}/backups (the `GetServerBackups` operationId).
+	GetServerBackups(ctx context.Context, id ID, params *GetServerBackupsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostServerBackups Back up a server now
+	//
+	// Queues a manual backup; while one is already queued or running, that one is returned instead
+	//
+	// Corresponds with POST /servers/{id}/backups (the `PostServerBackups` operationId).
+	PostServerBackups(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteServerBackup Delete a backup
+	//
+	// Corresponds with DELETE /servers/{id}/backups/{backup} (the `DeleteServerBackup` operationId).
+	DeleteServerBackup(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetServerBackup Get a backup
+	//
+	// Corresponds with GET /servers/{id}/backups/{backup} (the `GetServerBackup` operationId).
+	GetServerBackup(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetServerMetrics Server metrics from Proxmox RRD data
 	//
@@ -5685,7 +5868,7 @@ func (c *Client) GetServer(ctx context.Context, id ID, reqEditors ...RequestEdit
 	return c.Client.Do(req)
 }
 
-// PutServerWithBody Rename a server or replace its labels
+// PutServerWithBody Rename a server, replace its labels or change its backup settings
 //
 // Takes any type of body and a specified content type.
 //
@@ -5702,7 +5885,7 @@ func (c *Client) PutServerWithBody(ctx context.Context, id ID, contentType strin
 	return c.Client.Do(req)
 }
 
-// PutServer Rename a server or replace its labels
+// PutServer Rename a server, replace its labels or change its backup settings
 //
 // Takes a body of the `application/json` content type.
 //
@@ -5879,11 +6062,107 @@ func (c *Client) ResetServer(ctx context.Context, id ID, reqEditors ...RequestEd
 	return c.Client.Do(req)
 }
 
+// RestoreServerBackupWithBody Restore a server in place from one of its backups
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+func (c *Client) RestoreServerBackupWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestoreServerBackupRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RestoreServerBackup Restore a server in place from one of its backups
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+func (c *Client) RestoreServerBackup(ctx context.Context, id ID, body RestoreServerBackupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestoreServerBackupRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ShutdownServer Shut a server down gracefully
 //
 // Corresponds with POST /servers/{id}/actions/shutdown (the `ShutdownServer` operationId).
 func (c *Client) ShutdownServer(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewShutdownServerRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetServerBackups List a server's backups, newest first
+//
+// Corresponds with GET /servers/{id}/backups (the `GetServerBackups` operationId).
+func (c *Client) GetServerBackups(ctx context.Context, id ID, params *GetServerBackupsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServerBackupsRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostServerBackups Back up a server now
+//
+// Queues a manual backup; while one is already queued or running, that one is returned instead
+//
+// Corresponds with POST /servers/{id}/backups (the `PostServerBackups` operationId).
+func (c *Client) PostServerBackups(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostServerBackupsRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteServerBackup Delete a backup
+//
+// Corresponds with DELETE /servers/{id}/backups/{backup} (the `DeleteServerBackup` operationId).
+func (c *Client) DeleteServerBackup(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteServerBackupRequest(c.Server, id, backup)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetServerBackup Get a backup
+//
+// Corresponds with GET /servers/{id}/backups/{backup} (the `GetServerBackup` operationId).
+func (c *Client) GetServerBackup(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServerBackupRequest(c.Server, id, backup)
 	if err != nil {
 		return nil, err
 	}
@@ -11757,6 +12036,53 @@ func NewResetServerRequest(server string, id ID) (*http.Request, error) {
 	return req, nil
 }
 
+// NewRestoreServerBackupRequest calls the generic RestoreServerBackup builder with application/json body
+func NewRestoreServerBackupRequest(server string, id ID, body RestoreServerBackupJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRestoreServerBackupRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewRestoreServerBackupRequestWithBody constructs an http.Request for the RestoreServerBackup method, with any body, and a specified content type
+func NewRestoreServerBackupRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/actions/restore_backup", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewShutdownServerRequest constructs an http.Request for the ShutdownServer method
 func NewShutdownServerRequest(server string, id ID) (*http.Request, error) {
 	var err error
@@ -11784,6 +12110,195 @@ func NewShutdownServerRequest(server string, id ID) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetServerBackupsRequest constructs an http.Request for the GetServerBackups method
+func NewGetServerBackupsRequest(server string, id ID, params *GetServerBackupsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/backups", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostServerBackupsRequest constructs an http.Request for the PostServerBackups method
+func NewPostServerBackupsRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/backups", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteServerBackupRequest constructs an http.Request for the DeleteServerBackup method
+func NewDeleteServerBackupRequest(server string, id ID, backup int64) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "backup", backup, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/backups/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetServerBackupRequest constructs an http.Request for the GetServerBackup method
+func NewGetServerBackupRequest(server string, id ID, backup int64) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "backup", backup, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/backups/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -13844,14 +14359,14 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /servers/{id} (the `GetServer` operationId).
 	GetServerWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*GetServerResponse, error)
 
-	// PutServerWithBodyWithResponse Rename a server or replace its labels
+	// PutServerWithBodyWithResponse Rename a server, replace its labels or change its backup settings
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /servers/{id} (the `PutServer` operationId).
 	PutServerWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutServerResponse, error)
 
-	// PutServerWithResponse Rename a server or replace its labels
+	// PutServerWithResponse Rename a server, replace its labels or change its backup settings
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -13930,12 +14445,56 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /servers/{id}/actions/reset (the `ResetServer` operationId).
 	ResetServerWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*ResetServerResponse, error)
 
+	// RestoreServerBackupWithBodyWithResponse Restore a server in place from one of its backups
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+	RestoreServerBackupWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RestoreServerBackupResponse, error)
+
+	// RestoreServerBackupWithResponse Restore a server in place from one of its backups
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+	RestoreServerBackupWithResponse(ctx context.Context, id ID, body RestoreServerBackupJSONRequestBody, reqEditors ...RequestEditorFn) (*RestoreServerBackupResponse, error)
+
 	// ShutdownServerWithResponse Shut a server down gracefully
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /servers/{id}/actions/shutdown (the `ShutdownServer` operationId).
 	ShutdownServerWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*ShutdownServerResponse, error)
+
+	// GetServerBackupsWithResponse List a server's backups, newest first
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /servers/{id}/backups (the `GetServerBackups` operationId).
+	GetServerBackupsWithResponse(ctx context.Context, id ID, params *GetServerBackupsParams, reqEditors ...RequestEditorFn) (*GetServerBackupsResponse, error)
+
+	// PostServerBackupsWithResponse Back up a server now
+	//
+	// Queues a manual backup; while one is already queued or running, that one is returned instead
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{id}/backups (the `PostServerBackups` operationId).
+	PostServerBackupsWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*PostServerBackupsResponse, error)
+
+	// DeleteServerBackupWithResponse Delete a backup
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /servers/{id}/backups/{backup} (the `DeleteServerBackup` operationId).
+	DeleteServerBackupWithResponse(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*DeleteServerBackupResponse, error)
+
+	// GetServerBackupWithResponse Get a backup
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /servers/{id}/backups/{backup} (the `GetServerBackup` operationId).
+	GetServerBackupWithResponse(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*GetServerBackupResponse, error)
 
 	// GetServerMetricsWithResponse Server metrics from Proxmox RRD data
 	//
@@ -23054,6 +23613,96 @@ func (r ResetServerResponse) ContentType() string {
 	return ""
 }
 
+type RestoreServerBackupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ActionCreated
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r RestoreServerBackupResponse) GetJSON201() *ActionCreated {
+	return r.JSON201
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RestoreServerBackupResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RestoreServerBackupResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RestoreServerBackupResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r RestoreServerBackupResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r RestoreServerBackupResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r RestoreServerBackupResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r RestoreServerBackupResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RestoreServerBackupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RestoreServerBackupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RestoreServerBackupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RestoreServerBackupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ShutdownServerResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -23131,6 +23780,318 @@ func (r ShutdownServerResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ShutdownServerResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetServerBackupsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Backups []Backup `json:"backups"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServerBackupsResponse) GetJSON200() *struct {
+	Backups []Backup `json:"backups"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetServerBackupsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetServerBackupsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetServerBackupsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetServerBackupsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServerBackupsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServerBackupsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServerBackupsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServerBackupsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostServerBackupsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Backup
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *Backup
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostServerBackupsResponse) GetJSON200() *Backup {
+	return r.JSON200
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r PostServerBackupsResponse) GetJSON202() *Backup {
+	return r.JSON202
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PostServerBackupsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PostServerBackupsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PostServerBackupsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PostServerBackupsResponse) GetJSON422() *Error {
+	return r.JSON422
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PostServerBackupsResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r PostServerBackupsResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostServerBackupsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostServerBackupsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostServerBackupsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostServerBackupsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteServerBackupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Action Action `json:"action"`
+	}
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteServerBackupResponse) GetJSON200() *struct {
+	Action Action `json:"action"`
+} {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteServerBackupResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteServerBackupResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteServerBackupResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteServerBackupResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteServerBackupResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r DeleteServerBackupResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteServerBackupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteServerBackupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteServerBackupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteServerBackupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetServerBackupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Backup
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSONDefault the response for an HTTP default `application/json` response
+	JSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServerBackupResponse) GetJSON200() *Backup {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetServerBackupResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetServerBackupResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSONDefault returns the response for an HTTP default `application/json` response
+func (r GetServerBackupResponse) GetJSONDefault() *Error {
+	return r.JSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServerBackupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServerBackupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServerBackupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServerBackupResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -26547,7 +27508,7 @@ func (c *ClientWithResponses) GetServerWithResponse(ctx context.Context, id ID, 
 	return ParseGetServerResponse(rsp)
 }
 
-// PutServerWithBodyWithResponse Rename a server or replace its labels
+// PutServerWithBodyWithResponse Rename a server, replace its labels or change its backup settings
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -26560,7 +27521,7 @@ func (c *ClientWithResponses) PutServerWithBodyWithResponse(ctx context.Context,
 	return ParsePutServerResponse(rsp)
 }
 
-// PutServerWithResponse Rename a server or replace its labels
+// PutServerWithResponse Rename a server, replace its labels or change its backup settings
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -26705,6 +27666,32 @@ func (c *ClientWithResponses) ResetServerWithResponse(ctx context.Context, id ID
 	return ParseResetServerResponse(rsp)
 }
 
+// RestoreServerBackupWithBodyWithResponse Restore a server in place from one of its backups
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+func (c *ClientWithResponses) RestoreServerBackupWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RestoreServerBackupResponse, error) {
+	rsp, err := c.RestoreServerBackupWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestoreServerBackupResponse(rsp)
+}
+
+// RestoreServerBackupWithResponse Restore a server in place from one of its backups
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
+func (c *ClientWithResponses) RestoreServerBackupWithResponse(ctx context.Context, id ID, body RestoreServerBackupJSONRequestBody, reqEditors ...RequestEditorFn) (*RestoreServerBackupResponse, error) {
+	rsp, err := c.RestoreServerBackup(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestoreServerBackupResponse(rsp)
+}
+
 // ShutdownServerWithResponse Shut a server down gracefully
 //
 // Returns a wrapper object for the known response body format(s).
@@ -26716,6 +27703,60 @@ func (c *ClientWithResponses) ShutdownServerWithResponse(ctx context.Context, id
 		return nil, err
 	}
 	return ParseShutdownServerResponse(rsp)
+}
+
+// GetServerBackupsWithResponse List a server's backups, newest first
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /servers/{id}/backups (the `GetServerBackups` operationId).
+func (c *ClientWithResponses) GetServerBackupsWithResponse(ctx context.Context, id ID, params *GetServerBackupsParams, reqEditors ...RequestEditorFn) (*GetServerBackupsResponse, error) {
+	rsp, err := c.GetServerBackups(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServerBackupsResponse(rsp)
+}
+
+// PostServerBackupsWithResponse Back up a server now
+//
+// Queues a manual backup; while one is already queued or running, that one is returned instead
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{id}/backups (the `PostServerBackups` operationId).
+func (c *ClientWithResponses) PostServerBackupsWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*PostServerBackupsResponse, error) {
+	rsp, err := c.PostServerBackups(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostServerBackupsResponse(rsp)
+}
+
+// DeleteServerBackupWithResponse Delete a backup
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /servers/{id}/backups/{backup} (the `DeleteServerBackup` operationId).
+func (c *ClientWithResponses) DeleteServerBackupWithResponse(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*DeleteServerBackupResponse, error) {
+	rsp, err := c.DeleteServerBackup(ctx, id, backup, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteServerBackupResponse(rsp)
+}
+
+// GetServerBackupWithResponse Get a backup
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /servers/{id}/backups/{backup} (the `GetServerBackup` operationId).
+func (c *ClientWithResponses) GetServerBackupWithResponse(ctx context.Context, id ID, backup int64, reqEditors ...RequestEditorFn) (*GetServerBackupResponse, error) {
+	rsp, err := c.GetServerBackup(ctx, id, backup, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServerBackupResponse(rsp)
 }
 
 // GetServerMetricsWithResponse Server metrics from Proxmox RRD data
@@ -34154,6 +35195,81 @@ func ParseResetServerResponse(rsp *http.Response) (*ResetServerResponse, error) 
 	return response, nil
 }
 
+// ParseRestoreServerBackupResponse parses an HTTP response from a RestoreServerBackupWithResponse call
+func ParseRestoreServerBackupResponse(rsp *http.Response) (*RestoreServerBackupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RestoreServerBackupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ActionCreated
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseShutdownServerResponse parses an HTTP response from a ShutdownServerWithResponse call
 func ParseShutdownServerResponse(rsp *http.Response) (*ShutdownServerResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -34209,6 +35325,254 @@ func ParseShutdownServerResponse(rsp *http.Response) (*ShutdownServerResponse, e
 			return nil, err
 		}
 		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetServerBackupsResponse parses an HTTP response from a GetServerBackupsWithResponse call
+func ParseGetServerBackupsResponse(rsp *http.Response) (*GetServerBackupsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServerBackupsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Backups []Backup `json:"backups"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostServerBackupsResponse parses an HTTP response from a PostServerBackupsWithResponse call
+func ParsePostServerBackupsResponse(rsp *http.Response) (*PostServerBackupsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostServerBackupsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Backup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest Backup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteServerBackupResponse parses an HTTP response from a DeleteServerBackupWithResponse call
+func ParseDeleteServerBackupResponse(rsp *http.Response) (*DeleteServerBackupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteServerBackupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Action Action `json:"action"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetServerBackupResponse parses an HTTP response from a GetServerBackupWithResponse call
+func ParseGetServerBackupResponse(rsp *http.Response) (*GetServerBackupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServerBackupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Backup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error
