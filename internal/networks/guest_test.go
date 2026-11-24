@@ -28,7 +28,7 @@ const (
 	file7 = "/etc/netplan/60-nebla-net-7.yaml"
 )
 
-const guestWait = `for i in $(seq 30); do IF=$(ip -br link | awk '$3 == "bc:24:11:34:6f:1c" {print $1}'); [ -n "$IF" ] && break; sleep 1; done; [ -n "$IF" ] || { echo "The network isn't attached yet; try again in a moment." >&2; exit 1; }`
+const guestWait = `for i in $(seq 30); do IF=$(ip -br link | awk '$3 == "bc:24:11:34:6f:1c" {print $1}'); [ -n "$IF" ] && break; sleep 1; done; [ -n "$IF" ] || { echo "The network isn't attached yet; try again in a moment." >&2; false; }`
 
 var addr = netip.MustParsePrefix("10.0.0.2/16")
 

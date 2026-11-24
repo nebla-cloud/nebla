@@ -38,7 +38,7 @@ func netplanFile(networkID int64) string {
 func Guest(flavor string, networkID int64, mac string, addr netip.Prefix, mtu int, persist bool) GuestCommands {
 	mac = strings.ToLower(mac)
 	apply := []string{fmt.Sprintf("for i in $(seq 30); do IF=$(ip -br link | awk '$3 == \"%s\" {print $1}'); [ -n \"$IF\" ] && break; sleep 1; done; "+
-		"[ -n \"$IF\" ] || { echo \"The network isn't attached yet; try again in a moment.\" >&2; exit 1; }", mac)}
+		"[ -n \"$IF\" ] || { echo \"The network isn't attached yet; try again in a moment.\" >&2; false; }", mac)}
 	if mtu > 0 && mtu != 1500 {
 		apply = append(apply, fmt.Sprintf("sudo ip link set \"$IF\" mtu %d", mtu))
 	}
