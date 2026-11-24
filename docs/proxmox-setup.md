@@ -344,11 +344,12 @@ command:
 curl -fsSL '<panel>/v1/enroll.sh' | NEBLA_TOKEN=nbe_... bash -s -- --backup-storage <id>
 ```
 
-The script checks that the storage exists and is of type `pbs`, then grants the access below. Pass the flag on every
-re-run, because the roles are reset each time.
+The script checks that the storage exists and is of type `pbs`, then grants the access below. Running it again with the flag
+grants `NeblaBackup` again.
 
-**Pick it.** On the location page, choose Edit connection and set Backup storage to the storage ID. Set the Backup
-window (UTC) too. It defaults to 02:00 to 06:00 and may cross midnight. Nebla spreads servers across it. Leave Backup
+**Pick it.** Finishing a setup run that had the flag sets the location's Backup storage to that ID. To change or clear
+it, or for a location you aren't re-enrolling, choose Edit connection on the location page and set Backup storage there.
+Set the Backup window (UTC) too. It defaults to 02:00 to 06:00 and may cross midnight. Nebla spreads servers across it. Leave Backup
 storage blank to turn backups off for the location. Existing backups stay restorable.
 
 **Roles.** Backups need two things:

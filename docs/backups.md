@@ -16,6 +16,8 @@ You can manage backups on a server's Backups tab, with the API, or with the [CLI
 
 ## Backups and snapshots
 
+Snapshots are a separate feature and may not be available yet. They differ from backups like this:
+
 | | Backup | Snapshot |
 | --- | --- | --- |
 | What | A copy of the boot disk, kept off the host | A saved boot disk you can build new servers from |
@@ -46,8 +48,8 @@ there. Existing backups stay restorable.
 Your panel admin sets a backup window for each location, in UTC. Nebla spreads servers across the window, so each
 server has its own start time. A server is backed up once a day. Only one backup runs at a time on a host, so a backup
 can start a little later than its time and still count for that day. A backup that is waiting shows as "Waiting for its
-turn". It doesn't lock the server. Only while the backup is actually running, other actions on the server fail with
-`backup_in_progress`. Try again when it finishes.
+turn". It doesn't lock the server. Only while the backup is actually running, other actions on the server are refused.
+Try again when it finishes.
 
 Back up now makes a backup right away, or as soon as the host is free. It is only offered while backups are on.
 
@@ -84,7 +86,7 @@ now if you might want the current disk back.
 nebla server backup restore web1 42
 ```
 
-While the restore runs, other actions on the server are refused. The server starts again when it finishes.
+While a backup or restore runs, other actions on the server are refused.
 
 ### Identity
 
