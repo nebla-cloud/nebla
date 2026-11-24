@@ -7,6 +7,9 @@ a time.
 You can manage floating IPs on the Floating IPs page, on a server's page, with the API, or with the [CLI](cli.md)
 (`nebla floating-ip ...`).
 
+The public address a server starts with is its [primary IP](primary-ips.md). You can keep it when the server is deleted and
+reuse it on another server.
+
 ## What it is
 
 - Each floating IP is one address: an IPv4 address (`/32`) or an IPv6 address (`/128`).

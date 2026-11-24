@@ -16,6 +16,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -33,6 +34,21 @@ func ipString(ip *apiclient.ServerIp) string {
 		return "-"
 	}
 	return ip.Ip
+}
+
+// ipWithName adds the primary IP's name to its address when it is known.
+func ipWithName(ip *apiclient.ServerIp, names map[int64]string) string {
+	if n, ok := names[idOf(ip)]; ok && ip != nil {
+		return ip.Ip + " (" + n + ")"
+	}
+	return ipString(ip)
+}
+
+func idOf(ip *apiclient.ServerIp) int64 {
+	if ip == nil {
+		return 0
+	}
+	return ip.Id
 }
 
 func labelString(l apiclient.Labels) string {
@@ -96,6 +112,17 @@ func newServerCmd(a *app) *cobra.Command {
 	return cmd
 }
 
+// ipFlagValue sets a public_net union from an --ipv4/--ipv6 value: a bool, or else a primary IP ref.
+func ipFlagValue(v string, fromBool func(bool) error, fromRef func(string) error) error {
+	switch v {
+	case "true", "false":
+		return fromBool(v == "true")
+	case "":
+		return errors.New("an empty IP value: use true, false or a primary IP id or name")
+	}
+	return fromRef(v)
+}
+
 func serverCreateCmd(a *app) *cobra.Command {
 	var (
 		name, typ, image, location, userDataFile string
@@ -103,6 +130,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 		withoutIPv4, withIPv6, start             bool
 		backups                                  bool
 		backupKeep                               int
+		ipv4, ipv6                               string
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -122,13 +150,25 @@ func serverCreateCmd(a *app) *cobra.Command {
 			Name: name, ServerType: typ, Image: image, Location: location,
 			StartAfterCreate: &start,
 		}
-		v4, v6 := !withoutIPv4, withIPv6
+		fl := cmd.Flags()
+		if fl.Changed("ipv4") && fl.Changed("without-ipv4") {
+			return errors.New("use either --ipv4 or --without-ipv4, not both")
+		}
+		if fl.Changed("ipv6") && fl.Changed("with-ipv6") {
+			return errors.New("use either --ipv6 or --with-ipv6, not both")
+		}
+		if !fl.Changed("ipv4") && withoutIPv4 {
+			ipv4 = "false"
+		}
+		if !fl.Changed("ipv6") && withIPv6 {
+			ipv6 = "true"
+		}
 		var u4 apiclient.ServerInput_PublicNet_Ipv4
 		var u6 apiclient.ServerInput_PublicNet_Ipv6
-		if err := u4.FromServerInputPublicNetIpv40(v4); err != nil {
+		if err := ipFlagValue(ipv4, u4.FromServerInputPublicNetIpv40, u4.FromServerInputPublicNetIpv41); err != nil {
 			return err
 		}
-		if err := u6.FromServerInputPublicNetIpv60(v6); err != nil {
+		if err := ipFlagValue(ipv6, u6.FromServerInputPublicNetIpv60, u6.FromServerInputPublicNetIpv61); err != nil {
 			return err
 		}
 		body.PublicNet = &struct {
@@ -247,8 +287,10 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.StringArrayVar(&networks, "network", nil, "private network id or name, optionally name=ip (repeatable)")
 	f.StringVar(&userDataFile, "user-data-from-file", "", "read cloud-init user data from a file")
 	f.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable)")
-	f.BoolVar(&withoutIPv4, "without-ipv4", false, "do not assign an IPv4 address")
-	f.BoolVar(&withIPv6, "with-ipv6", false, "assign an IPv6 address")
+	f.StringVar(&ipv4, "ipv4", "true", "IPv4 address: true for a new one, false for none, or a primary IP id or name")
+	f.StringVar(&ipv6, "ipv6", "false", "IPv6 address: true for a new one, false for none, or a primary IP id or name")
+	f.BoolVar(&withoutIPv4, "without-ipv4", false, "same as --ipv4=false")
+	f.BoolVar(&withIPv6, "with-ipv6", false, "same as --ipv6=true")
 	f.BoolVar(&start, "start-after-create", true, "start the server once it is created")
 	f.BoolVar(&backups, "backups", false, "turn on scheduled backups")
 	f.IntVar(&backupKeep, "backup-keep", defaultBackupKeep, "backups to keep, 1-14 (with --backups)")
@@ -302,13 +344,14 @@ func serverDescribeCmd(a *app) *cobra.Command {
 				return p.Object(s)
 			}
 			t := s.ServerType
+			names := serverIPNames(cmd.Context(), api, s.Id)
 			p.KV([][2]string{
 				{"ID", id64(s.Id)},
 				{"Name", s.Name},
 				{"Status", string(s.Status)},
 				{"Created", s.Created.Format(time.RFC3339)},
-				{"IPv4", ipString(s.PublicNet.Ipv4)},
-				{"IPv6", ipString(s.PublicNet.Ipv6)},
+				{"IPv4", ipWithName(s.PublicNet.Ipv4, names)},
+				{"IPv6", ipWithName(s.PublicNet.Ipv6, names)},
 				{"Type", fmt.Sprintf("%s (%d cores, %s, %d GB)", t.Name, t.Cores, memoryString(t.MemoryMb), t.DiskGb)},
 				{"Image", s.Image.Name},
 				{"Location", s.Location.Name},
@@ -328,6 +371,10 @@ func serverDeleteCmd(a *app) *cobra.Command {
 		Short: "Delete a server by id or name",
 		Args:  cobra.ExactArgs(1),
 	}
+	var keepAll bool
+	var keep []string
+	cmd.Flags().BoolVar(&keepAll, "keep-ips", false, "keep all of the server's primary IPs in the project")
+	cmd.Flags().StringArrayVar(&keep, "keep-ip", nil, "keep this primary IP id or name (repeatable)")
 	wo := addWaitFlags(cmd)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		api, err := a.api()
@@ -335,6 +382,10 @@ func serverDeleteCmd(a *app) *cobra.Command {
 			return err
 		}
 		s, err := api.Server(cmd.Context(), args[0])
+		if err != nil {
+			return err
+		}
+		kept, err := keepPrimaryIPs(cmd.Context(), api, s, keepAll, keep)
 		if err != nil {
 			return err
 		}
@@ -346,14 +397,9 @@ func serverDeleteCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		act := v.Action
-		if !wo.NoWait {
-			api.Timeout = wo.Timeout
-			done, err := api.Wait(cmd.Context(), a.env.Stderr, a.stderrTTY(), act.Id)
-			if err != nil {
-				return err
-			}
-			act = done[0]
+		act, err := a.waitAction(cmd, api, wo, v.Action)
+		if err != nil {
+			return err
 		}
 		if a.flags.output != "table" {
 			return a.printer().Object(act)
@@ -363,9 +409,51 @@ func serverDeleteCmd(a *app) *cobra.Command {
 			return nil
 		}
 		fmt.Fprintf(a.env.Stdout, "Server %s deleted\n", s.Name)
+		for _, p := range kept {
+			fmt.Fprintf(a.env.Stdout, "Kept %s (%s); it stays in the project and counts toward quota\n", p.Name, p.Ip)
+		}
 		return nil
 	}
 	return cmd
+}
+
+// keepPrimaryIPs turns off auto-delete on the server's IPs that should outlive it, before the delete.
+func keepPrimaryIPs(ctx context.Context, api *API, s apiclient.Server, all bool, refs []string) ([]apiclient.PrimaryIp, error) {
+	if all && len(refs) > 0 {
+		return nil, errors.New("use either --keep-ips or --keep-ip, not both")
+	}
+	if !all && len(refs) == 0 {
+		return nil, nil
+	}
+	sid := id64(s.Id)
+	own, err := api.PrimaryIPs(ctx, apiclient.GetPrimaryIpsParams{Server: &sid})
+	if err != nil {
+		return nil, err
+	}
+	var kept []apiclient.PrimaryIp
+	if all {
+		kept = own
+	}
+	for _, ref := range refs {
+		p, err := api.PrimaryIP(ctx, ref)
+		if err != nil {
+			return nil, err
+		}
+		if p.Server == nil || p.Server.Id != s.Id {
+			return nil, fmt.Errorf("primary IP %q is not assigned to server %s", ref, s.Name)
+		}
+		kept = append(kept, p)
+	}
+	off := false
+	for _, p := range kept {
+		if !p.AutoDelete {
+			continue
+		}
+		if _, err := putPrimaryIP(ctx, api, p.Id, apiclient.PutPrimaryIpJSONRequestBody{AutoDelete: &off}); err != nil {
+			return nil, err
+		}
+	}
+	return kept, nil
 }
 
 func serverRenameCmd(a *app) *cobra.Command {

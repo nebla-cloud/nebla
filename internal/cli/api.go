@@ -534,3 +534,45 @@ func (a *API) Network(ctx context.Context, ref string) (apiclient.Network, error
 		return named(list, func(n apiclient.Network) string { return n.Name }, name), nil
 	})
 }
+
+// PrimaryIPs lists every primary IP matching params.
+func (a *API) PrimaryIPs(ctx context.Context, params apiclient.GetPrimaryIpsParams) ([]apiclient.PrimaryIp, error) {
+	pp := perPage
+	params.PerPage = &pp
+	return pageAll(func(page *int) ([]apiclient.PrimaryIp, apiclient.Meta, error) {
+		params.Page = page
+		res, err := a.C.GetPrimaryIpsWithResponse(ctx, &params)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		v, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err != nil {
+			return nil, apiclient.Meta{}, err
+		}
+		return v.PrimaryIps, v.Meta, nil
+	})
+}
+
+// PrimaryIP finds a primary IP by id, name or address.
+func (a *API) PrimaryIP(ctx context.Context, ref string) (apiclient.PrimaryIp, error) {
+	return resolve(ref, "primary IP", func(id int64) (*apiclient.PrimaryIp, *http.Response, []byte, error) {
+		res, err := a.C.GetPrimaryIpWithResponse(ctx, id)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return res.JSON200, res.HTTPResponse, res.Body, nil
+	}, func(name string) (*apiclient.PrimaryIp, error) {
+		list, err := a.PrimaryIPs(ctx, apiclient.GetPrimaryIpsParams{Name: &name})
+		if err != nil {
+			return nil, err
+		}
+		if p := named(list, func(p apiclient.PrimaryIp) string { return p.Name }, name); p != nil {
+			return p, nil
+		}
+		all, err := a.PrimaryIPs(ctx, apiclient.GetPrimaryIpsParams{})
+		if err != nil {
+			return nil, err
+		}
+		return named(all, func(p apiclient.PrimaryIp) string { return p.Ip }, name), nil
+	})
+}

@@ -227,6 +227,8 @@ The API, jobs, reconciler, console proxy and metrics are done, and the web panel
 - floating IPs: addresses that belong to the project and move between servers ([guide](docs/floating-ips.md))
 - private networks: servers in one location reach each other over their own addresses, apart from the public network
   ([guide](docs/networks.md))
+- primary IPs: a server's public address as a project resource, kept when the server is deleted or reused on another one
+  ([guide](docs/primary-ips.md))
 - the admin area: one-line Proxmox setup, locations, OS images, server types, IP pools, users, projects, settings and
   activity
 

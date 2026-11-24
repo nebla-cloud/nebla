@@ -136,3 +136,16 @@ func (a *API) waitOne(ctx context.Context, w io.Writer, tty bool, id int64) (api
 		delay = min(delay*3/2, pollMax)
 	}
 }
+
+// waitAction waits for act unless --no-wait and returns its final state.
+func (a *app) waitAction(cmd *cobra.Command, api *API, wo *waitOpts, act apiclient.Action) (apiclient.Action, error) {
+	if wo.NoWait {
+		return act, nil
+	}
+	api.Timeout = wo.Timeout
+	done, err := api.Wait(cmd.Context(), a.env.Stderr, a.stderrTTY(), act.Id)
+	if err != nil {
+		return act, err
+	}
+	return done[0], nil
+}

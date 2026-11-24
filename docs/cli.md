@@ -87,8 +87,9 @@ nebla server poweroff web2        # also: poweron, reboot, reset, shutdown
 nebla server rebuild web2 --image debian
 nebla server change-type web2 --type medium --upgrade-disk
 nebla server ssh web2 -u admin -p 2222 -- -A
-nebla server delete web2
 nebla server backup enable web2 --keep 7   # also: disable, now, list, delete, restore
+nebla server delete web2
+nebla server delete web2 --keep-ips   # keep its primary IPs; or --keep-ip web2-ipv4
 
 # Firewalls
 nebla firewall create --name web --label env=prod
@@ -118,6 +119,16 @@ nebla server attach-to-network web1 --network backend    # prints the commands t
 nebla server detach-from-network web1 --network backend
 nebla network delete backend
 
+# Primary IPs
+nebla primary-ip create --type ipv4 --location home --name web-ip --keep
+nebla primary-ip list --server web2
+nebla primary-ip describe web-ip
+nebla primary-ip update web-ip --auto-delete=false
+nebla primary-ip assign web-ip web3        # the server must be stopped
+nebla primary-ip unassign web-ip
+nebla primary-ip delete web-ip
+nebla server create --name web3 --type small --image ubuntu --location home --ipv4 web-ip
+
 nebla version
 nebla completion zsh              # also: bash, fish, powershell
 ```
@@ -138,7 +149,11 @@ and detach wait, then print the commands to run inside the server; see [Private 
 `attach-to-network` picks the address, and `--network` on `server create` takes a network and an optional `name=ip`
 (repeatable, up to 3).
 
-`server create` also takes `--user-data-from-file`, `--label key=value`, `--without-ipv4`, `--with-ipv6` and
+A primary IP is a server's own public address, kept in your project. `assign` and `unassign` work on a stopped server,
+wait, then print when the new address takes effect, and print any warning on stderr. `server create --ipv4` and
+`--ipv6` take `true`, `false` or an existing primary IP; see [Primary IPs](primary-ips.md).
+
+`server create` also takes `--user-data-from-file`, `--label key=value`, `--ipv4`, `--ipv6` (or the older `--without-ipv4` and `--with-ipv6`) and
 `--start-after-create=false`. `server list` takes `--selector key=value`.
 
 ## Waiting for actions

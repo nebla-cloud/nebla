@@ -376,14 +376,9 @@ func fipDeleteCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		act := out.Action
-		if !wo.NoWait {
-			api.Timeout = wo.Timeout
-			done, err := api.Wait(cmd.Context(), a.env.Stderr, a.stderrTTY(), act.Id)
-			if err != nil {
-				return err
-			}
-			act = done[0]
+		act, err := a.waitAction(cmd, api, wo, out.Action)
+		if err != nil {
+			return err
 		}
 		if a.flags.output != "table" {
 			return a.printer().Object(act)
