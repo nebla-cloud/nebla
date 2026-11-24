@@ -230,7 +230,7 @@ func volumeScript(id int64, format bool, body string) string {
 	if format {
 		mk = fmt.Sprintf("mkfs.ext4 -q -F %s && ", dev)
 	}
-	return fmt.Sprintf("set -e; %smkdir -p /mnt/nb && mount %s /mnt/nb && { %s; }; r=$?; sync; umount /mnt/nb; exit $r", mk, dev, body)
+	return fmt.Sprintf("set -e; %smkdir -p /mnt/nb && mount %s /mnt/nb; trap 'sync; umount /mnt/nb' EXIT; %s", mk, dev, body)
 }
 
 func TestBackups(t *testing.T) {
@@ -249,14 +249,16 @@ func TestBackups(t *testing.T) {
 		"pve": map[string]any{"url": tg.url, "token_id": tg.tokenID, "token_secret": tg.secret,
 			"ca_fingerprint": tg.fingerprint, "insecure_tls": tg.insecure && tg.fingerprint == ""},
 	}, http.StatusOK, nil)
-	require.True(t, eventually(2*time.Minute, func() bool {
+	if !eventually(2*time.Minute, func() bool {
 		var loc struct {
 			BackupStorage   string `json:"backup_storage"`
 			BackupStorageOK bool   `json:"backup_storage_ok"`
 		}
 		call(t, app, admin, http.MethodGet, fmt.Sprintf("/v1/admin/locations/%d", e.loc), nil, http.StatusOK, &loc)
 		return loc.BackupStorage == storage && loc.BackupStorageOK
-	}), "backup_storage_ok never became true for %s: check the storage type, content types and the NeblaBackup ACL", storage)
+	}) {
+		t.Fatalf("backup_storage_ok never became true for %s: check the storage type, content types and the NeblaBackup ACL", storage)
+	}
 
 	var created struct {
 		Server struct {
@@ -271,10 +273,25 @@ func TestBackups(t *testing.T) {
 	sid := created.Server.ID
 	var vid int64
 	serverGone, volumeGone := false, false
+	// Archives present before this run's server existed; the sweep never touches them. Unset until checked.
+	baseline, baselineSet := map[string]bool{}, false
+	ours := func() []pve.BackupItem {
+		var out []pve.BackupItem
+		for _, it := range archives(t, pc, tg.node, storage, sid) {
+			if !baseline[it.Volid] {
+				out = append(out, it)
+			}
+		}
+		return out
+	}
 	// Registered first so it runs last: sweep archives the test or the panel left behind.
 	t.Cleanup(func() {
-		left := archives(t, pc, tg.node, storage, sid)
-		for _, it := range left {
+		if !baselineSet {
+			return
+		}
+		// Give the panel's own archive delete time to finish before sweeping.
+		eventually(2*time.Minute, func() bool { return len(ours()) == 0 })
+		for _, it := range ours() {
 			t.Errorf("archive %s (%q) left on %s", it.Volid, it.Notes, storage)
 			dctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			if err := pc.DeleteVolume(dctx, tg.node, storage, it.Volid); err != nil {
@@ -301,8 +318,12 @@ func TestBackups(t *testing.T) {
 	})
 	waitAction(t, app, c, created.Action.ID)
 	waitStatus(t, app, c, sid, "running")
-	require.Empty(t, archives(t, pc, tg.node, storage, sid),
-		"%s already holds archives for server %d from an earlier run; delete them first", storage, sid)
+	pre := archives(t, pc, tg.node, storage, sid)
+	for _, it := range pre {
+		baseline[it.Volid] = true
+	}
+	baselineSet = true
+	require.Empty(t, pre, "%s already holds archives for server %d from an earlier run; delete them first", storage, sid)
 
 	vms := taggedVMs(t, pc, sid)
 	require.Len(t, vms, 1)
@@ -340,6 +361,7 @@ func TestBackups(t *testing.T) {
 	require.Len(t, archives(t, pc, tg.node, storage, sid), 1)
 	require.Len(t, listBackups(t, e, sid), 1)
 
+	g.run(volumeScript(vid, false, "echo vol2 > /mnt/nb/marker"))
 	g.run("echo 2 > /root/nb-marker && sync")
 	require.Equal(t, "2", g.run("cat /root/nb-marker"))
 
@@ -355,7 +377,7 @@ func TestBackups(t *testing.T) {
 	require.NotNil(t, v.Server)
 	require.Equal(t, sid, *v.Server)
 	require.NotEmpty(t, volumeKey(t, pc, sid, vid), "the restored VM lost volume %d", vid)
-	require.Equal(t, "vol1", g.run(volumeScript(vid, false, "cat /mnt/nb/marker")), "the volume's data changed")
+	require.Equal(t, "vol2", g.run(volumeScript(vid, false, "cat /mnt/nb/marker")), "the volume was rolled back or its data changed")
 
 	// With keep=1 each new backup prunes the older ones, so a single archive remains.
 	call(t, app, c, http.MethodPut, fmt.Sprintf("/v1/servers/%d", sid),
@@ -363,18 +385,21 @@ func TestBackups(t *testing.T) {
 	backNow(t, e, sid)
 	backNow(t, e, sid)
 	var apiList []backupOut
-	require.True(t, eventually(5*time.Minute, func() bool {
+	if !eventually(5*time.Minute, func() bool {
 		apiList = listBackups(t, e, sid)
 		return len(apiList) == 1 && len(archives(t, pc, tg.node, storage, sid)) == 1
-	}), "keep=1 left %d backups in the API and %d archives on %s", len(apiList), len(archives(t, pc, tg.node, storage, sid)), storage)
+	}) {
+		t.Fatalf("keep=1 left %d backups in the API and %d archives on %s", len(apiList), len(archives(t, pc, tg.node, storage, sid)), storage)
+	}
 	require.Equal(t, "available", apiList[0].Status)
 
 	call(t, app, c, http.MethodDelete, fmt.Sprintf("/v1/servers/%d", sid), nil, http.StatusOK, &a)
 	waitAction(t, app, c, a.Action.ID)
 	serverGone = true
 	require.Empty(t, taggedVMs(t, pc, sid))
-	require.True(t, eventually(5*time.Minute, func() bool { return len(archives(t, pc, tg.node, storage, sid)) == 0 }),
-		"archives of deleted server %d are still on %s: %+v", sid, storage, archives(t, pc, tg.node, storage, sid))
+	if !eventually(5*time.Minute, func() bool { return len(archives(t, pc, tg.node, storage, sid)) == 0 }) {
+		t.Fatalf("archives of deleted server %d are still on %s: %+v", sid, storage, archives(t, pc, tg.node, storage, sid))
+	}
 
 	// The volume outlives the server.
 	require.Equal(t, "available", getVolume(t, app, c, vid).Status)
