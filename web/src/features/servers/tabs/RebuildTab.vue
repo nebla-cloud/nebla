@@ -73,6 +73,10 @@ const snapshotValue = computed({
 const snapshot = computed(() => snapshots.value.find((s) => s.id === pickedSnapshot.value))
 // A snapshot of this very server is a restore.
 const restoring = computed(() => snapshot.value?.server === props.server.id)
+const rebuildWarning = computed(
+  () =>
+    `Rebuilding erases the disk and reinstalls from the ${snapshot.value ? 'snapshot' : 'image'} you pick. The IP addresses stay the same.`,
+)
 const hasSource = computed(() => picked.value !== null || snapshot.value !== undefined)
 const confirmOpen = ref(false)
 const pending = ref(false)
@@ -130,7 +134,7 @@ async function submit() {
       color="warning"
       variant="subtle"
       icon="i-lucide-triangle-alert"
-      :title="`Rebuilding erases the disk and reinstalls from the ${snapshot ? 'snapshot' : 'image'} you pick. The IP addresses stay the same.`"
+      :title="rebuildWarning"
     />
     <fieldset>
       <legend class="mb-2 text-sm font-semibold text-highlighted">Image</legend>

@@ -155,7 +155,7 @@ async function confirmDelete() {
           v-if="notEmpty"
           color="error"
           variant="subtle"
-          title="Delete this project's servers, volumes, floating IPs and snapshots first."
+          title="Delete the project's servers, volumes, floating IPs and snapshots first."
         >
           <template #description>
             <RouterLink :to="`/p/${projectId}/servers`" class="font-semibold underline">

@@ -278,7 +278,7 @@ describe('ProjectDetailPage', () => {
     ;(document.body.querySelector('button[form="confirm-by-name"]') as HTMLElement).click()
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain(
-        'This project still has servers, volumes, floating IPs or snapshots. Its members need to delete them first.',
+        "Delete the project's servers, volumes, floating IPs and snapshots first.",
       ),
     )
   })

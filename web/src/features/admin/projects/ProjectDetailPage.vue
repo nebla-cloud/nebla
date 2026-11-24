@@ -67,7 +67,7 @@ async function remove() {
   } catch (e) {
     delError.value =
       e instanceof ApiError && e.code === 'project_not_empty'
-        ? 'This project still has servers, volumes, floating IPs or snapshots. Its members need to delete them first.'
+        ? "Delete the project's servers, volumes, floating IPs and snapshots first."
         : errorMessage(e)
   }
 }
