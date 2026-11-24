@@ -12,7 +12,8 @@ You can manage snapshots on the Snapshots page, on a server's Snapshots tab, wit
 - It is a saved copy, not a rollback point. Taking one doesn't change the server, and later changes to the server don't
   change the snapshot.
 - It lives in the same location as its server and can't be moved or copied to another one.
-- If Snapshots doesn't show up for a location, your panel admin hasn't set snapshots up there yet.
+- Snapshots can be taken in a location while at least one of its hosts is online. When none is, the panel hides
+  Snapshots for that location and new snapshot requests are refused until a host is back.
 
 ## Take a snapshot
 
