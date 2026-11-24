@@ -45,7 +45,9 @@ import (
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/snapshots"
 	"github.com/nebla-cloud/nebla/internal/testutil"
+	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -336,6 +338,9 @@ func newCatalogEnv(t *testing.T, images []string, name string) fipEnv {
 	workers := func(w *river.Workers, d *httpapi.Deps, _ *fake.Server) {
 		servers.RegisterWorkers(w, servers.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
 			PollInterval: time.Second, Jobs: func() *jobs.Jobs { return d.Jobs }})
+		volumes.RegisterWorkers(w, volumes.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log})
+		snapshots.RegisterWorkers(w, snapshots.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
+			PollInterval: time.Second})
 	}
 	app := testutil.NewAppWithWorkers(t, workers, func(d *httpapi.Deps) {
 		d.Logger = log
