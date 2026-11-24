@@ -17,7 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
@@ -44,6 +44,7 @@ import { DEFAULT_KEEP } from '@/features/backups/queries'
 import AddSshKeyModal from '@/features/sshkeys/AddSshKeyModal.vue'
 import { usePrimaryIPs } from '@/features/primary-ips/queries'
 import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
+import { useSnapshots } from '@/features/snapshots/queries'
 import FirewallPicker from '@/features/firewalls/FirewallPicker.vue'
 import NetworkPicker from '@/features/networks/NetworkPicker.vue'
 import CreateSummary from './CreateSummary.vue'
@@ -51,6 +52,7 @@ import {
   MAX_USER_DATA,
   PICK_FAMILY,
   availableImages,
+  availableSnapshots,
   availableTypes,
   createBlocker,
   defaultName,
@@ -71,11 +73,14 @@ import { useImages, useLocations, useServerTypes } from './queries'
 const FORM_ID = 'create-server'
 
 const router = useRouter()
+const route = useRoute()
 const qc = useQueryClient()
 const { projectId, project } = useCurrentProject()
 const locationsQ = useLocations()
 const imagesQ = useImages()
 const typesQ = useServerTypes()
+const snapshotsOffered = computed(() => !!locationsQ.data.value?.some((l) => l.snapshots_available))
+const snapshotsQ = useSnapshots(undefined, undefined, snapshotsOffered)
 const { data: sshKeys } = useSshKeys()
 const { data: servers } = useServers()
 const { data: primaryIps } = usePrimaryIPs()
@@ -88,6 +93,7 @@ useCrumbs(() => [
 const form = reactive<CreateForm>({
   locationId: null,
   imageId: null,
+  snapshotId: null,
   typeId: null,
   ipv4: true,
   ipv6: false,
@@ -106,14 +112,20 @@ const submitting = ref(false)
 const submitError = ref<string | null>(null)
 
 // ChoiceCard values are strings; the form keeps numeric ids.
-function idValue(key: 'locationId' | 'imageId' | 'typeId') {
+function idValue(key: 'locationId' | 'imageId' | 'snapshotId' | 'typeId') {
   return computed({
     get: () => (form[key] === null ? undefined : String(form[key])),
-    set: (v: unknown) => (form[key] = v == null ? null : Number(v)),
+    set: (v: unknown) => {
+      form[key] = v == null ? null : Number(v)
+      // An image and a snapshot are alternatives.
+      if (v != null && key === 'imageId') form.snapshotId = null
+      if (v != null && key === 'snapshotId') form.imageId = null
+    },
   })
 }
 const locationValue = idValue('locationId')
 const imageValue = idValue('imageId')
+const snapshotValue = idValue('snapshotId')
 const typeValue = idValue('typeId')
 const keyValues = computed({
   get: () => form.sshKeyIds.map(String),
@@ -124,6 +136,7 @@ const ctx = computed<CreateContext>(() => ({
   locations: locationsQ.data.value ?? [],
   images: imagesQ.data.value ?? [],
   types: typesQ.data.value ?? [],
+  snapshots: snapshotsQ.data.value ?? [],
 }))
 const loading = computed(
   () => locationsQ.isPending.value || imagesQ.isPending.value || typesQ.isPending.value,
@@ -134,12 +147,23 @@ const loadError = computed(
 
 const location = computed(() => ctx.value.locations.find((l) => l.id === form.locationId))
 const image = computed(() => ctx.value.images.find((i) => i.id === form.imageId))
+const snapshot = computed(() => (ctx.value.snapshots ?? []).find((s) => s.id === form.snapshotId))
 const serverType = computed(() => ctx.value.types.find((t) => t.id === form.typeId))
 const imageOptions = computed(() =>
   location.value ? availableImages(ctx.value.images, location.value.id, location.value.name) : [],
 )
+const snapshotOptions = computed(() =>
+  location.value ? availableSnapshots(ctx.value.snapshots ?? [], location.value.id) : [],
+)
 const typeOptions = computed(() =>
-  location.value ? availableTypes(ctx.value.types, location.value.id, location.value.name) : [],
+  location.value
+    ? availableTypes(
+        ctx.value.types,
+        location.value.id,
+        location.value.name,
+        snapshot.value?.size ?? 0,
+      )
+    : [],
 )
 const nets = computed(() =>
   location.value ? networkChoice(location.value) : { ipv4: null, ipv6: null },
@@ -177,6 +201,24 @@ function applyReconcile() {
 
 // Picks sensible defaults once the catalog has loaded.
 let seeded = false
+// A ?snapshot= link picks that snapshot once the snapshots have loaded.
+let linked = typeof route.query.snapshot !== 'string'
+function applyLink() {
+  if (linked || !seeded || !snapshotsQ.data.value) return
+  linked = true
+  const wanted = snapshotsQ.data.value.find(
+    (s) => s.status === 'available' && String(s.id) === route.query.snapshot,
+  )
+  const loc = ctx.value.locations.find((l) => l.id === wanted?.location.id)
+  if (!wanted || !loc) return
+  form.locationId = loc.id
+  Object.assign(form, pickFamilies({ ...form }, loc))
+  form.snapshotId = wanted.id
+  form.imageId = null
+  form.typeId =
+    availableTypes(ctx.value.types, loc.id, '', wanted.size).find((o) => !o.disabledReason)?.type
+      .id ?? null
+}
 watch(
   [ctx, loading],
   () => {
@@ -192,6 +234,7 @@ watch(
       form.typeId =
         availableTypes(ctx.value.types, loc.id).find((o) => !o.disabledReason)?.type.id ?? null
     }
+    applyLink()
     applyReconcile()
   },
   { immediate: true },
@@ -211,10 +254,11 @@ watch(
 )
 
 watch(
-  [image, serverType, existing],
+  [image, snapshot, serverType, existing],
   () => {
-    if (form.nameTouched || !image.value || !serverType.value) return
-    form.name = defaultName(image.value, serverType.value, existing.value)
+    const source = snapshot.value ?? image.value
+    if (form.nameTouched || !source || !serverType.value) return
+    form.name = defaultName(source, serverType.value, existing.value)
   },
   { immediate: true },
 )
@@ -267,7 +311,9 @@ async function submit() {
   const body = {
     name: form.name.trim(),
     location: String(form.locationId),
-    image: String(form.imageId),
+    ...(form.snapshotId !== null
+      ? { snapshot: String(form.snapshotId) }
+      : { image: String(form.imageId) }),
     server_type: String(form.typeId),
     ssh_keys: form.sshKeyIds.map(String),
     public_net: publicNet(form),
@@ -335,11 +381,15 @@ const cards = 'flex flex-wrap gap-2.5'
                   type="radio"
                   name="location"
                   :value="String(l.id)"
+                  :disabled="snapshot !== undefined && l.id !== snapshot.location.id"
                   class="min-w-36"
                 >
                   {{ l.name }}
                 </ChoiceCard>
               </div>
+              <p v-if="snapshot" class="mt-2 text-xs text-muted">
+                The snapshot is in {{ snapshot.location.name }}, so the server goes there.
+              </p>
             </fieldset>
             <div v-if="location?.backups_available" class="mt-3">
               <UCheckbox
@@ -351,7 +401,7 @@ const cards = 'flex flex-wrap gap-2.5'
             </div>
           </Step>
 
-          <Step title="Image" :done="form.imageId !== null">
+          <Step title="Image" :done="form.imageId !== null || form.snapshotId !== null">
             <fieldset>
               <legend class="sr-only">Image</legend>
               <p v-if="!imageOptions.length" class="text-sm text-muted">
@@ -386,6 +436,32 @@ const cards = 'flex flex-wrap gap-2.5'
               <p v-if="imageOptions.some((o) => o.disabledReason)" class="mt-2 text-xs text-muted">
                 Dashed images aren't available in {{ location?.name }}.
               </p>
+            </fieldset>
+            <fieldset v-if="snapshotOptions.length" class="mt-4">
+              <legend class="mb-2 text-sm font-semibold text-highlighted">Snapshots</legend>
+              <div :class="cards">
+                <ChoiceCard
+                  v-for="s in snapshotOptions"
+                  :key="s.id"
+                  v-model="snapshotValue"
+                  type="radio"
+                  name="snapshot"
+                  :value="String(s.id)"
+                  :title="s.name"
+                  class="min-w-40"
+                >
+                  <span class="flex items-center gap-2.5">
+                    <OsBadge :name="s.os_flavor" size="lg" />
+                    <span class="flex min-w-0 flex-col">
+                      <span>{{ s.name }}</span
+                      >{{ ' ' }}
+                      <span class="text-[12.5px] font-normal text-muted">
+                        {{ s.size }} GB, from {{ s.server_name }}
+                      </span>
+                    </span>
+                  </span>
+                </ChoiceCard>
+              </div>
             </fieldset>
           </Step>
 
@@ -558,6 +634,7 @@ const cards = 'flex flex-wrap gap-2.5'
         :form-id="FORM_ID"
         :location="location"
         :image="image"
+        :snapshot="snapshot"
         :type="serverType"
         :ipv4="form.ipv4"
         :ipv6="form.ipv6"

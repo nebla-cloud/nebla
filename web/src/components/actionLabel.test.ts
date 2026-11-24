@@ -46,4 +46,11 @@ describe('actionLabel', () => {
     expect(actionLabel('attach_iso')).toBe('Attach iso')
     expect(actionLabel('attach_volume')).toBe('Attaching volume')
   })
+
+  it('labels the snapshot commands', () => {
+    expect(actionLabel('create_snapshot')).toBe('Taking snapshot')
+    expect(actionLabel('delete_snapshot')).toBe('Deleting snapshot')
+    expect(actionTitle('create_snapshot')).toBe('Take snapshot')
+    expect(actionTitle('delete_snapshot')).toBe('Delete snapshot')
+  })
 })

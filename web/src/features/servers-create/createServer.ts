@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import type { components } from '@/api/schema'
-import type { Location, PrimaryIp, ServerType } from '@/api/types'
+import type { Location, PrimaryIp, ServerType, Snapshot } from '@/api/types'
 
 export type Image = components['schemas']['Image']
 export type Quota = components['schemas']['Quota']
@@ -23,6 +23,7 @@ export type ProjectUsage = components['schemas']['ProjectUsage']
 export type CreateForm = {
   locationId: number | null
   imageId: number | null
+  snapshotId: number | null
   typeId: number | null
   ipv4: boolean
   ipv6: boolean
@@ -39,6 +40,7 @@ export interface CreateContext {
   locations: Location[]
   images: Image[]
   types: ServerType[]
+  snapshots?: Snapshot[]
 }
 
 export interface QuotaLine {
@@ -64,20 +66,32 @@ export function availableImages(
   }))
 }
 
+// The project's snapshots that can seed a server in this location.
+export function availableSnapshots(snapshots: Snapshot[], locationId: number): Snapshot[] {
+  return snapshots.filter((s) => s.status === 'available' && s.location.id === locationId)
+}
+
+export const needsDisk = (gb: number) =>
+  `This snapshot needs a server type with at least ${gb} GB of disk`
+
 // Deprecated types can't be created, so they're left out; an empty locations list means everywhere.
+// A snapshot of minDisk GB rules out types with less disk.
 export function availableTypes(
   types: ServerType[],
   locationId: number,
   locationName = '',
+  minDisk = 0,
 ): { type: ServerType; disabledReason: string | null }[] {
   return types
     .filter((t) => !t.deprecated)
     .map((type) => ({
       type,
       disabledReason:
-        type.locations.length === 0 || type.locations.includes(locationId)
-          ? null
-          : notIn(locationName),
+        type.locations.length > 0 && !type.locations.includes(locationId)
+          ? notIn(locationName)
+          : type.disk_gb < minDisk
+            ? needsDisk(minDisk)
+            : null,
     }))
 }
 
@@ -149,7 +163,7 @@ export function quotaAfter(
   }
 }
 
-export function defaultName(image: Image, type: ServerType, existing: string[]): string {
+export function defaultName(image: { name: string }, type: ServerType, existing: string[]): string {
   const base = `${image.name}-${type.name}`.toLowerCase().replace(/[^a-z0-9-]/g, '-')
   const taken = new Set(existing)
   for (let n = 1; ; n++) {
@@ -165,7 +179,10 @@ export function reconcile(form: CreateForm, ctx: CreateContext): CreateForm {
   const imageOk = availableImages(ctx.images, loc.id).some(
     (o) => o.image.id === form.imageId && !o.disabledReason,
   )
-  const typeOk = availableTypes(ctx.types, loc.id).some(
+  const snapshot = availableSnapshots(ctx.snapshots ?? [], loc.id).find(
+    (x) => x.id === form.snapshotId,
+  )
+  const typeOk = availableTypes(ctx.types, loc.id, '', snapshot?.size ?? 0).some(
     (o) => o.type.id === form.typeId && !o.disabledReason,
   )
   const nets = networkChoice(loc)
@@ -173,6 +190,7 @@ export function reconcile(form: CreateForm, ctx: CreateContext): CreateForm {
   return {
     ...form,
     imageId: imageOk ? form.imageId : null,
+    snapshotId: snapshot ? form.snapshotId : null,
     typeId: typeOk ? form.typeId : null,
     ipv4: form.ipv4 && (!nets.ipv4 || form.ipv4Existing !== null),
     ipv6: form.ipv6 && (!nets.ipv6 || form.ipv6Existing !== null),
@@ -195,7 +213,7 @@ export function createBlocker(
   const checked = reconcile(form, ctx)
   if (!loc.networks.ipv4 && !loc.networks.ipv6 && !checked.ipv4 && !checked.ipv6)
     return noAddresses(loc.name)
-  if (checked.imageId === null) return 'Pick an image.'
+  if (checked.imageId === null && checked.snapshotId === null) return 'Pick an image.'
   if (checked.typeId === null) return 'Pick a type.'
   if (!checked.ipv4 && !checked.ipv6) return PICK_FAMILY
   const name = form.name.trim()

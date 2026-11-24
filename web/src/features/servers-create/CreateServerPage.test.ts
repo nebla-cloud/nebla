@@ -39,6 +39,7 @@ const locations = [
     volumes_available: false,
     backups_available: true,
     private_networks_available: true,
+    snapshots_available: true,
   },
   {
     id: 2,
@@ -48,6 +49,7 @@ const locations = [
     volumes_available: false,
     backups_available: false,
     private_networks_available: false,
+    snapshots_available: true,
   },
 ]
 const images = [
@@ -79,6 +81,23 @@ const type = (id: number, name: string, cores: number) => ({
   deprecated: false,
 })
 const types = [type(1, 'tiny-1', 1), type(2, 'small-2', 2)]
+const snap = (id: number, name: string, size: number, location = 1) => ({
+  id,
+  name,
+  description: '',
+  labels: {},
+  size,
+  location: { id: location, name: location === 1 ? 'home' : 'rack-2', description: '' },
+  server: 5,
+  server_name: 'web1',
+  image: null,
+  os_flavor: 'debian',
+  os_version: '13',
+  status: 'available',
+  restore_keeps_identity: true,
+  created: '2026-11-18T10:00:00Z',
+})
+let snapshots: ReturnType<typeof snap>[] = []
 let firewalls: {
   id: number
   name: string
@@ -147,6 +166,7 @@ function serveCatalog(locs = locations, maxBackups = 35) {
     ),
     http.get('*/v1/ssh_keys', () => json(200, { ssh_keys: keys, meta: meta(keys.length) })),
     http.get('*/v1/servers', () => json(200, { servers: [], meta: meta(0) })),
+    http.get('*/v1/snapshots', () => json(200, { snapshots, meta: meta(snapshots.length) })),
     http.get('*/v1/firewalls', () => json(200, { firewalls, meta: meta(firewalls.length) })),
     http.get('*/v1/networks', () =>
       json(200, {
@@ -173,7 +193,7 @@ async function settle() {
   }
 }
 
-async function mountCreate() {
+async function mountCreate(path = '/p/1/servers/new') {
   const router = testRouter([
     {
       path: '/p/:projectId',
@@ -185,7 +205,7 @@ async function mountCreate() {
       ],
     },
   ])
-  await router.push('/p/1/servers/new')
+  await router.push(path)
   const res = mountApp(RouterView, { router })
   await settle()
   return { ...res, router }
@@ -222,6 +242,7 @@ beforeEach(() => {
   firewalls = []
   privateNets = []
   primaryIps = []
+  snapshots = []
 })
 afterEach(() => {
   document.body.innerHTML = ''
@@ -469,6 +490,7 @@ describe('CreateServerPage', () => {
         volumes_available: false,
         backups_available: false,
         private_networks_available: false,
+        snapshots_available: false,
       },
     ])
     await mountCreate()
@@ -535,6 +557,55 @@ describe('CreateServerPage', () => {
       expect(summary().textContent).toContain('no free ipv4 address in this location'),
     )
     expect(router.currentRoute.value.name).toBe('server-new')
+  })
+
+  it('a picked snapshot locks the location and greys out small types', async () => {
+    snapshots = [snap(9, 'golden', 30), snap(10, 'elsewhere', 20, 2)]
+    serveCatalog()
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post('*/v1/servers', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return json(201, {
+          action: action(),
+          server: makeServer({ id: 42, name: 'golden-1' }),
+        })
+      }),
+    )
+    await mountCreate()
+    expect($('input[name="snapshot"][value="10"]')).toBeNull()
+    await pick('input[name="snapshot"][value="9"]')
+    expect($('input[name="location"][value="2"]').disabled).toBe(true)
+    expect($('input[name="location"][value="1"]').disabled).toBe(false)
+    expect($('input[name="server_type"][value="1"]').disabled).toBe(true)
+    expect(stepFieldset('Type')!.textContent).toContain(
+      'This snapshot needs a server type with at least 30 GB of disk',
+    )
+    expect($('input[name="server_type"][value="2"]').disabled).toBe(false)
+    expect(summary().textContent).toContain('golden')
+    await pick('input[name="server_type"][value="2"]')
+    createButton().click()
+    await vi.waitFor(() => expect(body.snapshot).toBe('9'))
+    expect(body.image).toBeUndefined()
+  })
+
+  it('opens with the snapshot named in the link picked, in its location', async () => {
+    snapshots = [snap(10, 'elsewhere', 20, 2)]
+    serveCatalog()
+    await mountCreate('/p/1/servers/new?snapshot=10')
+    expect($('input[name="snapshot"][value="10"]').checked).toBe(true)
+    expect($('input[name="location"][value="2"]').checked).toBe(true)
+    expect($('input[name="location"][value="1"]').disabled).toBe(true)
+  })
+
+  it('picking an image drops the snapshot', async () => {
+    snapshots = [snap(9, 'golden', 30)]
+    serveCatalog()
+    await mountCreate()
+    await pick('input[name="snapshot"][value="9"]')
+    await pick('input[name="image"][value="3"]')
+    expect($('input[name="snapshot"][value="9"]').checked).toBe(false)
+    expect($('input[name="location"][value="2"]').disabled).toBe(false)
   })
 
   it('no locations shows an empty state', async () => {

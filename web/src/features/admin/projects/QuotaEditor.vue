@@ -61,6 +61,13 @@ const rows: Row[] = [
   },
   { key: 'max_backups', label: 'Backups', unit: '', used: () => props.usage.backups_reserved },
   { key: 'max_networks', label: 'Networks', unit: '', used: () => props.usage.networks },
+  { key: 'max_snapshots', label: 'Snapshots', unit: '', used: () => props.usage.snapshots },
+  {
+    key: 'max_snapshot_gb',
+    label: 'Snapshot size (GB)',
+    unit: ' GB',
+    used: () => props.usage.snapshot_gb,
+  },
 ]
 const dataKey: Record<keyof Quota, string> = {
   max_servers: 'servers',

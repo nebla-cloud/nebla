@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, expect, it } from 'vitest'
-import type { Location, ServerType } from '@/api/types'
+import type { Location, ServerType, Snapshot } from '@/api/types'
 import {
   availableImages,
   availableTypes,
@@ -69,6 +69,7 @@ const ctx = {
 const form = (over: Partial<CreateForm> = {}): CreateForm => ({
   locationId: 1,
   imageId: 3,
+  snapshotId: null,
   typeId: 2,
   ipv4: true,
   ipv6: false,
@@ -126,6 +127,33 @@ describe('createServer', () => {
     const after = reconcile(form({ typeId: 6, imageId: 4, locationId: 2 }), ctx)
     expect(after.typeId).toBeNull()
     expect(after.imageId).toBe(4)
+  })
+
+  it('a snapshot blocks types with too little disk and stands in for the image', () => {
+    const snapshot = {
+      id: 9,
+      name: 'golden',
+      size: 50,
+      status: 'available',
+      location: { id: 1, name: 'home', description: '' },
+    } as Snapshot
+    const c = { ...ctx, snapshots: [snapshot] }
+    const reasons = availableTypes(c.types, 1, 'home', 50).map((o) => o.disabledReason)
+    expect(reasons).toEqual([
+      'This snapshot needs a server type with at least 50 GB of disk',
+      'This snapshot needs a server type with at least 50 GB of disk',
+    ])
+    const picked = reconcile(form({ imageId: null, snapshotId: 9, typeId: 2 }), c)
+    expect(picked.snapshotId).toBe(9)
+    expect(picked.typeId).toBeNull()
+    const fits = { ...c, snapshots: [{ ...snapshot, size: 30 }] }
+    expect(reconcile(form({ imageId: null, snapshotId: 9, typeId: 2 }), fits).typeId).toBe(2)
+    expect(
+      createBlocker(form({ imageId: null, snapshotId: 9 }), fits, { quotaOk: true, existing: [] }),
+    ).toBeNull()
+    expect(
+      reconcile(form({ imageId: null, snapshotId: 9, locationId: 2 }), c).snapshotId,
+    ).toBeNull()
   })
 
   it('reconcile turns both families off when neither is available', () => {

@@ -24,8 +24,10 @@ import { errorMessage, unwrap } from '@/api/errors'
 import type { Action, Server } from '@/api/types'
 import ChoiceCard from '@/components/ChoiceCard.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
-import { availableImages } from '@/features/servers-create/createServer'
-import { useImages } from '@/features/servers-create/queries'
+import { availableImages, availableSnapshots } from '@/features/servers-create/createServer'
+import { useImages, useLocations } from '@/features/servers-create/queries'
+import { identityWarning, restoreText } from '@/features/snapshots/copy'
+import { useSnapshots } from '@/features/snapshots/queries'
 import OsBadge from '../OsBadge.vue'
 import { serverBusyKey } from '../shell'
 
@@ -40,12 +42,38 @@ const images = useImages()
 const choices = computed(() =>
   availableImages(images.data.value ?? [], props.server.location.id, props.server.location.name),
 )
+const locations = useLocations()
+const offered = computed(
+  () => !!locations.data.value?.find((l) => l.id === props.server.location.id)?.snapshots_available,
+)
+const snapshotsQ = useSnapshots(undefined, undefined, offered)
+// Snapshots of this location that fit the disk; the API checks the host.
+const snapshots = computed(() =>
+  availableSnapshots(snapshotsQ.data.value ?? [], props.server.location.id).filter(
+    (s) => s.size <= props.server.disk_gb,
+  ),
+)
 const picked = ref<number | null>(null)
+const pickedSnapshot = ref<number | null>(null)
 // ChoiceCard values are strings; picked stays the image id.
 const pickedValue = computed({
   get: () => (picked.value === null ? undefined : String(picked.value)),
-  set: (v) => (picked.value = v === undefined ? null : Number(v)),
+  set: (v) => {
+    picked.value = v === undefined ? null : Number(v)
+    if (v !== undefined) pickedSnapshot.value = null
+  },
 })
+const snapshotValue = computed({
+  get: () => (pickedSnapshot.value === null ? undefined : String(pickedSnapshot.value)),
+  set: (v) => {
+    pickedSnapshot.value = v === undefined ? null : Number(v)
+    if (v !== undefined) picked.value = null
+  },
+})
+const snapshot = computed(() => snapshots.value.find((s) => s.id === pickedSnapshot.value))
+// A snapshot of this very server is a restore.
+const restoring = computed(() => snapshot.value?.server === props.server.id)
+const hasSource = computed(() => picked.value !== null || snapshot.value !== undefined)
 const confirmOpen = ref(false)
 const pending = ref(false)
 const error = ref('')
@@ -53,7 +81,7 @@ const error = ref('')
 watch(
   choices,
   (list) => {
-    if (picked.value === null)
+    if (picked.value === null && pickedSnapshot.value === null)
       picked.value =
         list.find((c) => !c.disabledReason && c.image.id === props.server.image?.id)?.image.id ??
         list.find((c) => !c.disabledReason)?.image.id ??
@@ -63,13 +91,15 @@ watch(
 )
 
 async function submit() {
-  if (picked.value === null) return
+  if (!hasSource.value) return
   pending.value = true
   error.value = ''
   try {
     const res = await api.POST('/servers/{id}/actions/rebuild', {
       params: { path: { id: props.server.id } },
-      body: { image: String(picked.value) },
+      body: snapshot.value
+        ? { snapshot: String(snapshot.value.id) }
+        : { image: String(picked.value) },
     })
     const { action } = unwrap(res)
     confirmOpen.value = false
@@ -86,10 +116,21 @@ async function submit() {
 <template>
   <div class="flex max-w-2xl flex-col gap-4">
     <UAlert
+      v-if="restoring && snapshot"
       color="warning"
       variant="subtle"
       icon="i-lucide-triangle-alert"
-      title="Rebuilding erases the disk and reinstalls from the image you pick. The IP addresses stay the same."
+      :title="restoreText(server.name, snapshot)"
+      :description="
+        snapshot.restore_keeps_identity === false ? identityWarning(server.name) : undefined
+      "
+    />
+    <UAlert
+      v-else
+      color="warning"
+      variant="subtle"
+      icon="i-lucide-triangle-alert"
+      :title="`Rebuilding erases the disk and reinstalls from the ${snapshot ? 'snapshot' : 'image'} you pick. The IP addresses stay the same.`"
     />
     <fieldset>
       <legend class="mb-2 text-sm font-semibold text-highlighted">Image</legend>
@@ -111,9 +152,28 @@ async function submit() {
         </ChoiceCard>
       </div>
     </fieldset>
+    <fieldset v-if="snapshots.length">
+      <legend class="mb-2 text-sm font-semibold text-highlighted">Snapshots</legend>
+      <div class="grid gap-2 sm:grid-cols-2">
+        <ChoiceCard
+          v-for="s in snapshots"
+          :key="s.id"
+          v-model="snapshotValue"
+          type="radio"
+          name="snapshot"
+          :value="String(s.id)"
+        >
+          <span class="flex items-center gap-2">
+            <OsBadge :name="s.os_flavor" />
+            {{ s.name }}
+          </span>
+          <template #meta>{{ s.size }} GB, from {{ s.server_name }}</template>
+        </ChoiceCard>
+      </div>
+    </fieldset>
     <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
     <div>
-      <UButton color="error" :disabled="busy || picked === null" @click="confirmOpen = true">
+      <UButton color="error" :disabled="busy || !hasSource" @click="confirmOpen = true">
         Rebuild
       </UButton>
     </div>

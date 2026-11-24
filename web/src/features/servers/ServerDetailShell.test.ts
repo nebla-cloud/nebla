@@ -245,6 +245,7 @@ describe('ServerDetailShell', () => {
       ['Networking', '/p/1/servers/5/networking'],
       ['Resize', '/p/1/servers/5/resize'],
       ['Volumes', '/p/1/servers/5/volumes'],
+      ['Snapshots', '/p/1/servers/5/snapshots'],
       ['Activity', '/p/1/servers/5/activity'],
     ])
   })

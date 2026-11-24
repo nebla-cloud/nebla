@@ -31,6 +31,8 @@ const quota = {
   max_volume_gb: 100,
   max_backups: 35,
   max_networks: 3,
+  max_snapshots: 4,
+  max_snapshot_gb: 200,
 }
 const detail = {
   id: 7,
@@ -48,6 +50,8 @@ const detail = {
     backups: 4,
     backups_reserved: 9,
     networks: 2,
+    snapshots: 1,
+    snapshot_gb: 20,
   },
   member_count: 4,
   created: '2026-03-04T10:00:00Z',
@@ -165,7 +169,23 @@ describe('ProjectDetailPage', () => {
       max_volume_gb: 100,
       max_backups: 35,
       max_networks: 3,
+      max_snapshots: 4,
+      max_snapshot_gb: 200,
     })
+  })
+
+  it('shows the snapshot rows and saves their limits', async () => {
+    serve()
+    const { wrapper } = await mount()
+    await ready(wrapper)
+    expect(wrapper.find('[data-row="snapshots"]').text()).toContain('Used 1')
+    expect(wrapper.find('[data-row="snapshot_gb"]').text()).toContain('Used 20 GB')
+    expect(input('max_snapshots').value).toBe('4')
+    await setValue('max_snapshots', '6')
+    await setValue('max_snapshot_gb', '300')
+    btn('Save limits').click()
+    await vi.waitFor(() => expect(puts).toHaveLength(1))
+    expect(puts[0]).toMatchObject({ max_snapshots: 6, max_snapshot_gb: 300 })
   })
 
   it('below current use note', async () => {
@@ -244,7 +264,7 @@ describe('ProjectDetailPage', () => {
         json(409, {
           error: {
             code: 'project_not_empty',
-            message: "Delete the project's servers, volumes and floating IPs first.",
+            message: "Delete the project's servers, volumes, floating IPs, networks and snapshots first.",
           },
         }),
       ),
@@ -258,7 +278,7 @@ describe('ProjectDetailPage', () => {
     ;(document.body.querySelector('button[form="confirm-by-name"]') as HTMLElement).click()
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain(
-        'This project still has servers, volumes or floating IPs. Its members need to delete them first.',
+        'This project still has servers, volumes, floating IPs or snapshots. Its members need to delete them first.',
       ),
     )
   })

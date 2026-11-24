@@ -49,6 +49,7 @@ const form = reactive({
   backup_storage: props.location?.backup_storage ?? '',
   window_start: props.location?.backup_window.start ?? '02:00',
   window_end: props.location?.backup_window.end ?? '06:00',
+  snapshot_storage: props.location?.snapshot_storage ?? '',
 })
 // The reported PBS storages, plus the one in use even if the last report no longer lists it.
 const pbsOptions = computed(() => [
@@ -95,6 +96,7 @@ function body(): LocationInput {
     out.backup_storage = form.backup_storage.trim()
     out.backup_window = { start: form.window_start, end: form.window_end }
   }
+  if (edit || form.snapshot_storage.trim()) out.snapshot_storage = form.snapshot_storage.trim()
   return out
 }
 
@@ -243,6 +245,19 @@ async function submit() {
         <UInput
           v-model="form.volume_storage"
           name="volume_storage"
+          placeholder="Same as server disks"
+          autocomplete="off"
+          class="w-full"
+        />
+      </UFormField>
+      <UFormField
+        label="Snapshot storage"
+        name="snapshot_storage"
+        help="Storage with the images content type for snapshots. Leave blank to use the same storage as server disks."
+      >
+        <UInput
+          v-model="form.snapshot_storage"
+          name="snapshot_storage"
           placeholder="Same as server disks"
           autocomplete="off"
           class="w-full"

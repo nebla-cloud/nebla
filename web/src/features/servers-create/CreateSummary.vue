@@ -23,7 +23,7 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import Meter from '@/components/Meter.vue'
 import Panel from '@/components/Panel.vue'
-import type { Location, ServerType } from '@/api/types'
+import type { Location, ServerType, Snapshot } from '@/api/types'
 import { formatMemory, typeSpec } from '@/lib/format'
 import { osLabel } from '@/features/servers/osLabel'
 import type { Image, QuotaLine } from './createServer'
@@ -32,6 +32,7 @@ const props = defineProps<{
   formId: string
   location?: Location
   image?: Image
+  snapshot?: Snapshot
   type?: ServerType
   ipv4: boolean
   ipv6: boolean
@@ -57,7 +58,10 @@ const network = computed(() => {
 
 const rows = computed(() => [
   { label: 'Location', value: props.location?.name ?? 'Not picked' },
-  { label: 'Image', value: props.image ? osLabel(props.image) : 'Not picked' },
+  {
+    label: 'Image',
+    value: props.snapshot ? props.snapshot.name : props.image ? osLabel(props.image) : 'Not picked',
+  },
   {
     label: 'Type',
     value: props.type ? `${props.type.name}: ${typeSpec(props.type)}` : 'Not picked',

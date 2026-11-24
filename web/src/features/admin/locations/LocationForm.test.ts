@@ -91,6 +91,25 @@ describe('LocationForm', () => {
     expect(body.volume_storage).toBe('ceph')
   })
 
+  it('sends a snapshot storage only when one is set', async () => {
+    let body: Record<string, unknown> = {}
+    server.use(
+      http.post('*/v1/admin/locations', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>
+        return json(201, existing)
+      }),
+    )
+    const { wrapper } = mountApp(LocationForm)
+    await fillCreate(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(body.snapshot_storage).toBeUndefined()
+    await wrapper.find('input[name="snapshot_storage"]').setValue('ceph')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(body.snapshot_storage).toBe('ceph')
+  })
+
   it('create sends the location input', async () => {
     let body: unknown
     server.use(

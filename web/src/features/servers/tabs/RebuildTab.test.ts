@@ -50,11 +50,50 @@ const Busy = defineComponent({
   provide: { [serverBusyKey as symbol]: computed(() => true) },
 })
 
+const snap = (id: number, name: string, over: Record<string, unknown> = {}) => ({
+  id,
+  name,
+  description: '',
+  labels: {},
+  size: 20,
+  location: { id: 1, name: 'home', description: '' },
+  server: 1,
+  server_name: 'web1',
+  image: null,
+  os_flavor: 'debian',
+  os_version: '13',
+  status: 'available',
+  restore_keeps_identity: true,
+  created: '2026-11-18T10:00:00Z',
+  ...over,
+})
+let snapshots: ReturnType<typeof snap>[] = []
+
 async function mountTab(busy = false) {
   const router = testRouter([{ path: '/p/:projectId', component: RouterView }])
   await router.push('/p/1')
   const onStarted = vi.fn()
   server.use(
+    http.get('*/v1/locations', () =>
+      json(200, {
+        locations: [
+          {
+            id: 1,
+            name: 'home',
+            description: '',
+            networks: { ipv4: true, ipv6: true },
+            snapshots_available: true,
+          },
+        ],
+        meta: { pagination: { page: 1, per_page: 50, total_entries: 1 } },
+      }),
+    ),
+    http.get('*/v1/snapshots', () =>
+      json(200, {
+        snapshots,
+        meta: { pagination: { page: 1, per_page: 50, total_entries: snapshots.length } },
+      }),
+    ),
     http.get('*/v1/images', () =>
       json(200, { images, meta: { pagination: { page: 1, per_page: 50, total_entries: 3 } } }),
     ),
@@ -71,6 +110,7 @@ const buttons = () => Array.from(document.body.querySelectorAll('button'))
 const byText = (t: string) => buttons().filter((b) => b.textContent?.trim() === t)
 
 beforeEach(() => {
+  snapshots = []
   document.body.innerHTML = ''
 })
 afterEach(() => {
@@ -156,5 +196,86 @@ describe('RebuildTab', () => {
     byText('Rebuild').at(-1)!.click()
     await vi.waitFor(() => expect(onStarted).toHaveBeenCalledWith(act))
     expect(body).toEqual({ image: '3' })
+  })
+
+  it("lists only this location's available snapshots that fit the disk", async () => {
+    snapshots = [
+      snap(1, 'fits'),
+      snap(2, 'too-big', { size: 80 }),
+      snap(3, 'elsewhere', { location: { id: 2, name: 'rack-2', description: '' } }),
+      snap(4, 'busy', { status: 'creating' }),
+    ]
+    const { wrapper } = await mountTab()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('fits'))
+    const names = Array.from(
+      (wrapper.element as Element).querySelectorAll<HTMLInputElement>('input[name=snapshot]'),
+    ).map((r) => r.closest('label')!.textContent)
+    expect(names).toHaveLength(1)
+    expect(names[0]).toContain('fits')
+  })
+
+  it('restoring the own snapshot shows the restore copy and identity warning', async () => {
+    snapshots = [
+      snap(1, 'mine', { restore_keeps_identity: false }),
+      snap(2, 'other', { server: 9 }),
+    ]
+    let body: unknown
+    server.use(
+      http.post('*/v1/servers/1/actions/rebuild', async ({ request }) => {
+        body = await request.json()
+        return json(201, { action: act })
+      }),
+    )
+    const { wrapper, onStarted } = await mountTab()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('mine'))
+    const radio = (wrapper.element as Element).querySelector<HTMLInputElement>(
+      'input[name=snapshot][value="1"]',
+    )!
+    radio.click()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Restore web1 to mine?')
+    expect(wrapper.text()).toContain('new SSH host keys and run its user data again')
+    byText('Rebuild')[0]!.click()
+    await vi.waitFor(() =>
+      expect(document.body.querySelector('input[name=confirm_name]')).toBeTruthy(),
+    )
+    const input = document.body.querySelector('input[name=confirm_name]') as HTMLInputElement
+    input.value = 'web1'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(byText('Rebuild').at(-1)!.disabled).toBe(false))
+    byText('Rebuild').at(-1)!.click()
+    await vi.waitFor(() => expect(onStarted).toHaveBeenCalledWith(act))
+    expect(body).toEqual({ snapshot: '1' })
+  })
+
+  it('shows the API error when the snapshot cannot be used on this host', async () => {
+    snapshots = [snap(2, 'other', { server: 9 })]
+    server.use(
+      http.post('*/v1/servers/1/actions/rebuild', () =>
+        json(422, {
+          error: {
+            code: 'snapshot_server_mismatch',
+            message: "This snapshot can't be used on this server's host.",
+          },
+        }),
+      ),
+    )
+    const { wrapper } = await mountTab()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('other'))
+    ;(wrapper.element as Element)
+      .querySelector<HTMLInputElement>('input[name=snapshot][value="2"]')!
+      .click()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Restore web1')
+    byText('Rebuild')[0]!.click()
+    await vi.waitFor(() =>
+      expect(document.body.querySelector('input[name=confirm_name]')).toBeTruthy(),
+    )
+    const input = document.body.querySelector('input[name=confirm_name]') as HTMLInputElement
+    input.value = 'web1'
+    input.dispatchEvent(new Event('input'))
+    await vi.waitFor(() => expect(byText('Rebuild').at(-1)!.disabled).toBe(false))
+    byText('Rebuild').at(-1)!.click()
+    await vi.waitFor(() => expect(wrapper.text()).toContain("can't be used on this server's host"))
   })
 })
