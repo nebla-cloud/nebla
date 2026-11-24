@@ -276,6 +276,11 @@ func (w *CreateBackupWorker) lock(ctx context.Context, jobID, id int64, node str
 			if err != nil {
 				return err
 			}
+			// A pending instance bump means the guest may still run the network of an older ISO under this
+			// instance-id; no fingerprint makes a restore of this backup take a new identity.
+			if srv.InstanceBumpPending {
+				fp = ""
+			}
 			u.SetStorage(loc.BackupStorage).SetInstanceGeneration(servers.InstanceGeneration(srv)).SetNetworkFingerprint(fp)
 		}
 		a, err := actions.Create(ctx, etx, b.ProjectID, KindCreateBackup, []actions.Resource{{ID: srv.ID, Type: servers.ResourceType}})

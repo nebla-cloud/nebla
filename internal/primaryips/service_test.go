@@ -37,6 +37,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/primaryips"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/serverlock"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -469,6 +470,38 @@ func TestResumeGivesUpAfterRepeatedAssignFailures(t *testing.T) {
 	require.Equal(t, &off1.ServerID, row.ServerID, "the IP stays assigned")
 	require.NoError(t, e.svc.ResumeStuck(ctx))
 	require.Zero(t, running())
+}
+
+// A running backup holds the server: assign and unassign say so, and a stuck assign waits for it.
+func TestBackupInProgress(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	off1 := e.RunningServer("off1")
+	e.off(t, off1.ServerID)
+	backup, err := actions.Create(ctx, e.App.Ent, e.Project, serverlock.KindCreateBackup,
+		[]actions.Resource{{ID: off1.ServerID, Type: "server"}})
+	require.NoError(t, err)
+	const msg = "A backup of this server is running"
+
+	p := e.create(t, primaryips.CreateInput{Type: "ipv6"})
+	_, _, err = e.svc.Assign(ctx, e.Project, p.ID, "off1")
+	requireAPIErr(t, err, http.StatusConflict, "backup_in_progress", msg)
+	_, _, err = e.svc.Unassign(ctx, e.Project, e.rowOf(t, "off1-ipv4"))
+	requireAPIErr(t, err, http.StatusConflict, "backup_in_progress", msg)
+
+	running := func() int {
+		n, err := e.App.Ent.Action.Query().Where(floatingips.ActionsOfType(e.Project, p.ID, primaryips.ResourceType),
+			action.StatusEQ(action.StatusRunning)).Count(ctx)
+		require.NoError(t, err)
+		return n
+	}
+	e.App.Ent.IPAddress.UpdateOneID(p.ID).SetServerID(off1.ServerID).SetPendingGen(1).ExecX(ctx)
+	require.NoError(t, e.svc.ResumeStuck(ctx), "a backup in progress is skipped, not an error")
+	require.Zero(t, running())
+
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, backup.ID))
+	require.NoError(t, e.svc.ResumeStuck(ctx))
+	require.Equal(t, 1, running(), "the assign resumes once the backup is done")
 }
 
 // An old server is warned once: after its ISO sync opts it into network refresh, later changes warn no more.

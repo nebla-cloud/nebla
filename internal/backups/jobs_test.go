@@ -330,6 +330,44 @@ func TestCreateBackupRecordsIdentity(t *testing.T) {
 		evs[0].Data)
 }
 
+// restoreInstance is the instance generation the restore job for action actionID pins; 0 is a new identity.
+func (e *jenv) restoreInstance(t *testing.T, actionID int64) int {
+	t.Helper()
+	var gen int
+	require.NoError(t, e.App.SQL.QueryRow(`select coalesce((args->>'instance_generation')::int, 0) from river_job
+		where kind = 'restore_backup' and (args->>'action_id')::bigint = $1`, actionID).Scan(&gen))
+	return gen
+}
+
+func TestBackupWithPendingBumpRestoresNewIdentity(t *testing.T) {
+	ctx := context.Background()
+	e := newJobEnv(t)
+	id := e.running(t, "a")
+	kept := e.backUp(t, id)
+	require.NotEmpty(t, kept.NetworkFingerprint)
+
+	// An IP change on an old server failed before its ISO sync: the bump is still pending.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetNetRefresh(false).SetInstanceBumpPending(true).Exec(ctx))
+	b := e.backUp(t, id)
+	require.Empty(t, b.NetworkFingerprint, "a pending bump records no fingerprint")
+	require.Equal(t, servers.InstanceGeneration(e.App.Ent.Server.GetX(ctx, id)), b.InstanceGeneration)
+
+	got, err := e.svc.Get(ctx, e.Project, id, b.ID)
+	require.NoError(t, err)
+	require.True(t, got.RestoreResetsIdentity)
+	act, err := e.svc.Restore(ctx, e.Project, id, b.ID)
+	require.NoError(t, err)
+	require.Zero(t, e.restoreInstance(t, act.ID), "the restore takes a new instance-id")
+
+	// A backup taken without a pending bump keeps its instance-id when the network is unchanged.
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, act.ID))
+	require.NoError(t, e.App.Ent.Backup.UpdateOneID(b.ID).SetStatus(entbackup.StatusAvailable).Exec(ctx))
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(id).SetInstanceBumpPending(false).SetStatus(server.StatusRunning).Exec(ctx))
+	act, err = e.svc.Restore(ctx, e.Project, id, kept.ID)
+	require.NoError(t, err)
+	require.Equal(t, kept.InstanceGeneration, e.restoreInstance(t, act.ID))
+}
+
 func TestCreateBackupGoneIsNoop(t *testing.T) {
 	ctx := context.Background()
 	e := newJobEnv(t)
