@@ -28,11 +28,13 @@ const (
 	file7 = "/etc/netplan/60-nebla-net-7.yaml"
 )
 
+const guestWait = `for i in $(seq 30); do IF=$(ip -br link | awk '$3 == "bc:24:11:34:6f:1c" {print $1}'); [ -n "$IF" ] && break; sleep 1; done; [ -n "$IF" ] || { echo "The network isn't attached yet; try again in a moment." >&2; exit 1; }`
+
 var addr = netip.MustParsePrefix("10.0.0.2/16")
 
 func TestGuestUbuntu(t *testing.T) {
 	g := networks.Guest("ubuntu", 7, mac, addr, 1450, true)
-	require.Equal(t, "IF=$(ip -br link | awk '$3 == \"bc:24:11:34:6f:1c\" {print $1}')\nsudo ip link set \"$IF\" mtu 1450\nsudo ip link set \"$IF\" up\nsudo ip addr add 10.0.0.2/16 dev \"$IF\"", g.Apply)
+	require.Equal(t, guestWait+"\nsudo ip link set \"$IF\" mtu 1450\nsudo ip link set \"$IF\" up\nsudo ip addr add 10.0.0.2/16 dev \"$IF\"", g.Apply)
 	require.Equal(t, `echo 'network: {version: 2, ethernets: {nebla-net-7: {match: {macaddress: "bc:24:11:34:6f:1c"}, addresses: ["10.0.0.2/16"], mtu: 1450}}}' | sudo tee `+file7+` >/dev/null && sudo chmod 600 `+file7+` && sudo netplan apply`, g.Persist)
 	require.Equal(t, "sudo rm -f "+file7+" && sudo netplan apply", g.Remove)
 }
