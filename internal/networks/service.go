@@ -29,6 +29,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -72,15 +73,25 @@ type Options struct {
 	Logger *slog.Logger
 	// Bus nil drops events.
 	Bus Publisher
+	// Now nil means time.Now.
+	Now func() time.Time
 }
 
-type Service struct{ o Options }
+type Service struct {
+	o Options
+	// thawed is when each location's cooling scan last ran.
+	thawMu sync.Mutex
+	thawed map[int64]time.Time
+}
 
 func New(o Options) *Service {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	return &Service{o: o}
+	if o.Now == nil {
+		o.Now = time.Now
+	}
+	return &Service{o: o, thawed: map[int64]time.Time{}}
 }
 
 // Network is a private network as the project sees it.

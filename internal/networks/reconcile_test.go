@@ -18,6 +18,7 @@ package networks_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent/action"
@@ -50,10 +51,26 @@ func TestCoolingNeedsCleanPass(t *testing.T) {
 	require.Equal(t, "still used by VM 777 (snapshot pre)", got.Reason)
 
 	e.pv.AddForeignGuest(pve.GuestRef{VMID: 777, Node: "pve1", Kind: "qemu"}, map[string]string{"net0": "virtio=BC:24:11:00:00:01,bridge=vmbr0"}, nil)
+	e.clk.advance(6 * time.Minute)
 	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
 	got = e.slots(t)["nb0001"]
 	require.Equal(t, vnetslot.StateFree, got.State)
 	require.Empty(t, got.Reason)
+}
+
+func TestCoolingScanIsThrottled(t *testing.T) {
+	ctx := context.Background()
+	e := coolingEnv(t)
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Equal(t, vnetslot.StateFree, e.slots(t)["nb0001"].State)
+
+	e.App.Ent.VNetSlot.Update().Where(vnetslot.Vnet("nb0001")).SetState(vnetslot.StateCooling).ExecX(ctx)
+	e.clk.advance(4 * time.Minute)
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Equal(t, vnetslot.StateCooling, e.slots(t)["nb0001"].State, "no second scan inside five minutes")
+	e.clk.advance(2 * time.Minute)
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Equal(t, vnetslot.StateFree, e.slots(t)["nb0001"].State)
 }
 
 func TestCoolingSeesConfigAndContainers(t *testing.T) {
@@ -164,4 +181,55 @@ func TestResumeOnlyForThisLocation(t *testing.T) {
 	e.rawAttach(t, srv, n, "10.8.0.5", 1, servernetwork.StateAttaching)
 	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
 	require.Empty(t, commands(t, e))
+}
+
+func (e *sdnEnv) failedAction(t *testing.T, srv, net int64, kind, code string, finished time.Time) {
+	t.Helper()
+	a, err := actions.Create(context.Background(), e.App.Ent, e.Project, kind,
+		[]actions.Resource{{ID: srv, Type: jobs.ServerResource}, {ID: net, Type: networks.ResourceType}})
+	require.NoError(t, err)
+	e.App.Ent.Action.UpdateOneID(a.ID).SetStatus(action.StatusError).SetErrorCode(code).SetFinished(finished).ExecX(context.Background())
+}
+
+func TestResumeBacksOffAfterFailure(t *testing.T) {
+	ctx := context.Background()
+	e := newSDNEnv(t, "nb0001")
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	srv, netID := e.attached(t, "one", server.StatusOff, servernetwork.StateDetaching)
+	e.failedAction(t, srv, netID, networks.KindDetach, "failed", time.Now().Add(-time.Minute))
+	for range 3 {
+		require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	}
+	require.Equal(t, []string{networks.KindDetach}, commands(t, e), "only the failed one: no new action inside the window")
+
+	e.App.Ent.Action.Update().SetFinished(time.Now().Add(-11 * time.Minute)).ExecX(ctx)
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Len(t, commands(t, e), 2, "after the window the row is tried again")
+}
+
+func TestResumeWaitsForPowerOffWhileRunning(t *testing.T) {
+	ctx := context.Background()
+	e := newSDNEnv(t, "nb0001")
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	srv, netID := e.attached(t, "one", server.StatusRunning, servernetwork.StateDetaching)
+	e.failedAction(t, srv, netID, networks.KindDetach, actions.CodePowerOffRequired, time.Now().Add(-time.Hour))
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Len(t, commands(t, e), 1, "still running: left alone")
+
+	e.App.Ent.Server.UpdateOneID(srv).SetStatus(server.StatusOff).ExecX(ctx)
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Len(t, commands(t, e), 2)
+}
+
+func TestResumeSkipsErroredServerWithoutVM(t *testing.T) {
+	ctx := context.Background()
+	e := newSDNEnv(t, "nb0001")
+	require.NoError(t, e.svc.Discover(ctx, e.pc, e.loc))
+	srv, _ := e.attached(t, "one", server.StatusError, servernetwork.StateAttaching)
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Empty(t, commands(t, e))
+
+	e.App.Ent.Server.UpdateOneID(srv).SetVmid(100).ExecX(ctx)
+	require.NoError(t, e.svc.Reconcile(ctx, e.pc, e.loc))
+	require.Len(t, commands(t, e), 1, "an errored server that has a VM is still resumed")
 }

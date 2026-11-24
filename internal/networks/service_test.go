@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/apierr"
@@ -77,8 +78,26 @@ func (b *bus) all() []ext.Event {
 	return append([]ext.Event(nil), b.events...)
 }
 
+type clock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *clock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
 type env struct {
 	*testutil.ServerEnv
+	clk   *clock
 	svc   *networks.Service
 	proj  *projects.Service
 	hooks projects.Hooks
@@ -93,8 +112,9 @@ func newEnv(t *testing.T) *env {
 	hooks, _ := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
 	proj := projects.New(a.Ent, projects.Options{Hooks: hooks})
 	b := &bus{}
-	svc := networks.New(networks.Options{SQL: a.SQL, Ent: a.Ent, Catalog: a.Catalog, Projects: proj, Jobs: a.Jobs, Bus: b})
-	return &env{ServerEnv: e, svc: svc, proj: proj, hooks: hooks, bus: b}
+	clk := &clock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	svc := networks.New(networks.Options{SQL: a.SQL, Ent: a.Ent, Catalog: a.Catalog, Projects: proj, Jobs: a.Jobs, Bus: b, Now: clk.Now})
+	return &env{ServerEnv: e, clk: clk, svc: svc, proj: proj, hooks: hooks, bus: b}
 }
 
 // ready sets up eu-1 for private networks with n free slots nb0001...

@@ -21,11 +21,15 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
+	"github.com/nebla-cloud/nebla/internal/actions"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/action"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/servernetwork"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
+	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/projects"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/riverqueue/river"
@@ -46,11 +50,30 @@ func (s *Service) Reconcile(ctx context.Context, pc pve.Client, locationID int64
 	return errors.Join(errs...)
 }
 
+const (
+	// thawInterval is the least time between a location's cooling scans.
+	thawInterval = 5 * time.Minute
+	// resumeBackoff is how long a row waits after its latest attach or detach failed.
+	resumeBackoff = 10 * time.Minute
+)
+
+// thawDue reports whether the location's cooling scan may run now, and marks it as run.
+func (s *Service) thawDue(locationID int64) bool {
+	s.thawMu.Lock()
+	defer s.thawMu.Unlock()
+	now := s.o.Now()
+	if last, ok := s.thawed[locationID]; ok && now.Sub(last) < thawInterval {
+		return false
+	}
+	s.thawed[locationID] = now
+	return true
+}
+
 // thawCooling frees cooling slots whose VNet no guest config names; one listing error leaves all of them as they are.
 func (s *Service) thawCooling(ctx context.Context, pc pve.Client, locationID int64) error {
 	slots, err := s.o.Ent.VNetSlot.Query().Where(vnetslot.LocationID(locationID), vnetslot.StateEQ(vnetslot.StateCooling)).
 		Order(vnetslot.ByID()).All(ctx)
-	if err != nil || len(slots) == 0 {
+	if err != nil || len(slots) == 0 || !s.thawDue(locationID) {
 		return err
 	}
 	guests, err := pc.Guests(ctx)
@@ -100,6 +123,12 @@ func (s *Service) resumeStuck(ctx context.Context, locationID int64) error {
 	}
 	var errs []error
 	for _, r := range rows {
+		if skip, err := s.resumeSkipped(ctx, r); err != nil {
+			errs = append(errs, err)
+			continue
+		} else if skip {
+			continue
+		}
 		err := s.withTx(ctx, func(tx *sql.Tx, etx *ent.Client) error {
 			projectID := r.Edges.Server.ProjectID
 			if err := projects.LockProject(ctx, etx, projectID); err != nil {
@@ -137,4 +166,26 @@ func (s *Service) resumeStuck(ctx context.Context, locationID int64) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// resumeSkipped reports a row to leave alone: its server has no VM to work on, or its latest action failed recently
+// or needs the server powered off while it is still running.
+func (s *Service) resumeSkipped(ctx context.Context, r *ent.ServerNetwork) (bool, error) {
+	srv := r.Edges.Server
+	if srv.Status == server.StatusError && srv.Vmid == nil {
+		return true, nil
+	}
+	last, err := s.o.Ent.Action.Query().Where(
+		resourceActions(srv.ProjectID, r.NetworkID, ResourceType), resourceActions(srv.ProjectID, r.ServerID, jobs.ServerResource),
+		action.CommandIn(KindAttach, KindDetach)).Order(ent.Desc(action.FieldID)).First(ctx)
+	if ent.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil || last.Status != action.StatusError || last.Finished == nil {
+		return false, err
+	}
+	if last.ErrorCode != nil && *last.ErrorCode == actions.CodePowerOffRequired && srv.Status == server.StatusRunning {
+		return true, nil
+	}
+	return time.Since(*last.Finished) < resumeBackoff, nil
 }
