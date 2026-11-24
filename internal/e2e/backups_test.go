@@ -338,7 +338,7 @@ func TestBackups(t *testing.T) {
 		Volume volumeOut `json:"volume"`
 		Action action    `json:"action"`
 	}
-	call(t, app, c, http.MethodPost, "/v1/volumes", map[string]any{"name": "e2e-bk-data", "size": 1, "location": "e2e",
+	call(t, app, c, http.MethodPost, "/v1/volumes", map[string]any{"name": "e2e-bk-data", "size": 10, "location": "e2e",
 		"server": fmt.Sprint(sid)}, http.StatusCreated, &vc)
 	vid = vc.Volume.ID
 	waitAction(t, app, c, vc.Action.ID)
