@@ -258,7 +258,7 @@ func (c *create) shutdown(ctx context.Context) error {
 	if err := c.o.setServerStatus(ctx, c.srv.ID, servers.StatusOff); err != nil {
 		return err
 	}
-	return c.save(ctx, func(u *ent.SnapshotUpdateOne) { u.SetStep(stepShutdown) })
+	return c.save(ctx, func(u *ent.SnapshotUpdateOne) { u.SetStep(stepShutdown).ClearUpid() })
 }
 
 // shutdownVM asks the guest to shut down and reports whether it stopped within ShutdownTimeout.
@@ -266,6 +266,10 @@ func (c *create) shutdownVM(ctx context.Context, v pve.VM) (bool, error) {
 	deadline := time.Now().Add(c.o.ShutdownTimeout)
 	up, err := c.pc.Shutdown(ctx, v.Node, v.VMID, c.o.ShutdownTimeout)
 	if err != nil {
+		return false, err
+	}
+	// The upid marks the shutdown as sent, so a failure watches for it landing late.
+	if err := c.save(ctx, func(u *ent.SnapshotUpdateOne) { u.SetUpid(string(up)) }); err != nil {
 		return false, err
 	}
 	wctx, cancel := context.WithDeadline(ctx, deadline)
@@ -521,7 +525,7 @@ func (c *create) compensate(ctx context.Context, f servers.Failure) error {
 		return err
 	}
 	c.row = row
-	late := row.WasRunning && (row.Step == stepRecord || f.Code == actions.CodeShutdownTimeout)
+	late := row.WasRunning && row.Step == stepRecord && (row.Upid != nil || f.Code == actions.CodeShutdownTimeout)
 	if late {
 		// The guest got our shutdown and may still act on it; the watch outlasts the usual cleanup bound.
 		var cancel context.CancelFunc
