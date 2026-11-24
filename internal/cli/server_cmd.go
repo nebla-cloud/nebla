@@ -80,7 +80,7 @@ func parseLabels(in []string) (apiclient.Labels, error) {
 func newServerCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "server", Short: "Manage servers"}
 	cmd.AddCommand(serverCreateCmd(a), serverListCmd(a), serverDescribeCmd(a), serverDeleteCmd(a), serverRenameCmd(a))
-	cmd.AddCommand(serverSSHCmd(a))
+	cmd.AddCommand(serverSSHCmd(a), newBackupCmd(a))
 	cmd.AddCommand(serverActionCmds(a)...)
 	return cmd
 }
@@ -90,6 +90,8 @@ func serverCreateCmd(a *app) *cobra.Command {
 		name, typ, image, location, userDataFile string
 		sshKeys, labels, firewalls               []string
 		withoutIPv4, withIPv6, start             bool
+		backups                                  bool
+		backupKeep                               int
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -102,6 +104,9 @@ func serverCreateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
+		if cmd.Flags().Changed("backup-keep") && !backups {
+			return errors.New("--backup-keep needs --backups")
+		}
 		body := apiclient.PostServersJSONRequestBody{
 			Name: name, ServerType: typ, Image: image, Location: location,
 			StartAfterCreate: &start,
@@ -113,6 +118,9 @@ func serverCreateCmd(a *app) *cobra.Command {
 		}{Ipv4: &v4, Ipv6: &v6}
 		if lbl != nil {
 			body.Labels = &lbl
+		}
+		if backups {
+			body.Backups = &apiclient.BackupSettings{Enabled: true, Keep: backupKeep}
 		}
 		if len(sshKeys) > 0 {
 			body.SshKeys = &sshKeys
@@ -204,6 +212,8 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.BoolVar(&withoutIPv4, "without-ipv4", false, "do not assign an IPv4 address")
 	f.BoolVar(&withIPv6, "with-ipv6", false, "assign an IPv6 address")
 	f.BoolVar(&start, "start-after-create", true, "start the server once it is created")
+	f.BoolVar(&backups, "backups", false, "turn on scheduled backups")
+	f.IntVar(&backupKeep, "backup-keep", defaultBackupKeep, "backups to keep, 1-14 (with --backups)")
 	for _, n := range []string{"name", "type", "image", "location"} {
 		_ = cmd.MarkFlagRequired(n)
 	}
