@@ -525,7 +525,8 @@ func TestScriptSDNTwoNodesVXLAN(t *testing.T) {
 	require.True(t, r.has("pvesh", "create", "/cluster/sdn/zones", "--zone", "lab", "--type", "vxlan", "--peers", "10.0.0.1,10.0.0.2"))
 	require.True(t, r.has("pvesh", "create", "/cluster/sdn/vnets", "--vnet", "pn0002", "--zone", "lab"))
 	require.Equal(t, 1, r.count("pvesh", "set", "/cluster/sdn"))
-	require.Contains(t, r.stdout, "-source 10.0.0.1,10.0.0.2 -p udp -dport 4789")
+	require.Contains(t, r.stdout, "IN ACCEPT -source 10.0.0.1,10.0.0.2 -p udp -dport 4789")
+	require.Contains(t, r.stdout, "IN DROP -p udp -dport 4789")
 }
 
 func TestScriptSDNIdempotent(t *testing.T) {
@@ -538,9 +539,9 @@ func TestScriptSDNIdempotent(t *testing.T) {
 	r := runScript(t, env)
 	require.Equal(t, 0, r.code, redact(r.stderr))
 	require.False(t, r.has("pvesh", "create"))
-	require.False(t, r.has("pvesh", "set"))
+	require.Equal(t, 1, r.count("pvesh", "set", "/cluster/sdn"))
 	require.Contains(t, r.stdout, "private networks: zone nebla, 2 VNets")
-	require.Contains(t, r.stdout, "4789")
+	require.Contains(t, r.stdout, "IN DROP -p udp -dport 4789")
 
 	env["NEBLA_SDN_VNETS"] = "3"
 	r = runScript(t, env)
@@ -568,4 +569,23 @@ func TestScriptSDNRejectsBadInput(t *testing.T) {
 		require.Contains(t, r.stderr, "nebla: error: NEBLA_SDN_", "%v", env)
 		noWrites(t, r)
 	}
+}
+
+func TestScriptSDNVNetInOtherZone(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{
+		"NEBLA_SDN_VNETS": "1",
+		"STUB_ZONES":      `[{"zone":"nebla","type":"simple"},{"zone":"other","type":"simple"}]`,
+		"STUB_VNETS":      `[{"vnet":"nb0001","zone":"other"}]`,
+	})
+	require.Equal(t, 1, r.code)
+	require.Contains(t, r.stderr, "VNet nb0001 already exists in zone 'other'")
+	require.False(t, r.has("pvesh", "set"))
+}
+
+func TestScriptSDNWarnsOnOtherZoneType(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{"NEBLA_SDN_VNETS": "1", "STUB_ZONES": `[{"zone":"nebla","type":"evpn"}]`})
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.Contains(t, r.stderr, "zone nebla has type 'evpn'")
 }

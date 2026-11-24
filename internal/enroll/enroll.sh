@@ -84,57 +84,57 @@ set_role() {
 # Creates the private network zone and VNets that are missing, then applies SDN once. Uses the caller's
 # $cluster, $nodes, $sdn_vnets, $sdn_zone and $sdn_prefix, and sets $sdn_msg for the summary.
 setup_sdn() {
-    local zones vnets line ztype="" ips="" ip i name changed=0 made=0 have=0 nn=0 n
+    local zones vnets line ztype="" ips="" ip i name vz made=0 have=0 nn=0 n
     zones=$(pvesh get /cluster/sdn/zones --output-format json)
     vnets=$(pvesh get /cluster/sdn/vnets --output-format json)
+    for n in $nodes; do nn=$((nn + 1)); done
+    while IFS= read -r line; do
+        [[ $line =~ $re_type_node ]] || continue
+        ip=$(field "$line" ip)
+        [ -z "$ip" ] || ips="$ips${ips:+,}$ip"
+    done < <(printf '%s\n' "$cluster" | tr '{}' '\n\n')
     if has_val "$zones" zone "$sdn_zone"; then
         while IFS= read -r line; do
             [ "$(field "$line" zone)" = "$sdn_zone" ] && ztype=$(field "$line" type)
         done < <(printf '%s\n' "$zones" | tr '{}' '\n\n')
+        case $ztype in
+        simple | vxlan) ;;
+        *) warn "zone $sdn_zone has type '$ztype'; Nebla supports simple and vxlan zones" ;;
+        esac
         say "private network zone $sdn_zone exists"
+    elif [ "$nn" -le 1 ]; then
+        ztype=simple
+        pvesh create /cluster/sdn/zones --zone "$sdn_zone" --type simple --ipam pve
+        say "created private network zone $sdn_zone ($ztype)"
     else
-        for n in $nodes; do nn=$((nn + 1)); done
-        if [ "$nn" -le 1 ]; then
-            ztype=simple
-            pvesh create /cluster/sdn/zones --zone "$sdn_zone" --type simple --ipam pve
-        else
-            ztype=vxlan
-            while IFS= read -r line; do
-                [[ $line =~ $re_type_node ]] || continue
-                ip=$(field "$line" ip)
-                [ -n "$ip" ] || die "node $(field "$line" name) has no IP in the cluster status; can't create a VXLAN zone"
-                ips="$ips${ips:+,}$ip"
-            done < <(printf '%s\n' "$cluster" | tr '{}' '\n\n')
-            pvesh create /cluster/sdn/zones --zone "$sdn_zone" --type vxlan --peers "$ips"
-        fi
-        changed=1
+        ztype=vxlan
+        [ "$(printf '%s' "$ips" | tr ',' '\n' | grep -c .)" = "$nn" ] || die "a node has no IP in the cluster status; can't create a VXLAN zone"
+        pvesh create /cluster/sdn/zones --zone "$sdn_zone" --type vxlan --peers "$ips"
         say "created private network zone $sdn_zone ($ztype)"
     fi
     for ((i = 1; i <= sdn_vnets; i++)); do
         printf -v name '%s%04d' "$sdn_prefix" "$i"
         if has_val "$vnets" vnet "$name"; then
+            vz=""
+            while IFS= read -r line; do
+                [ "$(field "$line" vnet)" = "$name" ] && vz=$(field "$line" zone)
+            done < <(printf '%s\n' "$vnets" | tr '{}' '\n\n')
+            [ "$vz" = "$sdn_zone" ] || die "VNet $name already exists in zone '$vz'; pick another NEBLA_SDN_PREFIX or zone"
             have=$((have + 1))
             continue
         fi
         pvesh create /cluster/sdn/vnets --vnet "$name" --zone "$sdn_zone"
         made=$((made + 1))
-        changed=1
     done
     say "private networks: $made new, $have already there"
-    if [ "$changed" = 1 ]; then
-        pvesh set /cluster/sdn
-        say "applied SDN"
-    fi
+    pvesh set /cluster/sdn
+    say "applied SDN"
     sdn_msg="private networks: zone $sdn_zone, $sdn_vnets VNets"
     if [ "$ztype" = vxlan ]; then
-        if [ -z "$ips" ]; then
-            while IFS= read -r line; do
-                [[ $line =~ $re_type_node ]] || continue
-                ips="$ips${ips:+,}$(field "$line" ip)"
-            done < <(printf '%s\n' "$cluster" | tr '{}' '\n\n')
-        fi
-        say "VXLAN needs a host firewall rule on every node (datacenter firewall on): IN ACCEPT -source $ips -p udp -dport 4789"
-        say "Accept UDP 4789 from the cluster nodes only; see docs/proxmox-setup.md"
+        say "VXLAN needs these two host firewall rules on every node, in this order (datacenter firewall on):"
+        say "  IN ACCEPT -source $ips -p udp -dport 4789"
+        say "  IN DROP -p udp -dport 4789"
+        say "No earlier rule may accept UDP 4789 (for example a broad LAN allow); see docs/proxmox-setup.md"
     fi
 }
 
