@@ -220,7 +220,7 @@ func TestSnapshots(t *testing.T) {
 		Volume volumeOut `json:"volume"`
 		Action action    `json:"action"`
 	}
-	call(t, app, c, http.MethodPost, "/v1/volumes", map[string]any{"name": "e2e-snap-data", "size": 1, "location": e.loc,
+	call(t, app, c, http.MethodPost, "/v1/volumes", map[string]any{"name": "e2e-snap-data", "size": 10, "location": e.loc,
 		"server": fmt.Sprint(aID)}, http.StatusCreated, &vc)
 	vid = vc.Volume.ID
 	waitAction(t, app, c, vc.Action.ID)
