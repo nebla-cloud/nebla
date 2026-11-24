@@ -107,6 +107,17 @@ nebla floating-ip describe web-vip
 nebla floating-ip unassign web-vip
 nebla floating-ip delete web-vip
 
+# Private networks
+nebla network create --name backend --location home            # the first free 10.N.0.0/16
+nebla network create --name db --location home --ip-range 192.168.50.0/24
+nebla network list --location home
+nebla network describe backend
+nebla network update backend --name internal
+nebla server create --name db1 --type small --image debian-13 --location home --network backend=10.0.0.5
+nebla server attach-to-network web1 --network backend    # prints the commands to run on the server
+nebla server detach-from-network web1 --network backend
+nebla network delete backend
+
 nebla version
 nebla completion zsh              # also: bash, fish, powershell
 ```
@@ -121,6 +132,11 @@ Backups copy a server's boot disk every day and restore it in place; see [Backup
 
 A floating IP is one address that you can move between servers in its location. `assign` and `create --server` wait,
 then print the commands to run inside the server; see [Floating IPs](floating-ips.md).
+
+A private network connects servers in one location over their own addresses, apart from the public network. Attach
+and detach wait, then print the commands to run inside the server; see [Private networks](networks.md). `--ip` on
+`attach-to-network` picks the address, and `--network` on `server create` takes a network and an optional `name=ip`
+(repeatable, up to 3).
 
 `server create` also takes `--user-data-from-file`, `--label key=value`, `--without-ipv4`, `--with-ipv6` and
 `--start-after-create=false`. `server list` takes `--selector key=value`.

@@ -32,6 +32,9 @@ anything. Then it:
 - reports the token, the certificate fingerprint of every node (`pveproxy-ssl.pem`, else `pve-ssl.pem`), and the
   cluster and storage list.
 
+To also prepare private networks, add `NEBLA_SDN_VNETS=<n>` to the command (see [Private networks](#10-private-networks)).
+It is off by default.
+
 It writes no files and leaves nothing running. The roles are reset to the exact privilege list each time, so privileges
 you added to `Nebla` or `NeblaISO` by hand are removed on a re-run.
 
@@ -92,13 +95,21 @@ cloud-init seed ISOs it uploads, plus the import and volume storages (step 8 and
 On **PVE 8**:
 
 ```sh
-pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use SDN.Audit"
 ```
 
 On **PVE 9**, `VM.Monitor` no longer exists. Use `VM.GuestAgent.Audit` in its place:
 
 ```sh
-pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+pveum role add Nebla --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use SDN.Audit"
+```
+
+`SDN.Audit` is read-only. Nebla uses it to see which zones and VNets exist (see [Private networks](#11-private-networks)).
+The setup script grants it. If you set up before private networks existed, the location page shows a "needs setup"
+banner. Add the privilege to the existing role:
+
+```sh
+pveum role modify Nebla --append 1 --privs SDN.Audit
 ```
 
 `VM.Config.Cloudinit` lets Nebla remove a Proxmox cloud-init drive that a cloned template carries. That drive would clash
@@ -389,3 +400,69 @@ many backups remain on an earlier storage.
 **Limits.** Backups count against the project quota `max_backups` (default 35, `0` means unlimited). To stop a project
 using backups, set a small limit. See `PANEL_DEFAULT_QUOTA` in the README. Backups cover the boot disk only. Volumes
 carry `backup=0`, so vzdump skips them.
+
+## 11. Private networks
+
+Private networks let project members connect servers in one location over their own addresses. Nebla uses Proxmox SDN
+for it: you create a zone and a pool of VNets once, and Nebla hands one VNet to each network a member creates and
+attaches servers with `SDN.Use`. Nothing reloads networking when a member creates a network. The pool can run out; then
+you add more VNets. A location without a zone doesn't offer private networks. The [networks guide](networks.md) covers
+the user side.
+
+**Permission.** The role needs `SDN.Audit` (the commands in step 1 and the setup script add it). If it is missing, the
+location page says "Needs setup" and shows the command.
+
+**With the script.** Run it with `NEBLA_SDN_VNETS` set to the number of VNets to create (1 to 200):
+
+```sh
+curl -fsSL '<panel>/v1/enroll.sh' | NEBLA_TOKEN=nbe_... NEBLA_SDN_VNETS=20 bash
+```
+
+It also reads `NEBLA_SDN_ZONE` (default `nebla`, 1 to 8 lowercase letters or digits, starting with a letter) and
+`NEBLA_SDN_PREFIX` (default `nb`, 1 to 4 lowercase letters or digits, starting with a letter). It creates the zone if it
+is missing: `simple` on a single node, `vxlan` with every node's IP as `peers` on a cluster. It creates the VNets
+`<prefix>0001` up to the number you gave, skipping any that exist, and applies SDN once. Run again with a larger number
+to add more. On VXLAN it prints the firewall rule below.
+
+**By hand.** The same steps, on one node:
+
+```sh
+# a single node: a Simple zone
+pvesh create /cluster/sdn/zones --zone nebla --type simple --ipam pve
+# a cluster: a VXLAN zone, peers are all node IPs
+pvesh create /cluster/sdn/zones --zone nebla --type vxlan --peers 10.0.0.1,10.0.0.2,10.0.0.3
+
+# the VNets: names are at most 8 characters, a prefix plus a number
+pvesh create /cluster/sdn/vnets --vnet nb0001 --zone nebla
+pvesh create /cluster/sdn/vnets --vnet nb0002 --zone nebla
+
+# apply
+pvesh set /cluster/sdn
+```
+
+Don't give VNets subnets or VLAN awareness, and don't use them for anything else: Nebla marks such a VNet as unusable
+and shows the reason on the location page. A Simple zone only works on a single node. Don't share one zone between two
+Nebla locations.
+
+**In Nebla.** On the location page set the SDN zone and the VNet prefix (default `nb`). Nebla lists the zone's VNets
+whose names start with the prefix and shows "Private networks: N available, M in use, C cooling, U unusable". The zone
+and prefix can't change while any VNet is in use or cooling. A VNet whose last network was deleted cools down until no
+VM config names it, then is free again. The MTU comes from the zone's `mtu` when set, else 1450 for VXLAN and 1500 for
+Simple.
+
+**Adding more VNets later.** Create more with the same prefix, for example `nb0021` to `nb0040`, and run
+`pvesh set /cluster/sdn`. Nebla finds them on its next pass or when you save the location.
+
+**VXLAN host firewall.** VXLAN uses UDP 4789, and Linux accepts it from any sender. Add a host firewall rule on every
+node that accepts UDP 4789 only from the other cluster nodes (Datacenter > Firewall, or the node's firewall):
+
+```
+IN ACCEPT -source 10.0.0.1,10.0.0.2,10.0.0.3 -p udp -dport 4789
+```
+
+Nebla also drops VXLAN traffic out of every server's public interface, so a server can't speak VXLAN to the hosts.
+VXLAN is implemented and tested with fakes only; it hasn't run on a real multi-node cluster yet.
+
+**Keep the datacenter firewall on.** Isolation between servers relies on the VM firewall. If the datacenter firewall is
+off, the location shows "Isolation off", and creating networks and attaching servers pause there until you turn it back
+on (see step 7).
