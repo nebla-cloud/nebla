@@ -896,3 +896,60 @@ func TestDeleteErrorSnapshotRespectsUser(t *testing.T) {
 	e.requireServer(t, srvID, vmid, servers.StatusOff)
 	require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(r.ID)).ExistX(ctx))
 }
+
+func TestDeleteGoneSnapshotWithForeignVM(t *testing.T) {
+	for _, st := range []snapshot.Status{snapshot.StatusMissing, snapshot.StatusError} {
+		t.Run(string(st), func(t *testing.T) {
+			ctx := context.Background()
+			e := newEnv(t)
+			r := e.available(t, "web1")
+			e.App.PVE.DeleteVM(r.VMID)
+			e.App.PVE.AddVM("pve1", r.VMID, "other")
+			e.App.Ent.Snapshot.UpdateOneID(r.ID).SetStatus(st).ExecX(ctx)
+			act, err := e.svc.Delete(ctx, e.Project, r.ID)
+			require.NoError(t, err)
+			a := e.finish(t, e.opts(nil), act.ID)
+			require.Equal(t, actions.StatusSuccess, a.Status, "%+v", a.Error)
+			require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(r.ID)).ExistX(ctx))
+			other, ok := e.App.PVE.VM(r.VMID)
+			require.True(t, ok, "never destroyed")
+			require.Equal(t, "other", other.Name)
+			require.Zero(t, e.countCalls(fmt.Sprintf("DELETE /nodes/pve1/qemu/%d", r.VMID)))
+			n, gb := e.usage(t)
+			require.Zero(t, n, "quota released")
+			require.Zero(t, gb)
+		})
+	}
+}
+
+func TestDeleteSnapshotWaitsForLockedVM(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		tags bool
+	}{{"ours", true}, {"untagged", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			e := newEnv(t)
+			r := e.available(t, "web1")
+			e.App.Ent.Snapshot.UpdateOneID(r.ID).SetStatus(snapshot.StatusMissing).ExecX(ctx)
+			if !tc.tags {
+				e.App.PVE.SetVMConfig(r.VMID, "tags", "")
+			}
+			e.App.PVE.SetVMConfig(r.VMID, "lock", "create")
+			act, err := e.svc.Delete(ctx, e.Project, r.ID)
+			require.NoError(t, err)
+			require.Error(t, e.work(ctx, t, e.opts(nil), act.ID, 1), "retried")
+			require.Nil(t, e.action(t, act.ID).Finished)
+			require.Equal(t, snapshot.StatusDeleting, e.App.Ent.Snapshot.GetX(ctx, r.ID).Status, "not given up as missing")
+			_, ok := e.App.PVE.VM(r.VMID)
+			require.True(t, ok)
+
+			e.App.PVE.SetVMConfig(r.VMID, "lock", "")
+			e.App.PVE.SetVMConfig(r.VMID, "tags", "nebla-snapshot;"+snapTag(r.ID))
+			require.NoError(t, e.work(ctx, t, e.opts(nil), act.ID, 2))
+			require.Equal(t, actions.StatusSuccess, e.action(t, act.ID).Status)
+			_, ok = e.App.PVE.VM(r.VMID)
+			require.False(t, ok, "destroyed once unlocked")
+		})
+	}
+}

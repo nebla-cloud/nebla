@@ -86,11 +86,12 @@ func (w *DeleteSnapshotWorker) Work(ctx context.Context, job *river.Job[DeleteSn
 			if err := connect(); err != nil {
 				return err
 			}
-			if err := w.destroy(ctx, pc, row); err != nil {
+			if err := w.destroy(ctx, pc, row, snapshot.Status(a.PrevStatus)); err != nil {
 				return err
 			}
 		}
 		err := db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
+			// Snapshot then server (FK check) against a rebuild's server then snapshot: rare, and Postgres aborts one.
 			if err := etx.Snapshot.DeleteOneID(row.ID).Exec(ctx); err != nil && !ent.IsNotFound(err) {
 				return err
 			}
@@ -119,7 +120,8 @@ func (w *DeleteSnapshotWorker) Work(ctx context.Context, job *river.Job[DeleteSn
 }
 
 // destroy removes the VM at the row's vmid only when it carries the snapshot's tag; a VM already gone is done.
-func (w *DeleteSnapshotWorker) destroy(ctx context.Context, pc pve.Client, row *ent.Snapshot) error {
+// Another VM there is left alone: a missing or error row is then simply gone, an available one is marked missing.
+func (w *DeleteSnapshotWorker) destroy(ctx context.Context, pc pve.Client, row *ent.Snapshot, prev snapshot.Status) error {
 	vmid := *row.Vmid
 	v, found, err := findVM(ctx, pc, vmid)
 	if err != nil {
@@ -128,7 +130,23 @@ func (w *DeleteSnapshotWorker) destroy(ctx context.Context, pc pve.Client, row *
 	if !found {
 		return nil
 	}
-	if !hasTag(v.Tags, SnapshotTag(row.ID)) {
+	cfg, err := pc.Config(ctx, v.Node, vmid)
+	if errors.Is(err, pve.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return servers.StepError("read vm config", err)
+	}
+	ours := hasTag(cfg["tags"], SnapshotTag(row.ID))
+	if cfg["lock"] != "" && (ours || cfg["tags"] == "") {
+		// It may be our own create still importing; decide once it is unlocked.
+		return servers.Transient("vm %d is locked (%s)", vmid, cfg["lock"])
+	}
+	if !ours {
+		if prev == snapshot.StatusMissing || prev == snapshot.StatusError {
+			w.o.Logger.Info("snapshots: another vm sits at the snapshot's vmid; left alone", "snapshot_id", row.ID, "vmid", vmid)
+			return nil
+		}
 		if err := w.o.Ent.Snapshot.UpdateOneID(row.ID).SetStatus(snapshot.StatusMissing).Exec(ctx); err != nil {
 			return err
 		}
