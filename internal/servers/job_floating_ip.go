@@ -20,6 +20,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
@@ -65,9 +67,50 @@ func (w *FloatingIPWorker) Work(ctx context.Context, job *river.Job[floatingips.
 		return err
 	}
 	log := w.o.Logger.With("floating_ip_id", a.FloatingIPID, "action_id", act.ID, "command", act.Command)
+	guests, err := w.guestServers(ctx, a.FloatingIPID)
+	if err != nil {
+		return err
+	}
 	return contract{job: job.JobRow, name: "floating ip", finished: act.Finished != nil, log: log,
-		run:  func(ctx context.Context) error { return w.run(ctx, a) },
-		fail: func(ctx context.Context, f failure) error { return w.fail(ctx, a, f) }}.work(ctx)
+		run: func(ctx context.Context) error {
+			if err := w.run(ctx, a); err != nil {
+				return err
+			}
+			w.queueISOSync(ctx, log, guests)
+			return nil
+		},
+		fail: func(ctx context.Context, f failure) error {
+			if err := w.fail(ctx, a, f); err != nil {
+				return err
+			}
+			w.queueISOSync(ctx, log, guests)
+			return nil
+		}}.work(ctx)
+}
+
+// guestServers lists the servers whose guest IPs this change moves the address between.
+func (w *FloatingIPWorker) guestServers(ctx context.Context, id int64) ([]int64, error) {
+	row, err := w.o.Ent.IPAddress.Get(ctx, id)
+	if ent.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	for _, s := range []*int64{row.ServerID, row.ReleasingFromID, row.PreviousServerID} {
+		if s != nil && !slices.Contains(ids, *s) {
+			ids = append(ids, *s)
+		}
+	}
+	return ids, nil
+}
+
+// queueISOSync queues seed ISO syncs once the change ends; the reconciler catches any it fails to queue.
+func (w *FloatingIPWorker) queueISOSync(ctx context.Context, log *slog.Logger, ids []int64) {
+	if err := QueueISOSync(ctx, w.o.SQL, w.o.jobs(), ids...); err != nil {
+		log.Warn("floating ip: queue iso sync", "err", err)
+	}
 }
 
 func (w *FloatingIPWorker) run(ctx context.Context, a floatingips.ChangeArgs) error {

@@ -87,3 +87,17 @@ func SetRestoreAfterUpid(w *RestoreServerWorker, f func()) { w.afterUpid = f }
 
 // RestoreSteps are the restore job's steps in order.
 var RestoreSteps = []int{stepVMID, stepClone, stepConfig, stepResize, stepISO, stepFirewall, stepSwap, stepRetire, stepRestart}
+
+// SyncISO runs one seed ISO sync for server id, as the sync_iso job does.
+func SyncISO(ctx context.Context, o WorkerOptions, id int64, bump bool) (bool, error) {
+	o.defaults()
+	row, err := o.Ent.Server.Get(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	pc, err := o.Catalog.ProxmoxFor(ctx, row.LocationID)
+	if err != nil {
+		return false, err
+	}
+	return o.syncISO(ctx, pc, row, bump)
+}

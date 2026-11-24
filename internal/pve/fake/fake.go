@@ -153,6 +153,7 @@ type Server struct {
 	listDelay time.Duration
 	downloads []FakeDownload
 	failDl    []string
+	uploads   []string
 
 	clusterFWOff bool
 	failRule     bool
@@ -578,6 +579,13 @@ func (s *Server) RequireRuleDigest() {
 func fwDigest(v *vm) string {
 	sum := sha256.Sum256(fmt.Appendf(nil, "%v|%v|%+v", v.firewall, v.ipsets, v.rules))
 	return fmt.Sprintf("%x", sum[:20])
+}
+
+// Uploads lists the volids of every ISO upload, in order.
+func (s *Server) Uploads() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.uploads)
 }
 
 // Calls lists the requests received as "METHOD path".
@@ -1709,6 +1717,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 			return nil, &apiErr{500, "storage '" + st + "' does not exist"}
 		}
 		s.volumes[st+":iso/"+fname] = data
+		s.uploads = append(s.uploads, st+":iso/"+fname)
 		return s.newTask(n.name, "imgcopy", 0, nil, nil), nil
 	})
 	s.handle(mux, "POST /nodes/{node}/storage/{storage}/content", false, func(r *http.Request, _ bool) (any, *apiErr) {

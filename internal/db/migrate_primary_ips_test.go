@@ -299,7 +299,7 @@ func TestPrimaryIPsDownRefuses(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			m := newPrimaryMigration(t)
 			m.seedFixture(t)
-			_, err := m.goose.Up(m.ctx)
+			_, err := m.goose.UpTo(m.ctx, m.data)
 			require.NoError(t, err)
 			m.exec(t, tc.mutate)
 			const snap = `select x.id, x.name, x.server_id, x.auto_delete, x.releasing_from_id, a.owner, a.server_id
@@ -320,7 +320,7 @@ func TestPrimaryIPsDownRefuses(t *testing.T) {
 func TestPrimaryIPsDownRefusesOrphanAllocation(t *testing.T) {
 	m := newPrimaryMigration(t)
 	f := m.seedFixture(t)
-	_, err := m.goose.Up(m.ctx)
+	_, err := m.goose.UpTo(m.ctx, m.data)
 	require.NoError(t, err)
 	m.exec(t, `insert into ip_allocations (pool_id, ip, owner) values ($1, '10.0.0.98', 'primary')`, f.v4)
 	const allocs = `select id, owner, server_id from ip_allocations order by id`

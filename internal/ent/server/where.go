@@ -220,6 +220,11 @@ func IsoNetHash(v string) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldIsoNetHash, v))
 }
 
+// IsoLeaseUntil applies equality check predicate on the "iso_lease_until" field. It's identical to IsoLeaseUntilEQ.
+func IsoLeaseUntil(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldIsoLeaseUntil, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreatedAt, v))
@@ -1763,6 +1768,56 @@ func IsoNetHashEqualFold(v string) predicate.Server {
 // IsoNetHashContainsFold applies the ContainsFold predicate on the "iso_net_hash" field.
 func IsoNetHashContainsFold(v string) predicate.Server {
 	return predicate.Server(sql.FieldContainsFold(FieldIsoNetHash, v))
+}
+
+// IsoLeaseUntilEQ applies the EQ predicate on the "iso_lease_until" field.
+func IsoLeaseUntilEQ(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldIsoLeaseUntil, v))
+}
+
+// IsoLeaseUntilNEQ applies the NEQ predicate on the "iso_lease_until" field.
+func IsoLeaseUntilNEQ(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldIsoLeaseUntil, v))
+}
+
+// IsoLeaseUntilIn applies the In predicate on the "iso_lease_until" field.
+func IsoLeaseUntilIn(vs ...time.Time) predicate.Server {
+	return predicate.Server(sql.FieldIn(FieldIsoLeaseUntil, vs...))
+}
+
+// IsoLeaseUntilNotIn applies the NotIn predicate on the "iso_lease_until" field.
+func IsoLeaseUntilNotIn(vs ...time.Time) predicate.Server {
+	return predicate.Server(sql.FieldNotIn(FieldIsoLeaseUntil, vs...))
+}
+
+// IsoLeaseUntilGT applies the GT predicate on the "iso_lease_until" field.
+func IsoLeaseUntilGT(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldGT(FieldIsoLeaseUntil, v))
+}
+
+// IsoLeaseUntilGTE applies the GTE predicate on the "iso_lease_until" field.
+func IsoLeaseUntilGTE(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldGTE(FieldIsoLeaseUntil, v))
+}
+
+// IsoLeaseUntilLT applies the LT predicate on the "iso_lease_until" field.
+func IsoLeaseUntilLT(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldLT(FieldIsoLeaseUntil, v))
+}
+
+// IsoLeaseUntilLTE applies the LTE predicate on the "iso_lease_until" field.
+func IsoLeaseUntilLTE(v time.Time) predicate.Server {
+	return predicate.Server(sql.FieldLTE(FieldIsoLeaseUntil, v))
+}
+
+// IsoLeaseUntilIsNil applies the IsNil predicate on the "iso_lease_until" field.
+func IsoLeaseUntilIsNil() predicate.Server {
+	return predicate.Server(sql.FieldIsNull(FieldIsoLeaseUntil))
+}
+
+// IsoLeaseUntilNotNil applies the NotNil predicate on the "iso_lease_until" field.
+func IsoLeaseUntilNotNil() predicate.Server {
+	return predicate.Server(sql.FieldNotNull(FieldIsoLeaseUntil))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

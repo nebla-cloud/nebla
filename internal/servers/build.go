@@ -75,6 +75,12 @@ type builder struct {
 	tnode         string
 	tcfg          map[string]string
 	o             *WorkerOptions
+	// nextGen takes the generation after the row's under the ISO lock, as a rebuild does.
+	nextGen bool
+	// pinInst pins instGen under nextGen; 0 follows the new ISO generation.
+	pinInst int
+	// netHash is the network config hash of the ISO this run wrote; "" when unknown.
+	netHash string
 	// fwGen is the desired firewall generation this run rendered; fwDone says it rendered at all.
 	fwGen  int64
 	fwDone bool
@@ -482,25 +488,38 @@ func (b *builder) uploadISO(ctx context.Context) error {
 	if !slices.ContainsFunc(sts, func(s pve.Storage) bool { return s.ID == b.loc.ISOStorage && slices.Contains(s.Content, "iso") }) {
 		return permanent("ISO storage %q is not available on node %s", b.loc.ISOStorage, b.row.Node)
 	}
-	in, err := seedInput(ctx, b.o.Ent, b.row, b.assign)
-	if err != nil {
-		return err
-	}
-	in.InstanceID = fmt.Sprintf("nb-srv-%d-%d", b.row.ID, b.instGen)
-	iso, err := cloudinit.Build(in)
-	if err != nil {
-		return permanent("%s", err)
-	}
-	volid := b.volid()
-	// A retry may find its own earlier upload; errors here surface on the upload.
-	_ = b.pc.DeleteVolume(ctx, b.row.Node, b.loc.ISOStorage, volid)
-	if err := b.pc.UploadISO(ctx, b.row.Node, b.loc.ISOStorage, isoName(b.row.ID, b.isoGen), iso); err != nil {
-		return err
-	}
-	if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), map[string]string{"ide2": volid + ",media=cdrom"}); err != nil {
-		return err
-	}
-	return b.done(ctx, stepISO)
+	return b.o.withISOLease(ctx, b.row.ID, func(l *isoLeaseHeld) error {
+		if b.nextGen {
+			cur, err := b.o.Ent.Server.Get(ctx, b.row.ID)
+			if err != nil {
+				return err
+			}
+			b.isoGen = cur.IsoGeneration + 1
+			b.instGen = cmp.Or(b.pinInst, b.isoGen)
+		}
+		in, err := renderISO(ctx, b.o.Ent, b.row, int64(b.instGen), true)
+		if err != nil {
+			return err
+		}
+		iso, err := cloudinit.Build(in)
+		if err != nil {
+			return permanent("%s", err)
+		}
+		volid := b.volid()
+		// A retry may find its own earlier upload; errors here surface on the upload.
+		_ = b.pc.DeleteVolume(ctx, b.row.Node, b.loc.ISOStorage, volid)
+		if err := b.pc.UploadISO(ctx, b.row.Node, b.loc.ISOStorage, isoName(b.row.ID, b.isoGen), iso); err != nil {
+			return err
+		}
+		if err := l.renew(ctx); err != nil {
+			return err
+		}
+		if err := b.pc.SetConfig(ctx, b.row.Node, b.vmid(), map[string]string{"ide2": volid + ",media=cdrom"}); err != nil {
+			return err
+		}
+		b.netHash = cloudinit.NetHash(in)
+		return b.done(ctx, stepISO)
+	})
 }
 
 func (b *builder) firewall(ctx context.Context) error {

@@ -112,11 +112,21 @@ func (w *DeleteServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Se
 			return err
 		}
 	}
-	// A rebuild may have left the generation before or after the current one.
-	for gen := max(row.IsoGeneration-1, 1); gen <= row.IsoGeneration+1; gen++ {
-		if err := deleteISO(ctx, pc, row.Node, loc.ISOStorage, isoVolid(loc.ISOStorage, row.ID, gen)); err != nil {
-			return &stepError{"delete cloud-init iso", err}
+	// A rebuild or sync may have left the generation before or after the current one.
+	err = w.o.withISOLease(ctx, row.ID, func(*isoLeaseHeld) error {
+		cur, err := w.o.Ent.Server.Get(ctx, row.ID)
+		if err != nil {
+			return err
 		}
+		for gen := max(cur.IsoGeneration-1, 1); gen <= cur.IsoGeneration+1; gen++ {
+			if err := deleteISO(ctx, pc, row.Node, loc.ISOStorage, isoVolid(loc.ISOStorage, row.ID, gen)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return &stepError{"delete cloud-init iso", err}
 	}
 	err = db.WithTx(ctx, w.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
 		if err := lockFloatingIPsOf(ctx, etx, row.ID); err != nil {

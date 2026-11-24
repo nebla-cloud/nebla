@@ -225,6 +225,10 @@ func (r *Reconciler) sync(ctx context.Context, log *slog.Logger, locationID int6
 	if err := r.syncBackups(ctx, log, locationID, pc, vms); err != nil {
 		errs = append(errs, err)
 	}
+	if err := r.queueISOSyncs(ctx, rows, vms); err != nil {
+		log.Warn("reconcile: seed iso sync", "err", err)
+		errs = append(errs, fmt.Errorf("seed iso sync: %w", err))
+	}
 	fwOn, err := r.recordFirewall(ctx, pc, locationID)
 	if err != nil {
 		log.Warn("reconcile: datacenter firewall", "err", err)
@@ -297,6 +301,35 @@ func (r *Reconciler) nicWarnDue(id int64) bool {
 	}
 	r.nicWarned[id] = time.Now()
 	return true
+}
+
+// queueISOSyncs queues a seed ISO sync for listed servers whose ISO is behind their IPs and that run no action.
+func (r *Reconciler) queueISOSyncs(ctx context.Context, rows []*ent.Server, w view) error {
+	j := r.jobs.Load()
+	if j == nil {
+		return nil
+	}
+	var due []int64
+	for _, row := range rows {
+		if _, ok := vmOf(row, w.vms); !ok {
+			continue
+		}
+		stale, err := servers.ISOSyncDue(ctx, r.o.Ent, row)
+		if err != nil {
+			return err
+		}
+		if !stale {
+			continue
+		}
+		busy, err := r.o.Ent.Action.Query().Where(servers.ActionsOf(row.ProjectID, row.ID), action.StatusEQ(action.StatusRunning)).Exist(ctx)
+		if err != nil {
+			return err
+		}
+		if !busy {
+			due = append(due, row.ID)
+		}
+	}
+	return servers.QueueISOSync(ctx, r.o.SQL, j, due...)
 }
 
 // fwRepairable reports a server whose VM firewall the reconciler may compare and repair.

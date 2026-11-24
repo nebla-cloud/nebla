@@ -643,6 +643,26 @@ func (_u *ServerUpdate) SetNillableIsoNetHash(v *string) *ServerUpdate {
 	return _u
 }
 
+// SetIsoLeaseUntil sets the "iso_lease_until" field.
+func (_u *ServerUpdate) SetIsoLeaseUntil(v time.Time) *ServerUpdate {
+	_u.mutation.SetIsoLeaseUntil(v)
+	return _u
+}
+
+// SetNillableIsoLeaseUntil sets the "iso_lease_until" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableIsoLeaseUntil(v *time.Time) *ServerUpdate {
+	if v != nil {
+		_u.SetIsoLeaseUntil(*v)
+	}
+	return _u
+}
+
+// ClearIsoLeaseUntil clears the value of the "iso_lease_until" field.
+func (_u *ServerUpdate) ClearIsoLeaseUntil() *ServerUpdate {
+	_u.mutation.ClearIsoLeaseUntil()
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdate) SetServerType(v *ServerType) *ServerUpdate {
 	return _u.SetServerTypeID(v.ID)
@@ -906,6 +926,12 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.IsoNetHash(); ok {
 		_spec.SetField(server.FieldIsoNetHash, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.IsoLeaseUntil(); ok {
+		_spec.SetField(server.FieldIsoLeaseUntil, field.TypeTime, value)
+	}
+	if _u.mutation.IsoLeaseUntilCleared() {
+		_spec.ClearField(server.FieldIsoLeaseUntil, field.TypeTime)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1598,6 +1624,26 @@ func (_u *ServerUpdateOne) SetNillableIsoNetHash(v *string) *ServerUpdateOne {
 	return _u
 }
 
+// SetIsoLeaseUntil sets the "iso_lease_until" field.
+func (_u *ServerUpdateOne) SetIsoLeaseUntil(v time.Time) *ServerUpdateOne {
+	_u.mutation.SetIsoLeaseUntil(v)
+	return _u
+}
+
+// SetNillableIsoLeaseUntil sets the "iso_lease_until" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableIsoLeaseUntil(v *time.Time) *ServerUpdateOne {
+	if v != nil {
+		_u.SetIsoLeaseUntil(*v)
+	}
+	return _u
+}
+
+// ClearIsoLeaseUntil clears the value of the "iso_lease_until" field.
+func (_u *ServerUpdateOne) ClearIsoLeaseUntil() *ServerUpdateOne {
+	_u.mutation.ClearIsoLeaseUntil()
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdateOne) SetServerType(v *ServerType) *ServerUpdateOne {
 	return _u.SetServerTypeID(v.ID)
@@ -1891,6 +1937,12 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if value, ok := _u.mutation.IsoNetHash(); ok {
 		_spec.SetField(server.FieldIsoNetHash, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.IsoLeaseUntil(); ok {
+		_spec.SetField(server.FieldIsoLeaseUntil, field.TypeTime, value)
+	}
+	if _u.mutation.IsoLeaseUntilCleared() {
+		_spec.ClearField(server.FieldIsoLeaseUntil, field.TypeTime)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{

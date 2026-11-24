@@ -292,3 +292,33 @@ version: 2
 `
 	require.Equal(t, want, files["network-config"])
 }
+
+func TestVendorDataWhenNetRefresh(t *testing.T) {
+	in := input()
+	in.NetRefresh = true
+	_, files := readISO(t, in)
+	require.Len(t, files, 4)
+	require.Equal(t, "#cloud-config\nupdates:\n  network:\n    when: [boot]\n", files["vendor-data"])
+
+	in.NetRefresh = false
+	_, files = readISO(t, in)
+	require.NotContains(t, files, "vendor-data")
+}
+
+func TestNetHashChangesWithFloating(t *testing.T) {
+	in := input()
+	h := cloudinit.NetHash(in)
+	require.Len(t, h, 64)
+	require.Equal(t, h, cloudinit.NetHash(input()))
+
+	other := input()
+	other.InstanceID, other.UserData, other.SSHKeys = "nb-srv-7-9", "#!/bin/sh\n", []string{keyB}
+	require.Equal(t, h, cloudinit.NetHash(other), "only network-config and vendor-data count")
+
+	in.Floating = []netip.Addr{netip.MustParseAddr("192.0.2.7")}
+	require.NotEqual(t, h, cloudinit.NetHash(in))
+
+	refresh := input()
+	refresh.NetRefresh = true
+	require.NotEqual(t, h, cloudinit.NetHash(refresh))
+}

@@ -420,7 +420,7 @@ func init() {
 	// server.DefaultIsoNetHash holds the default value on creation for the iso_net_hash field.
 	server.DefaultIsoNetHash = serverDescIsoNetHash.Default.(string)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[37].Descriptor()
+	serverDescCreatedAt := serverFields[38].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servernetworkFields := schema.ServerNetwork{}.Fields()

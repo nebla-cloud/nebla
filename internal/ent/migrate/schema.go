@@ -972,6 +972,7 @@ var (
 		{Name: "net_refresh", Type: field.TypeBool, Default: false},
 		{Name: "instance_gen", Type: field.TypeInt64, Default: 0},
 		{Name: "iso_net_hash", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "iso_lease_until", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -986,25 +987,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "servers_projects_project",
-				Columns:    []*schema.Column{ServersColumns[34]},
+				Columns:    []*schema.Column{ServersColumns[35]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_locations_location",
-				Columns:    []*schema.Column{ServersColumns[35]},
+				Columns:    []*schema.Column{ServersColumns[36]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_server_types_server_type",
-				Columns:    []*schema.Column{ServersColumns[36]},
+				Columns:    []*schema.Column{ServersColumns[37]},
 				RefColumns: []*schema.Column{ServerTypesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_images_image",
-				Columns:    []*schema.Column{ServersColumns[37]},
+				Columns:    []*schema.Column{ServersColumns[38]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -1013,7 +1014,7 @@ var (
 			{
 				Name:    "servers_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{ServersColumns[34], ServersColumns[1]},
+				Columns: []*schema.Column{ServersColumns[35], ServersColumns[1]},
 			},
 			{
 				Name:    "servers_mac_key",
@@ -1023,17 +1024,17 @@ var (
 			{
 				Name:    "servers_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[35], ServersColumns[2]},
+				Columns: []*schema.Column{ServersColumns[36], ServersColumns[2]},
 			},
 			{
 				Name:    "servers_server_type_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[36]},
+				Columns: []*schema.Column{ServersColumns[37]},
 			},
 			{
 				Name:    "servers_image_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[37]},
+				Columns: []*schema.Column{ServersColumns[38]},
 			},
 		},
 	}

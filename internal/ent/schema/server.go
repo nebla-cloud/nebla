@@ -81,6 +81,8 @@ func (Server) Fields() []ent.Field {
 		field.Int64("instance_gen").Default(0),
 		// iso_net_hash is the network config baked into the current ISO.
 		field.Text("iso_net_hash").Default(""),
+		// iso_lease_until is held by the one seed ISO writer working on the server.
+		field.Time("iso_lease_until").Optional().Nillable(),
 		createdAt(),
 	}
 }

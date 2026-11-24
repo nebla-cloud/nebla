@@ -164,10 +164,10 @@ func (r *rebuildRun) load(ctx context.Context) error {
 	if r.image != nil {
 		tmpl = r.image.tmpl
 	}
-	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: tmpl, archive: r.archive, isoGen: r.row.IsoGeneration + 1,
-		instGen: cmp.Or(r.instGen, r.row.IsoGeneration+1),
-		st:      buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
-		save:    r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost, afterUpidSave: r.afterUpid}
+	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: tmpl, archive: r.archive, isoGen: r.row.IsoGeneration + 1, nextGen: true,
+		instGen: cmp.Or(r.instGen, r.row.IsoGeneration+1), pinInst: r.instGen,
+		st:   buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
+		save: r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost, afterUpidSave: r.afterUpid}
 	return nil
 }
 
@@ -238,7 +238,8 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 		if r.image != nil {
 			u.SetImageID(r.image.id).SetTemplateVmid(r.image.tmpl)
 		}
-		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap)
+		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap).
+			SetInstanceGen(int64(r.b.instGen)).SetNetRefresh(true).SetIsoNetHash(r.b.netHash)
 		setSlot(u.SetVmid, u.ClearVmid, nu.Vmid)
 		setSlot(u.SetCloneUpid, u.ClearCloneUpid, nu.Upid)
 		setSlot(u.SetCloneNonce, u.ClearCloneNonce, nu.Nonce)
@@ -300,6 +301,10 @@ func (r *rebuildRun) finish(ctx context.Context) error {
 			return err
 		}
 		if err := r.b.raiseApplied(ctx, tx); err != nil {
+			return err
+		}
+		// Network changes made after the ISO step reach the ISO through this sync.
+		if err := queueISOSyncTx(ctx, tx, r.o.jobs(), r.row.ID); err != nil {
 			return err
 		}
 		if r.finishTx != nil {
@@ -365,6 +370,10 @@ func (r *rebuildRun) cleanup(ctx context.Context, f failure) error {
 	}
 	if err := u.Exec(ctx); err != nil {
 		return err
+	}
+	// Syncs waited for the rebuild or restore; the kept VM's ISO may be behind.
+	if err := QueueISOSync(ctx, r.o.SQL, r.o.jobs(), cur.ID); err != nil {
+		log.Warn(r.name+" cleanup: queue iso sync", "err", err)
 	}
 	if r.onFail != nil {
 		if err := r.onFail(ctx); err != nil {

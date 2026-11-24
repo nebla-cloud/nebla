@@ -36,6 +36,9 @@ import (
 
 const cloudConfigHeader = "#cloud-config"
 
+// vendorData opts the guest into re-applying network-config on every boot.
+const vendorData = cloudConfigHeader + "\nupdates:\n  network:\n    when: [boot]\n"
+
 type Input struct {
 	InstanceID, Hostname string
 	SSHKeys              []string
@@ -46,6 +49,8 @@ type Input struct {
 	Floating []netip.Addr
 	// Private are the server's private NICs, eth1 and up.
 	Private []PrivateNIC
+	// NetRefresh writes vendor-data that re-applies network-config on boot.
+	NetRefresh bool
 }
 
 // PrivateNIC is one private NIC: matched by MAC, addressed inside its network's range.
@@ -56,7 +61,27 @@ type PrivateNIC struct {
 	MTU   int
 }
 
-// Build returns a NoCloud ISO (label cidata) with meta-data, network-config and user-data.
+func (in Input) vendorData() []byte {
+	if !in.NetRefresh {
+		return nil
+	}
+	return []byte(vendorData)
+}
+
+// NetHash is the hex sha256 of the network-config and vendor-data Build writes; "" if they can't render.
+func NetHash(in Input) string {
+	netcfg, err := networkConfig(in)
+	if err != nil {
+		return ""
+	}
+	h := sha256.New()
+	h.Write(netcfg)
+	h.Write([]byte{0})
+	h.Write(in.vendorData())
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// Build returns a NoCloud ISO (label cidata) with meta-data, network-config, user-data and, with NetRefresh, vendor-data.
 func Build(in Input) (io.Reader, error) {
 	meta, err := yaml.Marshal(map[string]string{"instance-id": in.InstanceID, "local-hostname": in.Hostname})
 	if err != nil {
@@ -75,7 +100,11 @@ func Build(in Input) (io.Reader, error) {
 		return nil, err
 	}
 	defer w.Cleanup()
-	for name, b := range map[string][]byte{"meta-data": meta, "network-config": netcfg, "user-data": ud} {
+	files := map[string][]byte{"meta-data": meta, "network-config": netcfg, "user-data": ud}
+	if vd := in.vendorData(); vd != nil {
+		files["vendor-data"] = vd
+	}
+	for name, b := range files {
 		if err := w.AddFile(bytes.NewReader(b), name); err != nil {
 			return nil, err
 		}

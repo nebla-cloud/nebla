@@ -87,6 +87,8 @@ const (
 	FieldInstanceGen = "instance_gen"
 	// FieldIsoNetHash holds the string denoting the iso_net_hash field in the database.
 	FieldIsoNetHash = "iso_net_hash"
+	// FieldIsoLeaseUntil holds the string denoting the iso_lease_until field in the database.
+	FieldIsoLeaseUntil = "iso_lease_until"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -168,6 +170,7 @@ var Columns = []string{
 	FieldNetRefresh,
 	FieldInstanceGen,
 	FieldIsoNetHash,
+	FieldIsoLeaseUntil,
 	FieldCreatedAt,
 }
 
@@ -423,6 +426,11 @@ func ByInstanceGen(opts ...sql.OrderTermOption) OrderOption {
 // ByIsoNetHash orders the results by the iso_net_hash field.
 func ByIsoNetHash(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsoNetHash, opts...).ToFunc()
+}
+
+// ByIsoLeaseUntil orders the results by the iso_lease_until field.
+func ByIsoLeaseUntil(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIsoLeaseUntil, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

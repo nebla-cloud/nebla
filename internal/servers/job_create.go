@@ -84,6 +84,7 @@ func RegisterWorkers(w *river.Workers, o WorkerOptions) {
 	nw := NewNetworkWorker(o)
 	river.AddWorker(w, nw.Attach())
 	river.AddWorker(w, nw.Detach())
+	river.AddWorker(w, NewSyncISOWorker(o))
 }
 
 func (o *WorkerOptions) defaults() {
@@ -154,6 +155,9 @@ func (c *createRun) save(ctx context.Context, st buildState) error {
 	if st.Step >= stepISO {
 		u.SetIsoVolid(c.b.volid())
 	}
+	if st.Step >= stepISO && c.b.netHash != "" {
+		u.SetIsoNetHash(c.b.netHash).SetInstanceGen(int64(c.b.isoGen)).SetNetRefresh(true)
+	}
 	row, err := u.Save(ctx)
 	if err != nil {
 		return err
@@ -204,6 +208,10 @@ func (c *createRun) finish(ctx context.Context) error {
 			return err
 		}
 		if err := c.b.raiseApplied(ctx, tx); err != nil {
+			return err
+		}
+		// Network changes made after the ISO step reach the ISO through this sync.
+		if err := queueISOSyncTx(ctx, tx, c.w.o.jobs(), c.row.ID); err != nil {
 			return err
 		}
 		return actions.Succeed(ctx, etx, c.args.ActionID)

@@ -21855,6 +21855,7 @@ type ServerMutation struct {
 	instance_gen            *int64
 	addinstance_gen         *int64
 	iso_net_hash            *string
+	iso_lease_until         *time.Time
 	created_at              *time.Time
 	clearedFields           map[string]struct{}
 	project                 *int64
@@ -23704,6 +23705,55 @@ func (m *ServerMutation) ResetIsoNetHash() {
 	m.iso_net_hash = nil
 }
 
+// SetIsoLeaseUntil sets the "iso_lease_until" field.
+func (m *ServerMutation) SetIsoLeaseUntil(t time.Time) {
+	m.iso_lease_until = &t
+}
+
+// IsoLeaseUntil returns the value of the "iso_lease_until" field in the mutation.
+func (m *ServerMutation) IsoLeaseUntil() (r time.Time, exists bool) {
+	v := m.iso_lease_until
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsoLeaseUntil returns the old "iso_lease_until" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldIsoLeaseUntil(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsoLeaseUntil is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsoLeaseUntil requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsoLeaseUntil: %w", err)
+	}
+	return oldValue.IsoLeaseUntil, nil
+}
+
+// ClearIsoLeaseUntil clears the value of the "iso_lease_until" field.
+func (m *ServerMutation) ClearIsoLeaseUntil() {
+	m.iso_lease_until = nil
+	m.clearedFields[server.FieldIsoLeaseUntil] = struct{}{}
+}
+
+// IsoLeaseUntilCleared returns if the "iso_lease_until" field was cleared in this mutation.
+func (m *ServerMutation) IsoLeaseUntilCleared() bool {
+	_, ok := m.clearedFields[server.FieldIsoLeaseUntil]
+	return ok
+}
+
+// ResetIsoLeaseUntil resets all changes to the "iso_lease_until" field.
+func (m *ServerMutation) ResetIsoLeaseUntil() {
+	m.iso_lease_until = nil
+	delete(m.clearedFields, server.FieldIsoLeaseUntil)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ServerMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -23882,7 +23932,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 37)
+	fields := make([]string, 0, 38)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -23991,6 +24041,9 @@ func (m *ServerMutation) Fields() []string {
 	if m.iso_net_hash != nil {
 		fields = append(fields, server.FieldIsoNetHash)
 	}
+	if m.iso_lease_until != nil {
+		fields = append(fields, server.FieldIsoLeaseUntil)
+	}
 	if m.created_at != nil {
 		fields = append(fields, server.FieldCreatedAt)
 	}
@@ -24074,6 +24127,8 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.InstanceGen()
 	case server.FieldIsoNetHash:
 		return m.IsoNetHash()
+	case server.FieldIsoLeaseUntil:
+		return m.IsoLeaseUntil()
 	case server.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -24157,6 +24212,8 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldInstanceGen(ctx)
 	case server.FieldIsoNetHash:
 		return m.OldIsoNetHash(ctx)
+	case server.FieldIsoLeaseUntil:
+		return m.OldIsoLeaseUntil(ctx)
 	case server.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -24420,6 +24477,13 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIsoNetHash(v)
 		return nil
+	case server.FieldIsoLeaseUntil:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsoLeaseUntil(v)
+		return nil
 	case server.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -24667,6 +24731,9 @@ func (m *ServerMutation) ClearedFields() []string {
 	if m.FieldCleared(server.FieldBackupsEnabledAt) {
 		fields = append(fields, server.FieldBackupsEnabledAt)
 	}
+	if m.FieldCleared(server.FieldIsoLeaseUntil) {
+		fields = append(fields, server.FieldIsoLeaseUntil)
+	}
 	return fields
 }
 
@@ -24707,6 +24774,9 @@ func (m *ServerMutation) ClearField(name string) error {
 		return nil
 	case server.FieldBackupsEnabledAt:
 		m.ClearBackupsEnabledAt()
+		return nil
+	case server.FieldIsoLeaseUntil:
+		m.ClearIsoLeaseUntil()
 		return nil
 	}
 	return fmt.Errorf("unknown Server nullable field %s", name)
@@ -24823,6 +24893,9 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldIsoNetHash:
 		m.ResetIsoNetHash()
+		return nil
+	case server.FieldIsoLeaseUntil:
+		m.ResetIsoLeaseUntil()
 		return nil
 	case server.FieldCreatedAt:
 		m.ResetCreatedAt()

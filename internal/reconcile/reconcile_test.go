@@ -1336,3 +1336,84 @@ func TestDriftSeesMissingPrivateSet(t *testing.T) {
 	require.NoError(t, r.Run(ctx, e.Location))
 	require.Len(t, applies(t, e, row.ID), baseline+1, "a matching private set is not drift")
 }
+
+// isoSyncJobs counts the server's sync_iso jobs; live counts only unfinished ones.
+func isoSyncJobs(t *testing.T, e *testutil.ServerEnv, id int64, live bool) int {
+	t.Helper()
+	q := `select count(*) from river_job where kind = $1 and (args->>'server_id')::bigint = $2`
+	if live {
+		q += ` and state not in ('completed', 'cancelled', 'discarded')`
+	}
+	var n int
+	require.NoError(t, e.App.SQL.QueryRow(q, servers.KindSyncISO, id).Scan(&n))
+	return n
+}
+
+func TestReconcileSkipsUnknownOrBuildingISO(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, _ := running(t, e, "web")
+	require.Eventually(t, func() bool { return isoSyncJobs(t, e, row.ID, true) == 0 }, 10*time.Second, 20*time.Millisecond)
+	hooks, _ := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
+	fips := floatingips.New(floatingips.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog,
+		Projects: projects.New(e.App.Ent, projects.Options{Hooks: hooks}), Jobs: e.App.Jobs, Logger: quiet()})
+	fip, _, err := fips.Create(ctx, e.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	require.NoError(t, e.App.Ent.IPAddress.UpdateOneID(fip.ID).SetServerID(row.ID).Exec(ctx))
+	before := isoSyncJobs(t, e, row.ID, false)
+
+	// A server from before the upgrade has no hash; only an explicit change syncs it.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(row.ID).SetIsoNetHash("").Exec(ctx))
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, before, isoSyncJobs(t, e, row.ID, false))
+
+	// A build owns the ISO and queues its own sync.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(row.ID).SetIsoNetHash("stale").SetStatus(server.StatusRebuilding).Exec(ctx))
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, before, isoSyncJobs(t, e, row.ID, false))
+	require.Equal(t, 1, get(t, e, row.ID).IsoGeneration)
+}
+
+func TestReconcileQueuesStaleISO(t *testing.T) {
+	ctx := context.Background()
+	e := workerEnv(t)
+	r := newReconciler(e, quiet())
+	row, vmid := running(t, e, "web")
+	syncs := func(live bool) int { return isoSyncJobs(t, e, row.ID, live) }
+	require.Eventually(t, func() bool { return syncs(true) == 0 }, 10*time.Second, 20*time.Millisecond)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Eventually(t, func() bool { return syncs(true) == 0 }, 10*time.Second, 20*time.Millisecond)
+	require.Equal(t, 1, get(t, e, row.ID).IsoGeneration, "an ISO in step is left alone")
+
+	// An address written straight into the DB leaves the ISO behind.
+	hooks, _ := httpapi.ServerHooks(projects.Hooks{}, catalog.Hooks{})
+	fips := floatingips.New(floatingips.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog,
+		Projects: projects.New(e.App.Ent, projects.Options{Hooks: hooks}), Jobs: e.App.Jobs, Logger: quiet()})
+	fip, _, err := fips.Create(ctx, e.Project, floatingips.CreateInput{Family: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	require.NoError(t, e.App.Ent.IPAddress.UpdateOneID(fip.ID).SetServerID(row.ID).Exec(ctx))
+
+	// A running action holds the sync off.
+	var busy actions.Action
+	require.NoError(t, db.WithTx(ctx, e.App.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		var err error
+		busy, err = e.App.Jobs.StartAction(ctx, tx, etx, e.Project, "test", []actions.Resource{{ID: row.ID, Type: jobs.ServerResource}},
+			func(int64) river.JobArgs { return jobs.PingArgs{} }, &river.InsertOpts{ScheduledAt: time.Now().Add(time.Hour)})
+		return err
+	}))
+	before := syncs(false)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Equal(t, before, syncs(false))
+
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, busy.ID))
+	// Drift repair started an apply for the new address; let it finish.
+	require.Eventually(t, func() bool {
+		n, err := e.App.Ent.Action.Query().Where(servers.ActionsOf(e.Project, row.ID), action.StatusEQ(action.StatusRunning)).Count(ctx)
+		return err == nil && n == 0
+	}, 10*time.Second, 20*time.Millisecond)
+	require.NoError(t, r.Run(ctx, e.Location))
+	require.Eventually(t, func() bool { return get(t, e, row.ID).IsoGeneration == 2 }, 10*time.Second, 20*time.Millisecond)
+	vm, _ := e.App.PVE.VM(vmid)
+	require.Equal(t, "local:iso/nb-srv-"+strconv.FormatInt(row.ID, 10)+"-2.iso,media=cdrom", vm.Config["ide2"])
+}

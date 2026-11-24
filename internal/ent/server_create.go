@@ -434,6 +434,20 @@ func (_c *ServerCreate) SetNillableIsoNetHash(v *string) *ServerCreate {
 	return _c
 }
 
+// SetIsoLeaseUntil sets the "iso_lease_until" field.
+func (_c *ServerCreate) SetIsoLeaseUntil(v time.Time) *ServerCreate {
+	_c.mutation.SetIsoLeaseUntil(v)
+	return _c
+}
+
+// SetNillableIsoLeaseUntil sets the "iso_lease_until" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableIsoLeaseUntil(v *time.Time) *ServerCreate {
+	if v != nil {
+		_c.SetIsoLeaseUntil(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ServerCreate) SetCreatedAt(v time.Time) *ServerCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -835,6 +849,10 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsoNetHash(); ok {
 		_spec.SetField(server.FieldIsoNetHash, field.TypeString, value)
 		_node.IsoNetHash = value
+	}
+	if value, ok := _c.mutation.IsoLeaseUntil(); ok {
+		_spec.SetField(server.FieldIsoLeaseUntil, field.TypeTime, value)
+		_node.IsoLeaseUntil = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(server.FieldCreatedAt, field.TypeTime, value)
@@ -1497,6 +1515,24 @@ func (u *ServerUpsert) SetIsoNetHash(v string) *ServerUpsert {
 // UpdateIsoNetHash sets the "iso_net_hash" field to the value that was provided on create.
 func (u *ServerUpsert) UpdateIsoNetHash() *ServerUpsert {
 	u.SetExcluded(server.FieldIsoNetHash)
+	return u
+}
+
+// SetIsoLeaseUntil sets the "iso_lease_until" field.
+func (u *ServerUpsert) SetIsoLeaseUntil(v time.Time) *ServerUpsert {
+	u.Set(server.FieldIsoLeaseUntil, v)
+	return u
+}
+
+// UpdateIsoLeaseUntil sets the "iso_lease_until" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateIsoLeaseUntil() *ServerUpsert {
+	u.SetExcluded(server.FieldIsoLeaseUntil)
+	return u
+}
+
+// ClearIsoLeaseUntil clears the value of the "iso_lease_until" field.
+func (u *ServerUpsert) ClearIsoLeaseUntil() *ServerUpsert {
+	u.SetNull(server.FieldIsoLeaseUntil)
 	return u
 }
 
@@ -2187,6 +2223,27 @@ func (u *ServerUpsertOne) SetIsoNetHash(v string) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateIsoNetHash() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateIsoNetHash()
+	})
+}
+
+// SetIsoLeaseUntil sets the "iso_lease_until" field.
+func (u *ServerUpsertOne) SetIsoLeaseUntil(v time.Time) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetIsoLeaseUntil(v)
+	})
+}
+
+// UpdateIsoLeaseUntil sets the "iso_lease_until" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateIsoLeaseUntil() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateIsoLeaseUntil()
+	})
+}
+
+// ClearIsoLeaseUntil clears the value of the "iso_lease_until" field.
+func (u *ServerUpsertOne) ClearIsoLeaseUntil() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearIsoLeaseUntil()
 	})
 }
 
@@ -3043,6 +3100,27 @@ func (u *ServerUpsertBulk) SetIsoNetHash(v string) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateIsoNetHash() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateIsoNetHash()
+	})
+}
+
+// SetIsoLeaseUntil sets the "iso_lease_until" field.
+func (u *ServerUpsertBulk) SetIsoLeaseUntil(v time.Time) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetIsoLeaseUntil(v)
+	})
+}
+
+// UpdateIsoLeaseUntil sets the "iso_lease_until" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateIsoLeaseUntil() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateIsoLeaseUntil()
+	})
+}
+
+// ClearIsoLeaseUntil clears the value of the "iso_lease_until" field.
+func (u *ServerUpsertBulk) ClearIsoLeaseUntil() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.ClearIsoLeaseUntil()
 	})
 }
 
