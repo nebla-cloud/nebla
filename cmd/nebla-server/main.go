@@ -120,7 +120,8 @@ func run() error {
 	osi.SetJobs(runner)
 	rec.SetJobs(runner)
 	fips = floatingips.New(floatingips.Options{SQL: sqlDB, Ent: client, Catalog: cat, Jobs: runner, Logger: log, Bus: bus})
-	nets = networks.New(networks.Options{SQL: sqlDB, Ent: client, Catalog: cat, Jobs: runner, Logger: log, Bus: bus})
+	netProjects := projects.New(client, projects.Options{Logger: log, Hooks: projectHooks, DefaultQuota: cfg.DefaultQuota})
+	nets = networks.New(networks.Options{SQL: sqlDB, Ent: client, Catalog: cat, Projects: netProjects, Jobs: runner, Logger: log, Bus: bus})
 	// Server actions get the DB-only rescue so their rows are repaired; the sweep catches the rest.
 	if err := rec.RescueAll(ctx); err != nil {
 		return err
