@@ -109,6 +109,7 @@ test('create a network, join two servers, detach and delete', async ({ page }) =
   await expect(guest).toContainText(second)
   await expect(guest.getByTestId('guest-apply')).toBeVisible()
   // These servers have net_refresh: cloud-init writes the NIC at the next boot, so there is nothing to persist.
+  // Covers new servers only; persist/remove for old servers is covered by Go tests.
   await expect(guest.getByTestId('guest-persist')).toHaveCount(0)
   await noHidden()
   await guest.getByRole('button', { name: 'Done' }).click()

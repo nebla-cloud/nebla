@@ -92,8 +92,12 @@ func (w *NetworkWorker) work(ctx context.Context, job *rivertype.JobRow, ids net
 	}
 	log := w.o.Logger.With("server_id", ids.serverID, "network_id", ids.networkID, "action_id", act.ID, "command", act.Command)
 	// The seed ISO carries the server's private NICs, so a finished attach or detach queues its sync.
-	// Every server gets it: without net_refresh the sync only refreshes the ISO, keeping the instance-id.
+	// Every server gets it: without net_refresh the sync only refreshes the ISO and keeps the instance-id,
+	// unless a bump is pending (syncISO ORs in instance_bump_pending), which it then applies.
 	queue := func(ctx context.Context) {
+		if srv, err := w.o.Ent.Server.Get(ctx, ids.serverID); err != nil || srv.Status == StatusDeleting {
+			return
+		}
 		if err := QueueISOSync(ctx, w.o.SQL, w.o.jobs(), ids.serverID); err != nil {
 			log.Warn("network: queue iso sync", "err", err)
 		}

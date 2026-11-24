@@ -466,6 +466,25 @@ func TestAttachAndDetachSyncTheSeedISO(t *testing.T) {
 	}
 }
 
+func TestAttachSyncAppliesPendingBump(t *testing.T) {
+	ctx := context.Background()
+	n := newNetEnv(t)
+	require.NoError(t, n.App.Ent.Server.UpdateOneID(n.srv).SetNetRefresh(false).SetInstanceBumpPending(true).Exec(ctx))
+	before := srvRow(t, n.ServerEnv, n.srv)
+	n.App.PVE.SetVMStatus(n.vmid, "stopped")
+	n.attachRow(t, n.netID, 1, servernetwork.StateAttaching)
+	_, err := n.attach(t, n.netID, 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, queuedSyncs(t, n.ServerEnv, n.srv))
+
+	row := n.syncISO(t)
+	require.Equal(t, before.IsoGeneration+1, row.IsoGeneration)
+	require.Equal(t, row.IsoGeneration, servers.InstanceGeneration(row), "the pending bump moves the instance-id")
+	require.NotEqual(t, servers.InstanceGeneration(before), servers.InstanceGeneration(row))
+	require.True(t, row.NetRefresh)
+	require.False(t, row.InstanceBumpPending)
+}
+
 func TestFailedAttachQueuesISOSync(t *testing.T) {
 	n := newNetEnv(t)
 	n.attachRow(t, n.netID, 1, servernetwork.StateAttaching)

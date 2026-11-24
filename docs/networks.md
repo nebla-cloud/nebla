@@ -75,7 +75,8 @@ nebla server detach-from-network web1 --network backend
 ```
 
 For servers from before IP changes were supported, the panel and the CLI print a command that removes the saved
-configuration from the server. Other servers drop the interface's setup at the next boot. The address becomes free for
+configuration from the server. If an IP change later moves the server to the new behaviour, remove
+`/etc/netplan/60-nebla-net-<id>.yaml` yourself after detaching. Other servers drop the interface's setup at the next boot. The address becomes free for
 other servers after a short wait.
 
 To delete a network, detach every server first. Otherwise deleting fails with "Detach all servers from this network
