@@ -17,10 +17,13 @@ package servers_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/ent"
+	entbackup "github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ent/backuptombstone"
 	"github.com/nebla-cloud/nebla/internal/ext"
 	"github.com/nebla-cloud/nebla/internal/servers"
@@ -76,6 +79,49 @@ func TestDeleteServerTombstonesOnFailure(t *testing.T) {
 	require.Equal(t, "pbs", ts.Storage)
 	require.Equal(t, e.Location, ts.LocationID)
 	require.Len(t, e.bus.of(ext.BackupDeleted), 1)
+}
+
+// interrupted is a creating backup whose vzdump wrote an archive before a crash, with no volid recorded.
+func (e *restoreEnv) interrupted(t *testing.T) (*ent.Backup, string) {
+	t.Helper()
+	ctx := context.Background()
+	row := e.App.Ent.Server.GetX(ctx, e.s.ServerID)
+	b := e.App.Ent.Backup.Create().SetProjectID(e.Project).SetServerID(row.ID).SetLocationID(e.Location).SetStorage("pbs").
+		SetNode(row.Node).SetKind(entbackup.KindManual).SetStatus(entbackup.StatusCreating).
+		SetInstanceGeneration(servers.InstanceGeneration(row)).SaveX(ctx)
+	pc, err := e.App.Catalog.ProxmoxFor(ctx, e.Location)
+	require.NoError(t, err)
+	up, err := pc.Vzdump(ctx, row.Node, *row.Vmid, "pbs", fmt.Sprintf("nebla server %d backup %d", row.ID, b.ID))
+	require.NoError(t, err)
+	require.NoError(t, pc.WaitTask(ctx, row.Node, up))
+	items, err := pc.BackupContent(ctx, row.Node, "pbs", *row.Vmid)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	return b, items[0].Volid
+}
+
+func TestDeleteServerRemovesUnrecordedArchive(t *testing.T) {
+	ctx := context.Background()
+	e := newRestoreEnv(t)
+	e.interrupted(t)
+
+	e.deleteServer(t)
+	require.Zero(t, e.archives(t), "archive found by its notes and deleted")
+	require.Zero(t, e.App.Ent.Backup.Query().CountX(ctx))
+	require.Zero(t, e.App.Ent.BackupTombstone.Query().CountX(ctx))
+	require.Empty(t, e.bus.of(ext.BackupDeleted), "it was never created")
+}
+
+func TestDeleteServerTombstonesUnrecordedArchive(t *testing.T) {
+	ctx := context.Background()
+	e := newRestoreEnv(t)
+	_, volid := e.interrupted(t)
+	e.App.PVE.FailNext(volid, 500)
+
+	e.deleteServer(t)
+	require.Equal(t, 1, e.archives(t))
+	require.Zero(t, e.App.Ent.Backup.Query().CountX(ctx))
+	require.True(t, e.App.Ent.BackupTombstone.Query().Where(backuptombstone.Volid(volid)).ExistX(ctx))
 }
 
 func TestDeleteDuringBackup409(t *testing.T) {

@@ -18,6 +18,7 @@ package servers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -58,11 +59,22 @@ func (w *DeleteServerWorker) deleteBackups(ctx context.Context, pc pve.Client, r
 		return
 	}
 	for _, b := range rows {
-		if b.Volid != nil && !w.dropArchive(ctx, log, pc, loc, b) {
-			continue
+		blog := log.With("backup_id", b.ID)
+		node := onlineNode(loc, b.Node)
+		if b.Volid != nil {
+			if err := DropArchive(ctx, blog, w.o.Ent, pc, node, b, *b.Volid); err != nil {
+				blog.Warn("delete backups: record tombstone", "err", err)
+				continue
+			}
+		} else if b.Status == backup.StatusCreating {
+			if node == "" {
+				blog.Warn("delete backups: no online node to look for an unrecorded archive")
+			} else {
+				DropUnrecordedArchive(ctx, blog, w.o.Ent, pc, node, b)
+			}
 		}
 		if err := w.o.Ent.Backup.DeleteOneID(b.ID).Exec(ctx); err != nil && !ent.IsNotFound(err) {
-			log.Warn("delete backups: delete row", "backup_id", b.ID, "err", err)
+			blog.Warn("delete backups: delete row", "err", err)
 			continue
 		}
 		if b.Volid != nil {
@@ -71,24 +83,52 @@ func (w *DeleteServerWorker) deleteBackups(ctx context.Context, pc pve.Client, r
 	}
 }
 
-// dropArchive deletes b's archive or tombstones it; false means neither worked and the row must stay.
-func (w *DeleteServerWorker) dropArchive(ctx context.Context, log *slog.Logger, pc pve.Client, loc catalog.Location, b *ent.Backup) bool {
-	node := onlineNode(loc, b.Node)
+// BackupNotes are the vzdump notes that name a backup.
+func BackupNotes(serverID, backupID int64) string {
+	return fmt.Sprintf("nebla server %d backup %d", serverID, backupID)
+}
+
+// FindArchive is the archive on storage whose notes name b; vmid 0 searches all of it.
+func FindArchive(ctx context.Context, pc pve.Client, node, storage string, vmid int, b *ent.Backup) (pve.BackupItem, bool, error) {
+	items, err := pc.BackupContent(ctx, node, storage, vmid)
+	if err != nil {
+		return pve.BackupItem{}, false, err
+	}
+	want := BackupNotes(b.ServerID, b.ID)
+	i := slices.IndexFunc(items, func(it pve.BackupItem) bool { return strings.TrimSpace(it.Notes) == want })
+	if i < 0 {
+		return pve.BackupItem{}, false, nil
+	}
+	return items[i], true, nil
+}
+
+// DropArchive deletes volid, an archive of b, through node, or tombstones it; an error means neither worked.
+func DropArchive(ctx context.Context, log *slog.Logger, c *ent.Client, pc pve.Client, node string, b *ent.Backup, volid string) error {
 	err := errors.New("no online node")
 	if node != "" {
-		err = RemoveArchive(ctx, pc, node, b.Storage, *b.Volid)
+		err = RemoveArchive(ctx, pc, node, b.Storage, volid)
 	}
 	if err == nil {
-		return true
+		return nil
 	}
-	log.Warn("delete backups: delete archive, leaving a tombstone", "backup_id", b.ID, "err", err)
-	err = w.o.Ent.BackupTombstone.Create().SetVolid(*b.Volid).SetStorage(b.Storage).SetLocationID(b.LocationID).
+	log.Warn("delete backup archive, leaving a tombstone", "volid", volid, "err", err)
+	return c.BackupTombstone.Create().SetVolid(volid).SetStorage(b.Storage).SetLocationID(b.LocationID).
 		OnConflictColumns(backuptombstone.FieldVolid).Ignore().Exec(ctx)
+}
+
+// DropUnrecordedArchive deletes or tombstones the archive an interrupted backup wrote before its volid was recorded; best effort.
+func DropUnrecordedArchive(ctx context.Context, log *slog.Logger, c *ent.Client, pc pve.Client, node string, b *ent.Backup) {
+	item, ok, err := FindArchive(ctx, pc, node, b.Storage, 0, b)
 	if err != nil {
-		log.Warn("delete backups: record tombstone", "backup_id", b.ID, "err", err)
-		return false
+		log.Warn("look for an unrecorded backup archive", "err", err)
+		return
 	}
-	return true
+	if !ok {
+		return
+	}
+	if err := DropArchive(ctx, log, c, pc, node, b, item.Volid); err != nil {
+		log.Warn("unrecorded backup archive left behind", "volid", item.Volid, "err", err)
+	}
 }
 
 // onlineNode is prefer when it is online, else the first online node by name.

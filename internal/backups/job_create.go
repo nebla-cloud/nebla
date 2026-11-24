@@ -19,7 +19,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -81,7 +80,7 @@ func (w *CreateBackupWorker) giveUp(ctx context.Context, job *river.Job[CreateBa
 			return cause
 		}
 		defer release()
-		if err := w.drop(ctx, row.ID); err != nil {
+		if err := w.drop(ctx, row); err != nil {
 			return err
 		}
 	}
@@ -136,7 +135,7 @@ func (w *CreateBackupWorker) work(ctx context.Context, job *river.Job[CreateBack
 	}
 	srv, err := w.o.Ent.Server.Get(ctx, row.ServerID)
 	if ent.IsNotFound(err) {
-		return w.drop(ctx, row.ID)
+		return w.drop(ctx, row)
 	}
 	if err != nil {
 		return err
@@ -144,7 +143,7 @@ func (w *CreateBackupWorker) work(ctx context.Context, job *river.Job[CreateBack
 	node := row.Node
 	if !running {
 		if srv.Status == server.StatusDeleting || srv.Status == server.StatusRebuilding {
-			return w.drop(ctx, row.ID)
+			return w.drop(ctx, row)
 		}
 		node = srv.Node
 		if row.Status == backup.StatusQueued {
@@ -183,10 +182,29 @@ func (w *CreateBackupWorker) work(ctx context.Context, job *river.Job[CreateBack
 	return w.steps(ctx, job, act, row, srv)
 }
 
-// drop deletes a pending backup that can no longer run.
-func (w *CreateBackupWorker) drop(ctx context.Context, id int64) error {
-	_, err := w.o.Ent.Backup.Delete().Where(backup.ID(id), backup.StatusIn(backup.StatusQueued, backup.StatusCreating)).Exec(ctx)
+// drop deletes a pending backup that can no longer run, and any archive an interrupted run of it left.
+func (w *CreateBackupWorker) drop(ctx context.Context, row *ent.Backup) error {
+	if row.Status == backup.StatusCreating && row.Volid == nil {
+		w.dropArchive(ctx, row)
+	}
+	_, err := w.o.Ent.Backup.Delete().Where(backup.ID(row.ID), backup.StatusIn(backup.StatusQueued, backup.StatusCreating)).Exec(ctx)
 	return err
+}
+
+// dropArchive deletes or tombstones the archive vzdump may have written for row; best effort.
+func (w *CreateBackupWorker) dropArchive(ctx context.Context, row *ent.Backup) {
+	log := w.o.Logger.With("backup_id", row.ID, "server_id", row.ServerID)
+	pc, err := w.o.pveFor(ctx, row.LocationID)
+	if err != nil {
+		log.Warn("dropped backup: archive not checked", "err", err)
+		return
+	}
+	node, err := w.o.storageNode(ctx, row.LocationID, row.Node)
+	if err != nil {
+		log.Warn("dropped backup: archive not checked", "err", err)
+		return
+	}
+	servers.DropUnrecordedArchive(ctx, log, w.o.Ent, pc, node, row)
 }
 
 // firstInLine is whether no older pending backup with a live job waits for the same node.
@@ -291,7 +309,7 @@ func (w *CreateBackupWorker) steps(ctx context.Context, job *river.Job[CreateBac
 		if err != nil {
 			return servers.StepError("connect to proxmox", err)
 		}
-		item, ok, err := findArchive(ctx, pc, row.Node, row.Storage, vmid, row)
+		item, ok, err := servers.FindArchive(ctx, pc, row.Node, row.Storage, vmid, row)
 		if err != nil {
 			return servers.StepError("list backups", err)
 		}
@@ -303,7 +321,7 @@ func (w *CreateBackupWorker) steps(ctx context.Context, job *river.Job[CreateBac
 			if err := pc.WaitTask(ctx, row.Node, upid); err != nil {
 				return servers.StepError("back up", err)
 			}
-			if item, ok, err = findArchive(ctx, pc, row.Node, row.Storage, vmid, row); err != nil {
+			if item, ok, err = servers.FindArchive(ctx, pc, row.Node, row.Storage, vmid, row); err != nil {
 				return servers.StepError("find archive", err)
 			}
 			if !ok {
@@ -320,36 +338,12 @@ func (w *CreateBackupWorker) steps(ctx context.Context, job *river.Job[CreateBac
 		return actions.Succeed(ctx, w.o.Ent, act.ID)
 	}
 	fail := func(ctx context.Context, f servers.Failure) error {
-		w.removeArchive(ctx, log, row, srv)
-		if err := w.drop(ctx, row.ID); err != nil {
+		if err := w.drop(ctx, row); err != nil {
 			return err
 		}
 		return failAction(ctx, w.o.Ent, act.ID, f)
 	}
 	return servers.Contract{Job: job.JobRow, Name: "back up", Finished: act.Finished != nil, Log: log, Run: run, Fail: fail}.Work(ctx)
-}
-
-// removeArchive deletes the failed backup's archive if vzdump wrote one, best effort.
-func (w *CreateBackupWorker) removeArchive(ctx context.Context, log *slog.Logger, row *ent.Backup, srv *ent.Server) {
-	if srv.Vmid == nil {
-		return
-	}
-	pc, err := w.o.pveFor(ctx, row.LocationID)
-	if err != nil {
-		log.Warn("failed backup: archive not checked", "err", err)
-		return
-	}
-	item, ok, err := findArchive(ctx, pc, row.Node, row.Storage, *srv.Vmid, row)
-	if err != nil {
-		log.Warn("failed backup: archive not checked", "err", err)
-		return
-	}
-	if !ok {
-		return
-	}
-	if err := servers.RemoveArchive(ctx, pc, row.Node, row.Storage, item.Volid); err != nil {
-		log.Warn("failed backup: archive left behind", "volid", item.Volid, "err", err)
-	}
 }
 
 // prune deletes the server's oldest available backups beyond its keep; errors are logged, and the next run retries.

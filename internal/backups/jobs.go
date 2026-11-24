@@ -18,7 +18,6 @@ package backups
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -101,9 +100,7 @@ func (o *WorkerOptions) defaults() {
 }
 
 // notes is the vzdump notes that tie an archive to its backup row.
-func notes(serverID, backupID int64) string {
-	return fmt.Sprintf("nebla server %d backup %d", serverID, backupID)
-}
+func notes(serverID, backupID int64) string { return servers.BackupNotes(serverID, backupID) }
 
 func (o *WorkerOptions) publish(ctx context.Context, kind ext.EventKind, b *ent.Backup, extra map[string]any) {
 	if o.Bus == nil {
@@ -137,18 +134,4 @@ func (o *WorkerOptions) storageNode(ctx context.Context, locationID int64, prefe
 		}
 	}
 	return "", servers.Transient("no online node in location %d", locationID)
-}
-
-// findArchive is the archive on storage whose notes name the backup.
-func findArchive(ctx context.Context, pc pve.Client, node, storage string, vmid int, b *ent.Backup) (pve.BackupItem, bool, error) {
-	items, err := pc.BackupContent(ctx, node, storage, vmid)
-	if err != nil {
-		return pve.BackupItem{}, false, err
-	}
-	want := notes(b.ServerID, b.ID)
-	i := slices.IndexFunc(items, func(it pve.BackupItem) bool { return strings.TrimSpace(it.Notes) == want })
-	if i < 0 {
-		return pve.BackupItem{}, false, nil
-	}
-	return items[i], true, nil
 }
