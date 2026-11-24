@@ -345,7 +345,17 @@ async function confirmDelete() {
         confirm-label="Delete server"
         :loading="deleting"
         @confirm="confirmDelete"
-      />
+      >
+        <template v-if="server.backups.count > 0" #intro>
+          <p class="text-sm text-default">
+            {{
+              server.backups.count === 1
+                ? '1 backup will also be deleted.'
+                : `${server.backups.count} backups will also be deleted.`
+            }}
+          </p>
+        </template>
+      </ConfirmByName>
     </div>
   </div>
 </template>

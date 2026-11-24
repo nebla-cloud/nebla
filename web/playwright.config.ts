@@ -47,11 +47,13 @@ export default defineConfig({
     { name: 'firewalls', testMatch: /firewalls\.spec\.ts/, dependencies: ['server-depth'] },
     // Attaches a volume to the server server-depth leaves behind.
     { name: 'volumes', testMatch: /volumes\.spec\.ts/, dependencies: ['firewalls'] },
+    // Backs up and restores the server server-depth leaves behind.
+    { name: 'backups', testMatch: /backups\.spec\.ts/, dependencies: ['volumes'] },
     // Assigns and moves a floating IP between the servers server-depth and firewalls leave behind.
     {
       name: 'floating-ips',
       testMatch: /floating-ips\.spec\.ts/,
-      dependencies: ['volumes'],
+      dependencies: ['backups'],
     },
     // Needs the Home lab project that first-run creates; runs last so it can't disturb server specs.
     { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['floating-ips'] },

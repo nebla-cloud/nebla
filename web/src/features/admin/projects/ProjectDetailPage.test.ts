@@ -29,13 +29,14 @@ const quota = {
   max_ips: 0,
   max_volumes: 5,
   max_volume_gb: 100,
+  max_backups: 35,
 }
 const detail = {
   id: 7,
   name: 'Alpha',
   quota,
   owner_email: 'ada@example.com',
-  usage: { servers: 3, vcpu: 6, memory_mb: 8192, disk_gb: 100, ips: 3, volumes: 1, volume_gb: 20 },
+  usage: { servers: 3, vcpu: 6, memory_mb: 8192, disk_gb: 100, ips: 3, volumes: 1, volume_gb: 20, backups: 4, backups_reserved: 9 },
   member_count: 4,
   created: '2026-03-04T10:00:00Z',
   members: [
@@ -105,6 +106,19 @@ afterEach(() => {
 })
 
 describe('ProjectDetailPage', () => {
+  it('shows backup usage and edits the backup limit', async () => {
+    serve()
+    const { wrapper } = await mount()
+    await ready(wrapper)
+    expect(wrapper.find('[data-row="backups"]').text()).toContain('Backups')
+    expect(wrapper.find('[data-row="backups"]').text()).toContain('Used 9')
+    expect(input('max_backups').value).toBe('35')
+    await setValue('max_backups', '50')
+    btn('Save limits').click()
+    await vi.waitFor(() => expect(puts).toHaveLength(1))
+    expect(puts[0]).toMatchObject({ max_backups: 50 })
+  })
+
   it('shows usage rows with memory in GB', async () => {
     serve()
     const { wrapper } = await mount()
@@ -135,6 +149,7 @@ describe('ProjectDetailPage', () => {
       max_ips: 0,
       max_volumes: 5,
       max_volume_gb: 100,
+      max_backups: 35,
     })
   })
 

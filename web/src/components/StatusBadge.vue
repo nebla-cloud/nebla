@@ -21,8 +21,13 @@ import type { Server } from '@/api/types'
 import { serverStatus, type StatusTone } from '@/lib/status'
 import StatusArch from './StatusArch.vue'
 
-const props = defineProps<{ status: Server['status'] }>()
-const s = computed(() => serverStatus(props.status))
+const props = defineProps<{ status: Server['status']; restoring?: boolean }>()
+// A restore has no server status of its own, so it borrows the busy look.
+const s = computed(() =>
+  props.restoring
+    ? { label: 'Restoring', tone: 'busy' as const, pulse: true }
+    : serverStatus(props.status),
+)
 const tone: Record<StatusTone, string> = {
   success: 'border-transparent bg-[var(--nb-run-bg)] text-[var(--nb-run-fg)]',
   busy: 'border-transparent bg-[var(--nb-soft)] text-[var(--nb-busy-fg)]',
@@ -36,7 +41,7 @@ const tone: Record<StatusTone, string> = {
     class="inline-flex h-7 items-center gap-[7px] rounded-t-[14px] rounded-b-[6px] border pr-3 pl-2 text-[13px] font-semibold"
     :class="tone[s.tone]"
   >
-    <StatusArch :status="status" :size="16" decorative />
+    <StatusArch :status="restoring ? 'rebuilding' : status" :size="16" decorative />
     {{ s.label }}
   </span>
 </template>

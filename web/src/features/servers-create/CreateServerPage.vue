@@ -26,6 +26,7 @@ import UIcon from '@nuxt/ui/components/Icon.vue'
 import { api } from '@/api/client'
 import { errorMessage, unwrap } from '@/api/errors'
 import type { components } from '@/api/schema'
+import UCheckbox from '@nuxt/ui/components/Checkbox.vue'
 import ChoiceCard from '@/components/ChoiceCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -38,6 +39,7 @@ import { useCurrentProject } from '@/lib/project'
 import OsBadge from '@/features/servers/OsBadge.vue'
 import { osParts } from '@/features/servers/osLabel'
 import { useServers } from '@/features/servers/queries'
+import { DEFAULT_KEEP } from '@/features/backups/queries'
 import AddSshKeyModal from '@/features/sshkeys/AddSshKeyModal.vue'
 import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
 import FirewallPicker from '@/features/firewalls/FirewallPicker.vue'
@@ -88,6 +90,7 @@ const form = reactive<CreateForm>({
   nameTouched: false,
 })
 const ipTouched = ref(false)
+const backups = ref(false)
 const firewallIds = ref<number[]>([])
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
@@ -131,6 +134,11 @@ const typeOptions = computed(() =>
 const nets = computed(() =>
   location.value ? networkChoice(location.value) : { ipv4: null, ipv6: null },
 )
+const backupsOn = computed(() => backups.value && location.value?.backups_available === true)
+const backupLimit = computed(() => {
+  const max = project.value?.quota?.max_backups ?? 0
+  return max > 0 ? String(max) : 'unlimited'
+})
 const existing = computed(() => (servers.value ?? []).map((s) => s.name))
 
 function applyReconcile() {
@@ -222,6 +230,7 @@ async function submit() {
     ssh_keys: form.sshKeyIds.map(String),
     public_net: { ipv4: form.ipv4, ipv6: form.ipv6 },
     ...(form.userData.trim() ? { user_data: form.userData } : {}),
+    ...(backupsOn.value ? { backups: { enabled: true, keep: DEFAULT_KEEP } } : {}),
     ...(firewallIds.value.length ? { firewalls: firewallIds.value.map((firewall) => ({ firewall })) } : {}),
   } as components['schemas']['ServerInput']
   try {
@@ -285,6 +294,14 @@ const cards = 'flex flex-wrap gap-2.5'
                 </ChoiceCard>
               </div>
             </fieldset>
+            <div v-if="location?.backups_available" class="mt-3">
+              <UCheckbox
+                v-model="backups"
+                name="backups"
+                :label="`Enable daily backups (keep ${DEFAULT_KEEP})`"
+                :description="`Uses ${DEFAULT_KEEP} of your ${backupLimit} backup slots`"
+              />
+            </div>
           </Step>
 
           <Step title="Image" :done="form.imageId !== null">

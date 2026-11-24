@@ -24,9 +24,10 @@ import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import { errorMessage } from '@/api/errors'
 import type { AdminLocation } from '@/api/types'
+import { selectFullClass } from '@/lib/ui'
 import { useSaveLocation, type LocationInput } from './queries'
 
-const props = defineProps<{ location?: AdminLocation }>()
+const props = defineProps<{ location?: AdminLocation; backupStorages?: string[] }>()
 const emit = defineEmits<{ saved: [AdminLocation]; cancel: [] }>()
 
 // A literal "//" in a template attribute breaks vue-tsc here.
@@ -46,7 +47,14 @@ const form = reactive({
   iso_storage: props.location?.iso_storage ?? '',
   import_storage: props.location?.import_storage ?? '',
   volume_storage: props.location?.volume_storage ?? '',
+  backup_storage: props.location?.backup_storage ?? '',
+  window_start: props.location?.backup_window.start ?? '02:00',
+  window_end: props.location?.backup_window.end ?? '06:00',
 })
+// The reported PBS storages, plus the one in use even if the last report no longer lists it.
+const pbsOptions = computed(() => [
+  ...new Set([...(props.backupStorages ?? []), ...(form.backup_storage ? [form.backup_storage] : [])]),
+])
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
 
@@ -60,6 +68,8 @@ function validate(): boolean {
   if (!editing.value && !form.token_secret) e.token_secret = 'Enter the API token secret.'
   if (!form.disk_storage.trim()) e.disk_storage = 'Enter the disk storage name.'
   if (!form.iso_storage.trim()) e.iso_storage = 'Enter the ISO storage name.'
+  if (editing.value && form.window_start === form.window_end)
+    e.backup_window = 'The window must start and end at different times.'
   errors.value = e
   return Object.keys(e).length === 0
 }
@@ -82,6 +92,10 @@ function body(): LocationInput {
   if (edit || form.description.trim()) out.description = form.description.trim()
   if (edit || form.import_storage.trim()) out.import_storage = form.import_storage.trim()
   if (edit || form.volume_storage.trim()) out.volume_storage = form.volume_storage.trim()
+  if (edit) {
+    out.backup_storage = form.backup_storage
+    out.backup_window = { start: form.window_start, end: form.window_end }
+  }
   return out
 }
 
@@ -232,6 +246,32 @@ async function submit() {
           autocomplete="off"
           class="w-full"
         />
+      </UFormField>
+    </fieldset>
+
+    <fieldset v-if="editing" class="flex flex-col gap-5">
+      <legend class="mb-3 font-bold tracking-tight text-highlighted">Backups</legend>
+      <UFormField
+        label="Backup storage"
+        name="backup_storage"
+        help="A Proxmox Backup Server storage. Choose None to turn backups off here. Existing backups stay restorable."
+      >
+        <select v-model="form.backup_storage" name="backup_storage" :class="selectFullClass">
+          <option value="">None</option>
+          <option v-for="s in pbsOptions" :key="s" :value="s">{{ s }}</option>
+        </select>
+      </UFormField>
+      <UFormField
+        label="Backup window (UTC)"
+        name="backup_window"
+        help="Scheduled backups start inside this window. It may cross midnight."
+        :error="errors.backup_window"
+      >
+        <div class="flex items-center gap-2">
+          <UInput v-model="form.window_start" name="backup_window_start" type="time" />
+          <span class="text-muted">to</span>
+          <UInput v-model="form.window_end" name="backup_window_end" type="time" />
+        </div>
       </UFormField>
     </fieldset>
 

@@ -32,7 +32,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nebla-cloud/nebla/internal/backups"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
+	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/osimages"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/ratelimit"
@@ -58,6 +60,8 @@ type harnessOut struct {
 	AddToken string `json:"add_token"`
 	// FailNext fails the next fake Proxmox request ending in pattern: POST {pattern, status}.
 	FailNext string `json:"fail_next"`
+	// EnableBackups points every location at the PBS storage and lifts the project backup limit: POST.
+	EnableBackups string `json:"enable_backups"`
 }
 
 // TestUIHarness serves the app until the stop file exists; run with -tags uiharness.
@@ -94,6 +98,17 @@ func TestUIHarness(t *testing.T) {
 			}
 			app.PVE.FailNext(in.Pattern, in.Status)
 			w.WriteHeader(http.StatusNoContent)
+		case r.URL.Path == "/_harness/enable-backups" && r.Method == http.MethodPost:
+			ctx := r.Context()
+			if err := app.Ent.Location.Update().SetBackupStorage("pbs").SetBackupStorageOk(true).Exec(ctx); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if err := app.Ent.Project.Update().SetMaxBackups(35).Exec(ctx); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 		case r.URL.Path == "/debian/SHA512SUMS":
 			if n := failNext.Load(); n > 0 && failNext.CompareAndSwap(n, n-1) {
 				http.NotFound(w, r)
@@ -117,6 +132,8 @@ func TestUIHarness(t *testing.T) {
 		testutil.ServerWorkers(w, d, pv)
 		volumes.RegisterWorkers(w, volumes.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus,
 			Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		backups.RegisterWorkers(w, backups.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus,
+			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Jobs: func() *jobs.Jobs { return d.Jobs }})
 	}
 	app = testutil.NewAppWithWorkers(t, workers, testutil.WithOSImages(entries, up.Client()), testutil.Localhost,
 		// The specs share one admin principal; the production limit would starve later specs.
@@ -124,12 +141,14 @@ func TestUIHarness(t *testing.T) {
 	app.SeedPVE()
 	for _, n := range []string{"pve1", "pve2"} {
 		app.PVE.AddStorage(n, "imp", []string{"import"}, false)
+		app.PVE.AddStorage(n, "pbs", []string{"backup"}, true)
+		app.PVE.SetStorageType(n, "pbs", "pbs")
 	}
 
 	conn := app.PVE.Conn()
 	b, err := json.Marshal(harnessOut{URL: app.URL, FailChecksum: up.URL + "/_harness/fail-checksum", AddToken: up.URL + "/_harness/pve-token",
-		FailNext: up.URL + "/_harness/pve-fail-next",
-		PVE:      pveOut{URL: conn.BaseURL, TokenID: conn.TokenID, TokenSecret: conn.Secret, CAFingerprint: conn.CAFingerprint}})
+		FailNext: up.URL + "/_harness/pve-fail-next", EnableBackups: up.URL + "/_harness/enable-backups",
+		PVE: pveOut{URL: conn.BaseURL, TokenID: conn.TokenID, TokenSecret: conn.Secret, CAFingerprint: conn.CAFingerprint}})
 	if err != nil {
 		t.Fatal(err)
 	}

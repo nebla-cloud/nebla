@@ -34,3 +34,28 @@ export function formatDate(iso: string): string {
 export function typeSpec(t: ServerType): string {
   return `${t.cores} vCPU, ${formatMemory(t.memory_mb)}, ${t.disk_gb} GB`
 }
+
+const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+// The viewer's local time.
+export function formatDateTime(iso: string): string {
+  return dateTimeFormat.format(new Date(iso))
+}
+
+export function formatBytes(n: number): string {
+  if (n <= 0) return '—'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let v = n
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${Number(v.toFixed(v < 10 && i > 0 ? 1 : 0))} ${units[i]}`
+}

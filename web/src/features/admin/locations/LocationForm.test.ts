@@ -43,6 +43,10 @@ const existing: AdminLocation = {
   firewall_enabled: null,
   volume_storage: '',
   volume_storage_ok: false,
+  backup_storage: '',
+  backup_storage_ok: false,
+  backup_window: { start: '02:00', end: '06:00' },
+  backups_on_other_storage: 0,
   nodes: [],
   created: '2026-01-01T00:00:00Z',
   updated: '2026-01-01T00:00:00Z',
@@ -155,5 +159,72 @@ describe('LocationForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(queryClient.getQueryState(catalogKey)?.isInvalidated).toBe(true)
+  })
+
+  describe('backups', () => {
+    const select = (w: ReturnType<typeof mountApp>['wrapper']) =>
+      w.find('select[name="backup_storage"]')
+
+    it('is not on the create form', () => {
+      const { wrapper } = mountApp(LocationForm)
+      expect(select(wrapper).exists()).toBe(false)
+    })
+
+    it('offers None, the reported PBS storages and the current one', async () => {
+      const { wrapper } = mountApp(LocationForm, {
+        props: {
+          location: { ...existing, backup_storage: 'old' },
+          backupStorages: ['pbs'],
+        },
+      })
+      expect(wrapper.text()).toContain('Backup storage')
+      expect(wrapper.text()).toContain('Backup window (UTC)')
+      expect(select(wrapper).findAll('option').map((o) => o.text())).toEqual([
+        'None',
+        'pbs',
+        'old',
+      ])
+      expect((select(wrapper).element as HTMLSelectElement).value).toBe('old')
+      expect((wrapper.find('input[name="backup_window_start"]').element as HTMLInputElement).value).toBe('02:00')
+      expect((wrapper.find('input[name="backup_window_end"]').element as HTMLInputElement).value).toBe('06:00')
+    })
+
+    it('sends the storage and the window', async () => {
+      let body: Record<string, unknown> | undefined
+      server.use(
+        http.put('*/v1/admin/locations/1', async ({ request }) => {
+          body = (await request.json()) as Record<string, unknown>
+          return json(200, existing)
+        }),
+      )
+      const { wrapper } = mountApp(LocationForm, {
+        props: { location: existing, backupStorages: ['pbs'] },
+      })
+      await select(wrapper).setValue('pbs')
+      await wrapper.find('input[name="backup_window_start"]').setValue('01:30')
+      await wrapper.find('input[name="backup_window_end"]').setValue('05:00')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      expect(body).toMatchObject({
+        backup_storage: 'pbs',
+        backup_window: { start: '01:30', end: '05:00' },
+      })
+    })
+
+    it('refuses a window that starts when it ends', async () => {
+      let called = false
+      server.use(
+        http.put('*/v1/admin/locations/1', () => {
+          called = true
+          return json(200, existing)
+        }),
+      )
+      const { wrapper } = mountApp(LocationForm, { props: { location: existing } })
+      await wrapper.find('input[name="backup_window_end"]').setValue('02:00')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      expect(called).toBe(false)
+      expect(wrapper.text()).toContain('The window must start and end at different times.')
+    })
   })
 })

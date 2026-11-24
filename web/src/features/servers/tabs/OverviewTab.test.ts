@@ -263,4 +263,31 @@ describe('OverviewTab', () => {
     expect(w.findAll('button').some((b) => b.text() === 'Save labels')).toBe(true)
     expect(w.findAll('button').some((b) => b.text() === 'Edit labels')).toBe(false)
   })
+
+  async function openDelete(count: number) {
+    const w = await mountTab(
+      makeServer({
+        backups: {
+          enabled: true,
+          keep: 7,
+          count,
+          last_backup_at: null,
+          next_backup_at: null,
+        },
+      }),
+    )
+    w.findAll('button')
+      .find((b) => b.text() === 'Delete server')!
+      .element.click()
+    await flushPromises()
+    return document.body.querySelector('[role="dialog"]')!.textContent ?? ''
+  }
+
+  it('the delete dialog says how many backups go with the server', async () => {
+    expect(await openDelete(3)).toContain('3 backups will also be deleted.')
+  })
+
+  it('the delete dialog is silent when there are no backups', async () => {
+    expect(await openDelete(0)).not.toContain('backups will also be deleted')
+  })
 })

@@ -45,6 +45,10 @@ function loc(nodes: AdminLocation['nodes'] = []): AdminLocation {
     firewall_enabled: null,
     volume_storage: '',
     volume_storage_ok: false,
+    backup_storage: '',
+    backup_storage_ok: false,
+    backup_window: { start: '02:00', end: '06:00' },
+    backups_on_other_storage: 0,
     nodes,
     created: '2026-01-01T00:00:00Z',
     updated: '2026-01-01T00:00:00Z',
@@ -175,6 +179,49 @@ describe('admin locations', () => {
       await vi.waitFor(() => expect(wrapper.text()).toContain('Delete location'))
       expect(wrapper.find('[data-testid="volume-grant"]').exists()).toBe(false)
     }
+  })
+
+  describe('backups', () => {
+    const show = async (over: Partial<AdminLocation>) => {
+      const router = detailRouter()
+      server.use(list([{ ...loc([node(2, 'pve1', 'online', true)]), ...over }]))
+      await router.push('/admin/locations/1')
+      const { wrapper } = mountApp(LocationDetailPage, { router })
+      await vi.waitFor(() => expect(wrapper.text()).toContain('pve1'))
+      return wrapper.find('[data-testid="backups"]')
+    }
+
+    it('says backups are off without a storage', async () => {
+      const box = await show({})
+      expect(box.text()).toContain('Backups are off')
+    })
+
+    it('shows the fix until the token may use the storage', async () => {
+      const box = await show({ backup_storage: 'pbs', backup_storage_ok: false })
+      expect(box.text()).toContain('Backups need one more permission')
+      expect(box.text()).toContain('curl … | bash -s -- --backup-storage pbs')
+      expect(box.text()).toContain(
+        'pveum acl modify /storage/pbs --users nebla@pve --roles NeblaBackup',
+      )
+    })
+
+    it('shows the window and a ready state when permitted', async () => {
+      const box = await show({ backup_storage: 'pbs', backup_storage_ok: true })
+      expect(box.text()).toContain('Backups are ready')
+      expect(box.text()).toContain('02:00 to 06:00 UTC')
+      expect(box.text()).not.toContain('pveum')
+    })
+
+    it('counts backups left on an earlier storage', async () => {
+      const box = await show({
+        backup_storage: 'pbs',
+        backup_storage_ok: true,
+        backups_on_other_storage: 3,
+      })
+      expect(box.text()).toContain(
+        '3 backups remain on an earlier storage and stay restorable until they rotate out.',
+      )
+    })
   })
 
   it('delete confirms by name', async () => {

@@ -42,8 +42,23 @@ function action(over: Partial<Action> = {}): Action {
 
 const emptyList = { servers: [], meta: { pagination: { page: 1, per_page: 50, total_entries: 0 } } }
 
-function serve(s: Server) {
+const locationList = (backups: boolean) => ({
+  locations: [
+    {
+      id: 1,
+      name: 'home',
+      description: '',
+      networks: { ipv4: true, ipv6: false },
+      volumes_available: true,
+      backups_available: backups,
+    },
+  ],
+  meta: { pagination: { page: 1, per_page: 50, total_entries: 1 } },
+})
+
+function serve(s: Server, backups = false) {
   server.use(
+    http.get('*/v1/locations', () => json(200, locationList(backups))),
     http.get('*/v1/projects/1', () =>
       json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
     ),
@@ -265,6 +280,39 @@ describe('ServerDetailShell', () => {
       'Resize',
       'Activity',
     ])
+  })
+
+  it('shows the Backups tab only where the location offers backups', async () => {
+    const labels = (w: VueWrapper) =>
+      w.findAll('nav[aria-label="Server sections"] a').map((a) => a.text())
+    serve(makeServer({ id: 5 }), false)
+    const off = await mountDetail('/p/1/servers/5')
+    expect(labels(off.wrapper)).not.toContain('Backups')
+    off.wrapper.unmount()
+    document.body.innerHTML = ''
+    serve(makeServer({ id: 5 }), true)
+    const on = await mountDetail('/p/1/servers/5')
+    await vi.waitFor(() => expect(labels(on.wrapper)).toContain('Backups'))
+    const tabs = labels(on.wrapper)
+    expect(tabs.indexOf('Backups')).toBe(tabs.indexOf('Volumes') + 1)
+    const link = on.wrapper.findAll('nav a').find((a) => a.text() === 'Backups')!
+    expect(link.attributes('href')).toBe('/p/1/servers/5/backups')
+  })
+
+  it('the status chip says Restoring while a restore_backup action runs', async () => {
+    serve(makeServer({ id: 5 }), true)
+    server.use(
+      http.get('*/v1/actions/3', () =>
+        json(
+          200,
+          action({ id: 3, command: 'restore_backup', resources: [{ id: 5, type: 'server' }] }),
+        ),
+      ),
+    )
+    const { wrapper } = await mountDetail('/p/1/servers/5', { actionId: 3 })
+    const header = wrapper.findAll('header').find((h) => h.find('h1').exists())!
+    await vi.waitFor(() => expect(header.text()).toContain('Restoring'))
+    expect(header.text()).not.toContain('Running')
   })
 
   it('the tab strip scrolls sideways only', async () => {

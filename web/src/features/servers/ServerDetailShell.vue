@@ -30,6 +30,7 @@ import { actionDone } from '@/components/actionLabel'
 import PageHeader from '@/components/PageHeader.vue'
 import Panel from '@/components/Panel.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { useLocations } from '@/features/servers-create/queries'
 import { useCrumbs } from '@/lib/crumbs'
 import { formatDate } from '@/lib/format'
 import { useCurrentProject, parseProjectId } from '@/lib/project'
@@ -43,7 +44,7 @@ import { serverBusyKey } from './shell'
 const route = useRoute()
 const router = useRouter()
 // Tabs are the child routes that carry meta.serverTab.
-const tabs = router
+const allTabs = router
   .getRoutes()
   .filter((r) => r.name && r.meta.serverTab)
   .map((r) => ({ name: r.name!, ...r.meta.serverTab! }))
@@ -56,6 +57,10 @@ const actionId = ref<number | null>(null)
 const lastName = ref('')
 const { action, running, error: actionError } = useActionPoll(actionId, { onDone: finished })
 const { data: server, error: loadError } = useServer(serverId, running)
+const locations = useLocations()
+const here = computed(() => locations.data.value?.find((l) => l.id === server.value?.location.id))
+const tabs = computed(() => allTabs.filter((t) => t.visible?.(here.value) ?? true))
+const restoring = computed(() => running.value && action.value?.command === 'restore_backup')
 provide(serverBusyKey, running)
 
 useCrumbs(() => [
@@ -158,7 +163,7 @@ const notFound = computed(
           class="max-sm:flex-col max-sm:items-stretch sm:items-center"
         >
           <template #meta>
-            <StatusBadge :status="server.status" class="shrink-0" />
+            <StatusBadge :status="server.status" :restoring="restoring" class="shrink-0" />
           </template>
           <template #actions>
             <UButton

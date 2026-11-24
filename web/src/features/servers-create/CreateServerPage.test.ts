@@ -30,8 +30,22 @@ const meta = (n: number) => ({ pagination: { page: 1, per_page: 50, total_entrie
 const ED = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFake laptop@home'
 
 const locations = [
-  { id: 1, name: 'home', description: '', networks: { ipv4: true, ipv6: true } },
-  { id: 2, name: 'rack-2', description: '', networks: { ipv4: false, ipv6: true } },
+  {
+    id: 1,
+    name: 'home',
+    description: '',
+    networks: { ipv4: true, ipv6: true },
+    volumes_available: false,
+    backups_available: true,
+  },
+  {
+    id: 2,
+    name: 'rack-2',
+    description: '',
+    networks: { ipv4: false, ipv6: true },
+    volumes_available: false,
+    backups_available: false,
+  },
 ]
 const images = [
   {
@@ -83,7 +97,7 @@ function action(over: Partial<Action> = {}): Action {
   }
 }
 
-function serveCatalog(locs = locations) {
+function serveCatalog(locs = locations, maxBackups = 35) {
   server.use(
     http.get('*/v1/projects/1', () =>
       json(200, {
@@ -96,8 +110,9 @@ function serveCatalog(locs = locations) {
           max_memory_mb: 65536,
           max_disk_gb: 1000,
           max_ips: 10,
+          max_backups: maxBackups,
         },
-        usage: { servers: 3, vcpu: 6, memory_mb: 12288, disk_gb: 120, ips: 3 },
+        usage: { servers: 3, vcpu: 6, memory_mb: 12288, disk_gb: 120, ips: 3, backups: 0, backups_reserved: 0 },
         created: '2026-11-01T00:00:00Z',
       }),
     ),
@@ -363,7 +378,16 @@ describe('CreateServerPage', () => {
   })
 
   it('blocks Create when the location has no free addresses', async () => {
-    serveCatalog([{ id: 1, name: 'home', description: '', networks: { ipv4: false, ipv6: false } }])
+    serveCatalog([
+      {
+        id: 1,
+        name: 'home',
+        description: '',
+        networks: { ipv4: false, ipv6: false },
+        volumes_available: false,
+        backups_available: false,
+      },
+    ])
     await mountCreate()
     await pick('input[name="image"][value="3"]')
     await pick('input[name="server_type"][value="2"]')
@@ -435,5 +459,50 @@ describe('CreateServerPage', () => {
     const { wrapper } = await mountCreate()
     expect(wrapper.text()).toContain('No locations yet. Ask your Nebla admin to connect one.')
     expect(createButton()).toBeUndefined()
+  })
+
+  describe('daily backups', () => {
+    const box = () =>
+      document.body.querySelector('button[role=checkbox]') as HTMLElement | null
+
+    it('offers a checkbox with the slot count where the location has backups', async () => {
+      serveCatalog()
+      await mountCreate()
+      expect(document.body.textContent).toContain('Enable daily backups (keep 7)')
+      expect(document.body.textContent).toContain('Uses 7 of your 35 backup slots')
+      expect(box()).toBeTruthy()
+    })
+
+    it('says unlimited when the project has no backup limit', async () => {
+      serveCatalog(locations, 0)
+      await mountCreate()
+      expect(document.body.textContent).toContain('Uses 7 of your unlimited backup slots')
+    })
+
+    it('hides it where the location has no backups', async () => {
+      serveCatalog()
+      await mountCreate()
+      await pick('input[name=location][value="2"]')
+      expect(document.body.textContent).not.toContain('Enable daily backups')
+    })
+
+    it('sends backups only when ticked', async () => {
+      serveCatalog()
+      let body: Record<string, unknown> = {}
+      server.use(
+        http.post('*/v1/servers', async ({ request }) => {
+          body = (await request.json()) as Record<string, unknown>
+          return json(201, { server: makeServer({ id: 42 }), action: action() })
+        }),
+        http.get('*/v1/servers/42', () => json(200, makeServer({ id: 42 }))),
+        http.get('*/v1/actions/7', () => json(200, action())),
+      )
+      await mountCreate()
+      box()!.click()
+      await settle()
+      createButton().click()
+      await settle()
+      expect(body.backups).toEqual({ enabled: true, keep: 7 })
+    })
   })
 })

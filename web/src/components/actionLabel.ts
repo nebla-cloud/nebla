@@ -32,6 +32,9 @@ const labels: Record<string, string> = {
   assign_floating_ip: 'Assigning floating IP',
   unassign_floating_ip: 'Unassigning floating IP',
   delete_floating_ip: 'Deleting floating IP',
+  create_backup: 'Backing up',
+  restore_backup: 'Restoring',
+  delete_backup: 'Deleting backup',
 }
 
 const done: Record<string, string> = {
@@ -44,6 +47,8 @@ const done: Record<string, string> = {
   rebuild_server: 'rebuilt',
   change_server_type: 'resized',
   delete_server: 'deleted',
+  restore_backup: 'restored',
+  delete_backup: 'backup deleted',
 }
 
 const titles: Record<string, string> = {
@@ -60,6 +65,9 @@ const titles: Record<string, string> = {
   assign_floating_ip: 'Assign floating IP',
   unassign_floating_ip: 'Unassign floating IP',
   delete_floating_ip: 'Delete floating IP',
+  create_backup: 'Back up',
+  restore_backup: 'Restore',
+  delete_backup: 'Delete backup',
 }
 
 function sentence(command: string): string {

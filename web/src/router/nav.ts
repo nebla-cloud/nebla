@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { computed, type ComputedRef } from 'vue'
-import type { Role } from '@/api/types'
+import type { Location, Role } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
 import {
   useRouter,
@@ -38,7 +38,12 @@ declare module 'vue-router' {
     public?: boolean
     roles?: Role[]
     guestOnly?: boolean
-    serverTab?: { label: string; order: number }
+    serverTab?: {
+      label: string
+      order: number
+      // Hides the tab; the location is undefined until the project's locations load.
+      visible?: (location: Location | undefined) => boolean
+    }
   }
 }
 

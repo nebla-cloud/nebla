@@ -69,6 +69,16 @@ const volumeGrants = computed(() => {
     (s) => `pveum acl modify /storage/${s} --users nebla@pve --roles NeblaISO`,
   )
 })
+// PBS storages the latest setup report listed for this location.
+const backupStorages = computed(() => [
+  ...new Set(
+    (enrollments.value ?? [])
+      .filter((e) => e.location_id === id.value)
+      .flatMap((e) => e.report?.storages ?? [])
+      .filter((s) => s.type === 'pbs' && s.content.includes('backup'))
+      .map((s) => s.id),
+  ),
+])
 const grantCopy = useCopy()
 const cleanup = ref<string[]>(readCleanup())
 const editing = ref(false)
@@ -222,6 +232,45 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
         </template>
       </UAlert>
 
+      <section data-testid="backups" class="flex flex-col gap-2">
+        <h2 class="nb-h2 text-highlighted">Backups</h2>
+        <p v-if="!location.backup_storage" class="text-sm text-muted">
+          Backups are off. Edit the connection to pick a Proxmox Backup Server storage.
+        </p>
+        <template v-else>
+          <p class="text-sm text-muted">
+            <template v-if="location.backup_storage_ok">
+              Backups are ready on {{ location.backup_storage }}.
+            </template>
+            Scheduled backups run between {{ location.backup_window.start }} to
+            {{ location.backup_window.end }} UTC.
+          </p>
+          <UAlert
+            v-if="!location.backup_storage_ok"
+            color="warning"
+            variant="subtle"
+            title="Backups need one more permission"
+          >
+            <template #description>
+              <p>Re-run the setup command with the storage added, or run on the node:</p>
+              <TerminalBlock as="pre" class="mt-2">{{
+                [
+                  `curl … | bash -s -- --backup-storage ${location.backup_storage}`,
+                  `pveum acl modify /storage/${location.backup_storage} --users nebla@pve --roles NeblaBackup`,
+                ].join('\n')
+              }}</TerminalBlock>
+            </template>
+          </UAlert>
+        </template>
+        <p v-if="location.backups_on_other_storage > 0" class="text-sm text-muted">
+          {{
+            location.backups_on_other_storage === 1
+              ? '1 backup remains on an earlier storage and stays restorable until it rotates out.'
+              : `${location.backups_on_other_storage} backups remain on an earlier storage and stay restorable until they rotate out.`
+          }}
+        </p>
+      </section>
+
       <UAlert
         v-if="cleanup.length"
         color="warning"
@@ -245,6 +294,7 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
       <Panel v-if="editing" title="Edit connection">
         <LocationForm
           :location="location"
+          :backup-storages="backupStorages"
           @cancel="editing = false"
           @saved="((editing = false), toast.add({ title: 'Location saved', color: 'success' }))"
         />
