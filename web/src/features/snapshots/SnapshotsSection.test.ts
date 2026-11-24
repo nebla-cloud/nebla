@@ -13,20 +13,22 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { http } from 'msw'
 import { makeServer } from '@/features/servers/fixtures'
 import { json, server } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
 import SnapshotsSection from './SnapshotsSection.vue'
 import { makeLocation, makeSnapshot } from './fixtures'
-import { button, serveLists, settle } from './testkit'
+import { button, runningAction, serveLists, settle } from './testkit'
 
 let unmount: () => void
 afterEach(() => {
   unmount()
   document.body.innerHTML = ''
 })
+
+const onStarted = vi.fn()
 
 async function mountSection(snaps = [makeSnapshot({ id: 1, name: 'before-upgrade', server: 1 })]) {
   serveLists({ locations: [makeLocation()], snapshots: snaps })
@@ -44,7 +46,10 @@ async function mountSection(snaps = [makeSnapshot({ id: 1, name: 'before-upgrade
     { path: '/p/:projectId/snapshots/:snapshotId', name: 'snapshot', component: SnapshotsSection },
   ])
   await router.push('/p/7/snapshots/1')
-  const m = mountApp(SnapshotsSection, { router, props: { server: makeServer({ id: 1 }) } })
+  const m = mountApp(SnapshotsSection, {
+    router,
+    props: { server: makeServer({ id: 1 }), onStarted },
+  })
   unmount = () => m.wrapper.unmount()
   await settle()
   return { ...m, seen }
@@ -64,5 +69,23 @@ describe('SnapshotsSection', () => {
     button('Take snapshot').click()
     await settle()
     expect(document.body.querySelector('input[name=name]')).toBeTruthy()
+  })
+
+  it('hands a restore to the server page to track', async () => {
+    const act = runningAction('rebuild_server', 77)
+    server.use(http.post('*/v1/servers/1/actions/rebuild', () => json(201, { action: act })))
+    await mountSection()
+    ;(
+      document.body.querySelector(
+        'button[aria-label="Restore before-upgrade"]',
+      ) as HTMLButtonElement
+    ).click()
+    await settle()
+    Array.from(document.body.querySelectorAll('button'))
+      .filter((b) => b.textContent?.trim() === 'Restore')
+      .at(-1)!
+      .click()
+    await settle()
+    expect(onStarted).toHaveBeenCalledWith(expect.objectContaining({ id: 77 }))
   })
 })

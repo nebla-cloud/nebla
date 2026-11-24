@@ -47,6 +47,15 @@ test('take, build from, restore and delete a snapshot', async ({ page }) => {
   await expect(card).toBeVisible()
   await expectNoLeaks(page)
 
+  await card.getByRole('button', { name: `Restore ${snap}` }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Restore', exact: true }).click()
+  await expect(page.getByText(`${source} rebuilt`, { exact: true })).toBeVisible({
+    timeout: 90_000,
+  })
+  await expect(serverHeader(page).getByText('Running', { exact: true })).toBeVisible({
+    timeout: 90_000,
+  })
+
   await nav.getByRole('link', { name: 'Snapshots', exact: true }).click()
   await expect(page).toHaveURL(/\/p\/\d+\/snapshots$/)
   const row = page.getByRole('link', { name: snap })

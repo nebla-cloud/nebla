@@ -40,6 +40,8 @@ import SnapshotActions from './SnapshotActions.vue'
 import TakeSnapshotModal from './TakeSnapshotModal.vue'
 
 const props = defineProps<{ server: Server }>()
+// A restore is a rebuild, so the server page tracks it.
+const emit = defineEmits<{ started: [action: Action] }>()
 
 const toast = useToast()
 const qc = useQueryClient()
@@ -145,7 +147,9 @@ function taken(s: Snapshot, a: Action) {
             :snapshot="s"
             :server-name="server.name"
             :disabled="locked"
+            stay
             @started="started($event, s.name)"
+            @restoring="emit('started', $event)"
           />
         </div>
       </Panel>

@@ -39,10 +39,12 @@ const props = defineProps<{
   snapshot: Snapshot
   serverName: string
   expanded?: boolean
+  // On the source server's own page the parent tracks the restore instead.
+  stay?: boolean
   disabled?: boolean
 }>()
-// started fires for a delete; a restore carries on at the server's page.
-const emit = defineEmits<{ started: [action: Action] }>()
+// started fires for a delete; a restore carries on at the server's page, or fires restoring when stay is set.
+const emit = defineEmits<{ started: [action: Action]; restoring: [action: Action] }>()
 
 const toast = useToast()
 const router = useRouter()
@@ -62,6 +64,10 @@ const renameError = ref<string | null>(null)
 const pending = ref(false)
 
 async function restored(a: Action) {
+  if (props.stay) {
+    emit('restoring', a)
+    return
+  }
   const serverId = props.snapshot.server
   qc.setQueryData(['action', a.id], a)
   void qc.invalidateQueries({ queryKey: ['servers', projectId.value] })
