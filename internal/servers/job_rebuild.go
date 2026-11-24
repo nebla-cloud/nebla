@@ -26,6 +26,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/catalog"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/riverqueue/river"
 )
@@ -319,8 +320,12 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	err := db.WithTx(ctx, r.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		u := etx.Server.UpdateOneID(r.row.ID).ClearRebuildSnapshotID()
 		if r.image != nil {
+			imageID, err := liveImage(ctx, etx, r.image.id)
+			if err != nil {
+				return err
+			}
 			u.SetOsFlavor(r.image.osFlavor).SetOsVersion(r.image.osVersion).SetTemplateVmid(r.image.tmpl)
-			setSlot(u.SetImageID, u.ClearImageID, zeroNil(r.image.id))
+			setSlot(u.SetImageID, u.ClearImageID, zeroNil(imageID))
 			setSlot(u.SetSnapshotID, u.ClearSnapshotID, zeroNil(r.image.snapshotID))
 		}
 		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap).
@@ -342,6 +347,18 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 	}
 	r.row, r.b.row, r.b.st = row, row, old
 	return nil
+}
+
+// liveImage is id while that image exists, share-locked until tx ends, else 0.
+func liveImage(ctx context.Context, etx *ent.Client, id int64) (int64, error) {
+	if id == 0 {
+		return 0, nil
+	}
+	ids, err := etx.Image.Query().Where(image.ID(id)).ForShare().IDs(ctx)
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	return id, nil
 }
 
 func (r *rebuildRun) retire(ctx context.Context) error {

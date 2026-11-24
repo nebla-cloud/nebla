@@ -382,3 +382,19 @@ func TestRebuildFromSnapshotLocationMessage(t *testing.T) {
 	ae := requireAPI(t, err, http.StatusUnprocessableEntity, "invalid_input")
 	require.Equal(t, "This snapshot is in location us-1", ae.Msg)
 }
+
+func TestRebuildFromSnapshotImageDeletedWhileQueued(t *testing.T) {
+	ctx := context.Background()
+	e, s, w := rebuildEnv(t)
+	old := e.App.Ent.Image.Create().SetName("old").SetOsFlavor("ubuntu").SetOsVersion("22.04").SaveX(ctx)
+	addSnapshot(t, e, "gold", "pve1", 10, func(c *ent.SnapshotCreate) { c.SetImageID(old.ID) })
+	args, err := rebuildFrom(t, e, s, servers.RebuildSource{Snapshot: "gold"})
+	require.NoError(t, err)
+	require.Equal(t, old.ID, args.ImageID)
+	e.App.Ent.Image.DeleteOneID(old.ID).ExecX(ctx)
+
+	row := finishRebuild(t, e, w, args)
+	require.Nil(t, row.RebuildVmid, "rebuilt")
+	require.Nil(t, row.ImageID)
+	require.NotNil(t, row.SnapshotID)
+}
