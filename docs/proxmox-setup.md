@@ -32,7 +32,7 @@ anything. Then it:
 - reports the token, the certificate fingerprint of every node (`pveproxy-ssl.pem`, else `pve-ssl.pem`), and the
   cluster and storage list.
 
-To also prepare private networks, add `NEBLA_SDN_VNETS=<n>` to the command (see [Private networks](#10-private-networks)).
+To also prepare private networks, add `NEBLA_SDN_VNETS=<n>` to the command (see [Private networks](#11-private-networks)).
 It is off by default.
 
 It writes no files and leaves nothing running. The roles are reset to the exact privilege list each time, so privileges
