@@ -135,9 +135,11 @@ const nets = computed(() =>
   location.value ? networkChoice(location.value) : { ipv4: null, ipv6: null },
 )
 const backupsOn = computed(() => backups.value && location.value?.backups_available === true)
-const backupLimit = computed(() => {
+const backupSlots = computed(() => {
   const max = project.value?.quota?.max_backups ?? 0
-  return max > 0 ? String(max) : 'unlimited'
+  return max > 0
+    ? `Uses ${DEFAULT_KEEP} of your ${max} backup slots`
+    : `Uses ${DEFAULT_KEEP} backup slots`
 })
 const backupsOk = computed(() => {
   const p = project.value
@@ -309,7 +311,7 @@ const cards = 'flex flex-wrap gap-2.5'
                 v-model="backups"
                 name="backups"
                 :label="`Enable daily backups (keep ${DEFAULT_KEEP})`"
-                :description="`Uses ${DEFAULT_KEEP} of your ${backupLimit} backup slots`"
+                :description="backupSlots"
               />
             </div>
           </Step>

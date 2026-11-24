@@ -473,10 +473,11 @@ describe('CreateServerPage', () => {
       expect(box()).toBeTruthy()
     })
 
-    it('says unlimited when the project has no backup limit', async () => {
+    it('leaves the limit out when the project has none', async () => {
       serveCatalog(locations, 0)
       await mountCreate()
-      expect(document.body.textContent).toContain('Uses 7 of your unlimited backup slots')
+      expect(document.body.textContent).toContain('Uses 7 backup slots')
+      expect(document.body.textContent).not.toContain('unlimited')
     })
 
     it('hides it where the location has no backups', async () => {
