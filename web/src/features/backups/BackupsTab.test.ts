@@ -194,7 +194,7 @@ describe('BackupsTab', () => {
     expect(started.map((a) => a.command)).toEqual([backupAction('delete_backup').command])
   })
 
-  it('keeps the list and Back up now but locks the toggle where backups are off', async () => {
+  it('keeps the list but locks the toggle, keep and Back up now where backups are off', async () => {
     offered = false
     await mountTab()
     const sw = document.body.querySelector('button[role=switch]') as HTMLButtonElement
@@ -202,7 +202,10 @@ describe('BackupsTab', () => {
     expect(document.body.textContent).toContain(
       'Backups are turned off for this location. Existing backups stay restorable.',
     )
-    expect(button('Back up now').disabled).toBe(false)
+    expect(button('Back up now').disabled).toBe(true)
+    expect((document.body.querySelector('select[name=keep]') as HTMLSelectElement).disabled).toBe(
+      true,
+    )
     expect(rows()).toHaveLength(1)
     expect(rows()[0]!.querySelector('button[aria-label^="Restore"]')).toBeTruthy()
     expect(rows()[0]!.querySelector('button[aria-label^="Delete"]')).toBeTruthy()

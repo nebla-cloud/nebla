@@ -192,7 +192,7 @@ const confirmDelete = () =>
               v-model.number="keep"
               name="keep"
               :class="selectClass"
-              :disabled="locked"
+              :disabled="locked || !available"
               @change="save(server.backups.enabled)"
             >
               <option v-for="k in keeps" :key="k" :value="k">{{ k }}</option>
@@ -215,7 +215,7 @@ const confirmDelete = () =>
             color="neutral"
             variant="outline"
             icon="i-lucide-archive"
-            :disabled="locked || waiting"
+            :disabled="locked || waiting || !available"
             @click="now"
           >
             Back up now
