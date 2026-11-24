@@ -678,6 +678,34 @@ func TestFakeHangShutdown(t *testing.T) {
 	}
 }
 
+func TestFakeShutdownTimeout(t *testing.T) {
+	ctx := context.Background()
+	s, c, _ := importEnv(t)
+	s.SetVMStatus(101, "running")
+	s.HangShutdown = map[int]bool{101: true}
+	up, err := c.Shutdown(ctx, "pve1", 101, 1500*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.ShutdownTimeout(101); got != "2" {
+		t.Fatalf("timeout = %q, want 2", got)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); err == nil || !strings.Contains(err.Error(), "got timeout") {
+		t.Fatalf("err = %v", err)
+	}
+	if v, _ := s.VM(101); v.Status != "running" {
+		t.Fatalf("status = %q, want running", v.Status)
+	}
+	s.HangShutdown = nil
+	up, _ = c.Shutdown(ctx, "pve1", 101, time.Minute)
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.VM(101); v.Status != "stopped" || s.ShutdownTimeout(101) != "60" {
+		t.Fatalf("status = %q, timeout %q", v.Status, s.ShutdownTimeout(101))
+	}
+}
+
 func TestFakeFailImport(t *testing.T) {
 	s, c, boot := importEnv(t)
 	s.FailImport = map[int]error{200: errors.New("storage offline")}

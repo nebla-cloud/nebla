@@ -210,6 +210,8 @@ type Client interface {
 	DeleteFirewallRule(ctx context.Context, node string, vmid, pos int, digest string) error
 	ClusterFirewallEnabled(ctx context.Context) (bool, error)
 	Power(ctx context.Context, node string, vmid int, op PowerOp) (UPID, error)
+	// Shutdown asks the guest to shut down; past timeout the task fails and the VM is left running.
+	Shutdown(ctx context.Context, node string, vmid int, timeout time.Duration) (UPID, error)
 	Destroy(ctx context.Context, node string, vmid int) (UPID, error)
 	UploadISO(ctx context.Context, node, storage, filename string, r io.Reader) error
 	DeleteVolume(ctx context.Context, node, storage, volid string) error

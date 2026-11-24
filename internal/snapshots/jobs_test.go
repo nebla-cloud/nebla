@@ -62,7 +62,8 @@ func quiet() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)
 
 func (e *env) opts(rec *recorder) snapshots.WorkerOptions {
 	o := snapshots.WorkerOptions{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Logger: quiet(),
-		PollInterval: 5 * time.Millisecond, ShutdownTimeout: 300 * time.Millisecond, PowerWait: 5 * time.Second}
+		PollInterval: 5 * time.Millisecond, ShutdownTimeout: 300 * time.Millisecond, ShutdownGrace: 300 * time.Millisecond,
+		PowerWait: 5 * time.Second}
 	if rec != nil {
 		o.Bus = rec
 	}
@@ -450,12 +451,41 @@ func TestSnapshotShutdownTimeout(t *testing.T) {
 		require.Equal(t, actions.CodeShutdownTimeout, a.Error.Code)
 		require.Equal(t, actions.Message(snapshots.KindCreateSnapshot, actions.CodeShutdownTimeout), a.Error.Message)
 		require.Zero(t, e.countCalls(fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/stop", vmid)))
+		require.Zero(t, e.countCalls(fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/start", vmid)))
+		require.Equal(t, "1", e.App.PVE.ShutdownTimeout(vmid), "the shutdown task ends with the job's wait")
 		e.requireServer(t, s.ServerID, vmid, servers.StatusRunning)
 		require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(snap.ID)).ExistX(ctx))
 		require.Empty(t, e.templates(t, snap.ID))
 		n, gb := e.usage(t)
 		require.Zero(t, n)
 		require.Zero(t, gb)
+	})
+	t.Run("a guest that powers off late is started again", func(t *testing.T) {
+		ctx := context.Background()
+		e := newEnv(t)
+		s, vmid := e.bootServer(t, "web1")
+		e.App.PVE.HangShutdown = map[int]bool{vmid: true}
+		snap, act := e.take(t, "web1", false)
+		o := e.opts(nil)
+		o.ShutdownGrace = 10 * time.Second
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for e.App.PVE.ShutdownTimeout(vmid) == "" {
+				time.Sleep(5 * time.Millisecond)
+			}
+			// Well past the job's shutdown wait, the guest acts on the request.
+			time.Sleep(3 * o.ShutdownTimeout)
+			e.App.PVE.SetVMStatus(vmid, "stopped")
+		}()
+
+		a := e.finish(t, o, act.ID)
+		<-done
+		require.Equal(t, actions.StatusError, a.Status)
+		require.Equal(t, actions.CodeShutdownTimeout, a.Error.Code)
+		require.Equal(t, 1, e.countCalls(fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/start", vmid)))
+		e.requireServer(t, s.ServerID, vmid, servers.StatusRunning)
+		require.False(t, e.App.Ent.Snapshot.Query().Where(snapshot.ID(snap.ID)).ExistX(ctx))
 	})
 	t.Run("with force the server is stopped and started again", func(t *testing.T) {
 		ctx := context.Background()

@@ -35,7 +35,7 @@ func RetryCleanup(ctx context.Context, o WorkerOptions, row *ent.Snapshot, pc pv
 		return err
 	}
 	c := &create{o: &o, row: row, log: o.Logger, pc: pc}
-	if err := c.undo(ctx); err != nil {
+	if err := c.undo(ctx, false); err != nil {
 		return err
 	}
 	return db.WithTx(ctx, o.SQL, func(_ *sql.Tx, etx *ent.Client) error {

@@ -166,6 +166,8 @@ type Server struct {
 	onRuleAdd    func(*pve.FirewallRule)
 	needDigest   bool
 	conflictDel  bool
+	// shutdownTimeout is the timeout sent with each VMID's last shutdown.
+	shutdownTimeout map[int]string
 }
 
 // FakeDownload records one download-url request.
@@ -590,6 +592,13 @@ func (s *Server) Uploads() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return slices.Clone(s.uploads)
+}
+
+// ShutdownTimeout is the timeout parameter of the last shutdown sent to vmid, "" when none was.
+func (s *Server) ShutdownTimeout(vmid int) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.shutdownTimeout[vmid]
 }
 
 // Calls lists the requests received as "METHOD path".
@@ -1735,12 +1744,22 @@ func (s *Server) routes(mux *http.ServeMux) {
 			if e := locked(v, id); e != nil {
 				return nil, e
 			}
+			timeout := ""
+			if op == "shutdown" {
+				timeout = form(r)["timeout"]
+				if s.shutdownTimeout == nil {
+					s.shutdownTimeout = map[int]string{}
+				}
+				s.shutdownTimeout[id] = timeout
+			}
 			return s.newTask(v.node, "qm"+op, id, failPtr(failed), func() string {
 				switch {
 				case op == "start" && v.status == "running":
 					return fmt.Sprintf("ERROR: VM %d already running", id)
 				case op != "start" && v.status != "running":
 					return fmt.Sprintf("ERROR: VM %d not running", id)
+				case op == "shutdown" && s.HangShutdown[id] && timeout != "":
+					return "ERROR: VM quit/powerdown failed - got timeout"
 				case op == "shutdown" && s.HangShutdown[id]:
 				case op == "stop" || op == "shutdown":
 					v.status = "stopped"

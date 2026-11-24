@@ -264,7 +264,7 @@ func (c *create) shutdown(ctx context.Context) error {
 // shutdownVM asks the guest to shut down and reports whether it stopped within ShutdownTimeout.
 func (c *create) shutdownVM(ctx context.Context, v pve.VM) (bool, error) {
 	deadline := time.Now().Add(c.o.ShutdownTimeout)
-	up, err := c.pc.Power(ctx, v.Node, v.VMID, pve.PowerShutdown)
+	up, err := c.pc.Shutdown(ctx, v.Node, v.VMID, c.o.ShutdownTimeout)
 	if err != nil {
 		return false, err
 	}
@@ -521,7 +521,14 @@ func (c *create) compensate(ctx context.Context, f servers.Failure) error {
 		return err
 	}
 	c.row = row
-	if uerr := c.undo(ctx); uerr != nil {
+	late := row.WasRunning && (row.Step == stepRecord || f.Code == actions.CodeShutdownTimeout)
+	if late {
+		// The guest got our shutdown and may still act on it; the watch outlasts the usual cleanup bound.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), c.o.ShutdownGrace+3*c.o.PowerWait)
+		defer cancel()
+	}
+	if uerr := c.undo(ctx, late); uerr != nil {
 		c.log.Error("snapshot cleanup did not finish", "err", uerr)
 		if err := c.o.Ent.Snapshot.UpdateOneID(row.ID).SetStatus(snapshot.StatusError).ClearUpid().Exec(ctx); err != nil {
 			return err
@@ -537,8 +544,9 @@ func (c *create) compensate(ctx context.Context, f servers.Failure) error {
 	})
 }
 
-// undo starts the server if it ran, then destroys the VM at our vmid only if tag and nonce prove it ours.
-func (c *create) undo(ctx context.Context) error {
+// undo starts the server if it ran, then destroys the VM at our vmid only if tag and nonce prove it ours;
+// with late it first gives a shutdown we sent time to land, so the start catches it.
+func (c *create) undo(ctx context.Context, late bool) error {
 	pc := c.pc
 	if pc == nil {
 		var err error
@@ -551,6 +559,11 @@ func (c *create) undo(ctx context.Context) error {
 		}
 	}
 	var errs []error
+	if late {
+		if err := c.o.awaitLateShutdown(ctx, pc, c.row); err != nil {
+			errs = append(errs, fmt.Errorf("watch shutdown: %w", err))
+		}
+	}
 	if err := c.restart(ctx, pc); err != nil {
 		errs = append(errs, fmt.Errorf("start server: %w", err))
 	}

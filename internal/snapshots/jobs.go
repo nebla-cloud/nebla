@@ -39,6 +39,8 @@ import (
 const (
 	// ShutdownTimeout bounds the clean shutdown of a running server before its snapshot.
 	ShutdownTimeout = 3 * time.Minute
+	// ShutdownGrace is how long a failed create keeps watching a guest that got its shutdown, to start it again.
+	ShutdownGrace = 5 * time.Minute
 	// TagSnapshot marks every snapshot template VM.
 	TagSnapshot = "nebla-snapshot"
 
@@ -80,6 +82,8 @@ type WorkerOptions struct {
 	Logger *slog.Logger
 	// ShutdownTimeout bounds the clean shutdown; the ShutdownTimeout constant when zero.
 	ShutdownTimeout time.Duration
+	// ShutdownGrace bounds the watch for a late shutdown after a failed create; the ShutdownGrace constant when zero.
+	ShutdownGrace time.Duration
 	// PollInterval spaces VM state checks; 1s when zero.
 	PollInterval time.Duration
 	// PowerWait bounds a start or hard stop and the wait for its state; 2m when zero.
@@ -108,6 +112,9 @@ func (o *WorkerOptions) defaults() {
 	}
 	if o.ShutdownTimeout <= 0 {
 		o.ShutdownTimeout = ShutdownTimeout
+	}
+	if o.ShutdownGrace <= 0 {
+		o.ShutdownGrace = ShutdownGrace
 	}
 	if o.PollInterval <= 0 {
 		o.PollInterval = pollInterval
@@ -296,6 +303,32 @@ func (o *WorkerOptions) restartSource(ctx context.Context, pc pve.Client, row *e
 		return nil, err
 	}
 	return o.Ent.Snapshot.UpdateOneID(row.ID).SetWasRunning(false).Save(ctx)
+}
+
+// awaitLateShutdown waits up to ShutdownGrace for the source server's running VM to stop after our shutdown.
+func (o *WorkerOptions) awaitLateShutdown(ctx context.Context, pc pve.Client, row *ent.Snapshot) error {
+	if !row.WasRunning || row.ServerID == nil {
+		return nil
+	}
+	srv, err := o.Ent.Server.Get(ctx, *row.ServerID)
+	if ent.IsNotFound(err) || (err == nil && srv.Vmid == nil) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	v, err := servers.OwnedVM(ctx, pc, srv.ID, *srv.Vmid)
+	if errors.Is(err, servers.ErrMissing) || (err == nil && v.Status != "running") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	stopped, err := o.waitState(ctx, pc, v.VMID, "stopped", o.ShutdownGrace)
+	if stopped {
+		o.Logger.Info("snapshots: source server shut down late; starting it again", "snapshot_id", row.ID, "server_id", srv.ID)
+	}
+	return err
 }
 
 // upidNode is the node field of a UPID ("UPID:node:...").

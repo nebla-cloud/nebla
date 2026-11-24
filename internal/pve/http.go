@@ -869,6 +869,11 @@ func (c *httpClient) Power(ctx context.Context, node string, vmid int, op PowerO
 	return c.task(ctx, http.MethodPost, vmPath(node, vmid)+"/status/"+string(op), nil)
 }
 
+func (c *httpClient) Shutdown(ctx context.Context, node string, vmid int, timeout time.Duration) (UPID, error) {
+	secs := max(1, int((timeout+time.Second-1)/time.Second))
+	return c.task(ctx, http.MethodPost, vmPath(node, vmid)+"/status/shutdown", url.Values{"timeout": {strconv.Itoa(secs)}})
+}
+
 func (c *httpClient) Destroy(ctx context.Context, node string, vmid int) (UPID, error) {
 	return c.task(ctx, http.MethodDelete, vmPath(node, vmid), url.Values{"purge": {"1"}, "destroy-unreferenced-disks": {"1"}})
 }
