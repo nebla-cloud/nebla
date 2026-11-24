@@ -18,6 +18,7 @@
 package uiharness
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,9 +34,11 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/backups"
+	"github.com/nebla-cloud/nebla/internal/ent/location"
 	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/osimages"
+	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/testutil"
@@ -139,11 +142,29 @@ func TestUIHarness(t *testing.T) {
 		// The specs share one admin principal; the production limit would starve later specs.
 		func(d *httpapi.Deps) { d.APILimiter = ratelimit.New(rate.Limit(10000), 100000) })
 	app.SeedPVE()
+	// A zone and two VNets for private networks; the networks spec sets the zone on the location through the admin page.
+	app.PVE.AddSDN(pve.SDNZone{Zone: "nebula", Type: "vxlan"},
+		pve.SDNVNet{VNet: "nb0001", Zone: "nebula"}, pve.SDNVNet{VNet: "nb0002", Zone: "nebula"})
 	for _, n := range []string{"pve1", "pve2"} {
 		app.PVE.AddStorage(n, "imp", []string{"import"}, false)
 		app.PVE.AddStorage(n, "pbs", []string{"backup"}, true)
 		app.PVE.SetStorageType(n, "pbs", "pbs")
 	}
+
+	// Stands in for the reconciler's datacenter firewall read, which the harness doesn't run.
+	fwDone, fwExited := make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() { close(fwDone); <-fwExited })
+	go func() {
+		defer close(fwExited)
+		for {
+			select {
+			case <-fwDone:
+				return
+			case <-time.After(200 * time.Millisecond):
+				_ = app.Ent.Location.Update().Where(location.FirewallEnabledIsNil()).SetFirewallEnabled(true).Exec(context.Background())
+			}
+		}
+	}()
 
 	conn := app.PVE.Conn()
 	b, err := json.Marshal(harnessOut{URL: app.URL, FailChecksum: up.URL + "/_harness/fail-checksum", AddToken: up.URL + "/_harness/pve-token",
