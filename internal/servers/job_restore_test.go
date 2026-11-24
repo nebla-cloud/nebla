@@ -209,6 +209,51 @@ func TestRestoreNewIdentityWhenNetworkChanged(t *testing.T) {
 	require.Contains(t, isoFiles(t, e.ServerEnv, *row.IsoVolid)["meta-data"], "instance-id: nb-srv-"+sid(e.s.ServerID)+"-2\n")
 }
 
+func TestRestoreNetRefreshFollowsTheRestoredInstance(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// old clears net_refresh, as on a server created before IP changes; moved records another instance.
+		old, moved, sameNet bool
+		want                bool
+	}{
+		{name: "kept instance had the opt-in", sameNet: true, want: true},
+		{name: "kept instance from an old server", old: true, sameNet: true, want: false},
+		{name: "kept instance older than the current one", moved: true, sameNet: true, want: false},
+		{name: "new instance on an old server", old: true, sameNet: false, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			e := newRestoreEnv(t)
+			if tc.old {
+				require.NoError(t, e.App.Ent.Server.UpdateOneID(e.s.ServerID).SetNetRefresh(false).Exec(ctx))
+			}
+			fp := "other"
+			if tc.sameNet {
+				fp = e.sameNet(t)
+			}
+			b := e.backUp(t, fp)
+			if tc.moved {
+				// A rebuild since the backup started instance 3.
+				require.NoError(t, e.App.Ent.Server.UpdateOneID(e.s.ServerID).SetInstanceGeneration(3).Exec(ctx))
+			}
+			_, job := e.request(t, b, 1)
+			require.NoError(t, e.w.Work(ctx, job))
+			row := e.App.Ent.Server.GetX(ctx, e.s.ServerID)
+			require.Equal(t, tc.want, row.NetRefresh)
+			require.False(t, row.InstanceBumpPending)
+			files := isoFiles(t, e.ServerEnv, *row.IsoVolid)
+			if tc.want {
+				require.Equal(t, wantVendorData, files["vendor-data"])
+			} else {
+				require.NotContains(t, files, "vendor-data", "the restored guest would ignore the opt-in")
+			}
+			due, err := servers.ISOSyncDue(ctx, e.App.Ent, row)
+			require.NoError(t, err)
+			require.False(t, due, "the ISO matches what a sync would write")
+		})
+	}
+}
+
 func TestRestoreResumesEveryStep(t *testing.T) {
 	ctx := context.Background()
 	e := newRestoreEnv(t)

@@ -167,8 +167,19 @@ func (r *rebuildRun) load(ctx context.Context) error {
 	r.b = &builder{pc: pc, loc: loc, assign: assign, row: r.row, tmpl: tmpl, archive: r.archive, isoGen: r.row.IsoGeneration + 1, nextGen: true,
 		instGen: cmp.Or(r.instGen, r.row.IsoGeneration+1), pinInst: r.instGen,
 		st:   buildState{Vmid: r.row.RebuildVmid, Upid: r.row.RebuildCloneUpid, Nonce: r.row.RebuildCloneNonce, Step: r.row.RebuildStep},
-		save: r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost, afterUpidSave: r.afterUpid}
+		save: r.save, poll: r.o.PollInterval, o: r.o, afterClonePost: r.afterPost, afterUpidSave: r.afterUpid,
+		staleNet: r.staleNet()}
 	return nil
+}
+
+// staleNet reports a restore that keeps the backup's instance-id on a disk whose cloud-init may lack the network
+// refresh opt-in. Only net_refresh on the server's current instance proves the disk's instance had it; a fresh
+// instance-id, or a clone, runs cloud-init anew with the opt-in.
+func (r *rebuildRun) staleNet() bool {
+	if r.archive == "" || r.instGen == 0 {
+		return false
+	}
+	return !r.row.NetRefresh || InstanceGeneration(r.row) != r.instGen
 }
 
 // save writes the build state to the rebuild columns.
@@ -239,7 +250,7 @@ func (r *rebuildRun) swap(ctx context.Context) error {
 			u.SetImageID(r.image.id).SetTemplateVmid(r.image.tmpl)
 		}
 		u.SetIsoGeneration(r.b.isoGen).SetInstanceGeneration(r.b.instGen).SetIsoVolid(r.b.volid()).SetCreateStep(stepDone).SetRebuildStep(stepSwap).
-			SetNetRefresh(true).SetInstanceBumpPending(false).SetIsoNetHash(r.b.netHash)
+			SetNetRefresh(!r.b.staleNet).SetInstanceBumpPending(false).SetIsoNetHash(r.b.netHash)
 		setSlot(u.SetVmid, u.ClearVmid, nu.Vmid)
 		setSlot(u.SetCloneUpid, u.ClearCloneUpid, nu.Upid)
 		setSlot(u.SetCloneNonce, u.ClearCloneNonce, nu.Nonce)

@@ -81,6 +81,9 @@ type builder struct {
 	pinInst int
 	// netHash is the network config hash of the ISO this run wrote; "" when unknown.
 	netHash string
+	// staleNet marks a restored disk whose cloud-init instance never saw the network refresh opt-in;
+	// its ISO leaves the opt-in out, as the guest would ignore it.
+	staleNet bool
 	// fwGen is the desired firewall generation this run rendered; fwDone says it rendered at all.
 	fwGen  int64
 	fwDone bool
@@ -497,7 +500,7 @@ func (b *builder) uploadISO(ctx context.Context) error {
 			b.isoGen = cur.IsoGeneration + 1
 			b.instGen = cmp.Or(b.pinInst, b.isoGen)
 		}
-		in, err := renderISO(ctx, b.o.Ent, b.row, b.instGen, true)
+		in, err := renderISO(ctx, b.o.Ent, b.row, b.instGen, !b.staleNet)
 		if err != nil {
 			return err
 		}
