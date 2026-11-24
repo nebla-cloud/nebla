@@ -544,8 +544,7 @@ func (c *create) compensate(ctx context.Context, f servers.Failure) error {
 	})
 }
 
-// undo starts the server if it ran, then destroys the VM at our vmid only if tag and nonce prove it ours;
-// with late it first gives a shutdown we sent time to land, so the start catches it.
+// undo starts the server if it ran (late: after any pending shutdown lands), then destroys the VM at our vmid if provably ours.
 func (c *create) undo(ctx context.Context, late bool) error {
 	pc := c.pc
 	if pc == nil {

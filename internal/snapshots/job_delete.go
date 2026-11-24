@@ -119,8 +119,7 @@ func (w *DeleteSnapshotWorker) Work(ctx context.Context, job *river.Job[DeleteSn
 	return w.o.contract(job.JobRow, "delete", act, row.ID, run, fail).Work(ctx)
 }
 
-// destroy removes the VM at the row's vmid only when it carries the snapshot's tag; a VM already gone is done.
-// Another VM there is left alone: a missing or error row is then simply gone, an available one is marked missing.
+// destroy removes the snapshot's tagged VM at its vmid; another VM is left alone, and only an available row is marked missing.
 func (w *DeleteSnapshotWorker) destroy(ctx context.Context, pc pve.Client, row *ent.Snapshot, prev snapshot.Status) error {
 	vmid := *row.Vmid
 	v, found, err := findVM(ctx, pc, vmid)

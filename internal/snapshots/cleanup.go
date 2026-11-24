@@ -56,8 +56,7 @@ func RetryCleanup(ctx context.Context, o WorkerOptions, row *ent.Snapshot, pc pv
 	})
 }
 
-// claimRetry re-reads the row under the server and snapshot locks; nil means leave it for now. A user action on the
-// server since the create clears was_running, so the retry never overrides the user's power state.
+// claimRetry re-reads the row under the server and snapshot locks, nil to skip; a user action since clears was_running.
 func claimRetry(ctx context.Context, o WorkerOptions, row *ent.Snapshot) (*ent.Snapshot, error) {
 	var out *ent.Snapshot
 	err := db.WithTx(ctx, o.SQL, func(_ *sql.Tx, etx *ent.Client) error {

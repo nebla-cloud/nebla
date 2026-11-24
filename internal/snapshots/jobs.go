@@ -279,7 +279,7 @@ func (o *WorkerOptions) syncServerStatus(ctx context.Context, pc pve.Client, ser
 	}
 }
 
-// userActedSince reports whether an action on the snapshot's server finished after its create started: the user's power state wins.
+// userActedSince reports whether an action on the snapshot's server finished after its create began.
 func userActedSince(ctx context.Context, c *ent.Client, row *ent.Snapshot) (bool, error) {
 	if row.ServerID == nil {
 		return false, nil
