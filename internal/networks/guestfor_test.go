@@ -62,3 +62,24 @@ func TestGuestForMatrix(t *testing.T) {
 	defer networks.SetNetRefresh(false)()
 	require.Nil(t, networks.GuestFor(run, nic, 7, "generic", false))
 }
+
+func TestGuestForFollowsNetRefresh(t *testing.T) {
+	nic := networks.NIC{IP: netip.MustParseAddr("10.0.0.5"), MAC: mac, Bits: 24, MTU: 1450}
+	old := &ent.Server{Status: server.StatusRunning}
+	g := networks.GuestFor(old, nic, 7, "ubuntu", true)
+	require.NotNil(t, g)
+	require.NotEmpty(t, g.Persist, "a server without net_refresh persists the NIC itself")
+	require.NotEmpty(t, networks.GuestFor(old, nic, 7, "ubuntu", false).Remove)
+
+	fresh := &ent.Server{Status: server.StatusRunning, NetRefresh: true}
+	g = networks.GuestFor(fresh, nic, 7, "ubuntu", true)
+	require.NotNil(t, g)
+	require.NotEmpty(t, g.Apply)
+	require.Empty(t, g.Persist, "cloud-init writes the NIC at the next boot")
+	require.Nil(t, networks.GuestFor(fresh, nic, 7, "ubuntu", false))
+	require.Nil(t, networks.GuestFor(&ent.Server{Status: server.StatusOff, NetRefresh: true}, nic, 7, "ubuntu", true))
+
+	// The test hook still wins over the row.
+	defer networks.SetNetRefresh(false)()
+	require.NotEmpty(t, networks.GuestFor(fresh, nic, 7, "ubuntu", true).Persist)
+}

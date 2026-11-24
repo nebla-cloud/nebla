@@ -108,7 +108,8 @@ test('create a network, join two servers, detach and delete', async ({ page }) =
   await expect(guest).toContainText(PANEL)
   await expect(guest).toContainText(second)
   await expect(guest.getByTestId('guest-apply')).toBeVisible()
-  await expect(guest.getByTestId('guest-persist')).toBeVisible()
+  // These servers have net_refresh: cloud-init writes the NIC at the next boot, so there is nothing to persist.
+  await expect(guest.getByTestId('guest-persist')).toHaveCount(0)
   await noHidden()
   await guest.getByRole('button', { name: 'Done' }).click()
   await expect(guest).toBeHidden()
@@ -120,10 +121,9 @@ test('create a network, join two servers, detach and delete', async ({ page }) =
     const attached = page.getByRole('row').filter({ hasText: server })
     await attached.getByRole('button', { name: 'Detach' }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Detach', exact: true }).click()
-    await expect(guest).toBeVisible({ timeout: 60_000 })
-    await expect(guest.getByTestId('guest-remove')).toBeVisible()
-    await guest.getByRole('button', { name: 'Done' }).click()
+    // With net_refresh there is no persisted file to remove, so no commands follow a detach.
     await expect(attached).toBeHidden({ timeout: 60_000 })
+    await expect(guest).toBeHidden()
   }
   await expect(page.getByText('No servers on this network yet.')).toBeVisible()
 

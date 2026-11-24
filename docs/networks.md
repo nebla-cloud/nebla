@@ -57,8 +57,12 @@ sudo ip addr add 10.0.0.5/16 dev eth1
 sudo ip link set eth1 up
 ```
 
-These commands don't survive a reboot. The panel and the CLI also print a second command that makes the setting
-permanent. A server that is stopped gets its setup when it starts; run the commands after starting the server.
+Nebla also updates the server's cloud-init seed, so most servers keep the address from the next reboot on. If the server
+is stopped, it gets the address when it starts and you don't need to run anything.
+
+Servers from before IP changes were supported (see [Primary IPs](primary-ips.md)) don't read the updated seed on boot.
+For these, the commands don't survive a reboot, so the panel and the CLI also print a second command that makes the
+setting permanent. If such a server is stopped, run both after starting it.
 
 The first private network is `eth1`, the second `eth2`, the third `eth3`.
 
@@ -70,7 +74,8 @@ Detach a server from a network on the server's page, or with the CLI:
 nebla server detach-from-network web1 --network backend
 ```
 
-The panel and the CLI print a command that removes the saved configuration from the server. The address becomes free for
+For servers from before IP changes were supported, the panel and the CLI print a command that removes the saved
+configuration from the server. Other servers drop the interface's setup at the next boot. The address becomes free for
 other servers after a short wait.
 
 To delete a network, detach every server first. Otherwise deleting fails with "Detach all servers from this network

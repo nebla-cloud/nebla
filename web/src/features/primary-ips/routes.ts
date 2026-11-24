@@ -24,7 +24,7 @@ export default [
     component: () => import('./PrimaryIPListPage.vue'),
     meta: {
       side: 'project',
-      nav: { label: 'Primary IPs', order: 16, icon: 'i-lucide-network' },
+      nav: { label: 'Primary IPs', order: 15.5, icon: 'i-lucide-globe' },
     },
   },
   {

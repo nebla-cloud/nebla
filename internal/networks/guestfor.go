@@ -23,8 +23,8 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 )
 
-// netRefresh is true once servers carry net_refresh; it is the single place the flag is read.
-func netRefresh(srv *ent.Server) bool { return false }
+// netRefresh reports whether the server's seed re-applies network-config on boot; it is the single place the flag is read.
+func netRefresh(srv *ent.Server) bool { return srv.NetRefresh }
 
 var netRefreshFn = netRefresh
 

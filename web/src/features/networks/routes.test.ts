@@ -19,12 +19,12 @@ import { createAppRouter } from '@/router'
 import { navItems } from '@/router/nav'
 
 describe('network routes', () => {
-  it('puts Networks right after Floating IPs in the project menu', () => {
+  it('puts Networks right after the IP pages in the project menu', () => {
     const router = createAppRouter(createMemoryHistory())
     const items = navItems(router, 'project', 'owner')
     const labels = items.map((i) => i.label)
     expect(labels.filter((l) => l === 'Networks')).toHaveLength(1)
-    expect(labels.indexOf('Networks')).toBe(labels.indexOf('Floating IPs') + 1)
+    expect(labels.indexOf('Networks')).toBe(labels.indexOf('Primary IPs') + 1)
     expect(items.find((i) => i.label === 'Networks')!.icon).toBe('i-lucide-network')
   })
 

@@ -417,3 +417,63 @@ func TestAttachFinalFailureUnplugFailsQueuesApply(t *testing.T) {
 	require.NoError(t, err)
 	require.Positive(t, queued)
 }
+
+// syncISO runs the server's queued seed ISO sync.
+func (n *netEnv) syncISO(t *testing.T) *ent.Server {
+	t.Helper()
+	o := opts(n.ServerEnv)
+	require.NoError(t, servers.NewSyncISOWorker(o).Work(context.Background(), jobOf(servers.SyncISOArgs{ServerID: n.srv}, 1)))
+	return srvRow(t, n.ServerEnv, n.srv)
+}
+
+func TestAttachAndDetachSyncTheSeedISO(t *testing.T) {
+	ctx := context.Background()
+	for _, refresh := range []bool{true, false} {
+		t.Run("net_refresh="+strconv.FormatBool(refresh), func(t *testing.T) {
+			n := newNetEnv(t)
+			require.NoError(t, n.App.Ent.Server.UpdateOneID(n.srv).SetNetRefresh(refresh).Exec(ctx))
+			before := srvRow(t, n.ServerEnv, n.srv)
+			n.App.PVE.SetVMStatus(n.vmid, "stopped")
+			require.Zero(t, queuedSyncs(t, n.ServerEnv, n.srv))
+
+			n.attachRow(t, n.netID, 1, servernetwork.StateAttaching)
+			_, err := n.attach(t, n.netID, 1)
+			require.NoError(t, err)
+			require.Equal(t, 1, queuedSyncs(t, n.ServerEnv, n.srv), "a finished attach queues a seed ISO sync")
+
+			row := n.syncISO(t)
+			require.Equal(t, before.IsoGeneration+1, row.IsoGeneration)
+			require.Equal(t, servers.InstanceGeneration(before), servers.InstanceGeneration(row), "the instance-id is kept")
+			require.Equal(t, refresh, row.NetRefresh)
+			files := isoFiles(t, n.ServerEnv, *row.IsoVolid)
+			nc := files["network-config"]
+			require.Contains(t, nc, "eth1:")
+			require.Contains(t, nc, "macaddress: bc:24:11:aa:00:01")
+			require.Contains(t, nc, "- 10.9.0.2/24")
+			require.Contains(t, nc, "mtu: 1450")
+			due, err := servers.ISOSyncDue(ctx, n.App.Ent, row)
+			require.NoError(t, err)
+			require.False(t, due)
+
+			n.App.Ent.ServerNetwork.Update().Where(servernetwork.ServerID(n.srv)).SetState(servernetwork.StateDetaching).ExecX(ctx)
+			id := n.start(t, networks.KindDetach, n.netID)
+			require.NoError(t, n.detachJob(t, id, 1))
+			require.Equal(t, 1, queuedSyncs(t, n.ServerEnv, n.srv), "a finished detach queues a seed ISO sync")
+			row = n.syncISO(t)
+			require.Equal(t, before.IsoGeneration+2, row.IsoGeneration)
+			require.NotContains(t, isoFiles(t, n.ServerEnv, *row.IsoVolid)["network-config"], "eth1")
+		})
+	}
+}
+
+func TestFailedAttachQueuesISOSync(t *testing.T) {
+	n := newNetEnv(t)
+	n.attachRow(t, n.netID, 1, servernetwork.StateAttaching)
+	id := n.start(t, networks.KindAttach, n.netID)
+	args := queuedArgs[networks.AttachArgs](t, n.ServerEnv, id)
+	// Past the last attempt the worker fails the action and drops the row.
+	require.Error(t, n.w.Attach().Work(context.Background(), jobOf(args, servers.MaxAttempts+1)))
+	_, ok := n.rowState(t, n.netID)
+	require.False(t, ok)
+	require.Equal(t, 1, queuedSyncs(t, n.ServerEnv, n.srv))
+}

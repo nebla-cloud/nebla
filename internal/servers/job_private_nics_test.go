@@ -141,6 +141,13 @@ func TestCreateWithNetworks(t *testing.T) {
 	n, err := p.App.Ent.ServerNetwork.Query().Where(servernetwork.StateEQ(servernetwork.StateAttached)).Count(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
+
+	// The build and the sync render the same input, private NICs included, so the stored hash is current.
+	row := srvRow(t, p.ServerEnv, s.ServerID)
+	due, err := servers.ISOSyncDue(ctx, p.App.Ent, row)
+	require.NoError(t, err)
+	require.False(t, due, "the built ISO's hash matches what a sync renders")
+	require.False(t, syncNow(t, opts(p.ServerEnv), s.ServerID, false))
 }
 
 func TestCreateNetworksDisabled(t *testing.T) {

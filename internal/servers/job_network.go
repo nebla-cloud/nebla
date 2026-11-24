@@ -91,9 +91,28 @@ func (w *NetworkWorker) work(ctx context.Context, job *rivertype.JobRow, ids net
 		return err
 	}
 	log := w.o.Logger.With("server_id", ids.serverID, "network_id", ids.networkID, "action_id", act.ID, "command", act.Command)
+	// The seed ISO carries the server's private NICs, so a finished attach or detach queues its sync.
+	// Every server gets it: without net_refresh the sync only refreshes the ISO, keeping the instance-id.
+	queue := func(ctx context.Context) {
+		if err := QueueISOSync(ctx, w.o.SQL, w.o.jobs(), ids.serverID); err != nil {
+			log.Warn("network: queue iso sync", "err", err)
+		}
+	}
 	return contract{job: job, name: "network", finished: act.Finished != nil, log: log,
-		run:  func(ctx context.Context) error { return run(ctx, ids) },
-		fail: func(ctx context.Context, f failure) error { return fail(ctx, ids, f) }}.work(ctx)
+		run: func(ctx context.Context) error {
+			if err := run(ctx, ids); err != nil {
+				return err
+			}
+			queue(ctx)
+			return nil
+		},
+		fail: func(ctx context.Context, f failure) error {
+			if err := fail(ctx, ids, f); err != nil {
+				return err
+			}
+			queue(ctx)
+			return nil
+		}}.work(ctx)
 }
 
 // attachment is the server's row on the network, nil once gone.
