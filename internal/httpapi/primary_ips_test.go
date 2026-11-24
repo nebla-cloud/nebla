@@ -308,3 +308,21 @@ func TestPrimaryIPsIsolation(t *testing.T) {
 	require.Equal(t, before, after)
 	require.Equal(t, theirs.Name, e.App.Ent.IPAddress.GetX(ctx, theirs.ID).Name)
 }
+
+func TestServerIPChangeRerunsCloudInit(t *testing.T) {
+	ctx := context.Background()
+	e := newFIPEnv(t)
+	fresh := e.RunningServer("fresh")
+	old := e.RunningServer("old")
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(fresh.ServerID).SetNetRefresh(true).Exec(ctx))
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(old.ServerID).SetNetRefresh(false).Exec(ctx))
+	type flag struct {
+		V *bool `json:"ip_change_reruns_cloud_init"`
+	}
+	f := decodeJSON[flag](t, e.App, e.C.Get("/v1/servers/"+itoa(fresh.ServerID)), http.StatusOK)
+	require.NotNil(t, f.V, "the field is always present")
+	require.False(t, *f.V)
+	o := decodeJSON[flag](t, e.App, e.C.Get("/v1/servers/"+itoa(old.ServerID)), http.StatusOK)
+	require.NotNil(t, o.V)
+	require.True(t, *o.V)
+}

@@ -13,10 +13,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { HttpResponse } from 'msw'
+import { HttpResponse, http } from 'msw'
 import { setupServer } from 'msw/node'
 
-export const server = setupServer()
+// Every page that lists servers also asks for primary IPs; tests override this.
+export const server = setupServer(
+  http.get('*/v1/primary_ips', () =>
+    HttpResponse.json({
+      primary_ips: [],
+      meta: { pagination: { page: 1, per_page: 50, total_entries: 0 } },
+    }),
+  ),
+)
 
 export function json(status: number, body: unknown) {
   return HttpResponse.json(body as Record<string, unknown>, { status })

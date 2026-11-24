@@ -41,7 +41,8 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref, pn []priv
 		ServerType: apiServerType(s.Type), Image: apiImage(s.Image), Labels: s.Labels, DiskGb: s.DiskGB, Volumes: vols, PrivateNet: pn, Created: s.CreatedAt,
 		Backups: apigen.ServerBackups{Enabled: s.Backups.Enabled, Keep: s.Backups.Keep, Count: s.Backups.Count,
 			LastBackupAt: s.Backups.LastBackupAt, NextBackupAt: s.Backups.NextBackupAt},
-		Firewalls: make([]apigen.ServerFirewall, len(s.Firewalls))}
+		IpChangeRerunsCloudInit: s.IPChangeRerunsCloudInit,
+		Firewalls:               make([]apigen.ServerFirewall, len(s.Firewalls))}
 	out.PublicNet.FloatingIps = make([]struct {
 		Id int64  `json:"id"`
 		Ip string `json:"ip"`

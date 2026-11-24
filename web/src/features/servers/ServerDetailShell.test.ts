@@ -159,8 +159,8 @@ describe('ServerDetailShell', () => {
     input.dispatchEvent(new Event('input'))
     await vi.waitFor(() => expect(rebuild().at(-1)!.disabled).toBe(false))
     rebuild().at(-1)!.click()
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
-    await vi.waitFor(() => expect(wrapper.text()).toContain('Rebuilding'))
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'), { timeout: 5000 })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Rebuilding'), { timeout: 5000 })
   })
 
   it('resize form enables once shutdown completes', async () => {

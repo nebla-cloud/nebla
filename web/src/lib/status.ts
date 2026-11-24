@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import type { FloatingIp, Server, Volume } from '@/api/types'
+import type { FloatingIp, PrimaryIp, Server, Volume } from '@/api/types'
 
 export type StatusTone = 'success' | 'busy' | 'neutral' | 'error'
 
@@ -84,4 +84,13 @@ export function floatingIpStatus(s: FloatingIp['status']): {
 
 export function isFloatingIpTransitional(s: FloatingIp['status']): boolean {
   return floatingIpStatus(s).pulse
+}
+
+// Primary IPs share the floating IP statuses they use.
+export function primaryIpStatus(s: PrimaryIp['status']) {
+  return floatingIpStatus(s)
+}
+
+export function isPrimaryIpTransitional(s: PrimaryIp['status']): boolean {
+  return primaryIpStatus(s).pulse
 }

@@ -119,6 +119,7 @@ function started(a: Action) {
 
 async function finished(a: Action) {
   const name = lastName.value || server.value?.name || ''
+  void qc.invalidateQueries({ queryKey: ['primary-ips', projectId.value] })
   if (a.command === 'delete_server') {
     toast.add({ title: `${name} deleted`, color: 'success' })
     await router.push({ name: 'servers', params: { projectId: projectId.value } })

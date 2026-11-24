@@ -2979,6 +2979,8 @@ export interface components {
             backups: components["schemas"]["ServerBackups"];
             /** Format: date-time */
             created: string;
+            /** @description True for a server created before IP changes were supported; changing its IP re-runs its cloud-init user data and gives it new SSH host keys */
+            ip_change_reruns_cloud_init: boolean;
         };
         VolumeInput: {
             name: string;

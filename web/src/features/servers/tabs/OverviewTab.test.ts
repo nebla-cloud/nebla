@@ -20,6 +20,8 @@ import { http } from 'msw'
 import { json, server as msw } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
 import type { Action, Server } from '@/api/types'
+import { makePrimaryIP } from '@/features/primary-ips/fixtures'
+import type { PrimaryIp } from '@/api/types'
 import { makeServer } from '../fixtures'
 import OverviewTab from './OverviewTab.vue'
 
@@ -77,8 +79,29 @@ const actions = [
   act(1, { command: 'create_server' }),
 ]
 
+let primaryIps: PrimaryIp[] = []
+let puts: { id: string; body: unknown }[] = []
+let deletes = 0
+
 beforeEach(() => {
+  primaryIps = []
+  puts = []
+  deletes = 0
   msw.use(
+    http.get('*/v1/primary_ips', () =>
+      json(200, {
+        primary_ips: primaryIps,
+        meta: { pagination: { page: 1, per_page: 50, total_entries: primaryIps.length } },
+      }),
+    ),
+    http.put('*/v1/primary_ips/:id', async ({ request, params }) => {
+      puts.push({ id: String(params.id), body: await request.json() })
+      return json(200, primaryIps[0])
+    }),
+    http.delete('*/v1/servers/:id', () => {
+      deletes++
+      return json(200, { action: act(9, { command: 'delete_server' }) })
+    }),
     http.get('*/v1/projects/1', () =>
       json(200, { id: 1, name: 'Home lab', description: '', created: '2026-11-01T00:00:00Z' }),
     ),
@@ -100,6 +123,7 @@ async function mountTab(s: Server) {
       name: 'server-activity',
       component: RouterView,
     },
+    { path: '/p/:projectId/primary-ips/:primaryIpId', name: 'primary-ip', component: RouterView },
     {
       path: '/p/:projectId/floating-ips/:floatingIpId',
       name: 'floating-ip',
@@ -128,7 +152,11 @@ describe('OverviewTab', () => {
   it('puts the facts in a panel with a description list', async () => {
     const w = await mountTab(
       makeServer({
-        public_net: { ipv4: { id: 1, ip: '203.0.113.10' }, ipv6: { id: 2, ip: '2001:db8::10' }, floating_ips: [] },
+        public_net: {
+          ipv4: { id: 1, ip: '203.0.113.10' },
+          ipv6: { id: 2, ip: '2001:db8::10' },
+          floating_ips: [],
+        },
         labels: { env: 'prod' },
       }),
     )
@@ -293,5 +321,94 @@ describe('OverviewTab', () => {
 
   it('the delete dialog is silent when there are no backups', async () => {
     expect(await openDelete(0)).not.toContain('backups will also be deleted')
+  })
+
+  it('lists the primary IPs with Assign and Unassign disabled while running', async () => {
+    primaryIps = [makePrimaryIP({ id: 1, name: 'web-ip', server: { id: 1, name: 'web1' } })]
+    const w = await mountTab(makeServer({ status: 'running' }))
+    await vi.waitFor(() => expect(w.text()).toContain('web-ip'))
+    const section = panels(w).find(
+      (p) => p.find('h2').exists() && p.find('h2').text() === 'Primary IPs',
+    )!
+    expect(section.text()).toContain('web-ip')
+    expect(section.text()).toContain('203.0.113.10')
+    expect(section.text()).toContain('Stop the server first.')
+    const unassign = section.find('button[aria-label="Unassign IPv4"]')
+    expect(unassign.attributes('disabled')).toBeDefined()
+    expect(section.find('button[aria-label="Assign IPv6"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('enables Assign and Unassign on a stopped server', async () => {
+    primaryIps = [makePrimaryIP({ id: 1, name: 'web-ip', server: { id: 1, name: 'web1' } })]
+    const w = await mountTab(makeServer({ status: 'off' }))
+    await vi.waitFor(() => expect(w.text()).toContain('web-ip'))
+    const section = panels(w).find(
+      (p) => p.find('h2').exists() && p.find('h2').text() === 'Primary IPs',
+    )!
+    expect(section.text()).not.toContain('Stop the server first.')
+    expect(
+      section.find('button[aria-label="Unassign IPv4"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(section.find('button[aria-label="Assign IPv6"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('pre-ticks the keep boxes from auto_delete and saves changes before deleting', async () => {
+    primaryIps = [
+      makePrimaryIP({
+        id: 1,
+        name: 'v4',
+        ip: '203.0.113.60',
+        server: { id: 1, name: 'web1' },
+        auto_delete: false,
+      }),
+      makePrimaryIP({
+        id: 2,
+        name: 'v6',
+        ip: '2001:db8::6',
+        type: 'ipv6',
+        server: { id: 1, name: 'web1' },
+        auto_delete: true,
+      }),
+    ]
+    const w = await mountTab(
+      makeServer({
+        public_net: {
+          ipv4: { id: 1, ip: '203.0.113.60' },
+          ipv6: { id: 2, ip: '2001:db8::6' },
+          floating_ips: [],
+        },
+      }),
+    )
+    await vi.waitFor(() => expect(w.text()).toContain('v4'))
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Delete server')!
+      .trigger('click')
+    await flushPromises()
+    const boxes = () =>
+      Array.from(document.body.querySelectorAll<HTMLInputElement>('input[name^="keep-"]'))
+    expect(boxes().map((b) => [b.name, b.checked])).toEqual([
+      ['keep-1', true],
+      ['keep-2', false],
+    ])
+    expect(document.body.textContent).toContain('Keep 203.0.113.60 in this project')
+    expect(document.body.textContent).toContain('Kept IPs stay unassigned and count toward quota.')
+    // Untick the first, tick the second.
+    boxes()[0]!.click()
+    boxes()[1]!.click()
+    await flushPromises()
+    const input = document.body.querySelector<HTMLInputElement>('input[name="confirm_name"]')!
+    input.value = 'web1'
+    input.dispatchEvent(new Event('input'))
+    await flushPromises()
+    const confirm = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Delete server' && b.getAttribute('type') === 'submit',
+    ) as HTMLButtonElement
+    confirm.click()
+    await vi.waitFor(() => expect(deletes).toBe(1))
+    expect(puts).toEqual([
+      { id: '1', body: { auto_delete: true } },
+      { id: '2', body: { auto_delete: false } },
+    ])
   })
 })

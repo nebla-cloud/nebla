@@ -35,12 +35,14 @@ import StepList from '@/components/StepList.vue'
 import TerminalBlock from '@/components/TerminalBlock.vue'
 import { useCrumbs } from '@/lib/crumbs'
 import { formatMemory } from '@/lib/format'
+import { selectFullClass } from '@/lib/ui'
 import { useCurrentProject } from '@/lib/project'
 import OsBadge from '@/features/servers/OsBadge.vue'
 import { osParts } from '@/features/servers/osLabel'
 import { useServers } from '@/features/servers/queries'
 import { DEFAULT_KEEP } from '@/features/backups/queries'
 import AddSshKeyModal from '@/features/sshkeys/AddSshKeyModal.vue'
+import { usePrimaryIPs } from '@/features/primary-ips/queries'
 import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
 import FirewallPicker from '@/features/firewalls/FirewallPicker.vue'
 import NetworkPicker from '@/features/networks/NetworkPicker.vue'
@@ -52,9 +54,12 @@ import {
   availableTypes,
   createBlocker,
   defaultName,
+  existingIPs,
+  newIPCount,
   networkChoice,
   noAddresses,
   pickFamilies,
+  publicNet,
   quotaAfter,
   reconcile,
   userDataBytes,
@@ -73,6 +78,7 @@ const imagesQ = useImages()
 const typesQ = useServerTypes()
 const { data: sshKeys } = useSshKeys()
 const { data: servers } = useServers()
+const { data: primaryIps } = usePrimaryIPs()
 
 useCrumbs(() => [
   { label: 'Servers', to: { name: 'servers', params: { projectId: projectId.value } } },
@@ -85,6 +91,8 @@ const form = reactive<CreateForm>({
   typeId: null,
   ipv4: true,
   ipv6: false,
+  ipv4Existing: null,
+  ipv6Existing: null,
   sshKeyIds: [],
   userData: '',
   name: '',
@@ -150,6 +158,18 @@ const backupsOk = computed(() => {
   return max <= 0 || p.usage.backups_reserved + DEFAULT_KEEP <= max
 })
 const existing = computed(() => (servers.value ?? []).map((s) => s.name))
+const reusable = computed(() => ({
+  ipv4: location.value ? existingIPs(primaryIps.value ?? [], location.value.id, 'ipv4') : [],
+  ipv6: location.value ? existingIPs(primaryIps.value ?? [], location.value.id, 'ipv6') : [],
+}))
+const existingValue = (fam: 'ipv4' | 'ipv6') =>
+  computed({
+    get: () => (form[`${fam}Existing`] === null ? '' : String(form[`${fam}Existing`])),
+    set: (v: string) => (form[`${fam}Existing`] = v === '' ? null : Number(v)),
+  })
+const existingValues = { ipv4: existingValue('ipv4'), ipv6: existingValue('ipv6') }
+const pickedName = (fam: 'ipv4' | 'ipv6') =>
+  reusable.value[fam].find((p) => p.id === form[`${fam}Existing`])?.name ?? null
 
 function applyReconcile() {
   Object.assign(form, reconcile({ ...form }, ctx.value))
@@ -199,6 +219,13 @@ watch(
   { immediate: true },
 )
 
+watch(reusable, (r) => {
+  for (const fam of ['ipv4', 'ipv6'] as const) {
+    const id = form[`${fam}Existing`]
+    if (id !== null && !r[fam].some((p) => p.id === id)) form[`${fam}Existing`] = null
+  }
+})
+
 function onNameInput(v: string) {
   form.nameTouched = v.trim() !== ''
 }
@@ -206,7 +233,7 @@ function onNameInput(v: string) {
 const quota = computed(() => {
   const p = project.value
   if (!p?.quota || !p.usage || !serverType.value) return { ok: true, lines: [] }
-  return quotaAfter(p.quota, p.usage, serverType.value, Number(form.ipv4) + Number(form.ipv6))
+  return quotaAfter(p.quota, p.usage, serverType.value, newIPCount(form))
 })
 
 const blocker = computed(() =>
@@ -243,7 +270,7 @@ async function submit() {
     image: String(form.imageId),
     server_type: String(form.typeId),
     ssh_keys: form.sshKeyIds.map(String),
-    public_net: { ipv4: form.ipv4, ipv6: form.ipv6 },
+    public_net: publicNet(form),
     ...(form.userData.trim() ? { user_data: form.userData } : {}),
     ...(backupsOn.value ? { backups: { enabled: true, keep: DEFAULT_KEEP } } : {}),
     ...(firewallIds.value.length
@@ -404,13 +431,31 @@ const cards = 'flex flex-wrap gap-2.5'
                   type="checkbox"
                   :name="fam"
                   :value="fam"
-                  :disabled="!!nets[fam]"
+                  :disabled="!!nets[fam] && !reusable[fam].length"
                   :title="nets[fam] ?? undefined"
                   class="min-w-36"
                   @update:model-value="ipTouched = true"
                 >
                   {{ fam === 'ipv4' ? 'IPv4' : 'IPv6' }}
                 </ChoiceCard>
+              </div>
+              <div v-for="fam in ['ipv4', 'ipv6'] as const" :key="`${fam}-source`">
+                <label
+                  v-if="form[fam] && reusable[fam].length"
+                  class="mt-3 flex max-w-sm flex-col gap-1 text-sm"
+                >
+                  <span class="text-muted">{{ fam === 'ipv4' ? 'IPv4' : 'IPv6' }} address</span>
+                  <select
+                    v-model="existingValues[fam].value"
+                    :name="`${fam}_source`"
+                    :class="selectFullClass"
+                  >
+                    <option value="">New address</option>
+                    <option v-for="p in reusable[fam]" :key="p.id" :value="String(p.id)">
+                      Use an existing IP: {{ p.name }} ({{ p.ip }})
+                    </option>
+                  </select>
+                </label>
               </div>
               <p v-if="nets.ipv4 && nets.ipv6" class="mt-2 text-xs text-muted">
                 {{ noAddresses(location?.name ?? '') }}
@@ -516,6 +561,8 @@ const cards = 'flex flex-wrap gap-2.5'
         :type="serverType"
         :ipv4="form.ipv4"
         :ipv6="form.ipv6"
+        :ipv4-name="pickedName('ipv4')"
+        :ipv6-name="pickedName('ipv6')"
         :key-count="form.sshKeyIds.length"
         :quota="quota.lines"
         :blocker="blocker"

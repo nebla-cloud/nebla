@@ -71,6 +71,8 @@ const form = (over: Partial<CreateForm> = {}): CreateForm => ({
   typeId: 2,
   ipv4: true,
   ipv6: false,
+  ipv4Existing: null,
+  ipv6Existing: null,
   sshKeyIds: [],
   userData: '',
   name: 'web1',

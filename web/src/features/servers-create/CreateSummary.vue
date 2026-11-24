@@ -35,6 +35,9 @@ const props = defineProps<{
   type?: ServerType
   ipv4: boolean
   ipv6: boolean
+  // Names of existing primary IPs picked for a family.
+  ipv4Name?: string | null
+  ipv6Name?: string | null
   keyCount: number
   quota: QuotaLine[]
   blocker: string | null
@@ -45,10 +48,11 @@ const name = defineModel<string>('name', { required: true })
 const emit = defineEmits<{ nameInput: [value: string] }>()
 
 const network = computed(() => {
-  if (props.ipv4 && props.ipv6) return 'IPv4 and IPv6'
-  if (props.ipv4) return 'IPv4'
-  if (props.ipv6) return 'IPv6'
-  return 'No public address'
+  const parts = [
+    props.ipv4 && (props.ipv4Name ? `IPv4 (${props.ipv4Name})` : 'IPv4'),
+    props.ipv6 && (props.ipv6Name ? `IPv6 (${props.ipv6Name})` : 'IPv6'),
+  ].filter(Boolean)
+  return parts.length ? parts.join(' and ') : 'No public address'
 })
 
 const rows = computed(() => [

@@ -7,7 +7,7 @@ allowlists and mail reputation can stay where they are while you replace the mac
 For an address that moves between running servers, use a [floating IP](floating-ips.md). A primary IP changes only
 while its server is stopped.
 
-You can manage primary IPs on the Primary IPs page, on a server's Networking tab, with the API, or with the
+You can manage primary IPs on the Primary IPs page, in the Primary IPs section of a server's Overview tab, with the API, or with the
 [CLI](cli.md) (`nebla primary-ip ...`).
 
 ## What it is

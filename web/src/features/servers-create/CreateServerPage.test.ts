@@ -20,8 +20,9 @@ import { http } from 'msw'
 import { json, server } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
 import { createAppRouter } from '@/router'
-import type { Action } from '@/api/types'
+import type { Action, PrimaryIp } from '@/api/types'
 import { makeServer } from '@/features/servers/fixtures'
+import { makePrimaryIP } from '@/features/primary-ips/fixtures'
 import serverRoutes from '@/features/servers/routes'
 import { useCurrentCrumbs } from '@/lib/crumbs'
 import CreateServerPage from './CreateServerPage.vue'
@@ -91,6 +92,7 @@ let privateNets: {
   name: string
   location: { id: number; name: string; description: string }
 }[]
+let primaryIps: PrimaryIp[] = []
 let keys: { id: number; name: string; public_key: string; fingerprint: string; created: string }[]
 
 function key(id: number, name: string) {
@@ -158,6 +160,9 @@ function serveCatalog(locs = locations, maxBackups = 35) {
         meta: meta(privateNets.length),
       }),
     ),
+    http.get('*/v1/primary_ips', () =>
+      json(200, { primary_ips: primaryIps, meta: meta(primaryIps.length) }),
+    ),
   )
 }
 
@@ -175,6 +180,7 @@ async function mountCreate() {
       component: RouterView,
       children: [
         { path: 'servers/new', name: 'server-new', component: CreateServerPage },
+        { path: 'primary-ips/:primaryIpId', name: 'primary-ip', component: RouterView },
         ...serverRoutes,
       ],
     },
@@ -215,6 +221,7 @@ beforeEach(() => {
   keys = [key(5, 'laptop')]
   firewalls = []
   privateNets = []
+  primaryIps = []
 })
 afterEach(() => {
   document.body.innerHTML = ''
@@ -592,5 +599,59 @@ describe('CreateServerPage', () => {
       await settle()
       expect(body.backups).toEqual({ enabled: true, keep: 7 })
     })
+  })
+
+  it('offers only unassigned IPs of the family in the location, and counts only new ones', async () => {
+    primaryIps = [
+      makePrimaryIP({ id: 1, name: 'spare-v4', ip: '203.0.113.60' }),
+      makePrimaryIP({ id: 2, name: 'taken-v4', ip: '203.0.113.61', server: { id: 9, name: 'x' } }),
+      makePrimaryIP({
+        id: 3,
+        name: 'far-v4',
+        ip: '203.0.113.62',
+        location: { id: 2, name: 'rack-2', description: '' },
+      }),
+      makePrimaryIP({ id: 4, name: 'spare-v6', ip: '2001:db8::4', type: 'ipv6' }),
+      makePrimaryIP({ id: 5, name: 'going-v4', ip: '203.0.113.63', status: 'releasing' }),
+    ]
+    serveCatalog()
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.post('*/v1/servers', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return json(201, { server: makeServer({ id: 42 }), action: action(), next_actions: [] })
+      }),
+      http.get('*/v1/servers/42', () => json(200, makeServer({ id: 42 }))),
+      http.get('*/v1/actions/7', () => json(200, action())),
+    )
+    const { router } = await mountCreate()
+    await pick('input[name="location"][value="1"]')
+    await pick('input[name="image"][value="3"]')
+    await pick('input[name="server_type"][value="2"]')
+    await pick('input[name="ssh_key"][value="5"]')
+    const options = Array.from(
+      document.body.querySelectorAll<HTMLOptionElement>('select[name="ipv4_source"] option'),
+    ).map((o) => o.textContent!.trim())
+    expect(options).toEqual(['New address', 'Use an existing IP: spare-v4 (203.0.113.60)'])
+    // IPv6 isn't ticked, so its picker is hidden.
+    expect($('select[name="ipv6_source"]')).toBeNull()
+    await pick('input[name="ipv6"]')
+    expect(
+      Array.from(
+        document.body.querySelectorAll<HTMLOptionElement>('select[name="ipv6_source"] option'),
+      ).map((o) => o.textContent!.trim()),
+    ).toEqual(['New address', 'Use an existing IP: spare-v6 (2001:db8::4)'])
+    await pick('input[name="ipv6"]')
+    expect(summary().textContent).toContain('IPs: 3 of 10, 4 after this')
+
+    const sel = $<HTMLSelectElement>('select[name="ipv4_source"]')
+    sel.value = '1'
+    sel.dispatchEvent(new Event('change'))
+    await settle()
+    expect(summary().textContent).toContain('IPv4 (spare-v4)')
+    expect(summary().textContent).toContain('IPs: 3 of 10, 3 after this')
+    createButton().click()
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
+    expect(bodies[0]!.public_net).toEqual({ ipv4: '1', ipv6: false })
   })
 })

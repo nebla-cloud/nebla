@@ -17,19 +17,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { FloatingIp, Server, Volume } from '@/api/types'
-import { floatingIpStatus, serverStatus, volumeStatus, type StatusTone } from '@/lib/status'
+import type { FloatingIp, PrimaryIp, Server, Volume } from '@/api/types'
+import {
+  floatingIpStatus,
+  primaryIpStatus,
+  serverStatus,
+  volumeStatus,
+  type StatusTone,
+} from '@/lib/status'
 
 const props = defineProps<{
-  status: Server['status'] | Volume['status'] | FloatingIp['status']
-  kind?: 'server' | 'volume' | 'floating-ip'
+  status: Server['status'] | Volume['status'] | FloatingIp['status'] | PrimaryIp['status']
+  kind?: 'server' | 'volume' | 'floating-ip' | 'primary-ip'
 }>()
 const s = computed(() =>
   props.kind === 'volume'
     ? volumeStatus(props.status as Volume['status'])
     : props.kind === 'floating-ip'
       ? floatingIpStatus(props.status as FloatingIp['status'])
-      : serverStatus(props.status as Server['status']),
+      : props.kind === 'primary-ip'
+        ? primaryIpStatus(props.status as PrimaryIp['status'])
+        : serverStatus(props.status as Server['status']),
 )
 const tone: Record<StatusTone, string> = {
   success: 'bg-[var(--nb-run)]',

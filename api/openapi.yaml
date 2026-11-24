@@ -4468,7 +4468,7 @@ components:
         ip: { type: string }
     Server:
       type: object
-      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, firewalls, volumes, backups, private_net, created]
+      required: [id, name, status, location, server_type, image, public_net, labels, disk_gb, firewalls, volumes, backups, private_net, created, ip_change_reruns_cloud_init]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -4519,6 +4519,9 @@ components:
           items: { type: integer, format: int64 }
         backups: { $ref: "#/components/schemas/ServerBackups" }
         created: { type: string, format: date-time }
+        ip_change_reruns_cloud_init:
+          type: boolean
+          description: True for a server created before IP changes were supported; changing its IP re-runs its cloud-init user data and gives it new SSH host keys
     VolumeInput:
       type: object
       required: [name, size]

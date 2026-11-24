@@ -57,8 +57,14 @@ export default defineConfig({
     },
     // Creates a network, joins two of the servers left behind, then detaches and deletes it.
     { name: 'networks', testMatch: /networks\.spec\.ts/, dependencies: ['floating-ips'] },
+    // Reserves a primary IP and moves it between two servers it creates itself.
+    {
+      name: 'primary-ips',
+      testMatch: /primary-ips\.spec\.ts/,
+      dependencies: ['networks'],
+    },
     // Needs the Home lab project that first-run creates; runs last so it can't disturb server specs.
-    { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['networks'] },
+    { name: 'people', testMatch: /people\.spec\.ts/, dependencies: ['primary-ips'] },
     { name: 'enroll', testMatch: /enroll\.spec\.ts/, dependencies: ['people'] },
     { name: 'passkeys', testMatch: /passkeys\.spec\.ts/, dependencies: ['enroll'] },
     { name: 'admin', testMatch: /admin\.spec\.ts/, dependencies: ['passkeys'] },

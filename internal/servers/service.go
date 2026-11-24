@@ -140,6 +140,8 @@ type Server struct {
 	CreatedAt      time.Time
 	Firewalls      []firewalls.Applied
 	Backups        ServerBackups
+	// IPChangeRerunsCloudInit is true for servers created before IP changes were supported.
+	IPChangeRerunsCloudInit bool
 }
 
 // ServerBackups is a server's backup settings and state.
@@ -746,7 +748,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			locs[r.LocationID] = loc
 		}
 		out[i] = Server{ID: r.ID, ProjectID: r.ProjectID, Name: r.Name, Status: string(r.Status), Location: loc, Type: t, Image: img,
-			Node: r.Node, Labels: r.Labels, DiskGB: r.DiskGB, CreatedAt: r.CreatedAt}
+			Node: r.Node, Labels: r.Labels, DiskGB: r.DiskGB, CreatedAt: r.CreatedAt, IPChangeRerunsCloudInit: !r.NetRefresh}
 		if out[i].Labels == nil {
 			out[i].Labels = map[string]string{}
 		}

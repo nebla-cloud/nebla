@@ -52,6 +52,7 @@ function submit() {
       <form id="confirm-by-name" class="flex flex-col gap-3" @submit.prevent="submit">
         <slot name="intro" />
         <UAlert v-if="error" color="error" variant="subtle" :description="error" />
+        <slot name="extra" />
         <UFormField name="confirm_name">
           <template #label>
             Type

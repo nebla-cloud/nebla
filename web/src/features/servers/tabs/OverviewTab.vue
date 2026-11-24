@@ -16,7 +16,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
@@ -33,6 +33,8 @@ import MetricCard from '@/components/MetricCard.vue'
 import Panel from '@/components/Panel.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import { useActions } from '@/features/activity/queries'
+import ServerPrimaryIPs from '@/features/primary-ips/ServerPrimaryIPs.vue'
+import { KEPT_NOTE, updatePrimaryIP, usePrimaryIPs } from '@/features/primary-ips/queries'
 import { formatDate, typeSpec } from '@/lib/format'
 import { useCurrentProject } from '@/lib/project'
 import LabelChips from '../LabelChips.vue'
@@ -175,14 +177,35 @@ const confirmOpen = ref(false)
 const deleting = ref(false)
 const deleteError = ref<string | null>(null)
 
+const { data: primaryIps } = usePrimaryIPs()
+const attached = computed(() =>
+  (primaryIps.value ?? []).filter((p) => p.server?.id === props.server.id),
+)
+// Keep-checkbox per attached primary IP, ticked when it wouldn't be deleted with the server.
+const keep = ref<Record<number, boolean>>({})
+watch(
+  [confirmOpen, attached],
+  ([open]) => {
+    if (!open) keep.value = {}
+    else
+      for (const p of attached.value) if (!(p.id in keep.value)) keep.value[p.id] = !p.auto_delete
+  },
+  { immediate: true },
+)
+
 async function confirmDelete() {
   deleting.value = true
   deleteError.value = null
   try {
+    for (const p of attached.value) {
+      const wantAuto = !(keep.value[p.id] ?? !p.auto_delete)
+      if (wantAuto !== p.auto_delete) await updatePrimaryIP(p.id, { auto_delete: wantAuto })
+    }
     const res = unwrap(
       await api.DELETE('/servers/{id}', { params: { path: { id: props.server.id } } }),
     )
     confirmOpen.value = false
+    void qc.invalidateQueries({ queryKey: ['primary-ips'] })
     emit('started', res.action)
   } catch (e) {
     confirmOpen.value = false
@@ -215,90 +238,95 @@ async function confirmDelete() {
     <p v-else class="text-sm text-muted">Graphs appear once it's running</p>
 
     <div class="grid items-start gap-4 lg:grid-cols-[1.3fr_1fr]">
-      <Panel>
-        <div class="flex flex-col gap-4">
-          <form
-            v-if="renaming"
-            class="flex flex-wrap items-start gap-2"
-            novalidate
-            @submit.prevent="submitRename"
-          >
-            <UFormField name="name" label="Server name" :error="renameError ?? undefined">
-              <UInput v-model="newName" name="name" autocomplete="off" autofocus />
-            </UFormField>
-            <div class="flex gap-2 sm:mt-6">
-              <UButton type="submit" :loading="renameBusy">Save</UButton>
-              <UButton color="neutral" variant="ghost" @click="renaming = false">Cancel</UButton>
-            </div>
-          </form>
+      <div class="flex min-w-0 flex-col gap-4">
+        <Panel>
+          <div class="flex flex-col gap-4">
+            <form
+              v-if="renaming"
+              class="flex flex-wrap items-start gap-2"
+              novalidate
+              @submit.prevent="submitRename"
+            >
+              <UFormField name="name" label="Server name" :error="renameError ?? undefined">
+                <UInput v-model="newName" name="name" autocomplete="off" autofocus />
+              </UFormField>
+              <div class="flex gap-2 sm:mt-6">
+                <UButton type="submit" :loading="renameBusy">Save</UButton>
+                <UButton color="neutral" variant="ghost" @click="renaming = false">Cancel</UButton>
+              </div>
+            </form>
 
-          <dl
-            class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-3 text-sm sm:grid-cols-[7.5rem_minmax(0,1fr)]"
-          >
-            <dt class="text-muted">Name</dt>
-            <dd class="flex flex-wrap items-center gap-2 font-medium break-all text-highlighted">
-              {{ server.name }}
-              <UButton
-                v-if="!renaming"
-                color="neutral"
-                variant="link"
-                size="xs"
-                icon="i-lucide-pencil"
-                @click="startRename"
-              >
-                Rename
-              </UButton>
-            </dd>
-            <template v-for="r in rows" :key="`${r.label}-${r.value}`">
-              <dt class="text-muted">{{ r.label }}</dt>
+            <dl
+              class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-3 text-sm sm:grid-cols-[7.5rem_minmax(0,1fr)]"
+            >
+              <dt class="text-muted">Name</dt>
               <dd class="flex flex-wrap items-center gap-2 font-medium break-all text-highlighted">
-                <RouterLink
-                  v-if="r.fip !== undefined"
-                  :to="{ name: 'floating-ip', params: { projectId, floatingIpId: r.fip } }"
-                  class="font-mono underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
-                  >{{ r.value }}</RouterLink
-                >
-                <span v-else-if="r.ip" class="font-mono">{{ r.value }}</span>
-                <template v-else>{{ r.value }}</template>
+                {{ server.name }}
                 <UButton
-                  v-if="r.ip"
+                  v-if="!renaming"
                   color="neutral"
                   variant="link"
                   size="xs"
-                  :aria-label="`Copy ${r.label}`"
-                  @click="copy(r.value)"
+                  icon="i-lucide-pencil"
+                  @click="startRename"
                 >
-                  Copy
+                  Rename
                 </UButton>
               </dd>
-              <dd v-if="r.sub" class="col-start-2 -mt-2.5 text-xs break-all text-muted">
-                {{ r.sub }}
-              </dd>
-            </template>
-            <dt class="text-muted">Labels</dt>
-            <dd class="flex flex-wrap items-center gap-2">
-              <template v-if="!editingLabels">
-                <LabelChips :labels="server.labels" :max="64" />
-                <UButton
-                  color="neutral"
-                  variant="link"
-                  size="xs"
-                  icon="i-lucide-tag"
-                  @click="editingLabels = true"
+              <template v-for="r in rows" :key="`${r.label}-${r.value}`">
+                <dt class="text-muted">{{ r.label }}</dt>
+                <dd
+                  class="flex flex-wrap items-center gap-2 font-medium break-all text-highlighted"
                 >
-                  Edit labels
-                </UButton>
+                  <RouterLink
+                    v-if="r.fip !== undefined"
+                    :to="{ name: 'floating-ip', params: { projectId, floatingIpId: r.fip } }"
+                    class="font-mono underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                    >{{ r.value }}</RouterLink
+                  >
+                  <span v-else-if="r.ip" class="font-mono">{{ r.value }}</span>
+                  <template v-else>{{ r.value }}</template>
+                  <UButton
+                    v-if="r.ip"
+                    color="neutral"
+                    variant="link"
+                    size="xs"
+                    :aria-label="`Copy ${r.label}`"
+                    @click="copy(r.value)"
+                  >
+                    Copy
+                  </UButton>
+                </dd>
+                <dd v-if="r.sub" class="col-start-2 -mt-2.5 text-xs break-all text-muted">
+                  {{ r.sub }}
+                </dd>
               </template>
-            </dd>
-          </dl>
-          <LabelEditor
-            v-if="editingLabels"
-            :server="server"
-            @saved="editingLabels = false"
-            @cancel="editingLabels = false"
-          />
-        </div>
-      </Panel>
+              <dt class="text-muted">Labels</dt>
+              <dd class="flex flex-wrap items-center gap-2">
+                <template v-if="!editingLabels">
+                  <LabelChips :labels="server.labels" :max="64" />
+                  <UButton
+                    color="neutral"
+                    variant="link"
+                    size="xs"
+                    icon="i-lucide-tag"
+                    @click="editingLabels = true"
+                  >
+                    Edit labels
+                  </UButton>
+                </template>
+              </dd>
+            </dl>
+            <LabelEditor
+              v-if="editingLabels"
+              :server="server"
+              @saved="editingLabels = false"
+              @cancel="editingLabels = false"
+            />
+          </div>
+        </Panel>
+        <ServerPrimaryIPs :server="server" :busy="busy" @started="emit('started', $event)" />
+      </div>
 
       <Panel title="Recent activity">
         <template #header-actions>
@@ -354,6 +382,16 @@ async function confirmDelete() {
                 : `${server.backups.count} backups will also be deleted.`
             }}
           </p>
+        </template>
+        <template v-if="attached.length" #extra>
+          <fieldset class="flex flex-col gap-2 text-sm">
+            <legend class="sr-only">IPs to keep</legend>
+            <label v-for="p in attached" :key="p.id" class="flex items-center gap-2">
+              <input v-model="keep[p.id]" type="checkbox" :name="`keep-${p.id}`" />
+              Keep <span class="nb-mono">{{ p.ip }}</span> in this project
+            </label>
+            <p class="text-muted">{{ KEPT_NOTE }}</p>
+          </fieldset>
         </template>
       </ConfirmByName>
     </div>

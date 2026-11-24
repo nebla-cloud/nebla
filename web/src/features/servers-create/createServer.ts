@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import type { components } from '@/api/schema'
-import type { Location, ServerType } from '@/api/types'
+import type { Location, PrimaryIp, ServerType } from '@/api/types'
 
 export type Image = components['schemas']['Image']
 export type Quota = components['schemas']['Quota']
@@ -26,6 +26,9 @@ export type CreateForm = {
   typeId: number | null
   ipv4: boolean
   ipv6: boolean
+  // A primary IP id to reuse for the family; null allocates a new address.
+  ipv4Existing: number | null
+  ipv6Existing: number | null
   sshKeyIds: number[]
   userData: string
   name: string
@@ -82,6 +85,36 @@ export const noAddresses = (name: string) =>
   `No free addresses in ${name}. Ask your Nebla admin to add an IP pool.`
 export const PICK_FAMILY = 'Pick IPv4 or IPv6 so the server can be reached.'
 
+// Unassigned, settled primary IPs of one family in the chosen location.
+export function existingIPs(
+  all: PrimaryIp[],
+  locationId: number,
+  family: 'ipv4' | 'ipv6',
+): PrimaryIp[] {
+  return all.filter(
+    (p) =>
+      p.type === family &&
+      p.server === null &&
+      p.status === 'active' &&
+      p.location.id === locationId,
+  )
+}
+
+// Only new addresses count toward the quota.
+export function newIPCount(form: CreateForm): number {
+  return (
+    Number(form.ipv4 && form.ipv4Existing === null) +
+    Number(form.ipv6 && form.ipv6Existing === null)
+  )
+}
+
+export function publicNet(form: CreateForm): { ipv4: boolean | string; ipv6: boolean | string } {
+  return {
+    ipv4: form.ipv4 && form.ipv4Existing !== null ? String(form.ipv4Existing) : form.ipv4,
+    ipv6: form.ipv6 && form.ipv6Existing !== null ? String(form.ipv6Existing) : form.ipv6,
+  }
+}
+
 export function networkChoice(loc: Location): { ipv4: string | null; ipv6: string | null } {
   return {
     ipv4: loc.networks.ipv4 ? null : `No free IPv4 addresses in ${loc.name}`,
@@ -136,12 +169,15 @@ export function reconcile(form: CreateForm, ctx: CreateContext): CreateForm {
     (o) => o.type.id === form.typeId && !o.disabledReason,
   )
   const nets = networkChoice(loc)
+  // An existing IP needs no free pool address.
   return {
     ...form,
     imageId: imageOk ? form.imageId : null,
     typeId: typeOk ? form.typeId : null,
-    ipv4: form.ipv4 && !nets.ipv4,
-    ipv6: form.ipv6 && !nets.ipv6,
+    ipv4: form.ipv4 && (!nets.ipv4 || form.ipv4Existing !== null),
+    ipv6: form.ipv6 && (!nets.ipv6 || form.ipv6Existing !== null),
+    ipv4Existing: form.ipv4 ? form.ipv4Existing : null,
+    ipv6Existing: form.ipv6 ? form.ipv6Existing : null,
   }
 }
 
@@ -156,8 +192,9 @@ export function createBlocker(
 ): string | null {
   const loc = ctx.locations.find((l) => l.id === form.locationId)
   if (!loc) return 'Pick a location.'
-  if (!loc.networks.ipv4 && !loc.networks.ipv6) return noAddresses(loc.name)
   const checked = reconcile(form, ctx)
+  if (!loc.networks.ipv4 && !loc.networks.ipv6 && !checked.ipv4 && !checked.ipv6)
+    return noAddresses(loc.name)
   if (checked.imageId === null) return 'Pick an image.'
   if (checked.typeId === null) return 'Pick a type.'
   if (!checked.ipv4 && !checked.ipv6) return PICK_FAMILY
