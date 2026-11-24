@@ -529,6 +529,9 @@ func (s *Service) Unassign(ctx context.Context, projectID, id int64) (actions.Ac
 		if err != nil {
 			return err
 		}
+		if row.ReleasingFromID != nil {
+			return errReleasing
+		}
 		if row.ServerID == nil {
 			return errNotAssigned
 		}

@@ -166,8 +166,33 @@ func TestISOSyncBumpsInstanceOnOldServer(t *testing.T) {
 	require.Equal(t, 2, servers.InstanceGeneration(row))
 	files := isoFiles(t, e, genVolid(s.ServerID, 2))
 	require.Equal(t, fmt.Sprintf("nb-srv-%d-2", s.ServerID), instanceID(t, files))
-	require.NotContains(t, files, "vendor-data")
+	require.Equal(t, wantVendorData, files["vendor-data"], "the bump opts the server into boot-time network refresh")
+	require.True(t, row.NetRefresh)
+	require.False(t, row.InstanceBumpPending)
 	require.Equal(t, genVolid(s.ServerID, 2)+",media=cdrom", ide2(t, e, s.ServerID))
+
+	// A later network change keeps the instance-id: the bump happens once.
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetIsoNetHash("").Exec(ctx))
+	require.True(t, syncNow(t, opts(e), s.ServerID, false))
+	row = srvRow(t, e, s.ServerID)
+	require.Equal(t, 3, row.IsoGeneration)
+	require.Equal(t, 2, servers.InstanceGeneration(row))
+	files = isoFiles(t, e, genVolid(s.ServerID, 3))
+	require.Equal(t, fmt.Sprintf("nb-srv-%d-2", s.ServerID), instanceID(t, files))
+	require.Equal(t, wantVendorData, files["vendor-data"])
+}
+
+func TestISOSyncPendingBumpOptsIn(t *testing.T) {
+	ctx := context.Background()
+	e, cw := directEnv(t)
+	s := builtServer(t, e, cw, "web")
+	require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetNetRefresh(false).SetInstanceBumpPending(true).Exec(ctx))
+	require.True(t, syncNow(t, opts(e), s.ServerID, false))
+	row := srvRow(t, e, s.ServerID)
+	require.True(t, row.NetRefresh)
+	require.False(t, row.InstanceBumpPending)
+	require.Equal(t, 2, servers.InstanceGeneration(row))
+	require.Equal(t, wantVendorData, isoFiles(t, e, genVolid(s.ServerID, 2))["vendor-data"])
 }
 
 func TestISOSyncSerializes(t *testing.T) {

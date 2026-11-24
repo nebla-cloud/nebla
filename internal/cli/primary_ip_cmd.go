@@ -170,15 +170,25 @@ func pipUpdateCmd(a *app) *cobra.Command {
 	fl := cmd.Flags()
 	fl.StringVar(&name, "name", "", "new name")
 	fl.StringVar(&description, "description", "", "new description")
-	fl.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable); replaces all labels")
+	fl.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable); replaces all labels; --label \"\" clears them")
 	fl.BoolVar(&autoDelete, "auto-delete", false, "delete the address with its server: true or false")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if !fl.Changed("name") && !fl.Changed("description") && !fl.Changed("auto-delete") && len(labels) == 0 {
+		if !fl.Changed("name") && !fl.Changed("description") && !fl.Changed("auto-delete") && !fl.Changed("label") {
 			return errors.New("nothing to update: pass --name, --description, --label or --auto-delete")
 		}
-		lbl, err := parseLabels(labels)
+		// An empty --label "" clears the labels; the map stays non-nil so the request carries labels: {}.
+		var set []string
+		for _, l := range labels {
+			if l != "" {
+				set = append(set, l)
+			}
+		}
+		lbl, err := parseLabels(set)
 		if err != nil {
 			return err
+		}
+		if fl.Changed("label") && lbl == nil {
+			lbl = apiclient.Labels{}
 		}
 		api, err := a.api()
 		if err != nil {

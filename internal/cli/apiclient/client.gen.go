@@ -1562,7 +1562,7 @@ type Server struct {
 	Id        int64            `json:"id"`
 	Image     Image            `json:"image"`
 
-	// IpChangeRerunsCloudInit True for a server created before IP changes were supported; changing its IP re-runs its cloud-init user data and gives it new SSH host keys
+	// IpChangeRerunsCloudInit True for a server created before IP changes were supported; its first IP change re-runs its cloud-init user data and gives it new SSH host keys, and later changes do not
 	IpChangeRerunsCloudInit bool `json:"ip_change_reruns_cloud_init"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty

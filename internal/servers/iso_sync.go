@@ -210,10 +210,12 @@ func (o *WorkerOptions) syncISO(ctx context.Context, pc pve.Client, row *ent.Ser
 		bumpInstance = bumpInstance || cur.InstanceBumpPending
 		// Keeping the instance writes InstanceGeneration(cur) back, so a 0 stops following the new iso_generation.
 		gen, inst := cur.IsoGeneration+1, InstanceGeneration(cur)
+		netRefresh := cur.NetRefresh
 		if bumpInstance {
-			inst = gen
+			// The one bump also opts the server into boot-time network refresh, so later IP changes keep the instance-id.
+			inst, netRefresh = gen, true
 		}
-		in, err := renderISO(ctx, o.Ent, cur, inst, cur.NetRefresh)
+		in, err := renderISO(ctx, o.Ent, cur, inst, netRefresh)
 		if err != nil {
 			return err
 		}
@@ -245,9 +247,13 @@ func (o *WorkerOptions) syncISO(ctx context.Context, pc pve.Client, row *ent.Ser
 			isoBeforeUpdate(cur.ID)
 		}
 		// A bump requested after cur was read must survive; the retry applies it.
-		n, err := o.Ent.Server.Update().Where(server.ID(cur.ID), server.IsoGeneration(cur.IsoGeneration), server.IsoLeaseUntil(l.until),
+		upd := o.Ent.Server.Update().Where(server.ID(cur.ID), server.IsoGeneration(cur.IsoGeneration), server.IsoLeaseUntil(l.until),
 			server.InstanceBumpPending(cur.InstanceBumpPending)).
-			SetIsoGeneration(gen).SetIsoVolid(volid).SetIsoNetHash(hash).SetInstanceGeneration(inst).SetInstanceBumpPending(false).Save(ctx)
+			SetIsoGeneration(gen).SetIsoVolid(volid).SetIsoNetHash(hash).SetInstanceGeneration(inst).SetInstanceBumpPending(false)
+		if bumpInstance {
+			upd = upd.SetNetRefresh(true)
+		}
+		n, err := upd.Save(ctx)
 		if err != nil {
 			return err
 		}

@@ -48,8 +48,9 @@ Create a primary IP before you have a server for it:
 nebla primary-ip create --type ipv4 --location home --name web-ip --keep
 ```
 
-It is unassigned and ready to use. `--keep` turns auto-delete off, so the address stays when a server that uses it is
-deleted later. Without it, auto-delete stays on. Name, description and labels are optional; without a name it is named
+It is unassigned and ready to use. A reserved IP has auto-delete on by default. If you use it at server create and
+later delete that server, the address is deleted with it, unless you create it with `--keep` or turn auto-delete off
+(`nebla primary-ip update web-ip --auto-delete=false`). Name, description and labels are optional; without a name it is named
 `ip-<type>-<id>`.
 
 Delete an address you no longer need. It has to be unassigned, and it goes back to the location:
@@ -101,16 +102,17 @@ starts." The server keeps its old address until you start it.
 
 ### Servers created before IP changes were supported
 
-Servers created before this feature don't re-read their network settings at boot. Changing the IP of one of them makes
-the guest treat the next start as a new machine. `assign` and `unassign` warn you first:
+Servers created before this feature don't re-read their network settings at boot. The first IP change of one of them
+makes the guest treat the next start as a new machine, and the change also turns on boot-time network refresh for the
+server. `assign` and `unassign` warn you before that first change:
 
 > This server was created before IP changes were supported. Changing its IP re-runs its cloud-init user data and gives
 > it new SSH host keys.
 
 The CLI prints the warning on stderr, and with `-o json` it is in the `warnings` list of the output. Re-running user
-data repeats whatever your first-boot scripts do, and new host keys make SSH clients report a changed key. Rebuilding
-the server clears the warning for the future, because new and rebuilt servers pick up the change without either side
-effect.
+data repeats whatever your first-boot scripts do, and new host keys make SSH clients report a changed key. Later IP
+changes on the same server keep its identity, so they don't warn and have neither side effect. Rebuilding the server
+also avoids the warning, because new and rebuilt servers pick up the change without either side effect.
 
 ## Limits
 

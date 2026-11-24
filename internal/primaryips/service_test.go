@@ -416,6 +416,10 @@ func TestUnassignRefusals(t *testing.T) {
 	requireAPIErr(t, unassign(p.ID), http.StatusUnprocessableEntity, "invalid_input", "The primary IP isn't assigned.")
 	requireAPIErr(t, unassign(e.rowOf(t, "web1-ipv4")), http.StatusConflict, "server_not_stopped", "Stop the server first.")
 
+	rel := e.create(t, primaryips.CreateInput{Type: "ipv6"})
+	e.App.Ent.IPAddress.UpdateOneID(rel.ID).SetReleasingFromID(off1.ServerID).ExecX(ctx)
+	requireAPIErr(t, unassign(rel.ID), http.StatusConflict, "locked", "The address is still being released from the previous server.")
+
 	fsvc := floatingips.New(floatingips.Options{SQL: e.App.SQL, Ent: e.App.Ent, Catalog: e.App.Catalog, Projects: e.proj, Jobs: e.App.Jobs})
 	_, fact, err := fsvc.Create(ctx, e.Project, floatingips.CreateInput{Family: "ipv4", Server: "off1"})
 	require.NoError(t, err)
@@ -465,4 +469,28 @@ func TestResumeGivesUpAfterRepeatedAssignFailures(t *testing.T) {
 	require.Equal(t, &off1.ServerID, row.ServerID, "the IP stays assigned")
 	require.NoError(t, e.svc.ResumeStuck(ctx))
 	require.Zero(t, running())
+}
+
+// An old server is warned once: after its ISO sync opts it into network refresh, later changes warn no more.
+func TestOldServerWarnsOnce(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	off1 := e.RunningServer("off1")
+	e.off(t, off1.ServerID)
+	e.App.Ent.Server.UpdateOneID(off1.ServerID).SetNetRefresh(false).ExecX(ctx)
+	p := e.create(t, primaryips.CreateInput{Type: "ipv6"})
+	act, warns, err := e.svc.Assign(ctx, e.Project, p.ID, "off1")
+	require.NoError(t, err)
+	require.NoError(t, actions.Succeed(ctx, e.App.Ent, act.ID))
+	require.Equal(t, []string{primaryips.OldServerWarning}, warns)
+	require.True(t, e.App.Ent.Server.GetX(ctx, off1.ServerID).InstanceBumpPending)
+
+	// What the sync_iso job does when it applies the bump.
+	e.App.Ent.Server.UpdateOneID(off1.ServerID).SetNetRefresh(true).SetInstanceBumpPending(false).ExecX(ctx)
+	e.App.Ent.IPAddress.UpdateOneID(p.ID).ClearServerID().ClearPendingGen().ExecX(ctx)
+	q := e.create(t, primaryips.CreateInput{Type: "ipv6"})
+	_, warns, err = e.svc.Assign(ctx, e.Project, q.ID, "off1")
+	require.NoError(t, err)
+	require.Empty(t, warns)
+	require.False(t, e.App.Ent.Server.GetX(ctx, off1.ServerID).InstanceBumpPending)
 }

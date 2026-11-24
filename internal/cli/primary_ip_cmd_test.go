@@ -16,6 +16,7 @@ package cli
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -94,6 +95,18 @@ func TestPrimaryIPCommands(t *testing.T) {
 	}
 	if p := primaryIPJSON(t, h, "keepme"); p.AutoDelete {
 		t.Fatalf("auto_delete should be false: %+v", p)
+	}
+	if _, errOut, code = h.run("primary-ip", "update", "keepme", "--label", "a=b"); code != 0 {
+		t.Fatal(errOut)
+	}
+	if p := primaryIPJSON(t, h, "keepme"); p.Labels["a"] != "b" {
+		t.Fatalf("labels not replaced: %+v", p)
+	}
+	if _, errOut, code = h.run("primary-ip", "update", "keepme", "--label", ""); code != 0 {
+		t.Fatal(errOut)
+	}
+	if p := primaryIPJSON(t, h, "keepme"); len(p.Labels) != 0 {
+		t.Fatalf("labels not cleared: %+v", p)
 	}
 	if _, errOut, code := h.run("primary-ip", "update", "keepme"); code == 0 || !strings.Contains(errOut, "nothing to update") {
 		t.Fatalf("empty update: %d %q", code, errOut)
@@ -237,5 +250,47 @@ func TestServerCreateIPv4Ref(t *testing.T) {
 	// The boolean forms still work.
 	if out, errOut, code := h.run("server", "create", "--name", "w3", "--type", "small", "--image", "ubuntu", "--location", "eu-1", "--ipv4=false", "--ipv6=false"); code != 0 || strings.Contains(out, "IPv4: 10") {
 		t.Fatalf("bool forms: %d %q %q", code, out, errOut)
+	}
+}
+
+// failDelete answers DELETE /v1/servers/... with a 409 and passes the rest through.
+type failDelete struct{ next http.RoundTripper }
+
+func (f failDelete) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodDelete && strings.HasPrefix(req.URL.Path, "/v1/servers/") {
+		return &http.Response{StatusCode: http.StatusConflict, Header: http.Header{"Content-Type": {"application/json"}}, Request: req,
+			Body: io.NopCloser(strings.NewReader(`{"error":{"code":"locked","message":"the server has a running action"}}`))}, nil
+	}
+	return f.next.RoundTrip(req)
+}
+
+func TestServerDeleteListsSurvivorsAndNotesFailure(t *testing.T) {
+	h := newFIPHarness(t)
+	h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": true, "ipv6": true}})
+	// web-ipv6 is already stored as kept; only web-ipv4 is switched by the flag.
+	if _, errOut, code := h.run("primary-ip", "update", "web-ipv6", "--auto-delete=false"); code != 0 {
+		t.Fatal(errOut)
+	}
+	prev := http.DefaultClient.Transport
+	http.DefaultClient.Transport = failDelete{next: http.DefaultTransport}
+	t.Cleanup(func() { http.DefaultClient.Transport = prev })
+
+	out, errOut, code := h.run("server", "delete", "web", "--keep-ip", "web-ipv4")
+	if code == 0 {
+		t.Fatalf("delete should fail: %q %q", out, errOut)
+	}
+	if !strings.Contains(errOut, "stay in the project after the delete") || !strings.Contains(errOut, "web-ipv4") || !strings.Contains(errOut, "web-ipv6") {
+		t.Fatalf("survivors not listed: %q", errOut)
+	}
+	if !strings.Contains(errOut, "The server was not deleted, but auto-delete is now off for: web-ipv4") {
+		t.Fatalf("failure note: %q", errOut)
+	}
+	if strings.Contains(out, "stay in the project") {
+		t.Fatalf("stdout must stay clean: %q", out)
+	}
+
+	jout, jerr, _ := h.run("-o", "json", "server", "delete", "web", "--keep-ip", "web-ipv4")
+	if strings.Contains(jerr, "stay in the project") || strings.Contains(jout, "stay in the project") {
+		t.Fatalf("json mode prints no survivor note: %q %q", jout, jerr)
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -385,16 +386,25 @@ func serverDeleteCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		kept, err := keepPrimaryIPs(cmd.Context(), api, s, keepAll, keep)
+		plan, err := keepPrimaryIPs(cmd.Context(), api, s, keepAll, keep)
 		if err != nil {
 			return err
+		}
+		kept := plan.kept
+		if a.flags.output == "table" && len(plan.survivors) > 0 {
+			fmt.Fprintf(a.env.Stderr, "These primary IPs stay in the project after the delete: %s\n", pipNames(plan.survivors))
 		}
 		res, err := api.C.DeleteServerWithResponse(cmd.Context(), s.Id)
-		if err != nil {
-			return err
+		var v *struct {
+			Action apiclient.Action `json:"action"`
 		}
-		v, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err == nil {
+			v, err = result(res.StatusCode(), res.Body, res.JSON200)
+		}
 		if err != nil {
+			if len(plan.changed) > 0 {
+				fmt.Fprintf(a.env.Stderr, "The server was not deleted, but auto-delete is now off for: %s. Turn it back on with `nebla primary-ip update <ref> --auto-delete=true`.\n", pipNames(plan.changed))
+			}
 			return err
 		}
 		act, err := a.waitAction(cmd, api, wo, v.Action)
@@ -417,43 +427,60 @@ func serverDeleteCmd(a *app) *cobra.Command {
 	return cmd
 }
 
-// keepPrimaryIPs turns off auto-delete on the server's IPs that should outlive it, before the delete.
-func keepPrimaryIPs(ctx context.Context, api *API, s apiclient.Server, all bool, refs []string) ([]apiclient.PrimaryIp, error) {
-	if all && len(refs) > 0 {
-		return nil, errors.New("use either --keep-ips or --keep-ip, not both")
+// keepPlan is what keepPrimaryIPs did: the IPs asked to be kept, the ones whose auto-delete it turned off, and every IP that survives.
+type keepPlan struct {
+	kept, changed, survivors []apiclient.PrimaryIp
+}
+
+func pipNames(ps []apiclient.PrimaryIp) string {
+	names := make([]string, len(ps))
+	for i, p := range ps {
+		names[i] = fmt.Sprintf("%s (%s)", p.Name, p.Ip)
 	}
-	if !all && len(refs) == 0 {
-		return nil, nil
+	return strings.Join(names, ", ")
+}
+
+// keepPrimaryIPs turns off auto-delete on the server's IPs that should outlive it, before the delete.
+func keepPrimaryIPs(ctx context.Context, api *API, s apiclient.Server, all bool, refs []string) (keepPlan, error) {
+	var plan keepPlan
+	if all && len(refs) > 0 {
+		return plan, errors.New("use either --keep-ips or --keep-ip, not both")
 	}
 	sid := id64(s.Id)
 	own, err := api.PrimaryIPs(ctx, apiclient.GetPrimaryIpsParams{Server: &sid})
 	if err != nil {
-		return nil, err
+		return plan, err
 	}
-	var kept []apiclient.PrimaryIp
 	if all {
-		kept = own
+		plan.kept = own
 	}
 	for _, ref := range refs {
 		p, err := api.PrimaryIP(ctx, ref)
 		if err != nil {
-			return nil, err
+			return plan, err
 		}
 		if p.Server == nil || p.Server.Id != s.Id {
-			return nil, fmt.Errorf("primary IP %q is not assigned to server %s", ref, s.Name)
+			return plan, fmt.Errorf("primary IP %q is not assigned to server %s", ref, s.Name)
 		}
-		kept = append(kept, p)
+		plan.kept = append(plan.kept, p)
 	}
 	off := false
-	for _, p := range kept {
+	for _, p := range plan.kept {
 		if !p.AutoDelete {
 			continue
 		}
 		if _, err := putPrimaryIP(ctx, api, p.Id, apiclient.PutPrimaryIpJSONRequestBody{AutoDelete: &off}); err != nil {
-			return nil, err
+			return plan, err
+		}
+		plan.changed = append(plan.changed, p)
+	}
+	// Survivors: the ones just kept plus the ones already stored with auto-delete off.
+	for _, p := range own {
+		if !p.AutoDelete || slices.ContainsFunc(plan.kept, func(k apiclient.PrimaryIp) bool { return k.Id == p.Id }) {
+			plan.survivors = append(plan.survivors, p)
 		}
 	}
-	return kept, nil
+	return plan, nil
 }
 
 func serverRenameCmd(a *app) *cobra.Command {

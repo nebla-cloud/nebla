@@ -54,6 +54,6 @@ func assigned(ctx context.Context, c *ent.Client, where ...predicate.IPAddress) 
 
 // LockAssigned takes FOR SHARE on the server's IP rows, floating and primary; ipset writers hold it for the length of their write.
 func LockAssigned(ctx context.Context, tx *ent.Client, serverID int64) error {
-	_, err := tx.IPAddress.Query().Where(ipaddress.ServerID(serverID)).ForShare().IDs(ctx)
+	_, err := tx.IPAddress.Query().Where(ipaddress.ServerID(serverID)).Order(ipaddress.ByID()).ForShare().IDs(ctx)
 	return err
 }
