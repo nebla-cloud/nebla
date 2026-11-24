@@ -161,7 +161,7 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 		return nil, err
 	}
 	b := req.Body
-	in := servers.CreateInput{Name: b.Name, ServerType: b.ServerType, Image: deref(b.Image), Snapshot: deref(b.Snapshot), Location: b.Location,
+	in := servers.CreateInput{Name: b.Name, ServerType: b.ServerType, Image: deref(b.Image), Snapshot: deref(b.Snapshot), Location: deref(b.Location),
 		SSHKeys: deref(b.SshKeys), UserData: deref(b.UserData), IPv4: servers.IPChoice{New: true}, StartAfter: true}
 	if b.Labels != nil {
 		in.Labels = *b.Labels

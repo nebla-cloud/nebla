@@ -868,7 +868,7 @@ type EnrollmentReportStorage struct {
 // Error defines model for Error.
 type Error struct {
 	Error struct {
-		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, locked, server_changed, project_not_empty and invalid_input are reused.
+		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, server_not_ready, locked, server_changed, project_not_empty and invalid_input are reused.
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
@@ -1688,9 +1688,9 @@ type ServerInput struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 
-	// Location Location id or name
-	Location string `json:"location"`
-	Name     string `json:"name"`
+	// Location Location id or name; required with image, and defaults to the snapshot's location
+	Location *string `json:"location,omitempty"`
+	Name     string  `json:"name"`
 
 	// Networks Private networks to join at creation, at most 3, all in the server's location
 	Networks *[]struct {
@@ -4064,7 +4064,7 @@ type ClientInterface interface {
 
 	// PostSnapshotsWithBody Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -4073,7 +4073,7 @@ type ClientInterface interface {
 
 	// PostSnapshots Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -7541,7 +7541,7 @@ func (c *Client) GetSnapshots(ctx context.Context, params *GetSnapshotsParams, r
 
 // PostSnapshotsWithBody Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 //
 // Takes any type of body and a specified content type.
 //
@@ -7560,7 +7560,7 @@ func (c *Client) PostSnapshotsWithBody(ctx context.Context, contentType string, 
 
 // PostSnapshots Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -17388,7 +17388,7 @@ type ClientWithResponsesInterface interface {
 
 	// PostSnapshotsWithBodyWithResponse Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -17397,7 +17397,7 @@ type ClientWithResponsesInterface interface {
 
 	// PostSnapshotsWithResponse Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -32788,7 +32788,7 @@ func (c *ClientWithResponses) GetSnapshotsWithResponse(ctx context.Context, para
 
 // PostSnapshotsWithBodyWithResponse Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -32803,7 +32803,7 @@ func (c *ClientWithResponses) PostSnapshotsWithBodyWithResponse(ctx context.Cont
 
 // PostSnapshotsWithResponse Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

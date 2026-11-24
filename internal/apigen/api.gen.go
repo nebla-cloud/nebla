@@ -868,7 +868,7 @@ type EnrollmentReportStorage struct {
 // Error defines model for Error.
 type Error struct {
 	Error struct {
-		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, locked, server_changed, project_not_empty and invalid_input are reused.
+		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, server_not_ready, locked, server_changed, project_not_empty and invalid_input are reused.
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
@@ -1688,9 +1688,9 @@ type ServerInput struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 
-	// Location Location id or name
-	Location string `json:"location"`
-	Name     string `json:"name"`
+	// Location Location id or name; required with image, and defaults to the snapshot's location
+	Location *string `json:"location,omitempty"`
+	Name     string  `json:"name"`
 
 	// Networks Private networks to join at creation, at most 3, all in the server's location
 	Networks *[]struct {

@@ -1841,7 +1841,7 @@ export interface paths {
         put?: never;
         /**
          * Snapshot a server's boot disk
-         * @description A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), snapshot_too_large (422), quota_exceeded (422), locked (409, the server is busy) and server_changed (409).
+         * @description A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
          */
         post: operations["postSnapshots"];
         delete?: never;
@@ -2407,7 +2407,7 @@ export interface components {
         };
         Error: {
             error: {
-                /** @description Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, locked, server_changed, project_not_empty and invalid_input are reused. */
+                /** @description Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, server_not_ready, locked, server_changed, project_not_empty and invalid_input are reused. */
                 code: string;
                 message: string;
             };
@@ -2948,8 +2948,8 @@ export interface components {
             image?: string;
             /** @description Snapshot id or name; give this or image */
             snapshot?: string;
-            /** @description Location id or name */
-            location: string;
+            /** @description Location id or name; required with image, and defaults to the snapshot's location */
+            location?: string;
             /** @description The project's SSH key ids or names */
             ssh_keys?: string[];
             /** @description Cloud-init user data, at most 32 KiB */

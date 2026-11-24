@@ -162,9 +162,18 @@ func TestCreateServerWithSnapshot(t *testing.T) {
 	require.Equal(t, "ubuntu", out.Server.OSFlavor)
 	require.Equal(t, "24.04", out.Server.OSVersion)
 
+	res := e.C.Send(http.MethodPost, "/v1/servers", map[string]any{"name": "no-loc", "server_type": "small", "snapshot": "gold"})
+	require.Equal(t, http.StatusCreated, res.StatusCode, e.App.Body(res))
+	res.Body.Close()
+	require.Equal(t, snap.LocationID, e.App.Ent.Server.Query().Where(server.Name("no-loc")).OnlyX(context.Background()).LocationID,
+		"the snapshot's location")
+	res = e.C.Send(http.MethodPost, "/v1/servers", map[string]any{"name": "img-no-loc", "server_type": "small", "image": "ubuntu"})
+	require.Equal(t, http.StatusUnprocessableEntity, res.StatusCode)
+	require.Equal(t, "invalid_input", errCode(t, e.App, res))
+
 	body["name"] = "both"
 	body["image"] = "ubuntu"
-	res := e.C.Send(http.MethodPost, "/v1/servers", body)
+	res = e.C.Send(http.MethodPost, "/v1/servers", body)
 	require.Equal(t, http.StatusUnprocessableEntity, res.StatusCode)
 	require.Equal(t, "invalid_input", errCode(t, e.App, res))
 }

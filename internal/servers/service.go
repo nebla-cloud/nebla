@@ -317,6 +317,9 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			}
 		}
 	} else {
+		if in.Location == "" {
+			return Server{}, actions.Action{}, invalid("location is required with an image")
+		}
 		if img, err = s.o.Catalog.ImageByRef(ctx, in.Image); err != nil {
 			return Server{}, actions.Action{}, err
 		}

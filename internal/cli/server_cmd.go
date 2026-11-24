@@ -147,9 +147,12 @@ func serverCreateCmd(a *app) *cobra.Command {
 		if cmd.Flags().Changed("backup-keep") && !backups {
 			return errors.New("--backup-keep needs --backups")
 		}
-		body := apiclient.PostServersJSONRequestBody{
-			Name: name, ServerType: typ, Location: location,
-			StartAfterCreate: &start,
+		if image != "" && location == "" {
+			return errors.New("--location is required with --image")
+		}
+		body := apiclient.PostServersJSONRequestBody{Name: name, ServerType: typ, StartAfterCreate: &start}
+		if location != "" {
+			body.Location = &location
 		}
 		if image != "" {
 			body.Image = &image
@@ -289,7 +292,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.StringVar(&typ, "type", "", "server type id or name")
 	f.StringVar(&image, "image", "", "image id or name")
 	f.StringVar(&snapshot, "snapshot", "", "snapshot id or name to build from instead of an image")
-	f.StringVar(&location, "location", "", "location id or name")
+	f.StringVar(&location, "location", "", "location id or name (defaults to the snapshot's with --snapshot)")
 	f.StringArrayVar(&sshKeys, "ssh-key", nil, "SSH key id or name (repeatable)")
 	f.StringArrayVar(&firewalls, "firewall", nil, "firewall id or name to apply (repeatable)")
 	f.StringArrayVar(&networks, "network", nil, "private network id or name, optionally name=ip (repeatable)")
@@ -302,7 +305,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.BoolVar(&start, "start-after-create", true, "start the server once it is created")
 	f.BoolVar(&backups, "backups", false, "turn on scheduled backups")
 	f.IntVar(&backupKeep, "backup-keep", defaultBackupKeep, "backups to keep, 1-14 (with --backups)")
-	for _, n := range []string{"name", "type", "location"} {
+	for _, n := range []string{"name", "type"} {
 		_ = cmd.MarkFlagRequired(n)
 	}
 	cmd.MarkFlagsMutuallyExclusive("image", "snapshot")
