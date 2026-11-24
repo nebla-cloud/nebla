@@ -156,7 +156,7 @@ saves it and starts it again, so it prints a warning first. On a terminal it ask
 the question. `--force-stop` powers the server off if it doesn't shut down in time. `snapshot restore` rebuilds the
 source server from the snapshot. If the server's network changed since the snapshot, it warns that the server comes
 back with new SSH host keys and runs its user data again. A snapshot whose server is deleted can't be restored, but
-`server create --snapshot` builds a new server from it. `--snapshot` and `--image` can't be combined.
+`server create --snapshot` builds a new server from it. `--snapshot` and `--image` can't be combined. See [Snapshots](snapshots.md).
 
 A floating IP is one address that you can move between servers in its location. `assign` and `create --server` wait,
 then print the commands to run inside the server; see [Floating IPs](floating-ips.md).

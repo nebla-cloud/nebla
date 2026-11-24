@@ -470,3 +470,21 @@ VXLAN is implemented and tested with fakes only; it hasn't run on a real multi-n
 **Keep the datacenter firewall on.** Isolation between servers relies on the VM firewall. If the datacenter firewall is
 off, the location shows "Isolation off", and creating networks and attaching servers pause there until you turn it back
 on (see step 7).
+
+## 12. Snapshots
+
+Snapshots save a server's boot disk so project members can build servers from it or restore a server. The
+[snapshots guide](snapshots.md) covers the user side.
+
+**Where snapshots go.** The location's `snapshot_storage` (Snapshot storage on the location form) names a storage with
+`images` content. Left empty, snapshots go to the same storage as server disks. On a storage that only one node has,
+such as `local-lvm`, a snapshot stays on the node it was taken on, and servers built from it run on that node. Point
+`snapshot_storage` at shared storage such as Ceph RBD to use snapshots on every node.
+
+**How snapshots look in Proxmox.** A snapshot is a template VM named `nebla-snap-<id>`, tagged `nebla-snapshot` and
+`nebla-snapshot-<id>`, holding a copy of the server's boot disk. It has no volumes or seed ISO. Nebla builds new servers
+by cloning it, like any template. Don't rename, edit, move, clone or delete these templates by hand. Nebla only touches
+templates it made, and a snapshot whose template disappeared can't be used.
+
+**Permission.** Snapshots are not expected to need a new privilege beyond the ones in step 1. This is not confirmed on
+a real cluster yet.

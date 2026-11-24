@@ -837,10 +837,19 @@ func (s *Server) storageOf(nodeName, volid string) (*storage, bool) {
 	}
 	id, _, _ := strings.Cut(volid, ":")
 	st, ok := n.storages[id]
-	if !ok || st.vols[volid] == nil {
+	if ok && st.vols[volid] != nil {
+		return st, true
+	}
+	if !ok || !st.shared {
 		return nil, false
 	}
-	return st, true
+	// Shared storage holds the same volumes on every node.
+	for _, o := range s.nodes {
+		if os, ok := o.storages[id]; ok && os.shared && os.vols[volid] != nil {
+			return os, true
+		}
+	}
+	return nil, false
 }
 
 // isDiskKey reports whether k is a VM disk config key.

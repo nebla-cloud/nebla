@@ -174,6 +174,14 @@ Left empty, volumes go to each node's disk storage. The token needs `NeblaISO` o
 it. See [Proxmox setup: Volumes](docs/proxmox-setup.md#9-volumes) for admins and the [volumes guide](docs/volumes.md)
 for users.
 
+### Snapshot storage
+
+Snapshots need no environment variable. Each location has a `snapshot_storage` setting (Snapshot storage on the admin
+location page, or `snapshot_storage` in the admin API) that names the Proxmox storage snapshots go to. It must have
+`images` content. Left empty, snapshots go to the same storage as server disks. Snapshots appear in Proxmox as templates
+named `nebla-snap-<id>`; leave them alone. See [Proxmox setup: Snapshots](docs/proxmox-setup.md#12-snapshots) for admins
+and the [snapshots guide](docs/snapshots.md) for users.
+
 ### Healthcheck
 
 `nebla-server healthcheck` exits 0 when `/v1/healthz` on the local listen port answers 200. The image and compose use it
@@ -223,6 +231,7 @@ The API, jobs, reconciler, console proxy and metrics are done, and the web panel
 - servers: create, power actions, rebuild, change type, the web console, metrics graphs and activity
 - volumes: extra disks that attach to servers and keep their data when detached ([guide](docs/volumes.md))
 - backups: daily copies of a server's boot disk that you can restore in place ([guide](docs/backups.md))
+- snapshots: saved copies of a server's boot disk, to build servers from or restore ([guide](docs/snapshots.md))
 - firewalls: inbound and outbound rules, applied to servers directly or by label
 - floating IPs: addresses that belong to the project and move between servers ([guide](docs/floating-ips.md))
 - private networks: servers in one location reach each other over their own addresses, apart from the public network

@@ -49,11 +49,13 @@ export default defineConfig({
     { name: 'volumes', testMatch: /volumes\.spec\.ts/, dependencies: ['firewalls'] },
     // Backs up and restores the server server-depth leaves behind.
     { name: 'backups', testMatch: /backups\.spec\.ts/, dependencies: ['volumes'] },
+    // Takes a snapshot of a fresh server, builds from it, restores and deletes it.
+    { name: 'snapshots', testMatch: /snapshots\.spec\.ts/, dependencies: ['backups'] },
     // Assigns and moves a floating IP between the servers server-depth and firewalls leave behind.
     {
       name: 'floating-ips',
       testMatch: /floating-ips\.spec\.ts/,
-      dependencies: ['backups'],
+      dependencies: ['snapshots'],
     },
     // Creates a network, joins two of the servers left behind, then detaches and deletes it.
     { name: 'networks', testMatch: /networks\.spec\.ts/, dependencies: ['floating-ips'] },
