@@ -35,8 +35,8 @@ const (
 )
 
 const (
-	privs8   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
-	privs9   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+	privs8   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use SDN.Audit"
+	privs9   = "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use SDN.Audit"
 	privsISO = "Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit"
 )
 
@@ -490,4 +490,82 @@ func TestScriptBackupStorageRejectsNonPBS(t *testing.T) {
 	}
 	r := runScriptArgs(t, nil, "--backup-storage", "local")
 	require.Contains(t, r.stderr, "local is not a Proxmox Backup Server storage")
+}
+
+const oneNode = `[{"id":"node/pve1","ip":"192.168.1.5","level":"","local":1,"name":"pve1","nodeid":0,"online":1,"type":"node"}]`
+
+func TestScriptSDNOffByDefault(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, nil)
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.False(t, r.has("pvesh", "create"))
+	require.False(t, r.has("pvesh", "set"))
+	require.False(t, r.has("pvesh", "get", "/cluster/sdn/zones"))
+}
+
+func TestScriptSDNOneNodeSimple(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{"STUB_CLUSTER": oneNode, "NEBLA_SDN_VNETS": "3"})
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.Equal(t, 1, r.count("pvesh", "create", "/cluster/sdn/zones"))
+	require.True(t, r.has("pvesh", "create", "/cluster/sdn/zones", "--zone", "nebla", "--type", "simple", "--ipam", "pve"))
+	require.Equal(t, 3, r.count("pvesh", "create", "/cluster/sdn/vnets"))
+	for _, n := range []string{"nb0001", "nb0002", "nb0003"} {
+		require.True(t, r.has("pvesh", "create", "/cluster/sdn/vnets", "--vnet", n, "--zone", "nebla"), n)
+	}
+	require.Equal(t, 1, r.count("pvesh", "set", "/cluster/sdn"))
+	require.Contains(t, r.stdout, "private networks: zone nebla, 3 VNets")
+	require.NotContains(t, r.stdout, "4789")
+}
+
+func TestScriptSDNTwoNodesVXLAN(t *testing.T) {
+	t.Parallel()
+	r := runScript(t, map[string]string{"NEBLA_SDN_VNETS": "2", "NEBLA_SDN_ZONE": "lab", "NEBLA_SDN_PREFIX": "pn"})
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.True(t, r.has("pvesh", "create", "/cluster/sdn/zones", "--zone", "lab", "--type", "vxlan", "--peers", "10.0.0.1,10.0.0.2"))
+	require.True(t, r.has("pvesh", "create", "/cluster/sdn/vnets", "--vnet", "pn0002", "--zone", "lab"))
+	require.Equal(t, 1, r.count("pvesh", "set", "/cluster/sdn"))
+	require.Contains(t, r.stdout, "-source 10.0.0.1,10.0.0.2 -p udp -dport 4789")
+}
+
+func TestScriptSDNIdempotent(t *testing.T) {
+	t.Parallel()
+	env := map[string]string{
+		"NEBLA_SDN_VNETS": "2",
+		"STUB_ZONES":      `[{"zone":"nebla","type":"vxlan","peers":"10.0.0.1,10.0.0.2"}]`,
+		"STUB_VNETS":      `[{"vnet":"nb0001","zone":"nebla"},{"vnet":"nb0002","zone":"nebla"}]`,
+	}
+	r := runScript(t, env)
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.False(t, r.has("pvesh", "create"))
+	require.False(t, r.has("pvesh", "set"))
+	require.Contains(t, r.stdout, "private networks: zone nebla, 2 VNets")
+	require.Contains(t, r.stdout, "4789")
+
+	env["NEBLA_SDN_VNETS"] = "3"
+	r = runScript(t, env)
+	require.Equal(t, 0, r.code, redact(r.stderr))
+	require.False(t, r.has("pvesh", "create", "/cluster/sdn/zones"))
+	require.Equal(t, 1, r.count("pvesh", "create", "/cluster/sdn/vnets"))
+	require.True(t, r.has("pvesh", "create", "/cluster/sdn/vnets", "--vnet", "nb0003", "--zone", "nebla"))
+	require.Equal(t, 1, r.count("pvesh", "set", "/cluster/sdn"))
+}
+
+func TestScriptSDNRejectsBadInput(t *testing.T) {
+	t.Parallel()
+	for _, env := range []map[string]string{
+		{"NEBLA_SDN_VNETS": "0"},
+		{"NEBLA_SDN_VNETS": "201"},
+		{"NEBLA_SDN_VNETS": "abc"},
+		{"NEBLA_SDN_VNETS": "5", "NEBLA_SDN_PREFIX": "Nb"},
+		{"NEBLA_SDN_VNETS": "5", "NEBLA_SDN_PREFIX": "nb123"},
+		{"NEBLA_SDN_VNETS": "5", "NEBLA_SDN_PREFIX": "1b"},
+		{"NEBLA_SDN_VNETS": "5", "NEBLA_SDN_ZONE": "toolongzone"},
+		{"NEBLA_SDN_VNETS": "5", "NEBLA_SDN_ZONE": "a;b"},
+	} {
+		r := runScript(t, env)
+		require.Equal(t, 1, r.code, "%v", env)
+		require.Contains(t, r.stderr, "nebla: error: NEBLA_SDN_", "%v", env)
+		noWrites(t, r)
+	}
 }

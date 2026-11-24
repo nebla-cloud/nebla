@@ -5,6 +5,9 @@ storage='[{"content":"iso,vztmpl,backup","digest":"abc","path":"/var/lib/vz","st
 case "$1 $2" in
 "get /storage/pbs") printf '%s\n' '{"content":"backup","server":"10.0.0.9","storage":"pbs","type":"pbs"}' ;;
 "get /storage/local") printf '%s\n' '{"content":"iso,vztmpl,backup","path":"/var/lib/vz","storage":"local","type":"dir"}' ;;
+"get /cluster/sdn/zones") printf '%s\n' "${STUB_ZONES:-[]}" ;;
+"get /cluster/sdn/vnets") printf '%s\n' "${STUB_VNETS:-[]}" ;;
+"create /cluster/sdn/zones" | "create /cluster/sdn/vnets" | "set /cluster/sdn") ;;
 "get /cluster/status") printf '%s\n' "${STUB_CLUSTER:-$cluster}" ;;
 "get /storage") printf '%s\n' "${STUB_STORAGE:-$storage}" ;;
 "get /access/roles/Administrator")

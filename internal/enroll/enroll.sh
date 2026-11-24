@@ -30,6 +30,9 @@ re_uuid='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 re_fp='^[0-9A-F:]{95}$'
 re_type_node='"type":[[:space:]]*"node"'
 re_local='"local":[[:space:]]*"?1"?([^0-9]|$)'
+re_sdn_prefix='^[a-z][a-z0-9]{0,3}$'
+re_sdn_zone='^[a-z][a-z0-9]{0,7}$'
+re_sdn_count='^[0-9]{1,3}$'
 
 say() { printf 'nebla: %s\n' "$*"; }
 warn() { printf 'nebla: warning: %s\n' "$*" >&2; }
@@ -78,6 +81,63 @@ set_role() {
     fi
 }
 
+# Creates the private network zone and VNets that are missing, then applies SDN once. Uses the caller's
+# $cluster, $nodes, $sdn_vnets, $sdn_zone and $sdn_prefix, and sets $sdn_msg for the summary.
+setup_sdn() {
+    local zones vnets line ztype="" ips="" ip i name changed=0 made=0 have=0 nn=0 n
+    zones=$(pvesh get /cluster/sdn/zones --output-format json)
+    vnets=$(pvesh get /cluster/sdn/vnets --output-format json)
+    if has_val "$zones" zone "$sdn_zone"; then
+        while IFS= read -r line; do
+            [ "$(field "$line" zone)" = "$sdn_zone" ] && ztype=$(field "$line" type)
+        done < <(printf '%s\n' "$zones" | tr '{}' '\n\n')
+        say "private network zone $sdn_zone exists"
+    else
+        for n in $nodes; do nn=$((nn + 1)); done
+        if [ "$nn" -le 1 ]; then
+            ztype=simple
+            pvesh create /cluster/sdn/zones --zone "$sdn_zone" --type simple --ipam pve
+        else
+            ztype=vxlan
+            while IFS= read -r line; do
+                [[ $line =~ $re_type_node ]] || continue
+                ip=$(field "$line" ip)
+                [ -n "$ip" ] || die "node $(field "$line" name) has no IP in the cluster status; can't create a VXLAN zone"
+                ips="$ips${ips:+,}$ip"
+            done < <(printf '%s\n' "$cluster" | tr '{}' '\n\n')
+            pvesh create /cluster/sdn/zones --zone "$sdn_zone" --type vxlan --peers "$ips"
+        fi
+        changed=1
+        say "created private network zone $sdn_zone ($ztype)"
+    fi
+    for ((i = 1; i <= sdn_vnets; i++)); do
+        printf -v name '%s%04d' "$sdn_prefix" "$i"
+        if has_val "$vnets" vnet "$name"; then
+            have=$((have + 1))
+            continue
+        fi
+        pvesh create /cluster/sdn/vnets --vnet "$name" --zone "$sdn_zone"
+        made=$((made + 1))
+        changed=1
+    done
+    say "private networks: $made new, $have already there"
+    if [ "$changed" = 1 ]; then
+        pvesh set /cluster/sdn
+        say "applied SDN"
+    fi
+    sdn_msg="private networks: zone $sdn_zone, $sdn_vnets VNets"
+    if [ "$ztype" = vxlan ]; then
+        if [ -z "$ips" ]; then
+            while IFS= read -r line; do
+                [[ $line =~ $re_type_node ]] || continue
+                ips="$ips${ips:+,}$(field "$line" ip)"
+            done < <(printf '%s\n' "$cluster" | tr '{}' '\n\n')
+        fi
+        say "VXLAN needs a host firewall rule on every node (datacenter firewall on): IN ACCEPT -source $ips -p udp -dport 4789"
+        say "Accept UDP 4789 from the cluster nodes only; see docs/proxmox-setup.md"
+    fi
+}
+
 # Grants NeblaISO on every storage with images content, so volumes can be deleted; the panel offers to
 # remove the grant from storages the location doesn't use. Appends to the caller's $isos.
 grant_volume_storages() {
@@ -107,6 +167,7 @@ main() {
     local panel=${PANEL_URL%/}
     local token=${NEBLA_TOKEN:-}
     local t tools pv ver token_name rc resp code body backup=""
+    local sdn_vnets=${NEBLA_SDN_VNETS:-} sdn_zone=${NEBLA_SDN_ZONE:-nebla} sdn_prefix=${NEBLA_SDN_PREFIX:-nb} sdn_msg=""
     while [ $# -gt 0 ]; do
         case $1 in
         --backup-storage=*)
@@ -131,6 +192,13 @@ main() {
     for t in $tools; do
         command -v "$t" >/dev/null 2>&1 || die "$t not found; run this on a Proxmox VE node"
     done
+    if [ -n "$sdn_vnets" ]; then
+        [[ $sdn_vnets =~ $re_sdn_count ]] && [ $((10#$sdn_vnets)) -ge 1 ] && [ $((10#$sdn_vnets)) -le 200 ] ||
+            die "NEBLA_SDN_VNETS must be a number from 1 to 200"
+        sdn_vnets=$((10#$sdn_vnets))
+        [[ $sdn_prefix =~ $re_sdn_prefix ]] || die "NEBLA_SDN_PREFIX must be 1 to 4 lowercase letters or digits, starting with a letter"
+        [[ $sdn_zone =~ $re_sdn_zone ]] || die "NEBLA_SDN_ZONE must be 1 to 8 lowercase letters or digits, starting with a letter"
+    fi
     [[ $token =~ $re_token ]] || die "NEBLA_TOKEN is missing or malformed; copy the command from the panel again"
     pv=$(pveversion) || die "pveversion failed"
     ver=${pv#pve-manager/}
@@ -180,9 +248,9 @@ main() {
 
     local privs admin roles
     if [ "${ver%%.*}" = 8 ]; then
-        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.Monitor Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use SDN.Audit"
     else
-        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use"
+        privs="VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Disk VM.Config.Memory VM.Config.Network VM.Config.Options VM.Config.Cloudinit VM.PowerMgmt VM.Console VM.Backup VM.Audit VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit Sys.Audit SDN.Use SDN.Audit"
     fi
     admin=$(pvesh get /access/roles/Administrator --output-format json)
     case $admin in *'"Sys.AccessNetwork"'*) privs="$privs Sys.AccessNetwork" ;; esac
@@ -259,6 +327,7 @@ main() {
         sep=,
     done
     say "read the cluster:$nodes"
+    if [ -n "$sdn_vnets" ]; then setup_sdn; fi
 
     local iso_json="" report blob extra=""
     sep=""
@@ -278,7 +347,7 @@ main() {
         case $code in
         204)
             say "sent the report to the panel"
-            summary "$token_name" "$isos"
+            summary "$token_name" "$isos" "$sdn_msg"
             return 0
             ;;
         400 | 401 | 409 | 410)
@@ -291,7 +360,7 @@ main() {
         *) warn "couldn't send the report to the panel (HTTP ${code:-none}); paste it instead" ;;
         esac
     fi
-    summary "$token_name" "$isos"
+    summary "$token_name" "$isos" "$sdn_msg"
     blob=$(printf '%s,"enroll_token":"%s"}' "${report%\}}" "$token" | base64 | tr -d '\n' | tr '/+' '_-' | tr -d '=')
     printf 'nebla-enroll:v1:%s\n' "$blob"
     say "Paste this line into the panel. It contains a secret; clear your scrollback afterwards." >&2
@@ -301,6 +370,7 @@ summary() {
     local isos=${2# }
     say "token: nebla@pve!$1"
     say "NeblaISO on: ${isos:-no storage}"
+    [ -z "${3:-}" ] || say "$3"
     say "Finish in the panel."
 }
 
