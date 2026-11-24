@@ -96,7 +96,10 @@ func TestRescueDeleteWithoutJobArgs(t *testing.T) {
 	ok := e.available(t, "web1")
 	failed := e.available(t, "web2")
 	e.App.Ent.Snapshot.UpdateOneID(failed.ID).SetStatus(snapshot.StatusError).ClearVmid().ExecX(ctx)
-	want := map[int64]string{ok.ID: "available", failed.ID: "error"}
+	// A half-made row that keeps its vmid and was off: still not restored as available.
+	half := e.available(t, "web3")
+	e.App.Ent.Snapshot.UpdateOneID(half.ID).SetStatus(snapshot.StatusError).SetStep(4).ExecX(ctx)
+	want := map[int64]string{ok.ID: "available", failed.ID: "error", half.ID: "error"}
 	acts := map[int64]actions.Action{}
 	for id := range want {
 		act, err := e.svc.Delete(ctx, e.Project, id)
@@ -107,7 +110,7 @@ func TestRescueDeleteWithoutJobArgs(t *testing.T) {
 	}
 	n, err := snapshots.RescueOrphaned(ctx, e.App.Ent, e.App.SQL, nil)
 	require.NoError(t, err)
-	require.Equal(t, 2, n)
+	require.Equal(t, 3, n)
 	for id, act := range acts {
 		e.requireJob(t, e.action(t, act.ID), "delete_snapshot", id, `"prev_status":"`+want[id]+`"`)
 	}

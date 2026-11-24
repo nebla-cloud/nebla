@@ -126,7 +126,7 @@ func rescueOne(ctx context.Context, tx *sql.Tx, etx *ent.Client, ins *river.Clie
 	return actions.AttachJob(ctx, etx, actionID, res.Job.ID)
 }
 
-// inferPrevStatus guesses a lost delete's earlier status: error for a failed create's leftover, else available.
+// inferPrevStatus guesses a lost delete's earlier status: error for a failed create's leftover or a half-made row, else available.
 func inferPrevStatus(ctx context.Context, etx *ent.Client, id int64) (string, error) {
 	row, err := etx.Snapshot.Get(ctx, id)
 	if ent.IsNotFound(err) {
@@ -135,7 +135,7 @@ func inferPrevStatus(ctx context.Context, etx *ent.Client, id int64) (string, er
 	if err != nil {
 		return "", err
 	}
-	if row.WasRunning || row.Vmid == nil {
+	if row.WasRunning || row.Vmid == nil || row.Step < stepFinish {
 		return string(snapshot.StatusError), nil
 	}
 	return string(snapshot.StatusAvailable), nil
