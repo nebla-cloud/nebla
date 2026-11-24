@@ -47,6 +47,17 @@ const existing: AdminLocation = {
   backup_storage_ok: false,
   backup_window: { start: '02:00', end: '06:00' },
   backups_on_other_storage: 0,
+  sdn_zone: null,
+  vnet_prefix: 'nb',
+  private_networks: {
+    state: 'not_set_up',
+    zone: null,
+    available: 0,
+    in_use: 0,
+    cooling: 0,
+    unusable: [],
+    degraded: [],
+  },
   nodes: [],
   created: '2026-01-01T00:00:00Z',
   updated: '2026-01-01T00:00:00Z',
@@ -183,8 +194,12 @@ describe('LocationForm', () => {
         wrapper.findAll('datalist#backup-storages option').map((o) => o.attributes('value')),
       ).toEqual(['pbs', 'old'])
       expect((select(wrapper).element as HTMLInputElement).value).toBe('old')
-      expect((wrapper.find('input[name="backup_window_start"]').element as HTMLInputElement).value).toBe('02:00')
-      expect((wrapper.find('input[name="backup_window_end"]').element as HTMLInputElement).value).toBe('06:00')
+      expect(
+        (wrapper.find('input[name="backup_window_start"]').element as HTMLInputElement).value,
+      ).toBe('02:00')
+      expect(
+        (wrapper.find('input[name="backup_window_end"]').element as HTMLInputElement).value,
+      ).toBe('06:00')
     })
 
     it('sends the storage and the window', async () => {
@@ -215,8 +230,7 @@ describe('LocationForm', () => {
           json(422, {
             error: {
               code: 'invalid_input',
-              message:
-                'backup storage must be a Proxmox Backup Server storage with backup content',
+              message: 'backup storage must be a Proxmox Backup Server storage with backup content',
             },
           }),
         ),
@@ -225,9 +239,7 @@ describe('LocationForm', () => {
       await select(wrapper).setValue('nope')
       await wrapper.find('form').trigger('submit')
       await flushPromises()
-      expect(wrapper.text()).toContain(
-        'backup storage must be a Proxmox Backup Server storage',
-      )
+      expect(wrapper.text()).toContain('backup storage must be a Proxmox Backup Server storage')
     })
 
     it('refuses a window that starts when it ends', async () => {

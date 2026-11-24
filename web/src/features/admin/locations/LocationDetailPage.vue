@@ -32,6 +32,7 @@ import TerminalBlock from '@/components/TerminalBlock.vue'
 import { useCopy } from '@/lib/useCopy'
 import { useAdminLocations } from '@/lib/adminQueries'
 import LocationForm from './LocationForm.vue'
+import PrivateNetworksCard from './PrivateNetworksCard.vue'
 import {
   useDeleteLocation,
   useEnrollments,
@@ -299,6 +300,8 @@ const gb = (bytes: number) => `${Math.round(bytes / 1024 ** 3)} GB`
           @saved="((editing = false), toast.add({ title: 'Location saved', color: 'success' }))"
         />
       </Panel>
+
+      <PrivateNetworksCard :location="location" />
 
       <section class="flex flex-col gap-3">
         <div class="flex flex-wrap items-end justify-between gap-3">

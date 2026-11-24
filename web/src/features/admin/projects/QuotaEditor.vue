@@ -53,8 +53,14 @@ const rows: Row[] = [
   { key: 'max_disk_gb', label: 'Disk', unit: ' GB', used: () => props.usage.disk_gb },
   { key: 'max_ips', label: 'IPs', unit: '', used: () => props.usage.ips },
   { key: 'max_volumes', label: 'Volumes', unit: '', used: () => props.usage.volumes },
-  { key: 'max_volume_gb', label: 'Volume size (GB)', unit: ' GB', used: () => props.usage.volume_gb },
+  {
+    key: 'max_volume_gb',
+    label: 'Volume size (GB)',
+    unit: ' GB',
+    used: () => props.usage.volume_gb,
+  },
   { key: 'max_backups', label: 'Backups', unit: '', used: () => props.usage.backups_reserved },
+  { key: 'max_networks', label: 'Networks', unit: '', used: () => props.usage.networks },
 ]
 const dataKey: Record<keyof Quota, string> = {
   max_servers: 'servers',
@@ -65,6 +71,7 @@ const dataKey: Record<keyof Quota, string> = {
   max_volumes: 'volumes',
   max_volume_gb: 'volume_gb',
   max_backups: 'backups',
+  max_networks: 'networks',
 }
 
 const num = (n: number) => String(Number(n.toFixed(2)))

@@ -35,6 +35,8 @@ const labels: Record<string, string> = {
   create_backup: 'Backing up',
   restore_backup: 'Restoring',
   delete_backup: 'Deleting backup',
+  attach_to_network: 'Attaching to network',
+  detach_from_network: 'Detaching from network',
 }
 
 const done: Record<string, string> = {
@@ -68,6 +70,8 @@ const titles: Record<string, string> = {
   create_backup: 'Back up',
   restore_backup: 'Restore',
   delete_backup: 'Delete backup',
+  attach_to_network: 'Attach to network',
+  detach_from_network: 'Detach from network',
 }
 
 function sentence(command: string): string {

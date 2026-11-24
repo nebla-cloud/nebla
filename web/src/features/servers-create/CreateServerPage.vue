@@ -43,6 +43,7 @@ import { DEFAULT_KEEP } from '@/features/backups/queries'
 import AddSshKeyModal from '@/features/sshkeys/AddSshKeyModal.vue'
 import { useSshKeys, type SshKey } from '@/features/sshkeys/queries'
 import FirewallPicker from '@/features/firewalls/FirewallPicker.vue'
+import NetworkPicker from '@/features/networks/NetworkPicker.vue'
 import CreateSummary from './CreateSummary.vue'
 import {
   MAX_USER_DATA,
@@ -92,6 +93,7 @@ const form = reactive<CreateForm>({
 const ipTouched = ref(false)
 const backups = ref(false)
 const firewallIds = ref<number[]>([])
+const networkIds = ref<number[]>([])
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
 
@@ -183,6 +185,7 @@ watch(
     const loc = ctx.value.locations.find((l) => l.id === id)
     if (loc) Object.assign(form, pickFamilies({ ...form }, loc))
     submitError.value = null
+    networkIds.value = []
     applyReconcile()
   },
 )
@@ -245,6 +248,9 @@ async function submit() {
     ...(backupsOn.value ? { backups: { enabled: true, keep: DEFAULT_KEEP } } : {}),
     ...(firewallIds.value.length
       ? { firewalls: firewallIds.value.map((firewall) => ({ firewall })) }
+      : {}),
+    ...(networkIds.value.length
+      ? { networks: networkIds.value.map((network) => ({ network: String(network) })) }
       : {}),
   } as components['schemas']['ServerInput']
   try {
@@ -455,6 +461,8 @@ const cards = 'flex flex-wrap gap-2.5'
           <!-- New sections: add a <Step> here; numbers follow position. -->
 
           <FirewallPicker v-model="firewallIds" />
+
+          <NetworkPicker v-model="networkIds" :location="location" />
 
           <Step title="Cloud-init" :done="form.userData.trim() !== ''">
             <UCollapsible :unmount-on-hide="false">

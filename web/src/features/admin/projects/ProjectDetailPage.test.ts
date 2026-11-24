@@ -30,13 +30,25 @@ const quota = {
   max_volumes: 5,
   max_volume_gb: 100,
   max_backups: 35,
+  max_networks: 3,
 }
 const detail = {
   id: 7,
   name: 'Alpha',
   quota,
   owner_email: 'ada@example.com',
-  usage: { servers: 3, vcpu: 6, memory_mb: 8192, disk_gb: 100, ips: 3, volumes: 1, volume_gb: 20, backups: 4, backups_reserved: 9 },
+  usage: {
+    servers: 3,
+    vcpu: 6,
+    memory_mb: 8192,
+    disk_gb: 100,
+    ips: 3,
+    volumes: 1,
+    volume_gb: 20,
+    backups: 4,
+    backups_reserved: 9,
+    networks: 2,
+  },
   member_count: 4,
   created: '2026-03-04T10:00:00Z',
   members: [
@@ -131,6 +143,8 @@ describe('ProjectDetailPage', () => {
     expect(input('max_memory_mb').value).toBe('16')
     expect(input('max_disk_gb').value).toBe('200')
     expect(input('max_vcpu').value).toBe('')
+    expect(wrapper.find('[data-row="networks"]').text()).toContain('2')
+    expect(input('max_networks').value).toBe('3')
   })
 
   it('empty limit sends 0 and memory goes back to MB', async () => {
@@ -150,6 +164,7 @@ describe('ProjectDetailPage', () => {
       max_volumes: 5,
       max_volume_gb: 100,
       max_backups: 35,
+      max_networks: 3,
     })
   })
 
@@ -227,7 +242,10 @@ describe('ProjectDetailPage', () => {
     serve([
       http.delete('*/v1/admin/projects/7', () =>
         json(409, {
-          error: { code: 'project_not_empty', message: "Delete the project's servers, volumes and floating IPs first." },
+          error: {
+            code: 'project_not_empty',
+            message: "Delete the project's servers, volumes and floating IPs first.",
+          },
         }),
       ),
     ])

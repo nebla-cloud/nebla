@@ -45,6 +45,7 @@ export function makeServer(over: Partial<Server> = {}): Server {
     firewalls: [],
     volumes: [],
     backups: { enabled: false, keep: 7, count: 0, last_backup_at: null, next_backup_at: null },
+    private_net: [],
     created: '2026-11-18T10:00:00Z',
     ...over,
   }

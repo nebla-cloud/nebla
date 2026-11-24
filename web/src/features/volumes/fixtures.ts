@@ -38,6 +38,7 @@ export function makeLocation(over: Partial<Location> = {}): Location {
     networks: { ipv4: true, ipv6: false },
     volumes_available: true,
     backups_available: false,
+    private_networks_available: false,
     ...over,
   }
 }

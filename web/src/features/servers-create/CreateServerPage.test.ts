@@ -37,6 +37,7 @@ const locations = [
     networks: { ipv4: true, ipv6: true },
     volumes_available: false,
     backups_available: true,
+    private_networks_available: true,
   },
   {
     id: 2,
@@ -45,6 +46,7 @@ const locations = [
     networks: { ipv4: false, ipv6: true },
     volumes_available: false,
     backups_available: false,
+    private_networks_available: false,
   },
 ]
 const images = [
@@ -76,7 +78,19 @@ const type = (id: number, name: string, cores: number) => ({
   deprecated: false,
 })
 const types = [type(1, 'tiny-1', 1), type(2, 'small-2', 2)]
-let firewalls: { id: number; name: string; labels: object; rules: []; applied_to: []; created: string }[]
+let firewalls: {
+  id: number
+  name: string
+  labels: object
+  rules: []
+  applied_to: []
+  created: string
+}[]
+let privateNets: {
+  id: number
+  name: string
+  location: { id: number; name: string; description: string }
+}[]
 let keys: { id: number; name: string; public_key: string; fingerprint: string; created: string }[]
 
 function key(id: number, name: string) {
@@ -112,7 +126,15 @@ function serveCatalog(locs = locations, maxBackups = 35) {
           max_ips: 10,
           max_backups: maxBackups,
         },
-        usage: { servers: 3, vcpu: 6, memory_mb: 12288, disk_gb: 120, ips: 3, backups: 0, backups_reserved: 0 },
+        usage: {
+          servers: 3,
+          vcpu: 6,
+          memory_mb: 12288,
+          disk_gb: 120,
+          ips: 3,
+          backups: 0,
+          backups_reserved: 0,
+        },
         created: '2026-11-01T00:00:00Z',
       }),
     ),
@@ -124,6 +146,18 @@ function serveCatalog(locs = locations, maxBackups = 35) {
     http.get('*/v1/ssh_keys', () => json(200, { ssh_keys: keys, meta: meta(keys.length) })),
     http.get('*/v1/servers', () => json(200, { servers: [], meta: meta(0) })),
     http.get('*/v1/firewalls', () => json(200, { firewalls, meta: meta(firewalls.length) })),
+    http.get('*/v1/networks', () =>
+      json(200, {
+        networks: privateNets.map((n) => ({
+          ...n,
+          labels: {},
+          ip_range: '10.0.0.0/16',
+          servers: [],
+          created: '2026-11-20T10:00:00Z',
+        })),
+        meta: meta(privateNets.length),
+      }),
+    ),
   )
 }
 
@@ -180,6 +214,7 @@ beforeEach(() => {
   document.body.innerHTML = ''
   keys = [key(5, 'laptop')]
   firewalls = []
+  privateNets = []
 })
 afterEach(() => {
   document.body.innerHTML = ''
@@ -289,7 +324,14 @@ describe('CreateServerPage', () => {
 
   it('sends the firewalls field', async () => {
     firewalls = [
-      { id: 8, name: 'web', labels: {}, rules: [], applied_to: [], created: '2026-11-20T10:00:00Z' },
+      {
+        id: 8,
+        name: 'web',
+        labels: {},
+        rules: [],
+        applied_to: [],
+        created: '2026-11-20T10:00:00Z',
+      },
     ]
     serveCatalog()
     const bodies: Record<string, unknown>[] = []
@@ -308,6 +350,37 @@ describe('CreateServerPage', () => {
     expect(bodies[0]!.firewalls).toEqual([{ firewall: 8 }])
   })
 
+  it('sends the picked private networks, at most three', async () => {
+    const home = { id: 1, name: 'home', description: '' }
+    privateNets = [1, 2, 3, 4].map((id) => ({ id, name: `net${id}`, location: home }))
+    serveCatalog()
+    const bodies: Record<string, unknown>[] = []
+    server.use(
+      http.post('*/v1/servers', async ({ request }) => {
+        bodies.push((await request.json()) as Record<string, unknown>)
+        return json(201, { server: makeServer({ id: 42 }), action: action(), next_actions: [] })
+      }),
+      http.get('*/v1/servers/42', () => json(200, makeServer({ id: 42 }))),
+      http.get('*/v1/actions/7', () => json(200, action())),
+    )
+    const { router } = await mountCreate()
+    for (const id of [1, 2, 3]) await pick(`input[name="network"][value="${id}"]`)
+    expect($('input[name="network"][value="4"]').disabled).toBe(true)
+    createButton().click()
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
+    expect(bodies[0]!.networks).toEqual([{ network: '1' }, { network: '2' }, { network: '3' }])
+  })
+
+  it('hides the network picker where private networks are unavailable', async () => {
+    privateNets = [{ id: 9, name: 'far', location: { id: 2, name: 'rack-2', description: '' } }]
+    serveCatalog()
+    const { wrapper } = await mountCreate()
+    expect($('input[name="network"]')).toBeNull()
+    await pick('input[name="location"][value="2"]')
+    expect($('input[name="network"]')).toBeNull()
+    expect(wrapper.findAll('[data-step] h2').map((h) => h.text())).not.toContain('Private networks')
+  })
+
   it('hides the firewall picker when the project has none', async () => {
     serveCatalog()
     const bodies: Record<string, unknown>[] = []
@@ -321,7 +394,9 @@ describe('CreateServerPage', () => {
     )
     const { router, wrapper } = await mountCreate()
     expect($('input[name="firewall"]')).toBeNull()
-    expect(wrapper.findAll('[data-step] h2').map((heading) => heading.text())).not.toContain('Firewalls')
+    expect(wrapper.findAll('[data-step] h2').map((heading) => heading.text())).not.toContain(
+      'Firewalls',
+    )
     createButton().click()
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('server'))
     expect(bodies[0]).not.toHaveProperty('firewalls')
@@ -386,6 +461,7 @@ describe('CreateServerPage', () => {
         networks: { ipv4: false, ipv6: false },
         volumes_available: false,
         backups_available: false,
+        private_networks_available: false,
       },
     ])
     await mountCreate()
@@ -462,8 +538,7 @@ describe('CreateServerPage', () => {
   })
 
   describe('daily backups', () => {
-    const box = () =>
-      document.body.querySelector('button[role=checkbox]') as HTMLElement | null
+    const box = () => document.body.querySelector('button[role=checkbox]') as HTMLElement | null
 
     it('offers a checkbox with the slot count where the location has backups', async () => {
       serveCatalog()
@@ -494,7 +569,9 @@ describe('CreateServerPage', () => {
       box()!.click()
       await settle()
       expect(createButton().disabled).toBe(true)
-      expect(document.body.textContent).toContain("Daily backups don't fit in the project's backup quota.")
+      expect(document.body.textContent).toContain(
+        "Daily backups don't fit in the project's backup quota.",
+      )
     })
 
     it('sends backups only when ticked', async () => {

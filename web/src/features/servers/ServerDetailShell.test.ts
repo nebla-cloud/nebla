@@ -242,6 +242,7 @@ describe('ServerDetailShell', () => {
       ['Console', '/p/1/servers/5/console'],
       ['Rebuild', '/p/1/servers/5/rebuild'],
       ['Firewalls', '/p/1/servers/5/firewalls'],
+      ['Networking', '/p/1/servers/5/networking'],
       ['Resize', '/p/1/servers/5/resize'],
       ['Volumes', '/p/1/servers/5/volumes'],
       ['Activity', '/p/1/servers/5/activity'],
