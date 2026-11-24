@@ -4064,7 +4064,7 @@ type ClientInterface interface {
 
 	// PostSnapshotsWithBody Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -4073,7 +4073,7 @@ type ClientInterface interface {
 
 	// PostSnapshots Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -7541,7 +7541,7 @@ func (c *Client) GetSnapshots(ctx context.Context, params *GetSnapshotsParams, r
 
 // PostSnapshotsWithBody Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 //
 // Takes any type of body and a specified content type.
 //
@@ -7560,7 +7560,7 @@ func (c *Client) PostSnapshotsWithBody(ctx context.Context, contentType string, 
 
 // PostSnapshots Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -17388,7 +17388,7 @@ type ClientWithResponsesInterface interface {
 
 	// PostSnapshotsWithBodyWithResponse Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -17397,7 +17397,7 @@ type ClientWithResponsesInterface interface {
 
 	// PostSnapshotsWithResponse Snapshot a server's boot disk
 	//
-	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+	// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -32788,7 +32788,7 @@ func (c *ClientWithResponses) GetSnapshotsWithResponse(ctx context.Context, para
 
 // PostSnapshotsWithBodyWithResponse Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -32803,7 +32803,7 @@ func (c *ClientWithResponses) PostSnapshotsWithBodyWithResponse(ctx context.Cont
 
 // PostSnapshotsWithResponse Snapshot a server's boot disk
 //
-// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+// A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

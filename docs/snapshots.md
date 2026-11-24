@@ -22,7 +22,8 @@ Open the server's Snapshots tab and choose Take snapshot. Give it a name, and a 
 A running server is shut down cleanly, copied and started again, so expect it to be offline for a few minutes. The
 panel warns you before you confirm. A server that is off stays off.
 
-If the server hasn't shut down after 3 minutes, no snapshot is taken and the server keeps running. To go on anyway,
+If the server hasn't shut down after 3 minutes, no snapshot is taken and the server keeps running. Nebla keeps watching
+for a few more minutes, and if the server powers off late it starts it again. To go on anyway,
 tick "Force stop if it doesn't shut down" (`--force-stop` in the CLI). Nebla then powers the server off, which can lose
 data that was still in memory.
 

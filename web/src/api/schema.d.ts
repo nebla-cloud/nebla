@@ -1841,7 +1841,7 @@ export interface paths {
         put?: never;
         /**
          * Snapshot a server's boot disk
-         * @description A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy) and server_changed (409).
+         * @description A running server is shut down and started again. Errors: snapshots_unavailable (422, the location has no snapshot storage), quota_exceeded (422), server_not_ready (409, the server is neither running nor off), locked (409, the server is busy), backup_in_progress (409), server_changed (409) and pve_unreachable (503).
          */
         post: operations["postSnapshots"];
         delete?: never;
