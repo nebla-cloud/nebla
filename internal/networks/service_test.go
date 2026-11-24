@@ -730,7 +730,7 @@ func TestProjectNotEmpty(t *testing.T) {
 
 func (e *env) bareLocation(t *testing.T, name string) int64 {
 	t.Helper()
-	return e.App.Ent.Location.Create().SetName(name).SetPveURL("https://"+name+".invalid").SetTokenID("t").SetTokenSecret([]byte("s")).
+	return e.App.Ent.Location.Create().SetName(name).SetPveURL("https://" + name + ".invalid").SetTokenID("t").SetTokenSecret([]byte("s")).
 		SetDiskStorage("local").SetIsoStorage("local").SaveX(context.Background()).ID
 }
 
