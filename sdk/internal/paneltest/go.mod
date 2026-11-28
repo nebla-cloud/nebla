@@ -7,6 +7,7 @@ require (
 	github.com/nebla-cloud/nebla v0.0.0-00010101000000-000000000000
 	github.com/nebla-cloud/nebla/sdk v0.0.0
 	github.com/stretchr/testify v1.12.1
+	golang.org/x/time v0.16.0
 )
 
 require (
@@ -115,7 +116,6 @@ require (
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
-	golang.org/x/time v0.16.0 // indirect
 	golang.org/x/tools v0.53.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

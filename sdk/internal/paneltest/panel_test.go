@@ -25,12 +25,15 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/ent/vnetslot"
+	"github.com/nebla-cloud/nebla/internal/httpapi"
 	"github.com/nebla-cloud/nebla/internal/pve"
+	"github.com/nebla-cloud/nebla/internal/ratelimit"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/nebla-cloud/nebla/sdk/nebla"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -47,10 +50,13 @@ type panel struct {
 
 func newPanel(t *testing.T) *panel {
 	t.Helper()
+	// Tests here must not run in parallel: FirewallSettle is a package variable.
 	old := servers.FirewallSettle
 	servers.FirewallSettle = 0
 	t.Cleanup(func() { servers.FirewallSettle = old })
-	app := testutil.NewAppWithWorkers(t, testutil.AllWorkers)
+	// The default API limiter (3600/h, burst 100) would answer 429 to the polling.
+	app := testutil.NewAppWithWorkers(t, testutil.AllWorkers,
+		func(d *httpapi.Deps) { d.APILimiter = ratelimit.New(rate.Limit(10000), 100000) })
 	env := testutil.NewServerEnv(app)
 	env.Admin.SetQuota(env.Project, 50, 200, 262144, 4000, 50)
 	rw := nebla.NewClient(nebla.WithEndpoint(app.URL), nebla.WithToken(env.C.CreateToken(env.Project, "read_write")))
@@ -62,8 +68,6 @@ func (p *panel) wait(actions ...nebla.Action) {
 	p.t.Helper()
 	require.NoError(p.t, p.c.Actions.WaitFor(p.t.Context(), actions, nebla.PollInterval(pollEvery)))
 }
-
-func (p *panel) waitAll(actions []nebla.Action) { p.t.Helper(); p.wait(actions...) }
 
 // server creates a server and waits until it is running.
 func (p *panel) server(name string) *nebla.Server {
@@ -237,13 +241,13 @@ func TestPanel(t *testing.T) {
 		require.NoError(t, err)
 		acts, err := p.c.Firewalls.ApplyToResources(ctx, res.Firewall.ID, target)
 		require.NoError(t, err)
-		p.waitAll(acts)
+		p.wait(acts...)
 		acts, err = p.c.Firewalls.RemoveFromResources(ctx, res.Firewall.ID, target)
 		require.NoError(t, err)
-		p.waitAll(acts)
+		p.wait(acts...)
 		acts, err = p.c.Firewalls.Delete(ctx, res.Firewall.ID)
 		require.NoError(t, err)
-		p.waitAll(acts)
+		p.wait(acts...)
 	})
 
 	t.Run("floating ips", func(t *testing.T) {

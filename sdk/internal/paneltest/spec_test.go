@@ -293,7 +293,6 @@ func firstSuccess(op *openapi3.Operation) int {
 }
 
 type specServer struct {
-	t       *testing.T
 	router  routers.Router
 	current string
 	failure error
@@ -352,7 +351,7 @@ func TestSpecConformance(t *testing.T) {
 	doc := loadSpec(t)
 	router, err := gorillamux.NewRouter(doc)
 	require.NoError(t, err)
-	srv := &specServer{t: t, router: router}
+	srv := &specServer{router: router}
 	hs := httptest.NewServer(srv)
 	defer hs.Close()
 	c := nebla.NewClient(nebla.WithEndpoint(hs.URL), nebla.WithToken("tok"))

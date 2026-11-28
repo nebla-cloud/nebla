@@ -5,10 +5,13 @@ package nebla
 
 import (
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,8 +55,21 @@ func TestIsCodeNonAPIError(t *testing.T) {
 }
 
 func TestKnownCodesMatchConstants(t *testing.T) {
-	src, err := os.ReadFile("errors.go")
+	f, err := parser.ParseFile(token.NewFileSet(), "errors.go", nil, 0)
 	require.NoError(t, err)
-	n := len(regexp.MustCompile(`(?m)^\tCode\w+\s+ErrorCode = `).FindAll(src, -1))
-	assert.Len(t, KnownCodes(), n)
+	var want []string
+	ast.Inspect(f, func(n ast.Node) bool {
+		if vs, ok := n.(*ast.ValueSpec); ok && len(vs.Names) == 1 && strings.HasPrefix(vs.Names[0].Name, "Code") && len(vs.Values) == 1 {
+			if bl, ok := vs.Values[0].(*ast.BasicLit); ok {
+				v, _ := strconv.Unquote(bl.Value)
+				want = append(want, v)
+			}
+		}
+		return true
+	})
+	var got []string
+	for _, c := range KnownCodes() {
+		got = append(got, string(c))
+	}
+	assert.ElementsMatch(t, want, got)
 }
