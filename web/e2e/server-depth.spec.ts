@@ -94,7 +94,7 @@ test('graphs', async () => {
   const charts = page.getByRole('img', { name: /over time$/ })
   await expect(charts.first().or(page.getByText('No data for this range'))).toBeVisible()
   if (await charts.count()) {
-    for (const name of ['CPU over time', 'Disk over time', 'Network over time'])
+    for (const name of ['CPU over time', 'Memory over time', 'Disk over time', 'Network over time'])
       await expect(page.getByRole('img', { name })).toBeVisible()
   }
   await expectNoLeaks(page)
