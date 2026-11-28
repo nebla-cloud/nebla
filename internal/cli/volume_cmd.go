@@ -66,6 +66,7 @@ func volumeCreateCmd(a *app) *cobra.Command {
 		name, location, server string
 		size                   int
 		labels                 []string
+		protectDelete          bool
 	)
 	cmd := &cobra.Command{Use: "create", Short: "Create a volume", Args: cobra.NoArgs}
 	wo := addWaitFlags(cmd)
@@ -78,7 +79,7 @@ func volumeCreateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		body := apiclient.PostVolumesJSONRequestBody{Name: name, Size: size}
+		body := apiclient.PostVolumesJSONRequestBody{Name: name, Size: size, Protection: protectionInput(cmd.Flags(), protectDelete)}
 		if lbl != nil {
 			body.Labels = &lbl
 		}
@@ -137,6 +138,7 @@ func volumeCreateCmd(a *app) *cobra.Command {
 	f.StringVar(&location, "location", "", "location id or name (optional with --server)")
 	f.StringVar(&server, "server", "", "server id or name to attach to")
 	f.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable)")
+	addProtectDeleteFlag(f, &protectDelete)
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("size")
 	return cmd
@@ -206,6 +208,7 @@ func volumeDescribeCmd(a *app) *cobra.Command {
 				{"Server", volumeServer(v, serverNames(cmd.Context(), api, v))},
 				{"Linux device", v.LinuxDevice},
 				{"Labels", labelString(v.Labels)},
+				{"Protection", protectionLine(v.Protection.Delete, nil)},
 			})
 			return nil
 		},
@@ -215,12 +218,15 @@ func volumeDescribeCmd(a *app) *cobra.Command {
 func volumeUpdateCmd(a *app) *cobra.Command {
 	var name string
 	var labels []string
-	cmd := &cobra.Command{Use: "update <ref>", Short: "Rename a volume or replace its labels", Args: cobra.ExactArgs(1)}
+	var protectDelete bool
+	cmd := &cobra.Command{Use: "update <ref>", Short: "Rename a volume, replace its labels or change its protection", Args: cobra.ExactArgs(1)}
 	cmd.Flags().StringVar(&name, "name", "", "new name")
 	cmd.Flags().StringArrayVar(&labels, "label", nil, "label as key=value (repeatable); replaces all labels")
+	addProtectDeleteFlag(cmd.Flags(), &protectDelete)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if name == "" && len(labels) == 0 {
-			return errors.New("nothing to update: pass --name or --label")
+		prot := protectionInput(cmd.Flags(), protectDelete)
+		if name == "" && len(labels) == 0 && prot == nil {
+			return errors.New("nothing to update: pass --name, --label or --protect-delete")
 		}
 		lbl, err := parseLabels(labels)
 		if err != nil {
@@ -234,7 +240,7 @@ func volumeUpdateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		var body apiclient.PutVolumeJSONRequestBody
+		body := apiclient.PutVolumeJSONRequestBody{Protection: prot}
 		if name != "" {
 			body.Name = &name
 		}

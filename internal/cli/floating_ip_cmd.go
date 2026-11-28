@@ -151,6 +151,7 @@ func fipDescribeCmd(a *app) *cobra.Command {
 				{"Location", f.Location.Name},
 				{"Server", srv},
 				{"Labels", labelString(f.Labels)},
+				{"Protection", protectionLine(f.Protection.Delete, nil)},
 			})
 			printGuestConfig(a.env.Stdout, f.GuestConfig, srv)
 			return nil
@@ -196,6 +197,7 @@ func fipFinish(a *app, cmd *cobra.Command, api *API, wo *waitOpts, f apiclient.F
 func fipCreateCmd(a *app) *cobra.Command {
 	var typ, name, description, location, server string
 	var labels []string
+	var protectDelete bool
 	cmd := &cobra.Command{Use: "create", Short: "Create a floating IP", Args: cobra.NoArgs}
 	wo := addWaitFlags(cmd)
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
@@ -210,7 +212,7 @@ func fipCreateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		body := apiclient.PostFloatingIpsJSONRequestBody{Type: apiclient.FloatingIpInputType(typ)}
+		body := apiclient.PostFloatingIpsJSONRequestBody{Type: apiclient.FloatingIpInputType(typ), Protection: protectionInput(cmd.Flags(), protectDelete)}
 		if name != "" {
 			body.Name = &name
 		}
@@ -251,6 +253,7 @@ func fipCreateCmd(a *app) *cobra.Command {
 	fl.StringVar(&location, "location", "", "location id or name")
 	fl.StringVar(&server, "server", "", "server id or name to assign to")
 	fl.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable)")
+	addProtectDeleteFlag(fl, &protectDelete)
 	_ = cmd.MarkFlagRequired("type")
 	return cmd
 }
@@ -258,14 +261,16 @@ func fipCreateCmd(a *app) *cobra.Command {
 func fipUpdateCmd(a *app) *cobra.Command {
 	var name, description string
 	var labels []string
-	cmd := &cobra.Command{Use: "update <ref>", Short: "Change a floating IP's name, description or labels", Args: cobra.ExactArgs(1)}
+	var protectDelete bool
+	cmd := &cobra.Command{Use: "update <ref>", Short: "Change a floating IP's name, description, labels or protection", Args: cobra.ExactArgs(1)}
 	cmd.Flags().StringVar(&name, "name", "", "new name")
 	cmd.Flags().StringVar(&description, "description", "", "new description")
 	cmd.Flags().StringArrayVar(&labels, "label", nil, "label as key=value (repeatable); replaces all labels")
+	addProtectDeleteFlag(cmd.Flags(), &protectDelete)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		fl := cmd.Flags()
-		if !fl.Changed("name") && !fl.Changed("description") && len(labels) == 0 {
-			return errors.New("nothing to update: pass --name, --description or --label")
+		if !fl.Changed("name") && !fl.Changed("description") && len(labels) == 0 && !fl.Changed("protect-delete") {
+			return errors.New("nothing to update: pass --name, --description, --label or --protect-delete")
 		}
 		lbl, err := parseLabels(labels)
 		if err != nil {
@@ -279,7 +284,7 @@ func fipUpdateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		var body apiclient.PutFloatingIpJSONRequestBody
+		body := apiclient.PutFloatingIpJSONRequestBody{Protection: protectionInput(fl, protectDelete)}
 		if fl.Changed("name") {
 			body.Name = &name
 		}

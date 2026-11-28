@@ -83,6 +83,7 @@ nebla server create --name web1 --type small --image ubuntu --location eu-1 --ss
 nebla server list --status running
 nebla server describe web1
 nebla server rename web1 web2
+nebla server update web2 --name web3 --label env=prod --protect-delete --protect-rebuild
 nebla server poweroff web2        # also: poweron, reboot, reset, shutdown
 nebla server rebuild web2 --image debian
 nebla server rebuild web2 --snapshot before-upgrade
@@ -97,6 +98,7 @@ nebla snapshot create web2 --name before-upgrade --description "pre 24.04 upgrad
 nebla snapshot list --server web2
 nebla snapshot describe before-upgrade
 nebla snapshot update before-upgrade --name keep --description "known good"
+nebla snapshot update keep --protect-delete
 nebla snapshot restore keep       # rebuilds the source server from the snapshot
 nebla snapshot delete keep
 nebla server create --name web3 --type small --snapshot keep --location eu-1
@@ -134,6 +136,7 @@ nebla primary-ip create --type ipv4 --location home --name web-ip --keep
 nebla primary-ip list --server web2
 nebla primary-ip describe web-ip
 nebla primary-ip update web-ip --auto-delete=false
+nebla primary-ip update web-ip --protect-delete
 nebla primary-ip assign web-ip web3        # the server must be stopped
 nebla primary-ip unassign web-ip
 nebla primary-ip delete web-ip
@@ -173,6 +176,18 @@ wait, then print when the new address takes effect, and print any warning on std
 
 `server create` also takes `--user-data-from-file`, `--label key=value`, `--ipv4`, `--ipv6` (or the older `--without-ipv4` and `--with-ipv6`) and
 `--start-after-create=false`. `server list` takes `--selector key=value`.
+
+## Protection
+
+Protection stops a resource being deleted (and a server being rebuilt or restored from a backup) until you turn it
+off. `server create` and `server update` take `--protect-delete` and `--protect-rebuild`. `volume`, `floating-ip`,
+`primary-ip` and `snapshot` take `--protect-delete` on `create` and `update`. The flags are sent only when you pass
+them, so `--protect-delete=false` turns protection off and an update without them leaves it alone. `server update`
+also takes `--name` and `--label key=value` (replaces all labels). `describe` shows a `Protection:` line (`none`,
+`delete`, `rebuild` or `delete, rebuild`).
+
+A delete-protected primary IP survives its server's delete even with auto-delete on: it is unassigned and stays in the
+project. `server delete` lists it as kept, and `--keep-ips` leaves its auto-delete setting alone.
 
 ## Waiting for actions
 

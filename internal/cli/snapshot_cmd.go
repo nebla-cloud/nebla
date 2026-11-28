@@ -51,6 +51,7 @@ func snapshotCreateCmd(a *app) *cobra.Command {
 		name, description string
 		labels            []string
 		forceStop, yes    bool
+		protectDelete     bool
 	)
 	cmd := &cobra.Command{Use: "create <server>", Short: "Snapshot a server's boot disk", Args: cobra.ExactArgs(1)}
 	wo := addWaitFlags(cmd)
@@ -85,6 +86,7 @@ func snapshotCreateCmd(a *app) *cobra.Command {
 		if lbl != nil {
 			body.Labels = &lbl
 		}
+		body.Protection = protectionInput(cmd.Flags(), protectDelete)
 		if forceStop {
 			body.ForceStop = &forceStop
 		}
@@ -126,6 +128,7 @@ func snapshotCreateCmd(a *app) *cobra.Command {
 	f.StringVar(&name, "name", "", "snapshot name (default <server>-<YYYYMMDD-HHMM> in UTC)")
 	f.StringVar(&description, "description", "", "description")
 	f.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable)")
+	addProtectDeleteFlag(f, &protectDelete)
 	f.BoolVar(&forceStop, "force-stop", false, "power the server off if it doesn't shut down in time")
 	f.BoolVarP(&yes, "yes", "y", false, "do not ask before shutting down a running server")
 	return cmd
@@ -187,6 +190,7 @@ func snapshotDescribeCmd(a *app) *cobra.Command {
 				{"Location", s.Location.Name},
 				{"OS", strings.TrimSpace(s.OsFlavor + " " + s.OsVersion)},
 				{"Labels", labelString(s.Labels)},
+				{"Protection", protectionLine(s.Protection.Delete, nil)},
 			})
 			return nil
 		},
@@ -196,15 +200,17 @@ func snapshotDescribeCmd(a *app) *cobra.Command {
 func snapshotUpdateCmd(a *app) *cobra.Command {
 	var name, description string
 	var labels []string
-	cmd := &cobra.Command{Use: "update <ref>", Short: "Rename a snapshot, change its description or replace its labels", Args: cobra.ExactArgs(1)}
+	var protectDelete bool
+	cmd := &cobra.Command{Use: "update <ref>", Short: "Rename a snapshot, change its description, replace its labels or change its protection", Args: cobra.ExactArgs(1)}
 	f := cmd.Flags()
 	f.StringVar(&name, "name", "", "new name")
 	f.StringVar(&description, "description", "", "new description")
 	f.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable); replaces all labels")
+	addProtectDeleteFlag(f, &protectDelete)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		setDesc := f.Changed("description")
-		if name == "" && !setDesc && len(labels) == 0 {
-			return errors.New("nothing to update: pass --name, --description or --label")
+		if name == "" && !setDesc && len(labels) == 0 && !f.Changed("protect-delete") {
+			return errors.New("nothing to update: pass --name, --description, --label or --protect-delete")
 		}
 		lbl, err := parseLabels(labels)
 		if err != nil {
@@ -218,7 +224,7 @@ func snapshotUpdateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		var body apiclient.PutSnapshotJSONRequestBody
+		body := apiclient.PutSnapshotJSONRequestBody{Protection: protectionInput(f, protectDelete)}
 		if name != "" {
 			body.Name = &name
 		}

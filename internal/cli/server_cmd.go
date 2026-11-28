@@ -107,7 +107,7 @@ func parseLabels(in []string) (apiclient.Labels, error) {
 
 func newServerCmd(a *app) *cobra.Command {
 	cmd := &cobra.Command{Use: "server", Short: "Manage servers"}
-	cmd.AddCommand(serverCreateCmd(a), serverListCmd(a), serverDescribeCmd(a), serverDeleteCmd(a), serverRenameCmd(a))
+	cmd.AddCommand(serverCreateCmd(a), serverListCmd(a), serverDescribeCmd(a), serverDeleteCmd(a), serverRenameCmd(a), serverUpdateCmd(a))
 	cmd.AddCommand(serverSSHCmd(a), newBackupCmd(a))
 	cmd.AddCommand(serverActionCmds(a)...)
 	return cmd
@@ -132,6 +132,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 		backups                                            bool
 		backupKeep                                         int
 		ipv4, ipv6                                         string
+		protectDelete, protectRebuild                      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -188,6 +189,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 		if lbl != nil {
 			body.Labels = &lbl
 		}
+		body.Protection = serverProtectionInput(fl, protectDelete, protectRebuild)
 		if backups {
 			body.Backups = &apiclient.BackupSettings{Enabled: true, Keep: backupKeep}
 		}
@@ -305,6 +307,7 @@ func serverCreateCmd(a *app) *cobra.Command {
 	f.BoolVar(&start, "start-after-create", true, "start the server once it is created")
 	f.BoolVar(&backups, "backups", false, "turn on scheduled backups")
 	f.IntVar(&backupKeep, "backup-keep", defaultBackupKeep, "backups to keep, 1-14 (with --backups)")
+	addServerProtectFlags(f, &protectDelete, &protectRebuild)
 	for _, n := range []string{"name", "type"} {
 		_ = cmd.MarkFlagRequired(n)
 	}
@@ -372,6 +375,7 @@ func serverDescribeCmd(a *app) *cobra.Command {
 				{"Labels", labelString(s.Labels)},
 				{"Firewalls", serverFirewalls(s.Firewalls)},
 				{"Private networks", serverPrivateNets(s)},
+				{"Protection", protectionLine(s.Protection.Delete, &s.Protection.Rebuild)},
 			})
 			return nil
 		},
@@ -478,13 +482,19 @@ func keepPrimaryIPs(ctx context.Context, api *API, s apiclient.Server, all bool,
 	}
 	off := false
 	for _, p := range plan.kept {
-		if !p.AutoDelete {
+		if !p.AutoDelete || p.Protection.Delete {
 			continue
 		}
 		if _, err := putPrimaryIP(ctx, api, p.Id, apiclient.PutPrimaryIpJSONRequestBody{AutoDelete: &off}); err != nil {
 			return plan, err
 		}
 		plan.changed = append(plan.changed, p)
+	}
+	// A delete-protected IP is unassigned and kept by the delete itself, whatever its auto-delete.
+	for _, p := range own {
+		if p.Protection.Delete && p.AutoDelete && !slices.ContainsFunc(plan.kept, func(k apiclient.PrimaryIp) bool { return k.Id == p.Id }) {
+			plan.kept = append(plan.kept, p)
+		}
 	}
 	// Survivors: the ones just kept plus the ones already stored with auto-delete off.
 	for _, p := range own {
@@ -536,4 +546,54 @@ func serverImageName(s apiclient.Server) string {
 		return "-"
 	}
 	return s.Image.Name
+}
+
+func serverUpdateCmd(a *app) *cobra.Command {
+	var name string
+	var labels []string
+	var protectDelete, protectRebuild bool
+	cmd := &cobra.Command{Use: "update <ref>", Short: "Rename a server, replace its labels or change its protection", Args: cobra.ExactArgs(1)}
+	f := cmd.Flags()
+	f.StringVar(&name, "name", "", "new name")
+	f.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable); replaces all labels")
+	addServerProtectFlags(f, &protectDelete, &protectRebuild)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		prot := serverProtectionInput(f, protectDelete, protectRebuild)
+		if name == "" && len(labels) == 0 && prot == nil {
+			return errors.New("nothing to update: pass --name, --label, --protect-delete or --protect-rebuild")
+		}
+		lbl, err := parseLabels(labels)
+		if err != nil {
+			return err
+		}
+		api, err := a.api()
+		if err != nil {
+			return err
+		}
+		s, err := api.Server(cmd.Context(), args[0])
+		if err != nil {
+			return err
+		}
+		body := apiclient.PutServerJSONRequestBody{Protection: prot}
+		if name != "" {
+			body.Name = &name
+		}
+		if lbl != nil {
+			body.Labels = &lbl
+		}
+		res, err := api.C.PutServerWithResponse(cmd.Context(), s.Id, body)
+		if err != nil {
+			return err
+		}
+		upd, err := result(res.StatusCode(), res.Body, res.JSON200)
+		if err != nil {
+			return err
+		}
+		if a.flags.output != "table" {
+			return a.printer().Object(upd)
+		}
+		fmt.Fprintf(a.env.Stdout, "Server %s updated\n", upd.Name)
+		return nil
+	}
+	return cmd
 }

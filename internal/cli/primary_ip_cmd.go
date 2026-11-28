@@ -102,6 +102,7 @@ func pipDescribeCmd(a *app) *cobra.Command {
 				{"Location", p.Location.Name},
 				{"Server", pipServer(p)},
 				{"Labels", labelString(p.Labels)},
+				{"Protection", protectionLine(p.Protection.Delete, nil)},
 			})
 			return nil
 		},
@@ -111,7 +112,7 @@ func pipDescribeCmd(a *app) *cobra.Command {
 func pipCreateCmd(a *app) *cobra.Command {
 	var typ, name, description, location string
 	var labels []string
-	var keep bool
+	var keep, protectDelete bool
 	cmd := &cobra.Command{Use: "create", Short: "Reserve a primary IP", Args: cobra.NoArgs}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		lbl, err := parseLabels(labels)
@@ -122,7 +123,7 @@ func pipCreateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		body := apiclient.PostPrimaryIpsJSONRequestBody{Type: apiclient.PrimaryIpInputType(typ), Location: location}
+		body := apiclient.PostPrimaryIpsJSONRequestBody{Type: apiclient.PrimaryIpInputType(typ), Location: location, Protection: protectionInput(cmd.Flags(), protectDelete)}
 		if name != "" {
 			body.Name = &name
 		}
@@ -157,6 +158,7 @@ func pipCreateCmd(a *app) *cobra.Command {
 	fl.StringVar(&description, "description", "", "description")
 	fl.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable)")
 	fl.BoolVar(&keep, "keep", false, "keep the address when its server is deleted (auto-delete off)")
+	addProtectDeleteFlag(fl, &protectDelete)
 	_ = cmd.MarkFlagRequired("type")
 	_ = cmd.MarkFlagRequired("location")
 	return cmd
@@ -165,16 +167,17 @@ func pipCreateCmd(a *app) *cobra.Command {
 func pipUpdateCmd(a *app) *cobra.Command {
 	var name, description string
 	var labels []string
-	var autoDelete bool
-	cmd := &cobra.Command{Use: "update <ref>", Short: "Change a primary IP's name, description, labels or auto-delete", Args: cobra.ExactArgs(1)}
+	var autoDelete, protectDelete bool
+	cmd := &cobra.Command{Use: "update <ref>", Short: "Change a primary IP's name, description, labels, auto-delete or protection", Args: cobra.ExactArgs(1)}
 	fl := cmd.Flags()
 	fl.StringVar(&name, "name", "", "new name")
 	fl.StringVar(&description, "description", "", "new description")
 	fl.StringArrayVar(&labels, "label", nil, "label as key=value (repeatable); replaces all labels; --label \"\" clears them")
 	fl.BoolVar(&autoDelete, "auto-delete", false, "delete the address with its server: true or false")
+	addProtectDeleteFlag(fl, &protectDelete)
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if !fl.Changed("name") && !fl.Changed("description") && !fl.Changed("auto-delete") && !fl.Changed("label") {
-			return errors.New("nothing to update: pass --name, --description, --label or --auto-delete")
+		if !fl.Changed("name") && !fl.Changed("description") && !fl.Changed("auto-delete") && !fl.Changed("label") && !fl.Changed("protect-delete") {
+			return errors.New("nothing to update: pass --name, --description, --label, --auto-delete or --protect-delete")
 		}
 		// An empty --label "" clears the labels; the map stays non-nil so the request carries labels: {}.
 		var set []string
@@ -198,7 +201,7 @@ func pipUpdateCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		var body apiclient.PutPrimaryIpJSONRequestBody
+		body := apiclient.PutPrimaryIpJSONRequestBody{Protection: protectionInput(fl, protectDelete)}
 		if fl.Changed("name") {
 			body.Name = &name
 		}
