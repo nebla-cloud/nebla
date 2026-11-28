@@ -90,6 +90,7 @@ test('labels and filter', async () => {
 
 test('graphs', async () => {
   await openServer()
+  await expect(page.locator('[data-metric="memory"]')).toBeVisible()
   await tab('Graphs').click()
   const charts = page.getByRole('img', { name: /over time$/ })
   await expect(charts.first().or(page.getByText('No data for this range'))).toBeVisible()

@@ -102,6 +102,8 @@ func TestMetricsMemory(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(body), &m))
 	ts := m.Metrics.TimeSeries
 	require.Len(t, ts, 2)
+	require.Len(t, ts["memory.used"], 5)
+	require.Len(t, ts["memory.total"], 5)
 	for i := range 5 {
 		require.Equal(t, [2]float64{float64(1_700_000_000 + i*60), float64(100_000_000 * (i + 1))}, ts["memory.used"][i])
 		require.Equal(t, float64(1<<30), ts["memory.total"][i][1])
