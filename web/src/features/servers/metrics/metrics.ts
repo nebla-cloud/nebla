@@ -31,12 +31,12 @@ export function parseRange(v: unknown): Range {
 
 export type TimeSeries = Record<string, [number, number | null][]>
 
-export type MetricType = 'cpu' | 'disk' | 'network'
+export type MetricType = 'cpu' | 'disk' | 'network' | 'memory'
 
 export async function fetchMetrics(
   serverId: number,
   timeframe: Range,
-  type: MetricType[] = ['cpu', 'disk', 'network'],
+  type: MetricType[] = ['cpu', 'disk', 'network', 'memory'],
   signal?: AbortSignal,
 ) {
   return unwrap(
@@ -48,6 +48,16 @@ export async function fetchMetrics(
       },
     }),
   ).metrics
+}
+
+// Memory used over total at each memory.used timestamp, as a percent clamped to 0-100.
+export function memoryPercent(ts: TimeSeries): [number, number | null][] {
+  const total = new Map<number, number | null>(ts['memory.total'] ?? [])
+  return (ts['memory.used'] ?? []).map(([t, used]) => {
+    const tot = total.get(t)
+    if (used == null || tot == null || tot <= 0) return [t, null]
+    return [t, Math.min(100, Math.max(0, (used / tot) * 100))]
+  })
 }
 
 export type MetricRow = { t: number; v: (number | null)[] }

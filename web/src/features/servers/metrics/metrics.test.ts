@@ -20,6 +20,7 @@ import {
   formatAxisRate,
   formatRate,
   formatTick,
+  memoryPercent,
   nearestIndex,
   segments,
   timeTicks,
@@ -220,5 +221,37 @@ describe('formatAxisRate', () => {
   })
   it('whole units stay whole', () => {
     expect(formatAxisRate(300 * 1024, 500 * 1024)).toBe('300 KB/s')
+  })
+})
+
+describe('memoryPercent', () => {
+  it('is used over total as a percent', () => {
+    expect(
+      memoryPercent({
+        'memory.used': [[1, 512], [2, 768]],
+        'memory.total': [[1, 1024], [2, 1024]],
+      }),
+    ).toEqual([[1, 50], [2, 75]])
+  })
+
+  it('is null for a zero or null total, or null used', () => {
+    expect(
+      memoryPercent({
+        'memory.used': [[1, 5], [2, 5], [3, null]],
+        'memory.total': [[1, 0], [2, null], [3, 10]],
+      }),
+    ).toEqual([[1, null], [2, null], [3, null]])
+  })
+
+  it('clamps to 100', () => {
+    expect(memoryPercent({ 'memory.used': [[1, 2048]], 'memory.total': [[1, 1024]] })).toEqual([[1, 100]])
+  })
+
+  it('is null where total has no sample', () => {
+    expect(memoryPercent({ 'memory.used': [[1, 5]], 'memory.total': [[2, 10]] })).toEqual([[1, null]])
+  })
+
+  it('is empty without memory.used', () => {
+    expect(memoryPercent({})).toEqual([])
   })
 })

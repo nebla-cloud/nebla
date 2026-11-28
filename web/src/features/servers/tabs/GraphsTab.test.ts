@@ -21,17 +21,24 @@ import { json, server } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
 import type { Server } from '@/api/types'
 import { makeServer } from '../fixtures'
+import { chartHeader } from '../metrics/metrics'
 import GraphsTab from './GraphsTab.vue'
 
 vi.mock('../metrics/MetricChart.vue', () => ({
   default: defineComponent({
-    props: ['title', 'rows', 'series'],
+    props: ['title', 'rows', 'series', 'unit'],
     setup: (p) => () =>
       h(
         'div',
         {
           class: 'chart',
           'data-tones': p.series.map((s: { tone: string }) => s.tone).join(','),
+          'data-header': chartHeader(
+            p.rows,
+            p.series.map((s: { label: string }) => s.label),
+            p.unit,
+            null,
+          ).value,
         },
         `${p.title}: ${p.rows.length} points`,
       ),
@@ -52,6 +59,8 @@ const sample = {
       'disk.write': [[1, 2]],
       'network.in': [[1, 3]],
       'network.out': [[1, 4]],
+      'memory.used': [[1, 536870912]],
+      'memory.total': [[1, 1073741824]],
     },
   },
 }
@@ -94,7 +103,7 @@ describe('GraphsTab', () => {
   it('requests all types for the range', async () => {
     serveMetrics()
     await mountTab()
-    expect(types(urls[0]!).sort()).toEqual(['cpu', 'disk', 'network'])
+    expect(types(urls[0]!).sort()).toEqual(['cpu', 'disk', 'memory', 'network'])
     expect(urls[0]!.searchParams.get('timeframe')).toBe('hour')
   })
 
@@ -110,18 +119,40 @@ describe('GraphsTab', () => {
     await vi.waitFor(() => expect(urls.at(-1)!.searchParams.get('timeframe')).toBe('week'))
   })
 
-  it('three charts render', async () => {
+  it('four charts render', async () => {
     serveMetrics()
     const { wrapper } = await mountTab()
     const text = wrapper.findAll('.chart').map((c) => c.text())
-    expect(text).toEqual(['CPU: 2 points', 'Disk: 1 points', 'Network: 1 points'])
+    expect(text).toEqual([
+      'CPU: 2 points',
+      'Memory: 1 points',
+      'Disk: 1 points',
+      'Network: 1 points',
+    ])
   })
 
   it('cpu is busy, in and read pair with out and write', async () => {
     serveMetrics()
     const { wrapper } = await mountTab()
     const tones = wrapper.findAll('.chart').map((c) => c.attributes('data-tones'))
-    expect(tones).toEqual(['busy', 'busy,err', 'run,err'])
+    expect(tones).toEqual(['busy', 'run', 'busy,err', 'run,err'])
+  })
+
+  it('memory chart reads as a percent', async () => {
+    serveMetrics()
+    const { wrapper } = await mountTab()
+    const mem = wrapper.findAll('.chart')[1]!
+    expect(mem.attributes('data-tones')).toBe('run')
+    expect(mem.attributes('data-header')).toBe('50%')
+  })
+
+  it('renders the Memory chart when memory keys are missing', async () => {
+    const rest: Record<string, unknown> = { ...sample.metrics.time_series }
+    delete rest['memory.used']
+    delete rest['memory.total']
+    serveMetrics({ metrics: { ...sample.metrics, time_series: rest } })
+    const { wrapper } = await mountTab()
+    expect(wrapper.findAll('.chart').map((c) => c.text())[1]).toBe('Memory: 0 points')
   })
 
   it('all-null shows empty', async () => {

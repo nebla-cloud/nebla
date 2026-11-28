@@ -29,6 +29,7 @@ import MetricChart from '../metrics/MetricChart.vue'
 import {
   RANGES,
   fetchMetrics,
+  memoryPercent,
   parseRange,
   toRows,
   type Range,
@@ -59,7 +60,8 @@ const query = useQuery({
 })
 
 const charts = computed(() => {
-  const ts = (query.data.value?.time_series ?? {}) as TimeSeries
+  const raw = (query.data.value?.time_series ?? {}) as TimeSeries
+  const ts: TimeSeries = { ...raw, memory: memoryPercent(raw) }
   const make = (
     title: string,
     unit: 'percent' | 'rate',
@@ -75,6 +77,7 @@ const charts = computed(() => {
   })
   return [
     make('CPU', 'percent', [{ key: 'cpu', label: 'CPU', tone: 'busy' }]),
+    make('Memory', 'percent', [{ key: 'memory', label: 'Memory', tone: 'run' }]),
     make('Disk', 'rate', [
       { key: 'disk.read', label: 'Read', tone: 'busy' },
       { key: 'disk.write', label: 'Write', tone: 'err' },

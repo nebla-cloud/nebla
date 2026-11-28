@@ -80,12 +80,12 @@ async function setup(enabled: Ref<boolean>, queryClient = testQueryClient()) {
 afterEach(() => vi.useRealTimers())
 
 describe('useLiveMetrics', () => {
-  it('requests cpu, network and disk for the last hour', async () => {
+  it('requests cpu, network, disk and memory for the last hour', async () => {
     serve()
     await setup(ref(true))
     await vi.waitFor(() => expect(urls).toHaveLength(1))
     const types = urls[0]!.searchParams.getAll('type').flatMap((t) => t.split(','))
-    expect(types.sort()).toEqual(['cpu', 'disk', 'network'])
+    expect(types.sort()).toEqual(['cpu', 'disk', 'memory', 'network'])
     expect(urls[0]!.searchParams.get('timeframe')).toBe('hour')
   })
 
