@@ -228,14 +228,14 @@ func (r *rebuildRun) load(ctx context.Context) error {
 	return nil
 }
 
-// staleNet reports a restore that keeps the backup's instance-id on a disk whose cloud-init may lack the network
+// staleNet reports a restore that keeps the backup's or snapshot's instance-id on a disk whose cloud-init may lack the network
 // refresh opt-in; a fresh instance-id, or a clone, runs cloud-init anew with the opt-in. A kept instance-id relies
 // on two things. First, the net_refresh invariant: net_refresh true means the current instance first booted with
 // the opt-in, so only net_refresh on that same instance proves the disk's instance had it. Second, the backup's
-// network fingerprint matching what the guest applied: a backup taken with an instance bump pending records no
-// fingerprint, so its restore never keeps the instance-id.
+// network fingerprint matching what the guest applied: a backup or snapshot taken with an instance bump pending
+// records no fingerprint, so its restore never keeps the instance-id.
 func (r *rebuildRun) staleNet() bool {
-	if r.archive == "" || r.instGen == 0 {
+	if r.instGen == 0 {
 		return false
 	}
 	return !r.row.NetRefresh || InstanceGeneration(r.row) != r.instGen

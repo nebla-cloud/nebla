@@ -287,7 +287,7 @@ func (s *Service) Rename(ctx context.Context, userID, projectID int64, name stri
 	return toProject(p, r), nil
 }
 
-// Delete removes a project; it fails with project_not_empty while servers, volumes, floating IPs, networks or snapshots exist.
+// Delete removes a project; it fails with project_not_empty while servers, volumes, primary IPs, floating IPs, networks or snapshots exist.
 func (s *Service) Delete(ctx context.Context, userID, projectID int64) error {
 	if _, err := s.require(ctx, userID, projectID, RoleOwner); err != nil {
 		return err
@@ -306,7 +306,7 @@ func (s *Service) deleteProject(ctx context.Context, projectID int64) error {
 			return err
 		}
 		if busy {
-			return apierr.New(http.StatusConflict, "project_not_empty", "Delete the project's servers, volumes, floating IPs, networks and snapshots first.")
+			return apierr.New(http.StatusConflict, "project_not_empty", "Delete the project's servers, volumes, primary IPs, floating IPs, networks and snapshots first.")
 		}
 		return tx.Project.DeleteOneID(projectID).Exec(ctx)
 	})

@@ -326,6 +326,10 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 		if err != nil {
 			return err
 		}
+		// With an instance bump pending the guest may run an older network under this instance-id.
+		if row.InstanceBumpPending {
+			fp = ""
+		}
 		flavor, version, err := servers.OSFacts(ctx, etx, row)
 		if err != nil {
 			return err

@@ -24,6 +24,7 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/apierr"
 	"github.com/nebla-cloud/nebla/internal/ent"
+	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
 	"github.com/nebla-cloud/nebla/internal/ent/ipallocation"
 	"github.com/nebla-cloud/nebla/internal/ent/node"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
@@ -367,7 +368,7 @@ func TestRestoreResumeKeepsISOAndRowConsistent(t *testing.T) {
 	servers.SetRebuildAfterStep(w, nil)
 
 	// The floating IP goes away before the resume, so a naive resume would pin the old identity again.
-	e.App.Ent.IPAddress.Delete().ExecX(ctx)
+	e.App.Ent.IPAddress.Delete().Where(ipaddress.KindEQ(ipaddress.KindFloating)).ExecX(ctx)
 	require.NoError(t, w.Work(ctx, jobOf(args, 2)))
 	row := e.App.Ent.Server.GetX(ctx, s.ServerID)
 	require.Equal(t, 1, row.InstanceGeneration)
@@ -397,4 +398,85 @@ func TestRebuildFromSnapshotImageDeletedWhileQueued(t *testing.T) {
 	require.Nil(t, row.RebuildVmid, "rebuilt")
 	require.Nil(t, row.ImageID)
 	require.NotNil(t, row.SnapshotID)
+}
+
+func TestRestoreFromSnapshotNetRefreshFollowsTheRestoredInstance(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// old clears net_refresh; moved records another instance; changed alters the network after the request.
+		old, moved, changed bool
+		wantGen             int
+		want                bool
+	}{
+		{name: "kept instance had the opt-in", wantGen: 1, want: true},
+		{name: "kept instance from an old server", old: true, wantGen: 1, want: false},
+		{name: "kept instance older than the current one", moved: true, wantGen: 1, want: false},
+		{name: "network changed before the run on an old server", old: true, changed: true, wantGen: 2, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			e, s, w := rebuildEnv(t)
+			if tc.old {
+				require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetNetRefresh(false).Exec(ctx))
+			}
+			addSnapshot(t, e, "gold", "pve1", 10, func(c *ent.SnapshotCreate) {
+				c.SetServerID(s.ServerID).SetInstanceGeneration(1).SetNetworkFingerprint(fingerprintOf(t, e, s.ServerID))
+			})
+			if tc.moved {
+				require.NoError(t, e.App.Ent.Server.UpdateOneID(s.ServerID).SetInstanceGeneration(3).Exec(ctx))
+			}
+			args, err := rebuildFrom(t, e, s, servers.RebuildSource{Snapshot: "gold"})
+			require.NoError(t, err)
+			require.Equal(t, 1, args.InstanceGeneration)
+			if tc.changed {
+				assignFloating(t, e, s.ServerID, "10.0.0.15")
+			}
+			row := finishRebuild(t, e, w, args)
+			require.Equal(t, tc.wantGen, row.InstanceGeneration)
+			require.Equal(t, tc.want, row.NetRefresh)
+			require.False(t, row.InstanceBumpPending)
+			files := isoFiles(t, e, *row.IsoVolid)
+			if tc.want {
+				require.Equal(t, wantVendorData, files["vendor-data"])
+			} else {
+				require.NotContains(t, files, "vendor-data", "the restored guest would ignore the opt-in")
+			}
+			due, err := servers.ISOSyncDue(ctx, e.App.Ent, row)
+			require.NoError(t, err)
+			require.False(t, due, "the ISO matches what a sync would write")
+		})
+	}
+}
+
+func TestRestoreFromSnapshotWithoutFingerprintTakesNewIdentity(t *testing.T) {
+	e, s, w := rebuildEnv(t)
+	addSnapshot(t, e, "gold", "pve1", 10, func(c *ent.SnapshotCreate) {
+		c.SetServerID(s.ServerID).SetInstanceGeneration(1).SetNetworkFingerprint("")
+	})
+	args, err := rebuildFrom(t, e, s, servers.RebuildSource{Snapshot: "gold"})
+	require.NoError(t, err)
+	require.Zero(t, args.InstanceGeneration)
+	row := finishRebuild(t, e, w, args)
+	require.Equal(t, 2, row.InstanceGeneration)
+	require.True(t, row.NetRefresh)
+}
+
+func TestCreateFromSnapshotWithExistingPrimaryIP(t *testing.T) {
+	ctx := context.Background()
+	e, cw := directEnv(t)
+	addSnapshot(t, e, "gold", "pve2", 10)
+	id, addr := e.PrimaryIPOn("ipv4", seg0)
+	in := snapIn("gold")
+	in.IPv4 = existing(id)
+	srv, _, err := serverService(e).Create(ctx, e.Project, in)
+	require.NoError(t, err)
+	require.Equal(t, addr, srv.IPv4.String())
+	require.Equal(t, srv.ID, *e.App.Ent.IPAddress.GetX(ctx, id).ServerID)
+
+	a := e.App.Ent.Action.Query().OnlyX(ctx)
+	require.NoError(t, cw.Work(ctx, job(testutil.CreatedServer{ServerID: srv.ID, ActionID: a.ID}, 1)))
+	row := e.App.Ent.Server.GetX(ctx, srv.ID)
+	require.Equal(t, servers.StatusRunning, string(row.Status))
+	require.True(t, row.NetRefresh)
+	require.Contains(t, isoFiles(t, e, *row.IsoVolid)["network-config"], addr)
 }

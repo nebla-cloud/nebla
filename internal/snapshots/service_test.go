@@ -317,6 +317,17 @@ func TestRestoreKeepsIdentityOnRead(t *testing.T) {
 	require.Equal(t, "web1", got.ServerName)
 }
 
+func TestSnapshotWithPendingBumpRestoresNewIdentity(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	s := e.RunningServer("web1")
+	e.App.Ent.Server.UpdateOneID(s.ServerID).SetNetRefresh(false).SetInstanceBumpPending(true).ExecX(ctx)
+	snap, _, err := e.svc.Create(ctx, e.Project, snapshots.CreateInput{Server: "web1", Name: "a"})
+	require.NoError(t, err)
+	require.Empty(t, e.App.Ent.Snapshot.GetX(ctx, snap.ID).NetworkFingerprint)
+	require.False(t, *snap.RestoreKeepsIdentity)
+}
+
 func TestAvailable(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)

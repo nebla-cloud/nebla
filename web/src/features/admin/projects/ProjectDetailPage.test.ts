@@ -264,7 +264,8 @@ describe('ProjectDetailPage', () => {
         json(409, {
           error: {
             code: 'project_not_empty',
-            message: "Delete the project's servers, volumes, floating IPs, networks and snapshots first.",
+            message:
+              "Delete the project's servers, volumes, primary IPs, floating IPs, networks and snapshots first.",
           },
         }),
       ),
@@ -278,7 +279,7 @@ describe('ProjectDetailPage', () => {
     ;(document.body.querySelector('button[form="confirm-by-name"]') as HTMLElement).click()
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain(
-        "Delete the project's servers, volumes, floating IPs, networks and snapshots first.",
+        "Delete the project's servers, volumes, primary IPs, floating IPs, networks and snapshots first.",
       ),
     )
   })

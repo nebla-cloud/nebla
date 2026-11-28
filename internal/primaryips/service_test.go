@@ -527,3 +527,12 @@ func TestOldServerWarnsOnce(t *testing.T) {
 	require.Empty(t, warns)
 	require.False(t, e.App.Ent.Server.GetX(ctx, off1.ServerID).InstanceBumpPending)
 }
+
+func TestProjectNotEmptyWithPrimaryIP(t *testing.T) {
+	e := newEnv(t)
+	p := e.Admin.CreateProject("solo")
+	_, err := e.svc.Create(context.Background(), p, primaryips.CreateInput{Type: "ipv4", Location: "eu-1"})
+	require.NoError(t, err)
+	requireAPIErr(t, e.proj.AdminDelete(context.Background(), p), http.StatusConflict, "project_not_empty",
+		"Delete the project's servers, volumes, primary IPs, floating IPs, networks and snapshots first.")
+}

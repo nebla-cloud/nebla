@@ -219,7 +219,7 @@ describe('SettingsPage', () => {
     confirms[confirms.length - 1]!.click()
     await settle()
     expect(body().textContent).toContain(
-      "Delete the project's servers, volumes, floating IPs, networks and snapshots first.",
+      "Delete the project's servers, volumes, primary IPs, floating IPs, networks and snapshots first.",
     )
     const link = Array.from(body().querySelectorAll('a')).find((a) =>
       a.textContent?.includes('Servers'),

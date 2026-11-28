@@ -67,7 +67,7 @@ async function remove() {
   } catch (e) {
     delError.value =
       e instanceof ApiError && e.code === 'project_not_empty'
-        ? "Delete the project's servers, volumes, floating IPs, networks and snapshots first."
+        ? "Delete the project's servers, volumes, primary IPs, floating IPs, networks and snapshots first."
         : errorMessage(e)
   }
 }
@@ -119,8 +119,8 @@ async function remove() {
 
       <Panel title="Delete project">
         <p class="mb-3 text-muted">
-          A project with servers, volumes, floating IPs, networks or snapshots can't be deleted. Its members
-          need to delete them first.
+          A project with servers, volumes, primary IPs, floating IPs, networks or snapshots can't be
+          deleted. Its members need to delete them first.
         </p>
         <UButton
           color="error"
