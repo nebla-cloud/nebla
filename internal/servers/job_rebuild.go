@@ -28,6 +28,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/image"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/riverqueue/river"
 )
 
@@ -84,7 +85,12 @@ func (s *Service) Rebuild(ctx context.Context, projectID, id int64, src RebuildS
 			return actions.Action{}, err
 		}
 	}
-	return s.queue(ctx, projectID, id, KindRebuildServer, func(etx *ent.Client, row *ent.Server) (func(int64) river.JobArgs, error) {
+	return s.queueAfter(ctx, projectID, id, KindRebuildServer, protectedCheck(ctx, projectID, id, func(r *ent.Server) error {
+		if r.RebuildProtected {
+			return protection.ErrRebuild
+		}
+		return nil
+	}), func(etx *ent.Client, row *ent.Server) (func(int64) river.JobArgs, error) {
 		switch {
 		case row.Status == StatusMissing:
 			return nil, ErrMissing

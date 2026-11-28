@@ -58,6 +58,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/networks"
 	"github.com/nebla-cloud/nebla/internal/primaryips"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/serverlock"
 	"github.com/riverqueue/river"
@@ -147,7 +148,8 @@ type Server struct {
 	Firewalls      []firewalls.Applied
 	Backups        ServerBackups
 	// IPChangeRerunsCloudInit is true for servers created before IP changes were supported.
-	IPChangeRerunsCloudInit bool
+	IPChangeRerunsCloudInit           bool
+	DeleteProtected, RebuildProtected bool
 }
 
 // ServerBackups is a server's backup settings and state.
@@ -190,6 +192,8 @@ type CreateInput struct {
 	// Backups nil leaves backups off.
 	Backups  *BackupSettings
 	Networks []networks.CreateRef
+	// DeleteProtected and RebuildProtected set the protection flags at create.
+	DeleteProtected, RebuildProtected bool
 }
 
 // IPChoice is a new address, an existing primary IP (id or name), or neither.
@@ -203,6 +207,8 @@ type UpdateInput struct {
 	Name    *string
 	Labels  *map[string]string
 	Backups *BackupSettings
+	// DeleteProtected and RebuildProtected change only when non-nil, and may change while an action runs.
+	DeleteProtected, RebuildProtected *bool
 }
 
 var (
@@ -428,7 +434,8 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			create := etx.Server.Create().SetProjectID(projectID).SetName(in.Name).SetLocationID(loc.ID).SetNode(nodeName).
 				SetTemplateVmid(vmid).SetServerTypeID(typ.ID).SetNillableImageID(src.imageID).SetNillableSnapshotID(src.snapshotID).
 				SetOsFlavor(src.flavor).SetOsVersion(src.version).SetMAC(mac).SetLabels(labels).
-				SetCores(typ.Cores).SetMemoryMB(typ.MemoryMB).SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys)
+				SetCores(typ.Cores).SetMemoryMB(typ.MemoryMB).SetDiskGB(typ.DiskGB).SetUserData(in.UserData).SetSSHKeys(keys).
+				SetDeleteProtected(in.DeleteProtected).SetRebuildProtected(in.RebuildProtected)
 			if in.Backups != nil {
 				create.SetBackupsEnabled(in.Backups.Enabled).SetBackupKeep(in.Backups.Keep)
 				if in.Backups.Enabled {
@@ -556,7 +563,7 @@ func attachNewPrimary(ctx context.Context, etx *ent.Client, projectID int64, srv
 	return row, nil
 }
 
-// releasePrimaries deletes the server's auto_delete primary IPs and frees their addresses, and unassigns the rest.
+// releasePrimaries deletes the server's auto_delete primary IPs, unless protected, and frees their addresses; it unassigns the rest.
 func releasePrimaries(ctx context.Context, etx *ent.Client, serverID int64) (freed []*ent.IPAddress, err error) {
 	rows, err := etx.IPAddress.Query().Where(ipaddress.KindEQ(ipaddress.KindPrimary), ipaddress.ServerID(serverID)).
 		Order(ipaddress.ByID()).ForUpdate().All(ctx)
@@ -564,7 +571,7 @@ func releasePrimaries(ctx context.Context, etx *ent.Client, serverID int64) (fre
 		return nil, err
 	}
 	for _, r := range rows {
-		if !r.AutoDelete {
+		if !r.AutoDelete || r.DeleteProtected {
 			if err := etx.IPAddress.UpdateOneID(r.ID).ClearServerID().ClearPendingGen().Exec(ctx); err != nil {
 				return nil, err
 			}
@@ -826,7 +833,8 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Server) ([]Server, er
 			locs[r.LocationID] = loc
 		}
 		out[i] = Server{ID: r.ID, ProjectID: r.ProjectID, Name: r.Name, Status: string(r.Status), Location: loc, Type: t, Image: img, OSFlavor: flavor, OSVersion: version,
-			Node: r.Node, Labels: r.Labels, DiskGB: r.DiskGB, CreatedAt: r.CreatedAt, IPChangeRerunsCloudInit: !r.NetRefresh}
+			Node: r.Node, Labels: r.Labels, DiskGB: r.DiskGB, CreatedAt: r.CreatedAt, IPChangeRerunsCloudInit: !r.NetRefresh,
+			DeleteProtected: r.DeleteProtected, RebuildProtected: r.RebuildProtected}
 		if out[i].Labels == nil {
 			out[i].Labels = map[string]string{}
 		}
@@ -893,7 +901,7 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 				return err
 			}
 		}
-		row, err := LockServer(ctx, etx, projectID, id)
+		row, err := lockForUpdate(ctx, etx, projectID, id, in)
 		if err != nil {
 			return err
 		}
@@ -914,12 +922,37 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		if labels != nil {
 			u.SetLabels(labels)
 		}
+		if in.DeleteProtected != nil {
+			u.SetDeleteProtected(*in.DeleteProtected)
+		}
+		if in.RebuildProtected != nil {
+			u.SetRebuildProtected(*in.RebuildProtected)
+		}
 		return writeErr(u.Exec(ctx))
 	})
 	if err != nil {
 		return Server{}, err
 	}
 	return s.Get(ctx, projectID, id)
+}
+
+// lockForUpdate skips the busy check when in changes only the protection flags.
+func lockForUpdate(ctx context.Context, etx *ent.Client, projectID, id int64, in UpdateInput) (*ent.Server, error) {
+	if in.Name == nil && in.Labels == nil && in.Backups == nil && (in.DeleteProtected != nil || in.RebuildProtected != nil) {
+		return LockServerRow(ctx, etx, projectID, id)
+	}
+	return LockServer(ctx, etx, projectID, id)
+}
+
+// protectedCheck is a queueAfter before step that locks the row and fails when refuse does.
+func protectedCheck(ctx context.Context, projectID, id int64, refuse func(*ent.Server) error) func(*ent.Client) error {
+	return func(etx *ent.Client) error {
+		row, err := LockServerRow(ctx, etx, projectID, id)
+		if err != nil {
+			return err
+		}
+		return refuse(row)
+	}
 }
 
 func checkKeep(keep int) error {
@@ -1034,6 +1067,11 @@ func LockServer(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.
 	return serverlock.Lock(ctx, tx, projectID, id, errNotFound)
 }
 
+// LockServerRow locks the project's server row in tx without the busy check.
+func LockServerRow(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.Server, error) {
+	return serverlock.LockRow(ctx, tx, projectID, id, errNotFound)
+}
+
 // queue runs prepare under the server lock and starts the job it returns args for.
 func (s *Service) queue(ctx context.Context, projectID, id int64, command string,
 	prepare func(etx *ent.Client, row *ent.Server) (func(actionID int64) river.JobArgs, error)) (actions.Action, error) {
@@ -1075,7 +1113,12 @@ func dropQueuedBackups(ctx context.Context, etx *ent.Client, serverID int64) err
 
 // Delete marks the server deleting and queues delete_server; a running action on it gives 409 locked.
 func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Action, error) {
-	return s.queue(ctx, projectID, id, KindDeleteServer, func(etx *ent.Client, _ *ent.Server) (func(int64) river.JobArgs, error) {
+	return s.queueAfter(ctx, projectID, id, KindDeleteServer, protectedCheck(ctx, projectID, id, func(r *ent.Server) error {
+		if r.DeleteProtected {
+			return protection.ErrDelete
+		}
+		return nil
+	}), func(etx *ent.Client, _ *ent.Server) (func(int64) river.JobArgs, error) {
 		if err := etx.Server.UpdateOneID(id).SetStatus(StatusDeleting).Exec(ctx); err != nil {
 			return nil, err
 		}

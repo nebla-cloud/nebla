@@ -60,30 +60,40 @@ func HasRunningAction(ctx context.Context, c *ent.Client, projectID, serverID in
 	return c.Action.Query().Where(ActionsOf(projectID, serverID), Running).Exist(ctx)
 }
 
-// Lock locks the project's server row FOR UPDATE; a missing row gives notFound, a running backup ErrBackingUp
-// and any other running action ErrLocked.
-func Lock(ctx context.Context, tx *ent.Client, projectID, id int64, notFound error) (*ent.Server, error) {
+// LockRow locks the project's server row FOR UPDATE; a missing row gives notFound.
+func LockRow(ctx context.Context, tx *ent.Client, projectID, id int64, notFound error) (*ent.Server, error) {
 	row, err := tx.Server.Query().Where(server.ID(id), server.ProjectID(projectID)).ForUpdate().Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, notFound
 	}
-	if err != nil {
-		return nil, err
-	}
+	return row, err
+}
+
+// CheckBusy gives ErrBackingUp for a running backup and ErrLocked for any other running action.
+func CheckBusy(ctx context.Context, tx *ent.Client, projectID, id int64) error {
 	busy, err := HasRunningAction(ctx, tx, projectID, id)
+	if err != nil || !busy {
+		return err
+	}
+	backingUp, err := tx.Action.Query().Where(ActionsOf(projectID, id), action.StatusEQ(action.StatusRunning),
+		action.Command(KindCreateBackup)).Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if backingUp {
+		return ErrBackingUp
+	}
+	return ErrLocked
+}
+
+// Lock is LockRow followed by CheckBusy.
+func Lock(ctx context.Context, tx *ent.Client, projectID, id int64, notFound error) (*ent.Server, error) {
+	row, err := LockRow(ctx, tx, projectID, id, notFound)
 	if err != nil {
 		return nil, err
 	}
-	if busy {
-		backingUp, err := tx.Action.Query().Where(ActionsOf(projectID, id), action.StatusEQ(action.StatusRunning),
-			action.Command(KindCreateBackup)).Exist(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if backingUp {
-			return nil, ErrBackingUp
-		}
-		return nil, ErrLocked
+	if err := CheckBusy(ctx, tx, projectID, id); err != nil {
+		return nil, err
 	}
 	return row, nil
 }
