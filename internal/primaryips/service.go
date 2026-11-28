@@ -38,6 +38,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ipam"
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/nebla-cloud/nebla/internal/serverlock"
 	"github.com/riverqueue/river"
 )
@@ -65,23 +66,25 @@ type Ref struct {
 
 // PrimaryIP is a primary IP as the project sees it.
 type PrimaryIP struct {
-	ID          int64
-	Name        string
-	Description string
-	Labels      map[string]string
-	Type        string
-	IP          string
-	Status      string
-	Location    catalog.LocationRef
-	Server      *Ref
-	AutoDelete  bool
-	Created     time.Time
+	ID              int64
+	Name            string
+	Description     string
+	Labels          map[string]string
+	Type            string
+	IP              string
+	Status          string
+	Location        catalog.LocationRef
+	Server          *Ref
+	AutoDelete      bool
+	DeleteProtected bool
+	Created         time.Time
 }
 
 type CreateInput struct {
 	Type, Location, Name, Description string
 	Labels                            map[string]string
 	AutoDelete                        *bool
+	DeleteProtected                   bool
 }
 
 // UpdateInput changes only the non-nil fields.
@@ -89,6 +92,7 @@ type UpdateInput struct {
 	Name, Description *string
 	Labels            *map[string]string
 	AutoDelete        *bool
+	DeleteProtected   *bool
 }
 
 type ListFilter struct {
@@ -117,20 +121,37 @@ func (s *Service) withTx(ctx context.Context, fn func(tx *sql.Tx, etx *ent.Clien
 	return floatingips.WithTx(ctx, s.o.SQL, errBusy, fn)
 }
 
-// lockPIP locks the project's primary IP row; a running action on it gives 409 locked.
-func lockPIP(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.IPAddress, error) {
+// lockPIPRow locks the project's primary IP row without the busy check.
+func lockPIPRow(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.IPAddress, error) {
 	row, err := tx.IPAddress.Query().Where(ipaddress.ID(id), ipaddress.ProjectID(projectID), primary).ForUpdate().Only(ctx)
 	if err != nil {
 		return nil, notFound(err)
 	}
-	busy, err := tx.Action.Query().Where(floatingips.ActionsOfType(projectID, id, ResourceType), action.StatusEQ(action.StatusRunning)).Exist(ctx)
+	return row, nil
+}
+
+// lockPIP locks the project's primary IP row; a running action on it gives 409 locked.
+func lockPIP(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.IPAddress, error) {
+	row, err := lockPIPRow(ctx, tx, projectID, id)
 	if err != nil {
 		return nil, err
 	}
-	if busy {
-		return nil, errBusy
+	if err := pipBusy(ctx, tx, projectID, id); err != nil {
+		return nil, err
 	}
 	return row, nil
+}
+
+// pipBusy gives 409 locked when a running action holds the primary IP.
+func pipBusy(ctx context.Context, tx *ent.Client, projectID, id int64) error {
+	busy, err := tx.Action.Query().Where(floatingips.ActionsOfType(projectID, id, ResourceType), action.StatusEQ(action.StatusRunning)).Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if busy {
+		return errBusy
+	}
+	return nil
 }
 
 // Create allocates a primary IP in a location, unassigned.
@@ -178,7 +199,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 		}
 		row, err := etx.IPAddress.Create().SetKind(ipaddress.KindPrimary).SetProjectID(projectID).SetLocationID(loc.ID).
 			SetAllocationID(allocID).SetFamily(in.Type).SetIP(a.IP.String()).SetName(name).SetDescription(in.Description).
-			SetLabels(lbls).SetAutoDelete(autoDelete).Save(ctx)
+			SetLabels(lbls).SetAutoDelete(autoDelete).SetDeleteProtected(in.DeleteProtected).Save(ctx)
 		if err != nil {
 			return writeErr(err)
 		}
@@ -314,7 +335,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.IPAddress) ([]Primary
 			}
 		}
 		out[i] = PrimaryIP{ID: r.ID, Name: r.Name, Description: r.Description, Labels: lbls, Type: r.Family, IP: ip.String(),
-			Status: Status(r), Location: loc.Ref(), Server: ref, AutoDelete: r.AutoDelete, Created: r.CreatedAt}
+			Status: Status(r), Location: loc.Ref(), Server: ref, AutoDelete: r.AutoDelete, DeleteProtected: r.DeleteProtected, Created: r.CreatedAt}
 	}
 	return out, nil
 }
@@ -344,10 +365,17 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		if err := projects.LockProject(ctx, etx, projectID); err != nil {
 			return notFound(err)
 		}
-		if _, err := lockPIP(ctx, etx, projectID, id); err != nil {
+		lock := lockPIP
+		if in.Name == nil && in.Description == nil && in.Labels == nil && in.AutoDelete == nil && in.DeleteProtected != nil {
+			lock = lockPIPRow
+		}
+		if _, err := lock(ctx, etx, projectID, id); err != nil {
 			return err
 		}
 		u := etx.IPAddress.UpdateOneID(id)
+		if in.DeleteProtected != nil {
+			u.SetDeleteProtected(*in.DeleteProtected)
+		}
 		if in.Name != nil {
 			u.SetName(*in.Name)
 		}
@@ -375,8 +403,14 @@ func (s *Service) Delete(ctx context.Context, projectID, id int64) error {
 		if err := projects.LockProject(ctx, etx, projectID); err != nil {
 			return notFound(err)
 		}
-		row, err := lockPIP(ctx, etx, projectID, id)
+		row, err := lockPIPRow(ctx, etx, projectID, id)
 		if err != nil {
+			return err
+		}
+		if row.DeleteProtected {
+			return protection.ErrDelete
+		}
+		if err := pipBusy(ctx, etx, projectID, id); err != nil {
 			return err
 		}
 		switch {

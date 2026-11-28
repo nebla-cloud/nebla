@@ -48,6 +48,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/riverqueue/river"
 )
 
@@ -84,17 +85,18 @@ func New(o Options) *Service {
 
 // FloatingIP is a floating IP as the project sees it.
 type FloatingIP struct {
-	ID          int64
-	Name        string
-	Description string
-	Labels      map[string]string
-	Family      string
-	IP          string
-	Location    catalog.LocationRef
-	ServerID    *int64
-	Status      string
-	Guest       *GuestConfig
-	Created     time.Time
+	ID              int64
+	Name            string
+	Description     string
+	Labels          map[string]string
+	Family          string
+	IP              string
+	Location        catalog.LocationRef
+	ServerID        *int64
+	Status          string
+	Guest           *GuestConfig
+	DeleteProtected bool
+	Created         time.Time
 }
 
 // GuestConfig is what to run on the current server and, after a move or unassign, on the previous one.
@@ -111,12 +113,14 @@ type CreateInput struct {
 	Labels            map[string]string
 	Family            string
 	Location, Server  string
+	DeleteProtected   bool
 }
 
 // UpdateInput changes only the non-nil fields.
 type UpdateInput struct {
 	Name, Description *string
 	Labels            *map[string]string
+	DeleteProtected   *bool
 }
 
 type ListFilter struct {
@@ -193,11 +197,20 @@ func (s *Service) withTx(ctx context.Context, fn func(tx *sql.Tx, etx *ent.Clien
 	return WithTx(ctx, s.o.SQL, errBusy, fn)
 }
 
-// lockFIP locks the project's floating IP row; a running action on it gives 409 locked.
-func lockFIP(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.IPAddress, error) {
+// lockFIPRow locks the project's floating IP row without the busy check.
+func lockFIPRow(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.IPAddress, error) {
 	row, err := tx.IPAddress.Query().Where(ipaddress.ID(id), ipaddress.ProjectID(projectID), floating).ForUpdate().Only(ctx)
 	if err != nil {
 		return nil, notFound(err)
+	}
+	return row, nil
+}
+
+// lockFIP locks the project's floating IP row; a running action on it gives 409 locked.
+func lockFIP(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.IPAddress, error) {
+	row, err := lockFIPRow(ctx, tx, projectID, id)
+	if err != nil {
+		return nil, err
 	}
 	busy, err := hasRunningAction(ctx, tx, projectID, id)
 	if err != nil {
@@ -410,7 +423,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			return err
 		}
 		row, err := etx.IPAddress.Create().SetProjectID(projectID).SetLocationID(locationID).SetAllocationID(allocID).
-			SetFamily(in.Family).SetIP(a.IP.String()).SetName(in.Name).SetDescription(in.Description).SetLabels(lbls).Save(ctx)
+			SetFamily(in.Family).SetIP(a.IP.String()).SetName(in.Name).SetDescription(in.Description).SetLabels(lbls).SetDeleteProtected(in.DeleteProtected).Save(ctx)
 		if err != nil {
 			return writeErr(err)
 		}
@@ -447,6 +460,12 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 // mutate locks the project and the floating IP, then runs fn and starts the action it names.
 func (s *Service) mutate(ctx context.Context, projectID, id int64,
 	fn func(tx *sql.Tx, etx *ent.Client, row *ent.IPAddress) (kind string, res []actions.Resource, err error)) (actions.Action, error) {
+	return s.mutateGuarded(ctx, projectID, id, nil, fn)
+}
+
+// mutateGuarded is mutate with guard run between the row lock and the busy check.
+func (s *Service) mutateGuarded(ctx context.Context, projectID, id int64, guard func(*ent.IPAddress) error,
+	fn func(tx *sql.Tx, etx *ent.Client, row *ent.IPAddress) (kind string, res []actions.Resource, err error)) (actions.Action, error) {
 	if s.o.Jobs == nil {
 		return actions.Action{}, errNoJobs
 	}
@@ -455,9 +474,21 @@ func (s *Service) mutate(ctx context.Context, projectID, id int64,
 		if err := projects.LockProject(ctx, etx, projectID); err != nil {
 			return notFound(err)
 		}
-		row, err := lockFIP(ctx, etx, projectID, id)
+		row, err := lockFIPRow(ctx, etx, projectID, id)
 		if err != nil {
 			return err
+		}
+		if guard != nil {
+			if err := guard(row); err != nil {
+				return err
+			}
+		}
+		busy, err := hasRunningAction(ctx, etx, projectID, id)
+		if err != nil {
+			return err
+		}
+		if busy {
+			return errBusy
 		}
 		kind, res, err := fn(tx, etx, row)
 		if err != nil {
@@ -546,7 +577,13 @@ func (s *Service) Unassign(ctx context.Context, projectID, id int64) (actions.Ac
 
 // Delete marks the floating IP deleting, unassigning it first; the job frees the address once it is released.
 func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Action, error) {
-	return s.mutate(ctx, projectID, id, func(_ *sql.Tx, etx *ent.Client, row *ent.IPAddress) (string, []actions.Resource, error) {
+	protected := func(row *ent.IPAddress) error {
+		if row.DeleteProtected {
+			return protection.ErrDelete
+		}
+		return nil
+	}
+	return s.mutateGuarded(ctx, projectID, id, protected, func(_ *sql.Tx, etx *ent.Client, row *ent.IPAddress) (string, []actions.Resource, error) {
 		if row.Deleting {
 			return "", nil, errBusy
 		}
@@ -749,7 +786,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.IPAddress) ([]Floatin
 			return nil, fmt.Errorf("floating IP %d: %w", r.ID, err)
 		}
 		out[i] = FloatingIP{ID: r.ID, Name: r.Name, Description: r.Description, Labels: lbls, Family: r.Family, IP: ip.String(),
-			Location: loc.Ref(), ServerID: r.ServerID, Status: Status(r), Guest: guest, Created: r.CreatedAt}
+			Location: loc.Ref(), ServerID: r.ServerID, Status: Status(r), Guest: guest, DeleteProtected: r.DeleteProtected, Created: r.CreatedAt}
 	}
 	return out, nil
 }
@@ -809,10 +846,17 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		if err := projects.LockProject(ctx, etx, projectID); err != nil {
 			return notFound(err)
 		}
-		if _, err := lockFIP(ctx, etx, projectID, id); err != nil {
+		lock := lockFIP
+		if in.Name == nil && in.Description == nil && in.Labels == nil && in.DeleteProtected != nil {
+			lock = lockFIPRow
+		}
+		if _, err := lock(ctx, etx, projectID, id); err != nil {
 			return err
 		}
 		u := etx.IPAddress.UpdateOneID(id)
+		if in.DeleteProtected != nil {
+			u.SetDeleteProtected(*in.DeleteProtected)
+		}
 		if in.Name != nil {
 			u.SetName(*in.Name)
 		}
