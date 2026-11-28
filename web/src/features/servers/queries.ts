@@ -17,11 +17,14 @@ import { computed, type Ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { api } from '@/api/client'
 import { unwrap } from '@/api/errors'
+import type { components } from '@/api/schema'
 import type { Server } from '@/api/types'
 import { useCurrentProject } from '@/lib/project'
 import { isTransitional } from '@/lib/status'
 
 const POLL_MS = 3000
+
+export type ServerUpdate = components['schemas']['ServerUpdate']
 
 type ServerPage = { servers: Server[]; total: number }
 
@@ -74,4 +77,8 @@ export function useServer(id: Ref<number>, paused?: Ref<boolean>) {
             q.state.data && isTransitional(q.state.data.status) ? POLL_MS : false,
     })),
   )
+}
+
+export async function updateServer(id: number, body: ServerUpdate): Promise<Server> {
+  return unwrap(await api.PUT('/servers/{id}', { params: { path: { id } }, body }))
 }

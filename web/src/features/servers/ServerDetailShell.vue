@@ -29,6 +29,7 @@ import ActionProgress from '@/components/ActionProgress.vue'
 import { actionDone } from '@/components/actionLabel'
 import PageHeader from '@/components/PageHeader.vue'
 import Panel from '@/components/Panel.vue'
+import ProtectionButton from '@/components/ProtectionButton.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useActions } from '@/features/activity/queries'
 import { useLocations } from '@/features/servers-create/queries'
@@ -39,7 +40,7 @@ import { useActionPoll } from '@/lib/useActionPoll'
 import LabelChips from './LabelChips.vue'
 import { serverOsLabel } from './osLabel'
 import PowerActions from './PowerActions.vue'
-import { useServer } from './queries'
+import { updateServer, useServer } from './queries'
 import { serverBusyKey } from './shell'
 
 const route = useRoute()
@@ -60,7 +61,9 @@ const { action, running, error: actionError } = useActionPoll(actionId, { onDone
 const { data: server, error: loadError } = useServer(serverId, running)
 const locations = useLocations()
 const here = computed(() => locations.data.value?.find((l) => l.id === server.value?.location.id))
-const tabs = computed(() => allTabs.filter((t) => !server.value || (t.visible?.(here.value, server.value) ?? true)))
+const tabs = computed(() =>
+  allTabs.filter((t) => !server.value || (t.visible?.(here.value, server.value) ?? true)),
+)
 const runningActions = useActions({ serverId, status: ref('running') })
 // Also true after a reload, when the in-session action is gone.
 const restoring = computed(
@@ -139,6 +142,25 @@ watch(
   },
 )
 
+const protectionFlags = [
+  {
+    key: 'delete' as const,
+    label: 'Delete',
+    description: "Blocks deleting this server until it's turned off.",
+  },
+  {
+    key: 'rebuild' as const,
+    label: 'Rebuild',
+    description: 'Blocks rebuild and restore from a backup.',
+  },
+]
+
+async function saveProtection(changed: { delete?: boolean; rebuild?: boolean }) {
+  const s = await updateServer(serverId.value, { protection: changed })
+  qc.setQueryData(['server', projectId.value, s.id], s)
+  void qc.invalidateQueries({ queryKey: ['servers', projectId.value] })
+}
+
 const subtitle = computed(() => {
   const s = server.value
   if (!s) return undefined
@@ -185,6 +207,11 @@ const notFound = computed(
             >
               Console
             </UButton>
+            <ProtectionButton
+              :flags="protectionFlags"
+              :value="server.protection"
+              :save="saveProtection"
+            />
             <PowerActions :server="server" :busy="running" @started="started" />
           </template>
         </PageHeader>

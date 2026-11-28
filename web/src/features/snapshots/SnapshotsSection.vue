@@ -149,6 +149,7 @@ function taken(s: Snapshot, a: Action) {
             :snapshot="s"
             :server-name="server.name"
             :disabled="locked"
+            :server="server"
             stay
             @started="started($event, s.name)"
             @restoring="emit('started', $event)"

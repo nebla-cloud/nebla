@@ -28,6 +28,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import ListGroup from '@/components/ListGroup.vue'
 import ListRow from '@/components/ListRow.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import ProtectedLock from '@/components/ProtectedLock.vue'
 import StatusArch from '@/components/StatusArch.vue'
 import TerminalBlock from '@/components/TerminalBlock.vue'
 import type { Location, ServerType } from '@/api/types'
@@ -276,6 +277,7 @@ onBeforeUnmount(() => clearTimeout(timer))
           class="flex min-w-0 flex-col gap-1 whitespace-normal md:flex-row md:items-center md:gap-3"
         >
           <span class="flex min-w-0 flex-1 items-center gap-x-2">
+            <ProtectedLock v-if="s.protection.delete" />
             <span class="truncate">{{ s.name }}</span>
             <LabelChips :labels="s.labels" :max="3" />
           </span>

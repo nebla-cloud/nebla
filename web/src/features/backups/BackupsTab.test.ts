@@ -21,6 +21,7 @@ import { json, server } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
 import { http } from 'msw'
 import { makeLocation } from '../volumes/fixtures'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import BackupsTab from './BackupsTab.vue'
 import { makeBackup, type Backup } from './fixtures'
 import { backupAction, button, serveBackups, settle, type Calls } from './testkit'
@@ -243,5 +244,26 @@ describe('BackupsTab', () => {
     backups = []
     await mountTab()
     expect(document.body.textContent).toContain('No backups yet')
+  })
+
+  it('disables Restore with the tooltip while rebuild protection is on', async () => {
+    const { wrapper } = await mountTab(
+      makeServer({ ...on(), protection: { delete: false, rebuild: true } }),
+    )
+    const restore = document.body.querySelector(
+      'button[aria-label^="Restore the backup"]',
+    ) as HTMLButtonElement
+    expect(restore.disabled).toBe(true)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).toContain(
+      'Turn off rebuild protection first.',
+    )
+  })
+
+  it('leaves Restore alone while rebuild protection is off', async () => {
+    await mountTab()
+    const restore = document.body.querySelector(
+      'button[aria-label^="Restore the backup"]',
+    ) as HTMLButtonElement
+    expect(restore.disabled).toBe(false)
   })
 })

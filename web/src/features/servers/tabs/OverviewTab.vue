@@ -31,6 +31,7 @@ import { actionDot, actionStatus, actionTitle, relativeTime } from '@/components
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import Panel from '@/components/Panel.vue'
+import ProtectedTip from '@/components/ProtectedTip.vue'
 import Sparkline from '@/components/Sparkline.vue'
 import { useActions } from '@/features/activity/queries'
 import ServerPrimaryIPs from '@/features/primary-ips/ServerPrimaryIPs.vue'
@@ -196,7 +197,8 @@ watch(
   ([open]) => {
     if (!open) keep.value = {}
     else
-      for (const p of attached.value) if (!(p.id in keep.value)) keep.value[p.id] = !p.auto_delete
+      for (const p of attached.value)
+        if (!(p.id in keep.value)) keep.value[p.id] = p.protection.delete || !p.auto_delete
   },
   { immediate: true },
 )
@@ -206,6 +208,7 @@ async function confirmDelete() {
   deleteError.value = null
   try {
     for (const p of attached.value) {
+      if (p.protection.delete) continue
       const wantAuto = !(keep.value[p.id] ?? !p.auto_delete)
       if (wantAuto !== p.auto_delete) await updatePrimaryIP(p.id, { auto_delete: wantAuto })
     }
@@ -368,9 +371,19 @@ async function confirmDelete() {
           <UAlert v-if="deleteError" color="error" variant="subtle" :description="deleteError" />
           <div class="flex flex-wrap items-center justify-between gap-3">
             <span class="text-sm text-muted">Delete this server and free its IP addresses.</span>
-            <UButton color="error" variant="outline" :disabled="busy" @click="confirmOpen = true">
-              Delete server
-            </UButton>
+            <ProtectedTip
+              :text="server.protection.delete ? 'Turn off delete protection first.' : undefined"
+            >
+              <UButton
+                color="error"
+                variant="outline"
+                :icon="server.protection.delete ? 'i-lucide-lock' : undefined"
+                :disabled="busy || server.protection.delete"
+                @click="confirmOpen = true"
+              >
+                Delete server
+              </UButton>
+            </ProtectedTip>
           </div>
         </footer>
       </Panel>
@@ -395,8 +408,14 @@ async function confirmDelete() {
           <fieldset class="flex flex-col gap-2 text-sm">
             <legend class="sr-only">IPs to keep</legend>
             <label v-for="p in attached" :key="p.id" class="flex items-center gap-2">
-              <input v-model="keep[p.id]" type="checkbox" :name="`keep-${p.id}`" />
+              <input
+                v-model="keep[p.id]"
+                type="checkbox"
+                :name="`keep-${p.id}`"
+                :disabled="p.protection.delete"
+              />
               Keep <span class="nb-mono">{{ p.ip }}</span> in this project
+              <span v-if="p.protection.delete" class="text-muted">Protected, kept</span>
             </label>
             <p class="text-muted">{{ KEPT_NOTE }}</p>
           </fieldset>

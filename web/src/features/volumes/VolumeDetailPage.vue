@@ -21,11 +21,11 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
-import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { ApiError, errorMessage } from '@/api/errors'
 import type { Action } from '@/api/types'
 import ActionProgress from '@/components/ActionProgress.vue'
+import ProtectedTip from '@/components/ProtectedTip.vue'
 import ProtectionButton from '@/components/ProtectionButton.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -216,9 +216,8 @@ function remove() {
             :save="(c) => updateVolume(volumeId, { protection: { delete: c.delete } })"
             @saved="refresh"
           />
-          <UTooltip
+          <ProtectedTip
             :text="volume.protection.delete ? 'Turn off delete protection first.' : undefined"
-            :disabled="!volume.protection.delete"
           >
             <UButton
               color="error"
@@ -230,7 +229,7 @@ function remove() {
             >
               Delete
             </UButton>
-          </UTooltip>
+          </ProtectedTip>
         </template>
       </PageHeader>
 

@@ -23,6 +23,7 @@ import type { Action, Server } from '@/api/types'
 import { makePrimaryIP } from '@/features/primary-ips/fixtures'
 import type { PrimaryIp } from '@/api/types'
 import { makeServer } from '../fixtures'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import OverviewTab from './OverviewTab.vue'
 
 let mounted: VueWrapper | undefined
@@ -442,5 +443,62 @@ describe('OverviewTab', () => {
       { id: '1', body: { auto_delete: true } },
       { id: '2', body: { auto_delete: false } },
     ])
+  })
+})
+
+describe('OverviewTab protection', () => {
+  const tips = (w: VueWrapper) => w.findAllComponents(UTooltip).map((t) => t.props('text'))
+  const deleteBtn = (w: VueWrapper) =>
+    w.findAll('button').find((b) => b.text() === 'Delete server')!
+
+  it('disables Delete server with the tooltip while delete protection is on', async () => {
+    const w = await mountTab(makeServer({ protection: { delete: true, rebuild: false } }))
+    expect(deleteBtn(w).attributes('disabled')).toBeDefined()
+    expect(tips(w)).toContain('Turn off delete protection first.')
+  })
+
+  it('leaves Delete server alone while protection is off', async () => {
+    const w = await mountTab(makeServer())
+    expect(deleteBtn(w).attributes('disabled')).toBeUndefined()
+    expect(tips(w)).not.toContain('Turn off delete protection first.')
+  })
+
+  it('keeps a protected auto_delete IP, ticked and disabled, without a flip', async () => {
+    primaryIps = [
+      makePrimaryIP({
+        id: 1,
+        name: 'v4',
+        ip: '203.0.113.60',
+        server: { id: 1, name: 'web1' },
+        auto_delete: true,
+        protection: { delete: true },
+      }),
+    ]
+    const w = await mountTab(
+      makeServer({
+        public_net: {
+          ipv4: { id: 1, ip: '203.0.113.60' },
+          ipv6: null,
+          floating_ips: [],
+        },
+      }),
+    )
+    await vi.waitFor(() => expect(w.text()).toContain('v4'))
+    await deleteBtn(w).trigger('click')
+    await flushPromises()
+    const box = document.body.querySelector<HTMLInputElement>('input[name="keep-1"]')!
+    expect(box.checked).toBe(true)
+    expect(box.disabled).toBe(true)
+    expect(document.body.textContent).toContain('Protected, kept')
+    const input = document.body.querySelector<HTMLInputElement>('input[name="confirm_name"]')!
+    input.value = 'web1'
+    input.dispatchEvent(new Event('input'))
+    await flushPromises()
+    const confirm = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Delete server' && b.getAttribute('type') === 'submit',
+    ) as HTMLButtonElement
+    confirm.click()
+    await vi.waitFor(() => expect(deletes).toBe(1))
+    expect(puts).toEqual([])
   })
 })

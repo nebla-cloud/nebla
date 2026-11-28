@@ -481,7 +481,11 @@ describe('ServerDetailShell', () => {
     serve(
       makeServer({
         status: 'running',
-        public_net: { ipv4: { id: 1, ip: '203.0.113.10' }, ipv6: { id: 2, ip: '2001:db8::10' }, floating_ips: [] },
+        public_net: {
+          ipv4: { id: 1, ip: '203.0.113.10' },
+          ipv6: { id: 2, ip: '2001:db8::10' },
+          floating_ips: [],
+        },
       }),
     )
     const { wrapper } = await mountDetail()
@@ -720,5 +724,36 @@ describe('ServerDetailShell', () => {
     await wrapper.find('form').trigger('submit')
     await vi.waitFor(() => expect(bodies).toEqual([{ name: 'web-2' }]))
     await vi.waitFor(() => expect(wrapper.text()).toContain('web-2'))
+  })
+
+  it('shows Delete and Rebuild in the Protection dialog and saves only the change', async () => {
+    const puts: unknown[] = []
+    serve(makeServer())
+    server.use(
+      http.put('*/v1/servers/1', async ({ request }) => {
+        puts.push(await request.json())
+        return json(200, makeServer({ protection: { delete: false, rebuild: true } }))
+      }),
+    )
+    await mountDetail()
+    byText('Protection')!.click()
+    await flushPromises()
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Change protection')
+    expect(dialog.textContent).toContain("Blocks deleting this server until it's turned off.")
+    expect(dialog.textContent).toContain('Blocks rebuild and restore from a backup.')
+    const rebuild = Array.from(dialog.querySelectorAll('label')).find((l) =>
+      l.textContent?.includes('Rebuild'),
+    )!
+    ;(
+      dialog.querySelector(
+        `button[role="checkbox"][id="${rebuild.getAttribute('for')}"]`,
+      ) as HTMLButtonElement
+    ).click()
+    await flushPromises()
+    Array.from(dialog.querySelectorAll('button'))
+      .find((b) => b.textContent?.trim() === 'Save')!
+      .click()
+    await vi.waitFor(() => expect(puts).toEqual([{ protection: { rebuild: true } }]))
   })
 })

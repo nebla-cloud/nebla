@@ -434,4 +434,22 @@ describe('ServerListPage', () => {
       expect(b.wrapper.find('[role="radiogroup"]').exists()).toBe(false)
     })
   })
+
+  it('marks protected rows with a lock', async () => {
+    server.use(
+      http.get('*/v1/servers', () =>
+        json(200, {
+          servers: [
+            makeServer({ id: 1, name: 'safe', protection: { delete: true, rebuild: false } }),
+            makeServer({ id: 2, name: 'open' }),
+          ],
+          meta: { pagination: { page: 1, per_page: 50, total_entries: 2 } },
+        }),
+      ),
+    )
+    const { wrapper } = await mountList()
+    const rows = wrapper.findAll('li')
+    expect(rows[0]!.find('[aria-label="Protected"]').exists()).toBe(true)
+    expect(rows[1]!.find('[aria-label="Protected"]').exists()).toBe(false)
+  })
 })

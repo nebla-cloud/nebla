@@ -24,6 +24,7 @@ import { errorMessage, unwrap } from '@/api/errors'
 import type { Action, Server } from '@/api/types'
 import ChoiceCard from '@/components/ChoiceCard.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
+import ProtectedTip from '@/components/ProtectedTip.vue'
 import { availableImages, availableSnapshots } from '@/features/servers-create/createServer'
 import { useImages, useLocations } from '@/features/servers-create/queries'
 import { identityWarning, restoreText } from '@/features/snapshots/copy'
@@ -177,9 +178,18 @@ async function submit() {
     </fieldset>
     <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
     <div>
-      <UButton color="error" :disabled="busy || !hasSource" @click="confirmOpen = true">
-        Rebuild
-      </UButton>
+      <ProtectedTip
+        :text="server.protection.rebuild ? 'Turn off rebuild protection first.' : undefined"
+      >
+        <UButton
+          color="error"
+          :icon="server.protection.rebuild ? 'i-lucide-lock' : undefined"
+          :disabled="busy || !hasSource || server.protection.rebuild"
+          @click="confirmOpen = true"
+        >
+          Rebuild
+        </UButton>
+      </ProtectedTip>
     </div>
     <ConfirmByName
       v-model:open="confirmOpen"

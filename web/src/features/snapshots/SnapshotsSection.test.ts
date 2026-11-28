@@ -15,9 +15,11 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { http } from 'msw'
+import type { Server } from '@/api/types'
 import { makeServer } from '@/features/servers/fixtures'
 import { json, server } from '@/test/server'
 import { mountApp, testRouter } from '@/test/mount'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import SnapshotsSection from './SnapshotsSection.vue'
 import { makeLocation, makeSnapshot } from './fixtures'
 import { button, runningAction, serveLists, settle } from './testkit'
@@ -30,7 +32,10 @@ afterEach(() => {
 
 const onStarted = vi.fn()
 
-async function mountSection(snaps = [makeSnapshot({ id: 1, name: 'before-upgrade', server: 1 })]) {
+async function mountSection(
+  snaps = [makeSnapshot({ id: 1, name: 'before-upgrade', server: 1 })],
+  over: Partial<Server> = {},
+) {
   serveLists({ locations: [makeLocation()], snapshots: snaps })
   const seen: URL[] = []
   server.use(
@@ -48,7 +53,7 @@ async function mountSection(snaps = [makeSnapshot({ id: 1, name: 'before-upgrade
   await router.push('/p/7/snapshots/1')
   const m = mountApp(SnapshotsSection, {
     router,
-    props: { server: makeServer({ id: 1 }), onStarted },
+    props: { server: makeServer({ id: 1, ...over }), onStarted },
   })
   unmount = () => m.wrapper.unmount()
   await settle()
@@ -87,5 +92,18 @@ describe('SnapshotsSection', () => {
       .click()
     await settle()
     expect(onStarted).toHaveBeenCalledWith(expect.objectContaining({ id: 77 }))
+  })
+
+  it('disables Restore with the tooltip while the server has rebuild protection', async () => {
+    const { wrapper } = await mountSection(undefined, {
+      protection: { delete: false, rebuild: true },
+    })
+    const restore = document.body.querySelector(
+      'button[aria-label="Restore before-upgrade"]',
+    ) as HTMLButtonElement
+    expect(restore.disabled).toBe(true)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).toContain(
+      'Turn off rebuild protection first.',
+    )
   })
 })

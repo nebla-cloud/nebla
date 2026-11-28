@@ -23,12 +23,12 @@ import UDropdownMenu from '@nuxt/ui/components/DropdownMenu.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import UModal from '@nuxt/ui/components/Modal.vue'
-import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import { errorMessage } from '@/api/errors'
-import type { Action, Snapshot } from '@/api/types'
+import type { Action, Server, Snapshot } from '@/api/types'
+import ProtectedTip from '@/components/ProtectedTip.vue'
 import ProtectionButton from '@/components/ProtectionButton.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import { useCurrentProject } from '@/lib/project'
@@ -44,6 +44,8 @@ const props = defineProps<{
   // On the source server's own page the parent tracks the restore instead.
   stay?: boolean
   disabled?: boolean
+  // Only the server page passes this, so a rebuild-protected server can't be restored over.
+  server?: Server
 }>()
 // started fires for a delete; a restore carries on at the server's page, or fires restoring when stay is set.
 const emit = defineEmits<{ started: [action: Action]; restoring: [action: Action] }>()
@@ -65,6 +67,7 @@ const protectionFlags = [
 const ready = computed(() => props.snapshot.status === 'available')
 const locked = computed(() => props.disabled || isSnapshotTransitional(props.snapshot.status))
 const canRestore = computed(() => props.snapshot.server !== null && ready.value)
+const rebuildLocked = computed(() => props.server?.protection.rebuild === true)
 
 const restoring = ref(false)
 const renaming = ref(false)
@@ -149,6 +152,9 @@ const menu = computed(() => [
       icon: props.snapshot.protection.delete ? 'i-lucide-lock' : 'i-lucide-trash-2',
       color: 'error' as const,
       disabled: props.snapshot.protection.delete,
+      description: props.snapshot.protection.delete
+        ? 'Turn off delete protection first.'
+        : undefined,
       onSelect: (): void => {
         deleting.value = true
       },
@@ -159,17 +165,22 @@ const menu = computed(() => [
 
 <template>
   <div class="flex flex-wrap items-center gap-2">
-    <UButton
+    <ProtectedTip
       v-if="canRestore"
-      color="neutral"
-      variant="outline"
-      :size="expanded ? 'md' : 'sm'"
-      :disabled="locked"
-      :aria-label="`Restore ${snapshot.name}`"
-      @click="restoring = true"
+      :text="rebuildLocked ? 'Turn off rebuild protection first.' : undefined"
     >
-      Restore
-    </UButton>
+      <UButton
+        color="neutral"
+        variant="outline"
+        :size="expanded ? 'md' : 'sm'"
+        :icon="rebuildLocked ? 'i-lucide-lock' : undefined"
+        :disabled="locked || rebuildLocked"
+        :aria-label="`Restore ${snapshot.name}`"
+        @click="restoring = true"
+      >
+        Restore
+      </UButton>
+    </ProtectedTip>
     <template v-if="expanded">
       <UButton color="neutral" variant="outline" :disabled="locked || !ready" @click="newServer">
         New server
@@ -183,9 +194,8 @@ const menu = computed(() => [
         :save="(c) => updateSnapshot(snapshot.id, { protection: { delete: c.delete } })"
         @saved="refresh"
       />
-      <UTooltip
+      <ProtectedTip
         :text="snapshot.protection.delete ? 'Turn off delete protection first.' : undefined"
-        :disabled="!snapshot.protection.delete"
       >
         <UButton
           color="error"
@@ -196,7 +206,7 @@ const menu = computed(() => [
         >
           Delete
         </UButton>
-      </UTooltip>
+      </ProtectedTip>
     </template>
     <UDropdownMenu v-else :items="menu" :content="{ align: 'end' }" :disabled="locked">
       <UButton

@@ -27,6 +27,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ListGroup from '@/components/ListGroup.vue'
 import Panel from '@/components/Panel.vue'
+import ProtectedTip from '@/components/ProtectedTip.vue'
 import { useLocations } from '@/features/servers-create/queries'
 import { serverBusyKey } from '@/features/servers/shell'
 import { formatBytes, formatDateTime } from '@/lib/format'
@@ -255,17 +256,22 @@ const confirmDelete = () =>
           <span v-if="label[b.status]" class="text-sm text-default">{{ label[b.status] }}</span>
         </div>
         <div class="flex gap-2">
-          <UButton
+          <ProtectedTip
             v-if="b.status === 'available'"
-            color="neutral"
-            variant="outline"
-            size="sm"
-            :disabled="locked"
-            :aria-label="`Restore the backup from ${when(b)}`"
-            @click="startRestore(b)"
+            :text="server.protection.rebuild ? 'Turn off rebuild protection first.' : undefined"
           >
-            Restore
-          </UButton>
+            <UButton
+              color="neutral"
+              variant="outline"
+              size="sm"
+              :icon="server.protection.rebuild ? 'i-lucide-lock' : undefined"
+              :disabled="locked || server.protection.rebuild"
+              :aria-label="`Restore the backup from ${when(b)}`"
+              @click="startRestore(b)"
+            >
+              Restore
+            </UButton>
+          </ProtectedTip>
           <UButton
             v-if="removable(b)"
             color="neutral"
@@ -291,7 +297,9 @@ const confirmDelete = () =>
     <ConfirmDialog
       v-model:open="deleteOpen"
       title="Delete this backup?"
-      :body="deleting ? `The backup from ${when(deleting)} will be deleted. This can't be undone.` : ''"
+      :body="
+        deleting ? `The backup from ${when(deleting)} will be deleted. This can't be undone.` : ''
+      "
       confirm-label="Delete backup"
       danger
       :loading="working"

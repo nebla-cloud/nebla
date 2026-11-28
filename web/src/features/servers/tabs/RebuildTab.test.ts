@@ -23,6 +23,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import type { Action, Server } from '@/api/types'
 import { makeServer } from '../fixtures'
 import { serverBusyKey } from '../shell'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import RebuildTab from './RebuildTab.vue'
 
 const img = (id: number, name: string, locations: number[]) => ({
@@ -69,7 +70,7 @@ const snap = (id: number, name: string, over: Record<string, unknown> = {}) => (
 })
 let snapshots: ReturnType<typeof snap>[] = []
 
-async function mountTab(busy = false) {
+async function mountTab(busy = false, over: Partial<Server> = {}) {
   const router = testRouter([{ path: '/p/:projectId', component: RouterView }])
   await router.push('/p/1')
   const onStarted = vi.fn()
@@ -100,7 +101,7 @@ async function mountTab(busy = false) {
   )
   const res = mountApp(busy ? Busy : RebuildTab, {
     router,
-    props: busy ? {} : { server: makeServer(), onStarted },
+    props: busy ? {} : { server: makeServer(over), onStarted },
   })
   await vi.waitFor(() => expect(res.wrapper.text()).toContain('Ubuntu 24.04'))
   return { ...res, onStarted }
@@ -277,5 +278,21 @@ describe('RebuildTab', () => {
     await vi.waitFor(() => expect(byText('Rebuild').at(-1)!.disabled).toBe(false))
     byText('Rebuild').at(-1)!.click()
     await vi.waitFor(() => expect(wrapper.text()).toContain("can't be used on this server's host"))
+  })
+
+  it('disables Rebuild with the tooltip while rebuild protection is on', async () => {
+    const { wrapper } = await mountTab(false, { protection: { delete: false, rebuild: true } })
+    expect(byText('Rebuild')[0]!.disabled).toBe(true)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).toContain(
+      'Turn off rebuild protection first.',
+    )
+  })
+
+  it('leaves Rebuild alone with only delete protection on', async () => {
+    const { wrapper } = await mountTab(false, { protection: { delete: true, rebuild: false } })
+    expect(byText('Rebuild')[0]!.disabled).toBe(false)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).not.toContain(
+      'Turn off rebuild protection first.',
+    )
   })
 })

@@ -102,4 +102,34 @@ describe('SnapshotListPage', () => {
     expect(rows[0]!.find('[aria-label="Protected"]').exists()).toBe(true)
     expect(rows[1]!.find('[aria-label="Protected"]').exists()).toBe(false)
   })
+
+  it('keeps Restore enabled for a rebuild-protected server', async () => {
+    serveLists({
+      locations: [makeLocation()],
+      servers: [makeServer({ id: 5, name: 'web1', protection: { delete: false, rebuild: true } })],
+      snapshots: [makeSnapshot({ id: 1, name: 'live', server: 5 })],
+    })
+    await mountPage()
+    const restore = document.body.querySelector(
+      'button[aria-label="Restore live"]',
+    ) as HTMLButtonElement
+    expect(restore.disabled).toBe(false)
+  })
+
+  it('disables Delete in the compact menu with a hint while protected', async () => {
+    serveLists({
+      locations: [makeLocation()],
+      snapshots: [makeSnapshot({ id: 1, name: 'safe', protection: { delete: true } })],
+    })
+    await mountPage()
+    ;(
+      document.body.querySelector('button[aria-label="More actions for safe"]') as HTMLElement
+    ).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await settle()
+    const item = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((i) =>
+      i.textContent?.includes('Delete'),
+    ) as HTMLElement
+    expect(item.getAttribute('aria-disabled') ?? item.getAttribute('data-disabled')).not.toBeNull()
+    expect(item.textContent).toContain('Turn off delete protection first.')
+  })
 })
