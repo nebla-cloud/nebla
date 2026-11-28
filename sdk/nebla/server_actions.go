@@ -154,7 +154,7 @@ type Metrics struct {
 	TimeSeries map[string]MetricSeries
 }
 
-// ServerMetricsOpts selects metrics; Types are cpu, disk and/or network, Timeframe is hour, day, week or month.
+// ServerMetricsOpts selects metrics; Types are cpu, disk, network and/or memory, Timeframe is hour, day, week or month.
 type ServerMetricsOpts struct {
 	Types     []string
 	Timeframe string

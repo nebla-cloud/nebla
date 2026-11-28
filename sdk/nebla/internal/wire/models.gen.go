@@ -1255,7 +1255,7 @@ type Metrics struct {
 	// Step Seconds between points
 	Step int `json:"step"`
 
-	// TimeSeries Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s). Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample.
+	// TimeSeries Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s), memory.used and memory.total (bytes; used is what the guest reports as not free, so it includes file cache). Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample.
 	TimeSeries map[string][][]*float64 `json:"time_series"`
 }
 
@@ -2317,7 +2317,7 @@ type GetServerBackupsParams struct {
 
 // GetServerMetricsParams defines parameters for GetServerMetrics.
 type GetServerMetricsParams struct {
-	// Type Required. cpu, disk and/or network; repeat the parameter or separate with commas
+	// Type Required. cpu, disk, network and/or memory; repeat the parameter or separate with commas
 	Type *[]string `form:"type,omitempty" json:"type,omitempty"`
 
 	// Timeframe Required. hour, day, week or month
