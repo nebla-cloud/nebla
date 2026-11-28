@@ -666,7 +666,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Volume) ([]Volume, er
 	return out, nil
 }
 
-// Update changes the name and labels; a running action on the volume gives 409 locked.
+// Update changes name, labels and protection; a running action gives 409 locked unless only protection changes.
 func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInput) (Volume, error) {
 	if in.Name != nil {
 		if err := validName(*in.Name); err != nil {

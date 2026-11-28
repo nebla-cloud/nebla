@@ -340,7 +340,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.IPAddress) ([]Primary
 	return out, nil
 }
 
-// Update changes the name, description, labels and auto_delete; a running action gives 409 locked.
+// Update changes name, description, labels, auto_delete and protection; a running action gives 409 locked unless only protection changes.
 func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInput) (PrimaryIP, error) {
 	if in.Name != nil {
 		if err := floatingips.ValidName(*in.Name); err != nil {

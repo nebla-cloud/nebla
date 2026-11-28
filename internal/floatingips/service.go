@@ -821,7 +821,7 @@ func (s *Service) guestConfig(ctx context.Context, r *ent.IPAddress, ip netip.Ad
 	return &g, nil
 }
 
-// Update changes the name, description and labels; a running action on the floating IP gives 409 locked.
+// Update changes name, description, labels and protection; a running action gives 409 locked unless only protection changes.
 func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInput) (FloatingIP, error) {
 	if in.Name != nil {
 		if err := ValidName(*in.Name); err != nil {

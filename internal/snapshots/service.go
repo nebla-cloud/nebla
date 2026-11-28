@@ -549,7 +549,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Snapshot) ([]Snapshot
 	return out, nil
 }
 
-// Update changes name, description and labels; a running action on the snapshot gives 409 locked.
+// Update changes name, description, labels and protection; a running action gives 409 locked unless only protection changes.
 func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInput) (Snapshot, error) {
 	if in.Name != nil {
 		if err := validName(*in.Name); err != nil {

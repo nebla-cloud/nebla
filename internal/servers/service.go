@@ -1078,7 +1078,7 @@ func (s *Service) queue(ctx context.Context, projectID, id int64, command string
 	return s.queueAfter(ctx, projectID, id, command, nil, prepare)
 }
 
-// queueAfter is queue with before run ahead of the server lock, for parent rows.
+// queueAfter is queue with before run ahead of the server lock, for parent rows and protection checks.
 func (s *Service) queueAfter(ctx context.Context, projectID, id int64, command string, before func(etx *ent.Client) error,
 	prepare func(etx *ent.Client, row *ent.Server) (func(actionID int64) river.JobArgs, error)) (actions.Action, error) {
 	if s.o.Jobs == nil {

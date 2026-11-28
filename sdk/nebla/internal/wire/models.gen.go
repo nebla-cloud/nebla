@@ -861,7 +861,7 @@ type EnrollmentReportStorage struct {
 // Error defines model for Error.
 type Error struct {
 	Error struct {
-		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, server_not_ready, locked, server_changed, project_not_empty and invalid_input are reused.
+		// Code Stable machine-readable code. Snapshots add snapshots_unavailable, snapshot_too_large and snapshot_server_mismatch (422), and snapshot_in_use and snapshot_not_ready (409); quota_exceeded, server_not_ready, locked, server_changed, project_not_empty and invalid_input are reused. Delete and rebuild protection give protected (409).
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
