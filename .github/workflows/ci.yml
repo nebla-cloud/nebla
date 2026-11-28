@@ -37,6 +37,7 @@ jobs:
           go-version-file: sdk/go.mod
           cache: true
           cache-dependency-path: |
+            go.sum
             sdk/go.sum
             sdk/internal/paneltest/go.sum
       - run: go mod tidy -diff
@@ -46,8 +47,14 @@ jobs:
         working-directory: sdk/internal/paneltest
       - run: go vet ./...
         working-directory: sdk/internal/paneltest
+      - run: go vet -tags e2e ./...
+        working-directory: sdk/internal/paneltest
       - run: go test ./...
         working-directory: sdk/internal/paneltest
+      - run: go tool oapi-codegen -config api/oapi-codegen-sdk.yaml api/openapi.yaml
+        working-directory: .
+      - run: git diff --exit-code sdk/nebla/internal/wire
+        working-directory: .
 
   web:
     runs-on: ubuntu-latest
