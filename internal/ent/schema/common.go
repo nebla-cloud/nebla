@@ -27,3 +27,8 @@ func createdAt() ent.Field {
 	return field.Time("created_at").Default(time.Now).Immutable().
 		Annotations(entsql.DefaultExpr("now()"))
 }
+
+func deleteProtected() ent.Field {
+	return field.Bool("delete_protected").Default(false).
+		Annotations(entsql.DefaultExpr("false"))
+}

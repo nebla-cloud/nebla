@@ -167,6 +167,20 @@ func (_u *VolumeUpdate) SetNillableStatus(v *volume.Status) *VolumeUpdate {
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *VolumeUpdate) SetDeleteProtected(v bool) *VolumeUpdate {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *VolumeUpdate) SetNillableDeleteProtected(v *bool) *VolumeUpdate {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
 // SetServer sets the "server" edge to the Server entity.
 func (_u *VolumeUpdate) SetServer(v *Server) *VolumeUpdate {
 	return _u.SetServerID(v.ID)
@@ -273,6 +287,9 @@ func (_u *VolumeUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(volume.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(volume.FieldDeleteProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -463,6 +480,20 @@ func (_u *VolumeUpdateOne) SetNillableStatus(v *volume.Status) *VolumeUpdateOne 
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *VolumeUpdateOne) SetDeleteProtected(v bool) *VolumeUpdateOne {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *VolumeUpdateOne) SetNillableDeleteProtected(v *bool) *VolumeUpdateOne {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
 // SetServer sets the "server" edge to the Server entity.
 func (_u *VolumeUpdateOne) SetServer(v *Server) *VolumeUpdateOne {
 	return _u.SetServerID(v.ID)
@@ -599,6 +630,9 @@ func (_u *VolumeUpdateOne) sqlSave(ctx context.Context) (_node *Volume, err erro
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(volume.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(volume.FieldDeleteProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerCleared() {
 		edge := &sqlgraph.EdgeSpec{

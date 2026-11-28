@@ -89,6 +89,9 @@ func (Server) Fields() []ent.Field {
 		field.Time("iso_lease_until").Optional().Nillable(),
 		// instance_bump_pending makes the next seed ISO write bump instance_generation.
 		field.Bool("instance_bump_pending").Default(false),
+		deleteProtected(),
+		field.Bool("rebuild_protected").Default(false).
+			Annotations(entsql.DefaultExpr("false")),
 		createdAt(),
 	}
 }

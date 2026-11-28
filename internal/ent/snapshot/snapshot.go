@@ -61,6 +61,8 @@ const (
 	FieldForceStop = "force_stop"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldDeleteProtected holds the string denoting the delete_protected field in the database.
+	FieldDeleteProtected = "delete_protected"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -129,6 +131,7 @@ var Columns = []string{
 	FieldWasRunning,
 	FieldForceStop,
 	FieldStatus,
+	FieldDeleteProtected,
 	FieldCreatedAt,
 }
 
@@ -167,6 +170,8 @@ var (
 	DefaultWasRunning bool
 	// DefaultForceStop holds the default value on creation for the "force_stop" field.
 	DefaultForceStop bool
+	// DefaultDeleteProtected holds the default value on creation for the "delete_protected" field.
+	DefaultDeleteProtected bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -316,6 +321,11 @@ func ByForceStop(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByDeleteProtected orders the results by the delete_protected field.
+func ByDeleteProtected(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeleteProtected, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

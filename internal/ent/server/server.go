@@ -97,6 +97,10 @@ const (
 	FieldIsoLeaseUntil = "iso_lease_until"
 	// FieldInstanceBumpPending holds the string denoting the instance_bump_pending field in the database.
 	FieldInstanceBumpPending = "instance_bump_pending"
+	// FieldDeleteProtected holds the string denoting the delete_protected field in the database.
+	FieldDeleteProtected = "delete_protected"
+	// FieldRebuildProtected holds the string denoting the rebuild_protected field in the database.
+	FieldRebuildProtected = "rebuild_protected"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -201,6 +205,8 @@ var Columns = []string{
 	FieldIsoNetHash,
 	FieldIsoLeaseUntil,
 	FieldInstanceBumpPending,
+	FieldDeleteProtected,
+	FieldRebuildProtected,
 	FieldCreatedAt,
 }
 
@@ -247,6 +253,10 @@ var (
 	DefaultIsoNetHash string
 	// DefaultInstanceBumpPending holds the default value on creation for the "instance_bump_pending" field.
 	DefaultInstanceBumpPending bool
+	// DefaultDeleteProtected holds the default value on creation for the "delete_protected" field.
+	DefaultDeleteProtected bool
+	// DefaultRebuildProtected holds the default value on creation for the "rebuild_protected" field.
+	DefaultRebuildProtected bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -485,6 +495,16 @@ func ByIsoLeaseUntil(opts ...sql.OrderTermOption) OrderOption {
 // ByInstanceBumpPending orders the results by the instance_bump_pending field.
 func ByInstanceBumpPending(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldInstanceBumpPending, opts...).ToFunc()
+}
+
+// ByDeleteProtected orders the results by the delete_protected field.
+func ByDeleteProtected(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeleteProtected, opts...).ToFunc()
+}
+
+// ByRebuildProtected orders the results by the rebuild_protected field.
+func ByRebuildProtected(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRebuildProtected, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

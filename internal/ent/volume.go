@@ -45,6 +45,8 @@ type Volume struct {
 	Device string `json:"device,omitempty"`
 	// Status holds the value of the "status" field.
 	Status volume.Status `json:"status,omitempty"`
+	// DeleteProtected holds the value of the "delete_protected" field.
+	DeleteProtected bool `json:"delete_protected,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -106,6 +108,8 @@ func (*Volume) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case volume.FieldLabels:
 			values[i] = new([]byte)
+		case volume.FieldDeleteProtected:
+			values[i] = new(sql.NullBool)
 		case volume.FieldID, volume.FieldProjectID, volume.FieldLocationID, volume.FieldSizeGB, volume.FieldAppliedGB, volume.FieldServerID:
 			values[i] = new(sql.NullInt64)
 		case volume.FieldName, volume.FieldNode, volume.FieldStorage, volume.FieldVolid, volume.FieldDevice, volume.FieldStatus:
@@ -208,6 +212,12 @@ func (_m *Volume) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Status = volume.Status(value.String)
 			}
+		case volume.FieldDeleteProtected:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field delete_protected", values[i])
+			} else if value.Valid {
+				_m.DeleteProtected = value.Bool
+			}
 		case volume.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -302,6 +312,9 @@ func (_m *Volume) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("delete_protected=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DeleteProtected))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

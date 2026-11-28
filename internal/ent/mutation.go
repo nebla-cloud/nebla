@@ -8929,6 +8929,7 @@ type IPAddressMutation struct {
 	deleting               *bool
 	auto_delete            *bool
 	dns_ptr                *string
+	delete_protected       *bool
 	created_at             *time.Time
 	clearedFields          map[string]struct{}
 	project                *int64
@@ -9714,6 +9715,42 @@ func (m *IPAddressMutation) ResetDNSPtr() {
 	delete(m.clearedFields, ipaddress.FieldDNSPtr)
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (m *IPAddressMutation) SetDeleteProtected(b bool) {
+	m.delete_protected = &b
+}
+
+// DeleteProtected returns the value of the "delete_protected" field in the mutation.
+func (m *IPAddressMutation) DeleteProtected() (r bool, exists bool) {
+	v := m.delete_protected
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeleteProtected returns the old "delete_protected" field's value of the IPAddress entity.
+// If the IPAddress object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *IPAddressMutation) OldDeleteProtected(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeleteProtected is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeleteProtected requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeleteProtected: %w", err)
+	}
+	return oldValue.DeleteProtected, nil
+}
+
+// ResetDeleteProtected resets all changes to the "delete_protected" field.
+func (m *IPAddressMutation) ResetDeleteProtected() {
+	m.delete_protected = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *IPAddressMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -9946,7 +9983,7 @@ func (m *IPAddressMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *IPAddressMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.project != nil {
 		fields = append(fields, ipaddress.FieldProjectID)
 	}
@@ -9995,6 +10032,9 @@ func (m *IPAddressMutation) Fields() []string {
 	if m.dns_ptr != nil {
 		fields = append(fields, ipaddress.FieldDNSPtr)
 	}
+	if m.delete_protected != nil {
+		fields = append(fields, ipaddress.FieldDeleteProtected)
+	}
 	if m.created_at != nil {
 		fields = append(fields, ipaddress.FieldCreatedAt)
 	}
@@ -10038,6 +10078,8 @@ func (m *IPAddressMutation) Field(name string) (ent.Value, bool) {
 		return m.AutoDelete()
 	case ipaddress.FieldDNSPtr:
 		return m.DNSPtr()
+	case ipaddress.FieldDeleteProtected:
+		return m.DeleteProtected()
 	case ipaddress.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -10081,6 +10123,8 @@ func (m *IPAddressMutation) OldField(ctx context.Context, name string) (ent.Valu
 		return m.OldAutoDelete(ctx)
 	case ipaddress.FieldDNSPtr:
 		return m.OldDNSPtr(ctx)
+	case ipaddress.FieldDeleteProtected:
+		return m.OldDeleteProtected(ctx)
 	case ipaddress.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -10203,6 +10247,13 @@ func (m *IPAddressMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDNSPtr(v)
+		return nil
+	case ipaddress.FieldDeleteProtected:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeleteProtected(v)
 		return nil
 	case ipaddress.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -10355,6 +10406,9 @@ func (m *IPAddressMutation) ResetField(name string) error {
 		return nil
 	case ipaddress.FieldDNSPtr:
 		m.ResetDNSPtr()
+		return nil
+	case ipaddress.FieldDeleteProtected:
+		m.ResetDeleteProtected()
 		return nil
 	case ipaddress.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -22087,6 +22141,8 @@ type ServerMutation struct {
 	iso_net_hash            *string
 	iso_lease_until         *time.Time
 	instance_bump_pending   *bool
+	delete_protected        *bool
+	rebuild_protected       *bool
 	created_at              *time.Time
 	clearedFields           map[string]struct{}
 	project                 *int64
@@ -24152,6 +24208,78 @@ func (m *ServerMutation) ResetInstanceBumpPending() {
 	m.instance_bump_pending = nil
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (m *ServerMutation) SetDeleteProtected(b bool) {
+	m.delete_protected = &b
+}
+
+// DeleteProtected returns the value of the "delete_protected" field in the mutation.
+func (m *ServerMutation) DeleteProtected() (r bool, exists bool) {
+	v := m.delete_protected
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeleteProtected returns the old "delete_protected" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldDeleteProtected(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeleteProtected is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeleteProtected requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeleteProtected: %w", err)
+	}
+	return oldValue.DeleteProtected, nil
+}
+
+// ResetDeleteProtected resets all changes to the "delete_protected" field.
+func (m *ServerMutation) ResetDeleteProtected() {
+	m.delete_protected = nil
+}
+
+// SetRebuildProtected sets the "rebuild_protected" field.
+func (m *ServerMutation) SetRebuildProtected(b bool) {
+	m.rebuild_protected = &b
+}
+
+// RebuildProtected returns the value of the "rebuild_protected" field in the mutation.
+func (m *ServerMutation) RebuildProtected() (r bool, exists bool) {
+	v := m.rebuild_protected
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRebuildProtected returns the old "rebuild_protected" field's value of the Server entity.
+// If the Server object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ServerMutation) OldRebuildProtected(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRebuildProtected is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRebuildProtected requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRebuildProtected: %w", err)
+	}
+	return oldValue.RebuildProtected, nil
+}
+
+// ResetRebuildProtected resets all changes to the "rebuild_protected" field.
+func (m *ServerMutation) ResetRebuildProtected() {
+	m.rebuild_protected = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ServerMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -24384,7 +24512,7 @@ func (m *ServerMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ServerMutation) Fields() []string {
-	fields := make([]string, 0, 42)
+	fields := make([]string, 0, 44)
 	if m.project != nil {
 		fields = append(fields, server.FieldProjectID)
 	}
@@ -24508,6 +24636,12 @@ func (m *ServerMutation) Fields() []string {
 	if m.instance_bump_pending != nil {
 		fields = append(fields, server.FieldInstanceBumpPending)
 	}
+	if m.delete_protected != nil {
+		fields = append(fields, server.FieldDeleteProtected)
+	}
+	if m.rebuild_protected != nil {
+		fields = append(fields, server.FieldRebuildProtected)
+	}
 	if m.created_at != nil {
 		fields = append(fields, server.FieldCreatedAt)
 	}
@@ -24601,6 +24735,10 @@ func (m *ServerMutation) Field(name string) (ent.Value, bool) {
 		return m.IsoLeaseUntil()
 	case server.FieldInstanceBumpPending:
 		return m.InstanceBumpPending()
+	case server.FieldDeleteProtected:
+		return m.DeleteProtected()
+	case server.FieldRebuildProtected:
+		return m.RebuildProtected()
 	case server.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -24694,6 +24832,10 @@ func (m *ServerMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldIsoLeaseUntil(ctx)
 	case server.FieldInstanceBumpPending:
 		return m.OldInstanceBumpPending(ctx)
+	case server.FieldDeleteProtected:
+		return m.OldDeleteProtected(ctx)
+	case server.FieldRebuildProtected:
+		return m.OldRebuildProtected(ctx)
 	case server.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -24991,6 +25133,20 @@ func (m *ServerMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetInstanceBumpPending(v)
+		return nil
+	case server.FieldDeleteProtected:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeleteProtected(v)
+		return nil
+	case server.FieldRebuildProtected:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRebuildProtected(v)
 		return nil
 	case server.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -25422,6 +25578,12 @@ func (m *ServerMutation) ResetField(name string) error {
 		return nil
 	case server.FieldInstanceBumpPending:
 		m.ResetInstanceBumpPending()
+		return nil
+	case server.FieldDeleteProtected:
+		m.ResetDeleteProtected()
+		return nil
+	case server.FieldRebuildProtected:
+		m.ResetRebuildProtected()
 		return nil
 	case server.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -28095,6 +28257,7 @@ type SnapshotMutation struct {
 	was_running            *bool
 	force_stop             *bool
 	status                 *snapshot.Status
+	delete_protected       *bool
 	created_at             *time.Time
 	clearedFields          map[string]struct{}
 	project                *int64
@@ -29188,6 +29351,42 @@ func (m *SnapshotMutation) ResetStatus() {
 	m.status = nil
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (m *SnapshotMutation) SetDeleteProtected(b bool) {
+	m.delete_protected = &b
+}
+
+// DeleteProtected returns the value of the "delete_protected" field in the mutation.
+func (m *SnapshotMutation) DeleteProtected() (r bool, exists bool) {
+	v := m.delete_protected
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeleteProtected returns the old "delete_protected" field's value of the Snapshot entity.
+// If the Snapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SnapshotMutation) OldDeleteProtected(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeleteProtected is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeleteProtected requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeleteProtected: %w", err)
+	}
+	return oldValue.DeleteProtected, nil
+}
+
+// ResetDeleteProtected resets all changes to the "delete_protected" field.
+func (m *SnapshotMutation) ResetDeleteProtected() {
+	m.delete_protected = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *SnapshotMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -29366,7 +29565,7 @@ func (m *SnapshotMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SnapshotMutation) Fields() []string {
-	fields := make([]string, 0, 24)
+	fields := make([]string, 0, 25)
 	if m.project != nil {
 		fields = append(fields, snapshot.FieldProjectID)
 	}
@@ -29436,6 +29635,9 @@ func (m *SnapshotMutation) Fields() []string {
 	if m.status != nil {
 		fields = append(fields, snapshot.FieldStatus)
 	}
+	if m.delete_protected != nil {
+		fields = append(fields, snapshot.FieldDeleteProtected)
+	}
 	if m.created_at != nil {
 		fields = append(fields, snapshot.FieldCreatedAt)
 	}
@@ -29493,6 +29695,8 @@ func (m *SnapshotMutation) Field(name string) (ent.Value, bool) {
 		return m.ForceStop()
 	case snapshot.FieldStatus:
 		return m.Status()
+	case snapshot.FieldDeleteProtected:
+		return m.DeleteProtected()
 	case snapshot.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -29550,6 +29754,8 @@ func (m *SnapshotMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldForceStop(ctx)
 	case snapshot.FieldStatus:
 		return m.OldStatus(ctx)
+	case snapshot.FieldDeleteProtected:
+		return m.OldDeleteProtected(ctx)
 	case snapshot.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -29721,6 +29927,13 @@ func (m *SnapshotMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case snapshot.FieldDeleteProtected:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeleteProtected(v)
 		return nil
 	case snapshot.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -29930,6 +30143,9 @@ func (m *SnapshotMutation) ResetField(name string) error {
 		return nil
 	case snapshot.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case snapshot.FieldDeleteProtected:
+		m.ResetDeleteProtected()
 		return nil
 	case snapshot.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -31869,31 +32085,32 @@ func (m *VNetSlotMutation) ResetEdge(name string) error {
 // VolumeMutation represents an operation that mutates the Volume nodes in the graph.
 type VolumeMutation struct {
 	config
-	op              Op
-	typ             string
-	id              *int64
-	name            *string
-	labels          *map[string]string
-	size_gb         *int
-	addsize_gb      *int
-	applied_gb      *int
-	addapplied_gb   *int
-	node            *string
-	storage         *string
-	volid           *string
-	device          *string
-	status          *volume.Status
-	created_at      *time.Time
-	clearedFields   map[string]struct{}
-	project         *int64
-	clearedproject  bool
-	location        *int64
-	clearedlocation bool
-	server          *int64
-	clearedserver   bool
-	done            bool
-	oldValue        func(context.Context) (*Volume, error)
-	predicates      []predicate.Volume
+	op               Op
+	typ              string
+	id               *int64
+	name             *string
+	labels           *map[string]string
+	size_gb          *int
+	addsize_gb       *int
+	applied_gb       *int
+	addapplied_gb    *int
+	node             *string
+	storage          *string
+	volid            *string
+	device           *string
+	status           *volume.Status
+	delete_protected *bool
+	created_at       *time.Time
+	clearedFields    map[string]struct{}
+	project          *int64
+	clearedproject   bool
+	location         *int64
+	clearedlocation  bool
+	server           *int64
+	clearedserver    bool
+	done             bool
+	oldValue         func(context.Context) (*Volume, error)
+	predicates       []predicate.Volume
 }
 
 var _ ent.Mutation = (*VolumeMutation)(nil)
@@ -32485,6 +32702,42 @@ func (m *VolumeMutation) ResetStatus() {
 	m.status = nil
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (m *VolumeMutation) SetDeleteProtected(b bool) {
+	m.delete_protected = &b
+}
+
+// DeleteProtected returns the value of the "delete_protected" field in the mutation.
+func (m *VolumeMutation) DeleteProtected() (r bool, exists bool) {
+	v := m.delete_protected
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeleteProtected returns the old "delete_protected" field's value of the Volume entity.
+// If the Volume object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *VolumeMutation) OldDeleteProtected(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeleteProtected is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeleteProtected requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeleteProtected: %w", err)
+	}
+	return oldValue.DeleteProtected, nil
+}
+
+// ResetDeleteProtected resets all changes to the "delete_protected" field.
+func (m *VolumeMutation) ResetDeleteProtected() {
+	m.delete_protected = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *VolumeMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -32636,7 +32889,7 @@ func (m *VolumeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *VolumeMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 14)
 	if m.project != nil {
 		fields = append(fields, volume.FieldProjectID)
 	}
@@ -32673,6 +32926,9 @@ func (m *VolumeMutation) Fields() []string {
 	if m.status != nil {
 		fields = append(fields, volume.FieldStatus)
 	}
+	if m.delete_protected != nil {
+		fields = append(fields, volume.FieldDeleteProtected)
+	}
 	if m.created_at != nil {
 		fields = append(fields, volume.FieldCreatedAt)
 	}
@@ -32708,6 +32964,8 @@ func (m *VolumeMutation) Field(name string) (ent.Value, bool) {
 		return m.Device()
 	case volume.FieldStatus:
 		return m.Status()
+	case volume.FieldDeleteProtected:
+		return m.DeleteProtected()
 	case volume.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -32743,6 +33001,8 @@ func (m *VolumeMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldDevice(ctx)
 	case volume.FieldStatus:
 		return m.OldStatus(ctx)
+	case volume.FieldDeleteProtected:
+		return m.OldDeleteProtected(ctx)
 	case volume.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -32837,6 +33097,13 @@ func (m *VolumeMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case volume.FieldDeleteProtected:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeleteProtected(v)
 		return nil
 	case volume.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -32965,6 +33232,9 @@ func (m *VolumeMutation) ResetField(name string) error {
 		return nil
 	case volume.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case volume.FieldDeleteProtected:
+		m.ResetDeleteProtected()
 		return nil
 	case volume.FieldCreatedAt:
 		m.ResetCreatedAt()

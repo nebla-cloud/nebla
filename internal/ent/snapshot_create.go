@@ -308,6 +308,20 @@ func (_c *SnapshotCreate) SetNillableStatus(v *snapshot.Status) *SnapshotCreate 
 	return _c
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_c *SnapshotCreate) SetDeleteProtected(v bool) *SnapshotCreate {
+	_c.mutation.SetDeleteProtected(v)
+	return _c
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_c *SnapshotCreate) SetNillableDeleteProtected(v *bool) *SnapshotCreate {
+	if v != nil {
+		_c.SetDeleteProtected(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *SnapshotCreate) SetCreatedAt(v time.Time) *SnapshotCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -434,6 +448,10 @@ func (_c *SnapshotCreate) defaults() {
 	if _, ok := _c.mutation.Status(); !ok {
 		v := snapshot.DefaultStatus
 		_c.mutation.SetStatus(v)
+	}
+	if _, ok := _c.mutation.DeleteProtected(); !ok {
+		v := snapshot.DefaultDeleteProtected
+		_c.mutation.SetDeleteProtected(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := snapshot.DefaultCreatedAt()
@@ -616,6 +634,10 @@ func (_c *SnapshotCreate) createSpec() (*Snapshot, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(snapshot.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.DeleteProtected(); ok {
+		_spec.SetField(snapshot.FieldDeleteProtected, field.TypeBool, value)
+		_node.DeleteProtected = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(snapshot.FieldCreatedAt, field.TypeTime, value)
@@ -1047,6 +1069,18 @@ func (u *SnapshotUpsert) UpdateStatus() *SnapshotUpsert {
 	return u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *SnapshotUpsert) SetDeleteProtected(v bool) *SnapshotUpsert {
+	u.Set(snapshot.FieldDeleteProtected, v)
+	return u
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *SnapshotUpsert) UpdateDeleteProtected() *SnapshotUpsert {
+	u.SetExcluded(snapshot.FieldDeleteProtected)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -1458,6 +1492,20 @@ func (u *SnapshotUpsertOne) SetStatus(v snapshot.Status) *SnapshotUpsertOne {
 func (u *SnapshotUpsertOne) UpdateStatus() *SnapshotUpsertOne {
 	return u.Update(func(s *SnapshotUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *SnapshotUpsertOne) SetDeleteProtected(v bool) *SnapshotUpsertOne {
+	return u.Update(func(s *SnapshotUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *SnapshotUpsertOne) UpdateDeleteProtected() *SnapshotUpsertOne {
+	return u.Update(func(s *SnapshotUpsert) {
+		s.UpdateDeleteProtected()
 	})
 }
 
@@ -2038,6 +2086,20 @@ func (u *SnapshotUpsertBulk) SetStatus(v snapshot.Status) *SnapshotUpsertBulk {
 func (u *SnapshotUpsertBulk) UpdateStatus() *SnapshotUpsertBulk {
 	return u.Update(func(s *SnapshotUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *SnapshotUpsertBulk) SetDeleteProtected(v bool) *SnapshotUpsertBulk {
+	return u.Update(func(s *SnapshotUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *SnapshotUpsertBulk) UpdateDeleteProtected() *SnapshotUpsertBulk {
+	return u.Update(func(s *SnapshotUpsert) {
+		s.UpdateDeleteProtected()
 	})
 }
 

@@ -58,6 +58,7 @@ func (Snapshot) Fields() []ent.Field {
 		field.Enum("status").
 			Values("creating", "available", "deleting", "missing", "error").
 			Default("creating"),
+		deleteProtected(),
 		createdAt(),
 	}
 }

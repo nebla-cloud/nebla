@@ -245,6 +245,16 @@ func InstanceBumpPending(v bool) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldInstanceBumpPending, v))
 }
 
+// DeleteProtected applies equality check predicate on the "delete_protected" field. It's identical to DeleteProtectedEQ.
+func DeleteProtected(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldDeleteProtected, v))
+}
+
+// RebuildProtected applies equality check predicate on the "rebuild_protected" field. It's identical to RebuildProtectedEQ.
+func RebuildProtected(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildProtected, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Server {
 	return predicate.Server(sql.FieldEQ(FieldCreatedAt, v))
@@ -2008,6 +2018,26 @@ func InstanceBumpPendingEQ(v bool) predicate.Server {
 // InstanceBumpPendingNEQ applies the NEQ predicate on the "instance_bump_pending" field.
 func InstanceBumpPendingNEQ(v bool) predicate.Server {
 	return predicate.Server(sql.FieldNEQ(FieldInstanceBumpPending, v))
+}
+
+// DeleteProtectedEQ applies the EQ predicate on the "delete_protected" field.
+func DeleteProtectedEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldDeleteProtected, v))
+}
+
+// DeleteProtectedNEQ applies the NEQ predicate on the "delete_protected" field.
+func DeleteProtectedNEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldDeleteProtected, v))
+}
+
+// RebuildProtectedEQ applies the EQ predicate on the "rebuild_protected" field.
+func RebuildProtectedEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldEQ(FieldRebuildProtected, v))
+}
+
+// RebuildProtectedNEQ applies the NEQ predicate on the "rebuild_protected" field.
+func RebuildProtectedNEQ(v bool) predicate.Server {
+	return predicate.Server(sql.FieldNEQ(FieldRebuildProtected, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

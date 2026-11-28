@@ -48,6 +48,7 @@ func (IPAddress) Fields() []ent.Field {
 		field.Bool("auto_delete").Default(true),
 		// dns_ptr is stored for later use and not exposed.
 		field.Text("dns_ptr").Optional().Nillable(),
+		deleteProtected(),
 		createdAt(),
 	}
 }

@@ -731,6 +731,34 @@ func (_u *ServerUpdate) SetNillableInstanceBumpPending(v *bool) *ServerUpdate {
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *ServerUpdate) SetDeleteProtected(v bool) *ServerUpdate {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableDeleteProtected(v *bool) *ServerUpdate {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
+// SetRebuildProtected sets the "rebuild_protected" field.
+func (_u *ServerUpdate) SetRebuildProtected(v bool) *ServerUpdate {
+	_u.mutation.SetRebuildProtected(v)
+	return _u
+}
+
+// SetNillableRebuildProtected sets the "rebuild_protected" field if the given value is not nil.
+func (_u *ServerUpdate) SetNillableRebuildProtected(v *bool) *ServerUpdate {
+	if v != nil {
+		_u.SetRebuildProtected(*v)
+	}
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdate) SetServerType(v *ServerType) *ServerUpdate {
 	return _u.SetServerTypeID(v.ID)
@@ -1022,6 +1050,12 @@ func (_u *ServerUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.InstanceBumpPending(); ok {
 		_spec.SetField(server.FieldInstanceBumpPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(server.FieldDeleteProtected, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RebuildProtected(); ok {
+		_spec.SetField(server.FieldRebuildProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1859,6 +1893,34 @@ func (_u *ServerUpdateOne) SetNillableInstanceBumpPending(v *bool) *ServerUpdate
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *ServerUpdateOne) SetDeleteProtected(v bool) *ServerUpdateOne {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableDeleteProtected(v *bool) *ServerUpdateOne {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
+// SetRebuildProtected sets the "rebuild_protected" field.
+func (_u *ServerUpdateOne) SetRebuildProtected(v bool) *ServerUpdateOne {
+	_u.mutation.SetRebuildProtected(v)
+	return _u
+}
+
+// SetNillableRebuildProtected sets the "rebuild_protected" field if the given value is not nil.
+func (_u *ServerUpdateOne) SetNillableRebuildProtected(v *bool) *ServerUpdateOne {
+	if v != nil {
+		_u.SetRebuildProtected(*v)
+	}
+	return _u
+}
+
 // SetServerType sets the "server_type" edge to the ServerType entity.
 func (_u *ServerUpdateOne) SetServerType(v *ServerType) *ServerUpdateOne {
 	return _u.SetServerTypeID(v.ID)
@@ -2180,6 +2242,12 @@ func (_u *ServerUpdateOne) sqlSave(ctx context.Context) (_node *Server, err erro
 	}
 	if value, ok := _u.mutation.InstanceBumpPending(); ok {
 		_spec.SetField(server.FieldInstanceBumpPending, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(server.FieldDeleteProtected, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RebuildProtected(); ok {
+		_spec.SetField(server.FieldRebuildProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerTypeCleared() {
 		edge := &sqlgraph.EdgeSpec{

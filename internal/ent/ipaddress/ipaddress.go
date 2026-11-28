@@ -47,6 +47,8 @@ const (
 	FieldAutoDelete = "auto_delete"
 	// FieldDNSPtr holds the string denoting the dns_ptr field in the database.
 	FieldDNSPtr = "dns_ptr"
+	// FieldDeleteProtected holds the string denoting the delete_protected field in the database.
+	FieldDeleteProtected = "delete_protected"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -126,6 +128,7 @@ var Columns = []string{
 	FieldDeleting,
 	FieldAutoDelete,
 	FieldDNSPtr,
+	FieldDeleteProtected,
 	FieldCreatedAt,
 }
 
@@ -146,6 +149,8 @@ var (
 	DefaultDeleting bool
 	// DefaultAutoDelete holds the default value on creation for the "auto_delete" field.
 	DefaultAutoDelete bool
+	// DefaultDeleteProtected holds the default value on creation for the "delete_protected" field.
+	DefaultDeleteProtected bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -257,6 +262,11 @@ func ByAutoDelete(opts ...sql.OrderTermOption) OrderOption {
 // ByDNSPtr orders the results by the dns_ptr field.
 func ByDNSPtr(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDNSPtr, opts...).ToFunc()
+}
+
+// ByDeleteProtected orders the results by the delete_protected field.
+func ByDeleteProtected(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeleteProtected, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

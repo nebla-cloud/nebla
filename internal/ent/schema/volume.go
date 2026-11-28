@@ -47,6 +47,7 @@ func (Volume) Fields() []ent.Field {
 		field.Enum("status").
 			Values("creating", "available", "attached", "deleting", "missing", "error").
 			Default("creating"),
+		deleteProtected(),
 		createdAt(),
 	}
 }

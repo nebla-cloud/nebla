@@ -105,6 +105,11 @@ func Device(v string) predicate.Volume {
 	return predicate.Volume(sql.FieldEQ(FieldDevice, v))
 }
 
+// DeleteProtected applies equality check predicate on the "delete_protected" field. It's identical to DeleteProtectedEQ.
+func DeleteProtected(v bool) predicate.Volume {
+	return predicate.Volume(sql.FieldEQ(FieldDeleteProtected, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Volume {
 	return predicate.Volume(sql.FieldEQ(FieldCreatedAt, v))
@@ -603,6 +608,16 @@ func StatusIn(vs ...Status) predicate.Volume {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.Volume {
 	return predicate.Volume(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// DeleteProtectedEQ applies the EQ predicate on the "delete_protected" field.
+func DeleteProtectedEQ(v bool) predicate.Volume {
+	return predicate.Volume(sql.FieldEQ(FieldDeleteProtected, v))
+}
+
+// DeleteProtectedNEQ applies the NEQ predicate on the "delete_protected" field.
+func DeleteProtectedNEQ(v bool) predicate.Volume {
+	return predicate.Volume(sql.FieldNEQ(FieldDeleteProtected, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

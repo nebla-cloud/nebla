@@ -388,6 +388,7 @@ var (
 		{Name: "deleting", Type: field.TypeBool, Default: false},
 		{Name: "auto_delete", Type: field.TypeBool, Default: true},
 		{Name: "dns_ptr", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "delete_protected", Type: field.TypeBool, Default: schema.Expr("false")},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -404,37 +405,37 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "ip_addresses_projects_project",
-				Columns:    []*schema.Column{IPAddressesColumns[12]},
+				Columns:    []*schema.Column{IPAddressesColumns[13]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "ip_addresses_locations_location",
-				Columns:    []*schema.Column{IPAddressesColumns[13]},
+				Columns:    []*schema.Column{IPAddressesColumns[14]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "ip_addresses_ip_allocations_allocation",
-				Columns:    []*schema.Column{IPAddressesColumns[14]},
+				Columns:    []*schema.Column{IPAddressesColumns[15]},
 				RefColumns: []*schema.Column{IPAllocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "ip_addresses_servers_server",
-				Columns:    []*schema.Column{IPAddressesColumns[15]},
-				RefColumns: []*schema.Column{ServersColumns[0]},
-				OnDelete:   schema.SetNull,
-			},
-			{
-				Symbol:     "ip_addresses_servers_releasing_from",
 				Columns:    []*schema.Column{IPAddressesColumns[16]},
 				RefColumns: []*schema.Column{ServersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
-				Symbol:     "ip_addresses_servers_previous_server",
+				Symbol:     "ip_addresses_servers_releasing_from",
 				Columns:    []*schema.Column{IPAddressesColumns[17]},
+				RefColumns: []*schema.Column{ServersColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "ip_addresses_servers_previous_server",
+				Columns:    []*schema.Column{IPAddressesColumns[18]},
 				RefColumns: []*schema.Column{ServersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -443,27 +444,27 @@ var (
 			{
 				Name:    "ip_addresses_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{IPAddressesColumns[12], IPAddressesColumns[4]},
+				Columns: []*schema.Column{IPAddressesColumns[13], IPAddressesColumns[4]},
 			},
 			{
 				Name:    "ip_addresses_allocation_id_key",
 				Unique:  true,
-				Columns: []*schema.Column{IPAddressesColumns[14]},
+				Columns: []*schema.Column{IPAddressesColumns[15]},
 			},
 			{
 				Name:    "ip_addresses_server_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{IPAddressesColumns[15]},
+				Columns: []*schema.Column{IPAddressesColumns[16]},
 			},
 			{
 				Name:    "ip_addresses_releasing_from_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{IPAddressesColumns[16]},
+				Columns: []*schema.Column{IPAddressesColumns[17]},
 			},
 			{
 				Name:    "ip_addresses_server_family_primary_key",
 				Unique:  true,
-				Columns: []*schema.Column{IPAddressesColumns[15], IPAddressesColumns[2]},
+				Columns: []*schema.Column{IPAddressesColumns[16], IPAddressesColumns[2]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "kind = 'primary' AND server_id IS NOT NULL",
 				},
@@ -978,6 +979,8 @@ var (
 		{Name: "iso_net_hash", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "iso_lease_until", Type: field.TypeTime, Nullable: true},
 		{Name: "instance_bump_pending", Type: field.TypeBool, Default: false},
+		{Name: "delete_protected", Type: field.TypeBool, Default: schema.Expr("false")},
+		{Name: "rebuild_protected", Type: field.TypeBool, Default: schema.Expr("false")},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -994,37 +997,37 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "servers_projects_project",
-				Columns:    []*schema.Column{ServersColumns[37]},
+				Columns:    []*schema.Column{ServersColumns[39]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_locations_location",
-				Columns:    []*schema.Column{ServersColumns[38]},
+				Columns:    []*schema.Column{ServersColumns[40]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_server_types_server_type",
-				Columns:    []*schema.Column{ServersColumns[39]},
+				Columns:    []*schema.Column{ServersColumns[41]},
 				RefColumns: []*schema.Column{ServerTypesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_images_image",
-				Columns:    []*schema.Column{ServersColumns[40]},
+				Columns:    []*schema.Column{ServersColumns[42]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "servers_snapshots_snapshot",
-				Columns:    []*schema.Column{ServersColumns[41]},
+				Columns:    []*schema.Column{ServersColumns[43]},
 				RefColumns: []*schema.Column{SnapshotsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "servers_snapshots_rebuild_snapshot",
-				Columns:    []*schema.Column{ServersColumns[42]},
+				Columns:    []*schema.Column{ServersColumns[44]},
 				RefColumns: []*schema.Column{SnapshotsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1033,7 +1036,7 @@ var (
 			{
 				Name:    "servers_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{ServersColumns[37], ServersColumns[1]},
+				Columns: []*schema.Column{ServersColumns[39], ServersColumns[1]},
 			},
 			{
 				Name:    "servers_mac_key",
@@ -1043,17 +1046,17 @@ var (
 			{
 				Name:    "servers_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[38], ServersColumns[2]},
+				Columns: []*schema.Column{ServersColumns[40], ServersColumns[2]},
 			},
 			{
 				Name:    "servers_server_type_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[39]},
+				Columns: []*schema.Column{ServersColumns[41]},
 			},
 			{
 				Name:    "servers_image_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{ServersColumns[40]},
+				Columns: []*schema.Column{ServersColumns[42]},
 			},
 		},
 	}
@@ -1190,6 +1193,7 @@ var (
 		{Name: "was_running", Type: field.TypeBool, Default: false},
 		{Name: "force_stop", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"creating", "available", "deleting", "missing", "error"}, Default: "creating"},
+		{Name: "delete_protected", Type: field.TypeBool, Default: schema.Expr("false")},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -1204,25 +1208,25 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "snapshots_projects_project",
-				Columns:    []*schema.Column{SnapshotsColumns[21]},
+				Columns:    []*schema.Column{SnapshotsColumns[22]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "snapshots_locations_location",
-				Columns:    []*schema.Column{SnapshotsColumns[22]},
+				Columns:    []*schema.Column{SnapshotsColumns[23]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "snapshots_servers_server",
-				Columns:    []*schema.Column{SnapshotsColumns[23]},
+				Columns:    []*schema.Column{SnapshotsColumns[24]},
 				RefColumns: []*schema.Column{ServersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "snapshots_images_image",
-				Columns:    []*schema.Column{SnapshotsColumns[24]},
+				Columns:    []*schema.Column{SnapshotsColumns[25]},
 				RefColumns: []*schema.Column{ImagesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1231,22 +1235,22 @@ var (
 			{
 				Name:    "snapshots_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{SnapshotsColumns[21], SnapshotsColumns[1]},
+				Columns: []*schema.Column{SnapshotsColumns[22], SnapshotsColumns[1]},
 			},
 			{
 				Name:    "snapshots_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{SnapshotsColumns[22], SnapshotsColumns[11]},
+				Columns: []*schema.Column{SnapshotsColumns[23], SnapshotsColumns[11]},
 			},
 			{
 				Name:    "snapshots_server_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{SnapshotsColumns[23]},
+				Columns: []*schema.Column{SnapshotsColumns[24]},
 			},
 			{
 				Name:    "snapshots_location_vmid_key",
 				Unique:  true,
-				Columns: []*schema.Column{SnapshotsColumns[22], SnapshotsColumns[10]},
+				Columns: []*schema.Column{SnapshotsColumns[23], SnapshotsColumns[10]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "vmid IS NOT NULL",
 				},
@@ -1330,6 +1334,7 @@ var (
 		{Name: "volid", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "device", Type: field.TypeString, Size: 2147483647, Default: ""},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"creating", "available", "attached", "deleting", "missing", "error"}, Default: "creating"},
+		{Name: "delete_protected", Type: field.TypeBool, Default: schema.Expr("false")},
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("now()")},
 		{Name: "project_id", Type: field.TypeInt64},
 		{Name: "location_id", Type: field.TypeInt64},
@@ -1343,19 +1348,19 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "volumes_projects_project",
-				Columns:    []*schema.Column{VolumesColumns[11]},
+				Columns:    []*schema.Column{VolumesColumns[12]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "volumes_locations_location",
-				Columns:    []*schema.Column{VolumesColumns[12]},
+				Columns:    []*schema.Column{VolumesColumns[13]},
 				RefColumns: []*schema.Column{LocationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "volumes_servers_server",
-				Columns:    []*schema.Column{VolumesColumns[13]},
+				Columns:    []*schema.Column{VolumesColumns[14]},
 				RefColumns: []*schema.Column{ServersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1364,12 +1369,12 @@ var (
 			{
 				Name:    "volumes_project_name_key",
 				Unique:  true,
-				Columns: []*schema.Column{VolumesColumns[11], VolumesColumns[1]},
+				Columns: []*schema.Column{VolumesColumns[12], VolumesColumns[1]},
 			},
 			{
 				Name:    "volumes_server_device_key",
 				Unique:  true,
-				Columns: []*schema.Column{VolumesColumns[13], VolumesColumns[8]},
+				Columns: []*schema.Column{VolumesColumns[14], VolumesColumns[8]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "server_id IS NOT NULL",
 				},
@@ -1377,12 +1382,12 @@ var (
 			{
 				Name:    "volumes_location_node_idx",
 				Unique:  false,
-				Columns: []*schema.Column{VolumesColumns[12], VolumesColumns[5]},
+				Columns: []*schema.Column{VolumesColumns[13], VolumesColumns[5]},
 			},
 			{
 				Name:    "volumes_server_id_idx",
 				Unique:  false,
-				Columns: []*schema.Column{VolumesColumns[13]},
+				Columns: []*schema.Column{VolumesColumns[14]},
 			},
 		},
 	}

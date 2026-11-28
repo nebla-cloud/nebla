@@ -54,6 +54,8 @@ type IPAddress struct {
 	AutoDelete bool `json:"auto_delete,omitempty"`
 	// DNSPtr holds the value of the "dns_ptr" field.
 	DNSPtr *string `json:"dns_ptr,omitempty"`
+	// DeleteProtected holds the value of the "delete_protected" field.
+	DeleteProtected bool `json:"delete_protected,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -154,7 +156,7 @@ func (*IPAddress) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case ipaddress.FieldLabels:
 			values[i] = new([]byte)
-		case ipaddress.FieldDeleting, ipaddress.FieldAutoDelete:
+		case ipaddress.FieldDeleting, ipaddress.FieldAutoDelete, ipaddress.FieldDeleteProtected:
 			values[i] = new(sql.NullBool)
 		case ipaddress.FieldID, ipaddress.FieldProjectID, ipaddress.FieldLocationID, ipaddress.FieldAllocationID, ipaddress.FieldServerID, ipaddress.FieldReleasingFromID, ipaddress.FieldPreviousServerID, ipaddress.FieldPendingGen:
 			values[i] = new(sql.NullInt64)
@@ -286,6 +288,12 @@ func (_m *IPAddress) assignValues(columns []string, values []any) error {
 				_m.DNSPtr = new(string)
 				*_m.DNSPtr = value.String
 			}
+		case ipaddress.FieldDeleteProtected:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field delete_protected", values[i])
+			} else if value.Valid {
+				_m.DeleteProtected = value.Bool
+			}
 		case ipaddress.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -415,6 +423,9 @@ func (_m *IPAddress) String() string {
 		builder.WriteString("dns_ptr=")
 		builder.WriteString(*v)
 	}
+	builder.WriteString(", ")
+	builder.WriteString("delete_protected=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DeleteProtected))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

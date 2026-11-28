@@ -374,6 +374,20 @@ func (_u *SnapshotUpdate) SetNillableStatus(v *snapshot.Status) *SnapshotUpdate 
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *SnapshotUpdate) SetDeleteProtected(v bool) *SnapshotUpdate {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *SnapshotUpdate) SetNillableDeleteProtected(v *bool) *SnapshotUpdate {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
 // SetServer sets the "server" edge to the Server entity.
 func (_u *SnapshotUpdate) SetServer(v *Server) *SnapshotUpdate {
 	return _u.SetServerID(v.ID)
@@ -539,6 +553,9 @@ func (_u *SnapshotUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(snapshot.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(snapshot.FieldDeleteProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -964,6 +981,20 @@ func (_u *SnapshotUpdateOne) SetNillableStatus(v *snapshot.Status) *SnapshotUpda
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *SnapshotUpdateOne) SetDeleteProtected(v bool) *SnapshotUpdateOne {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *SnapshotUpdateOne) SetNillableDeleteProtected(v *bool) *SnapshotUpdateOne {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
 // SetServer sets the "server" edge to the Server entity.
 func (_u *SnapshotUpdateOne) SetServer(v *Server) *SnapshotUpdateOne {
 	return _u.SetServerID(v.ID)
@@ -1159,6 +1190,9 @@ func (_u *SnapshotUpdateOne) sqlSave(ctx context.Context) (_node *Snapshot, err 
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(snapshot.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(snapshot.FieldDeleteProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerCleared() {
 		edge := &sqlgraph.EdgeSpec{

@@ -150,8 +150,12 @@ func init() {
 	ipaddressDescAutoDelete := ipaddressFields[15].Descriptor()
 	// ipaddress.DefaultAutoDelete holds the default value on creation for the auto_delete field.
 	ipaddress.DefaultAutoDelete = ipaddressDescAutoDelete.Default.(bool)
+	// ipaddressDescDeleteProtected is the schema descriptor for delete_protected field.
+	ipaddressDescDeleteProtected := ipaddressFields[17].Descriptor()
+	// ipaddress.DefaultDeleteProtected holds the default value on creation for the delete_protected field.
+	ipaddress.DefaultDeleteProtected = ipaddressDescDeleteProtected.Default.(bool)
 	// ipaddressDescCreatedAt is the schema descriptor for created_at field.
-	ipaddressDescCreatedAt := ipaddressFields[17].Descriptor()
+	ipaddressDescCreatedAt := ipaddressFields[18].Descriptor()
 	// ipaddress.DefaultCreatedAt holds the default value on creation for the created_at field.
 	ipaddress.DefaultCreatedAt = ipaddressDescCreatedAt.Default.(func() time.Time)
 	ipallocationFields := schema.IPAllocation{}.Fields()
@@ -440,8 +444,16 @@ func init() {
 	serverDescInstanceBumpPending := serverFields[41].Descriptor()
 	// server.DefaultInstanceBumpPending holds the default value on creation for the instance_bump_pending field.
 	server.DefaultInstanceBumpPending = serverDescInstanceBumpPending.Default.(bool)
+	// serverDescDeleteProtected is the schema descriptor for delete_protected field.
+	serverDescDeleteProtected := serverFields[42].Descriptor()
+	// server.DefaultDeleteProtected holds the default value on creation for the delete_protected field.
+	server.DefaultDeleteProtected = serverDescDeleteProtected.Default.(bool)
+	// serverDescRebuildProtected is the schema descriptor for rebuild_protected field.
+	serverDescRebuildProtected := serverFields[43].Descriptor()
+	// server.DefaultRebuildProtected holds the default value on creation for the rebuild_protected field.
+	server.DefaultRebuildProtected = serverDescRebuildProtected.Default.(bool)
 	// serverDescCreatedAt is the schema descriptor for created_at field.
-	serverDescCreatedAt := serverFields[42].Descriptor()
+	serverDescCreatedAt := serverFields[44].Descriptor()
 	// server.DefaultCreatedAt holds the default value on creation for the created_at field.
 	server.DefaultCreatedAt = serverDescCreatedAt.Default.(func() time.Time)
 	servernetworkFields := schema.ServerNetwork{}.Fields()
@@ -538,8 +550,12 @@ func init() {
 	snapshotDescForceStop := snapshotFields[22].Descriptor()
 	// snapshot.DefaultForceStop holds the default value on creation for the force_stop field.
 	snapshot.DefaultForceStop = snapshotDescForceStop.Default.(bool)
+	// snapshotDescDeleteProtected is the schema descriptor for delete_protected field.
+	snapshotDescDeleteProtected := snapshotFields[24].Descriptor()
+	// snapshot.DefaultDeleteProtected holds the default value on creation for the delete_protected field.
+	snapshot.DefaultDeleteProtected = snapshotDescDeleteProtected.Default.(bool)
 	// snapshotDescCreatedAt is the schema descriptor for created_at field.
-	snapshotDescCreatedAt := snapshotFields[24].Descriptor()
+	snapshotDescCreatedAt := snapshotFields[25].Descriptor()
 	// snapshot.DefaultCreatedAt holds the default value on creation for the created_at field.
 	snapshot.DefaultCreatedAt = snapshotDescCreatedAt.Default.(func() time.Time)
 	userFields := schema.User{}.Fields()
@@ -586,8 +602,12 @@ func init() {
 	volumeDescDevice := volumeFields[11].Descriptor()
 	// volume.DefaultDevice holds the default value on creation for the device field.
 	volume.DefaultDevice = volumeDescDevice.Default.(string)
+	// volumeDescDeleteProtected is the schema descriptor for delete_protected field.
+	volumeDescDeleteProtected := volumeFields[13].Descriptor()
+	// volume.DefaultDeleteProtected holds the default value on creation for the delete_protected field.
+	volume.DefaultDeleteProtected = volumeDescDeleteProtected.Default.(bool)
 	// volumeDescCreatedAt is the schema descriptor for created_at field.
-	volumeDescCreatedAt := volumeFields[13].Descriptor()
+	volumeDescCreatedAt := volumeFields[14].Descriptor()
 	// volume.DefaultCreatedAt holds the default value on creation for the created_at field.
 	volume.DefaultCreatedAt = volumeDescCreatedAt.Default.(func() time.Time)
 	webauthncredentialFields := schema.WebauthnCredential{}.Fields()

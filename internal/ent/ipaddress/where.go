@@ -125,6 +125,11 @@ func DNSPtr(v string) predicate.IPAddress {
 	return predicate.IPAddress(sql.FieldEQ(FieldDNSPtr, v))
 }
 
+// DeleteProtected applies equality check predicate on the "delete_protected" field. It's identical to DeleteProtectedEQ.
+func DeleteProtected(v bool) predicate.IPAddress {
+	return predicate.IPAddress(sql.FieldEQ(FieldDeleteProtected, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.IPAddress {
 	return predicate.IPAddress(sql.FieldEQ(FieldCreatedAt, v))
@@ -703,6 +708,16 @@ func DNSPtrEqualFold(v string) predicate.IPAddress {
 // DNSPtrContainsFold applies the ContainsFold predicate on the "dns_ptr" field.
 func DNSPtrContainsFold(v string) predicate.IPAddress {
 	return predicate.IPAddress(sql.FieldContainsFold(FieldDNSPtr, v))
+}
+
+// DeleteProtectedEQ applies the EQ predicate on the "delete_protected" field.
+func DeleteProtectedEQ(v bool) predicate.IPAddress {
+	return predicate.IPAddress(sql.FieldEQ(FieldDeleteProtected, v))
+}
+
+// DeleteProtectedNEQ applies the NEQ predicate on the "delete_protected" field.
+func DeleteProtectedNEQ(v bool) predicate.IPAddress {
+	return predicate.IPAddress(sql.FieldNEQ(FieldDeleteProtected, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

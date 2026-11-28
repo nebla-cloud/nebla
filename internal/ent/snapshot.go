@@ -68,6 +68,8 @@ type Snapshot struct {
 	ForceStop bool `json:"force_stop,omitempty"`
 	// Status holds the value of the "status" field.
 	Status snapshot.Status `json:"status,omitempty"`
+	// DeleteProtected holds the value of the "delete_protected" field.
+	DeleteProtected bool `json:"delete_protected,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -142,7 +144,7 @@ func (*Snapshot) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case snapshot.FieldLabels:
 			values[i] = new([]byte)
-		case snapshot.FieldWasRunning, snapshot.FieldForceStop:
+		case snapshot.FieldWasRunning, snapshot.FieldForceStop, snapshot.FieldDeleteProtected:
 			values[i] = new(sql.NullBool)
 		case snapshot.FieldID, snapshot.FieldProjectID, snapshot.FieldLocationID, snapshot.FieldServerID, snapshot.FieldImageID, snapshot.FieldSizeGB, snapshot.FieldInstanceGeneration, snapshot.FieldVmid, snapshot.FieldStep:
 			values[i] = new(sql.NullInt64)
@@ -316,6 +318,12 @@ func (_m *Snapshot) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Status = snapshot.Status(value.String)
 			}
+		case snapshot.FieldDeleteProtected:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field delete_protected", values[i])
+			} else if value.Valid {
+				_m.DeleteProtected = value.Bool
+			}
 		case snapshot.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -456,6 +464,9 @@ func (_m *Snapshot) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("delete_protected=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DeleteProtected))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

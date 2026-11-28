@@ -145,6 +145,20 @@ func (_c *VolumeCreate) SetNillableStatus(v *volume.Status) *VolumeCreate {
 	return _c
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_c *VolumeCreate) SetDeleteProtected(v bool) *VolumeCreate {
+	_c.mutation.SetDeleteProtected(v)
+	return _c
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_c *VolumeCreate) SetNillableDeleteProtected(v *bool) *VolumeCreate {
+	if v != nil {
+		_c.SetDeleteProtected(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *VolumeCreate) SetCreatedAt(v time.Time) *VolumeCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -234,6 +248,10 @@ func (_c *VolumeCreate) defaults() {
 	if _, ok := _c.mutation.Status(); !ok {
 		v := volume.DefaultStatus
 		_c.mutation.SetStatus(v)
+	}
+	if _, ok := _c.mutation.DeleteProtected(); !ok {
+		v := volume.DefaultDeleteProtected
+		_c.mutation.SetDeleteProtected(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := volume.DefaultCreatedAt()
@@ -355,6 +373,10 @@ func (_c *VolumeCreate) createSpec() (*Volume, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(volume.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.DeleteProtected(); ok {
+		_spec.SetField(volume.FieldDeleteProtected, field.TypeBool, value)
+		_node.DeleteProtected = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(volume.FieldCreatedAt, field.TypeTime, value)
@@ -589,6 +611,18 @@ func (u *VolumeUpsert) UpdateStatus() *VolumeUpsert {
 	return u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *VolumeUpsert) SetDeleteProtected(v bool) *VolumeUpsert {
+	u.Set(volume.FieldDeleteProtected, v)
+	return u
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *VolumeUpsert) UpdateDeleteProtected() *VolumeUpsert {
+	u.SetExcluded(volume.FieldDeleteProtected)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -793,6 +827,20 @@ func (u *VolumeUpsertOne) SetStatus(v volume.Status) *VolumeUpsertOne {
 func (u *VolumeUpsertOne) UpdateStatus() *VolumeUpsertOne {
 	return u.Update(func(s *VolumeUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *VolumeUpsertOne) SetDeleteProtected(v bool) *VolumeUpsertOne {
+	return u.Update(func(s *VolumeUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *VolumeUpsertOne) UpdateDeleteProtected() *VolumeUpsertOne {
+	return u.Update(func(s *VolumeUpsert) {
+		s.UpdateDeleteProtected()
 	})
 }
 
@@ -1166,6 +1214,20 @@ func (u *VolumeUpsertBulk) SetStatus(v volume.Status) *VolumeUpsertBulk {
 func (u *VolumeUpsertBulk) UpdateStatus() *VolumeUpsertBulk {
 	return u.Update(func(s *VolumeUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *VolumeUpsertBulk) SetDeleteProtected(v bool) *VolumeUpsertBulk {
+	return u.Update(func(s *VolumeUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *VolumeUpsertBulk) UpdateDeleteProtected() *VolumeUpsertBulk {
+	return u.Update(func(s *VolumeUpsert) {
+		s.UpdateDeleteProtected()
 	})
 }
 

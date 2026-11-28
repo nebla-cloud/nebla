@@ -513,6 +513,34 @@ func (_c *ServerCreate) SetNillableInstanceBumpPending(v *bool) *ServerCreate {
 	return _c
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_c *ServerCreate) SetDeleteProtected(v bool) *ServerCreate {
+	_c.mutation.SetDeleteProtected(v)
+	return _c
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableDeleteProtected(v *bool) *ServerCreate {
+	if v != nil {
+		_c.SetDeleteProtected(*v)
+	}
+	return _c
+}
+
+// SetRebuildProtected sets the "rebuild_protected" field.
+func (_c *ServerCreate) SetRebuildProtected(v bool) *ServerCreate {
+	_c.mutation.SetRebuildProtected(v)
+	return _c
+}
+
+// SetNillableRebuildProtected sets the "rebuild_protected" field if the given value is not nil.
+func (_c *ServerCreate) SetNillableRebuildProtected(v *bool) *ServerCreate {
+	if v != nil {
+		_c.SetRebuildProtected(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ServerCreate) SetCreatedAt(v time.Time) *ServerCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -665,6 +693,14 @@ func (_c *ServerCreate) defaults() {
 	if _, ok := _c.mutation.InstanceBumpPending(); !ok {
 		v := server.DefaultInstanceBumpPending
 		_c.mutation.SetInstanceBumpPending(v)
+	}
+	if _, ok := _c.mutation.DeleteProtected(); !ok {
+		v := server.DefaultDeleteProtected
+		_c.mutation.SetDeleteProtected(v)
+	}
+	if _, ok := _c.mutation.RebuildProtected(); !ok {
+		v := server.DefaultRebuildProtected
+		_c.mutation.SetRebuildProtected(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := server.DefaultCreatedAt()
@@ -944,6 +980,14 @@ func (_c *ServerCreate) createSpec() (*Server, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.InstanceBumpPending(); ok {
 		_spec.SetField(server.FieldInstanceBumpPending, field.TypeBool, value)
 		_node.InstanceBumpPending = value
+	}
+	if value, ok := _c.mutation.DeleteProtected(); ok {
+		_spec.SetField(server.FieldDeleteProtected, field.TypeBool, value)
+		_node.DeleteProtected = value
+	}
+	if value, ok := _c.mutation.RebuildProtected(); ok {
+		_spec.SetField(server.FieldRebuildProtected, field.TypeBool, value)
+		_node.RebuildProtected = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(server.FieldCreatedAt, field.TypeTime, value)
@@ -1718,6 +1762,30 @@ func (u *ServerUpsert) SetInstanceBumpPending(v bool) *ServerUpsert {
 // UpdateInstanceBumpPending sets the "instance_bump_pending" field to the value that was provided on create.
 func (u *ServerUpsert) UpdateInstanceBumpPending() *ServerUpsert {
 	u.SetExcluded(server.FieldInstanceBumpPending)
+	return u
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *ServerUpsert) SetDeleteProtected(v bool) *ServerUpsert {
+	u.Set(server.FieldDeleteProtected, v)
+	return u
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateDeleteProtected() *ServerUpsert {
+	u.SetExcluded(server.FieldDeleteProtected)
+	return u
+}
+
+// SetRebuildProtected sets the "rebuild_protected" field.
+func (u *ServerUpsert) SetRebuildProtected(v bool) *ServerUpsert {
+	u.Set(server.FieldRebuildProtected, v)
+	return u
+}
+
+// UpdateRebuildProtected sets the "rebuild_protected" field to the value that was provided on create.
+func (u *ServerUpsert) UpdateRebuildProtected() *ServerUpsert {
+	u.SetExcluded(server.FieldRebuildProtected)
 	return u
 }
 
@@ -2499,6 +2567,34 @@ func (u *ServerUpsertOne) SetInstanceBumpPending(v bool) *ServerUpsertOne {
 func (u *ServerUpsertOne) UpdateInstanceBumpPending() *ServerUpsertOne {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateInstanceBumpPending()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *ServerUpsertOne) SetDeleteProtected(v bool) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateDeleteProtected() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateDeleteProtected()
+	})
+}
+
+// SetRebuildProtected sets the "rebuild_protected" field.
+func (u *ServerUpsertOne) SetRebuildProtected(v bool) *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildProtected(v)
+	})
+}
+
+// UpdateRebuildProtected sets the "rebuild_protected" field to the value that was provided on create.
+func (u *ServerUpsertOne) UpdateRebuildProtected() *ServerUpsertOne {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildProtected()
 	})
 }
 
@@ -3446,6 +3542,34 @@ func (u *ServerUpsertBulk) SetInstanceBumpPending(v bool) *ServerUpsertBulk {
 func (u *ServerUpsertBulk) UpdateInstanceBumpPending() *ServerUpsertBulk {
 	return u.Update(func(s *ServerUpsert) {
 		s.UpdateInstanceBumpPending()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *ServerUpsertBulk) SetDeleteProtected(v bool) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateDeleteProtected() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateDeleteProtected()
+	})
+}
+
+// SetRebuildProtected sets the "rebuild_protected" field.
+func (u *ServerUpsertBulk) SetRebuildProtected(v bool) *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.SetRebuildProtected(v)
+	})
+}
+
+// UpdateRebuildProtected sets the "rebuild_protected" field to the value that was provided on create.
+func (u *ServerUpsertBulk) UpdateRebuildProtected() *ServerUpsertBulk {
+	return u.Update(func(s *ServerUpsert) {
+		s.UpdateRebuildProtected()
 	})
 }
 

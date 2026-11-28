@@ -194,6 +194,20 @@ func (_c *IPAddressCreate) SetNillableDNSPtr(v *string) *IPAddressCreate {
 	return _c
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_c *IPAddressCreate) SetDeleteProtected(v bool) *IPAddressCreate {
+	_c.mutation.SetDeleteProtected(v)
+	return _c
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_c *IPAddressCreate) SetNillableDeleteProtected(v *bool) *IPAddressCreate {
+	if v != nil {
+		_c.SetDeleteProtected(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *IPAddressCreate) SetCreatedAt(v time.Time) *IPAddressCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -294,6 +308,10 @@ func (_c *IPAddressCreate) defaults() {
 	if _, ok := _c.mutation.AutoDelete(); !ok {
 		v := ipaddress.DefaultAutoDelete
 		_c.mutation.SetAutoDelete(v)
+	}
+	if _, ok := _c.mutation.DeleteProtected(); !ok {
+		v := ipaddress.DefaultDeleteProtected
+		_c.mutation.SetDeleteProtected(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := ipaddress.DefaultCreatedAt()
@@ -422,6 +440,10 @@ func (_c *IPAddressCreate) createSpec() (*IPAddress, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DNSPtr(); ok {
 		_spec.SetField(ipaddress.FieldDNSPtr, field.TypeString, value)
 		_node.DNSPtr = &value
+	}
+	if value, ok := _c.mutation.DeleteProtected(); ok {
+		_spec.SetField(ipaddress.FieldDeleteProtected, field.TypeBool, value)
+		_node.DeleteProtected = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(ipaddress.FieldCreatedAt, field.TypeTime, value)
@@ -737,6 +759,18 @@ func (u *IPAddressUpsert) ClearDNSPtr() *IPAddressUpsert {
 	return u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *IPAddressUpsert) SetDeleteProtected(v bool) *IPAddressUpsert {
+	u.Set(ipaddress.FieldDeleteProtected, v)
+	return u
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *IPAddressUpsert) UpdateDeleteProtected() *IPAddressUpsert {
+	u.SetExcluded(ipaddress.FieldDeleteProtected)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -985,6 +1019,20 @@ func (u *IPAddressUpsertOne) UpdateDNSPtr() *IPAddressUpsertOne {
 func (u *IPAddressUpsertOne) ClearDNSPtr() *IPAddressUpsertOne {
 	return u.Update(func(s *IPAddressUpsert) {
 		s.ClearDNSPtr()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *IPAddressUpsertOne) SetDeleteProtected(v bool) *IPAddressUpsertOne {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *IPAddressUpsertOne) UpdateDeleteProtected() *IPAddressUpsertOne {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.UpdateDeleteProtected()
 	})
 }
 
@@ -1402,6 +1450,20 @@ func (u *IPAddressUpsertBulk) UpdateDNSPtr() *IPAddressUpsertBulk {
 func (u *IPAddressUpsertBulk) ClearDNSPtr() *IPAddressUpsertBulk {
 	return u.Update(func(s *IPAddressUpsert) {
 		s.ClearDNSPtr()
+	})
+}
+
+// SetDeleteProtected sets the "delete_protected" field.
+func (u *IPAddressUpsertBulk) SetDeleteProtected(v bool) *IPAddressUpsertBulk {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.SetDeleteProtected(v)
+	})
+}
+
+// UpdateDeleteProtected sets the "delete_protected" field to the value that was provided on create.
+func (u *IPAddressUpsertBulk) UpdateDeleteProtected() *IPAddressUpsertBulk {
+	return u.Update(func(s *IPAddressUpsert) {
+		s.UpdateDeleteProtected()
 	})
 }
 

@@ -198,6 +198,20 @@ func (_u *IPAddressUpdate) ClearDNSPtr() *IPAddressUpdate {
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *IPAddressUpdate) SetDeleteProtected(v bool) *IPAddressUpdate {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *IPAddressUpdate) SetNillableDeleteProtected(v *bool) *IPAddressUpdate {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
 // SetServer sets the "server" edge to the Server entity.
 func (_u *IPAddressUpdate) SetServer(v *Server) *IPAddressUpdate {
 	return _u.SetServerID(v.ID)
@@ -324,6 +338,9 @@ func (_u *IPAddressUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.DNSPtrCleared() {
 		_spec.ClearField(ipaddress.FieldDNSPtr, field.TypeString)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(ipaddress.FieldDeleteProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -603,6 +620,20 @@ func (_u *IPAddressUpdateOne) ClearDNSPtr() *IPAddressUpdateOne {
 	return _u
 }
 
+// SetDeleteProtected sets the "delete_protected" field.
+func (_u *IPAddressUpdateOne) SetDeleteProtected(v bool) *IPAddressUpdateOne {
+	_u.mutation.SetDeleteProtected(v)
+	return _u
+}
+
+// SetNillableDeleteProtected sets the "delete_protected" field if the given value is not nil.
+func (_u *IPAddressUpdateOne) SetNillableDeleteProtected(v *bool) *IPAddressUpdateOne {
+	if v != nil {
+		_u.SetDeleteProtected(*v)
+	}
+	return _u
+}
+
 // SetServer sets the "server" edge to the Server entity.
 func (_u *IPAddressUpdateOne) SetServer(v *Server) *IPAddressUpdateOne {
 	return _u.SetServerID(v.ID)
@@ -759,6 +790,9 @@ func (_u *IPAddressUpdateOne) sqlSave(ctx context.Context) (_node *IPAddress, er
 	}
 	if _u.mutation.DNSPtrCleared() {
 		_spec.ClearField(ipaddress.FieldDNSPtr, field.TypeString)
+	}
+	if value, ok := _u.mutation.DeleteProtected(); ok {
+		_spec.SetField(ipaddress.FieldDeleteProtected, field.TypeBool, value)
 	}
 	if _u.mutation.ServerCleared() {
 		edge := &sqlgraph.EdgeSpec{
