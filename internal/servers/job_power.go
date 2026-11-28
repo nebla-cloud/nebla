@@ -166,7 +166,7 @@ func (w *PowerServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Ser
 	})
 }
 
-// power runs op and waits for its task, at most PowerWait; a reboot the guest ignores becomes a reset.
+// power runs op and waits for its task; a reboot the guest ignores becomes a reset, or a start if it powered off late.
 func (w *PowerServerWorker) power(ctx context.Context, pc pve.Client, node string, vmid int, op pve.PowerOp) error {
 	err := w.task(ctx, pc, node, vmid, op)
 	var te *pve.TaskError
@@ -174,7 +174,12 @@ func (w *PowerServerWorker) power(ctx context.Context, pc pve.Client, node strin
 		return err
 	}
 	w.o.Logger.Info("guest ignored the reboot request; resetting the vm", "vmid", vmid)
-	return w.task(ctx, pc, node, vmid, pve.PowerReset)
+	err = w.task(ctx, pc, node, vmid, pve.PowerReset)
+	if !errors.As(err, &te) || !strings.Contains(te.ExitStatus, "not running") {
+		return err
+	}
+	w.o.Logger.Info("guest powered off after the reboot timeout; starting the vm", "vmid", vmid)
+	return w.task(ctx, pc, node, vmid, pve.PowerStart)
 }
 
 // task sends op and waits for its task, at most PowerWait.

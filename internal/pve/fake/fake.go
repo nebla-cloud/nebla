@@ -125,6 +125,8 @@ type Server struct {
 	HangShutdown map[int]bool
 	// RebootExit, when set for a VMID, is the exit status of its reboot tasks.
 	RebootExit map[int]string
+	// LatePoweroff makes that VMID's reboot time out but leave the VM stopped, as a guest powering off just after the timeout.
+	LatePoweroff map[int]bool
 	// FailImport fails the next create task importing a disk into that VMID, once.
 	FailImport map[int]error
 
@@ -1761,6 +1763,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 				case op != "start" && v.status != "running":
 					return fmt.Sprintf("ERROR: VM %d not running", id)
 				case op == "shutdown" && s.HangShutdown[id] && timeout != "":
+					return "ERROR: VM quit/powerdown failed - got timeout"
+				case op == "reboot" && s.LatePoweroff[id]:
+					v.status = "stopped"
 					return "ERROR: VM quit/powerdown failed - got timeout"
 				case op == "reboot" && s.RebootExit[id] != "":
 					return s.RebootExit[id]
