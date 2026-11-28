@@ -25,6 +25,24 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
+  sdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: sdk/go.mod
+          cache: true
+          cache-dependency-path: |
+            sdk/go.sum
+            sdk/internal/paneltest/go.sum
+      - run: go mod tidy -diff
+      - run: go vet ./...
+      - run: go test ./...
+
   web:
     runs-on: ubuntu-latest
     defaults:

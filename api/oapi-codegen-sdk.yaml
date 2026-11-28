@@ -1,0 +1,6 @@
+package: wire
+output: sdk/nebla/internal/wire/models.gen.go
+generate:
+  models: true
+output-options:
+  name-normalizer: ToCamelCaseWithInitialisms
