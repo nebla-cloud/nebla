@@ -43,6 +43,10 @@ type Client struct {
 	Servers *ServersService
 	// Backups manages server backups.
 	Backups *BackupsService
+	// Volumes manages volumes.
+	Volumes *VolumesService
+	// Snapshots manages snapshots.
+	Snapshots *SnapshotsService
 }
 
 // Option configures a Client.
@@ -87,6 +91,8 @@ func NewClient(opts ...Option) *Client {
 	c.SSHKeys = &SSHKeysService{c: c}
 	c.Servers = &ServersService{c: c}
 	c.Backups = &BackupsService{c: c}
+	c.Volumes = &VolumesService{c: c}
+	c.Snapshots = &SnapshotsService{c: c}
 	return c
 }
 

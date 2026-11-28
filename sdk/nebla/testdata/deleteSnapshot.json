@@ -1,0 +1,1 @@
+{"action":{"id":42,"command":"delete_snapshot","status":"running","progress":0,"resources":[{"id":9,"type":"snapshot"}],"error":null,"started":"2026-01-02T03:04:05Z","finished":null}}
