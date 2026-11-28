@@ -91,6 +91,8 @@ sudo umount /mnt/data
 Then detach it in the panel or with `nebla volume detach <volume>`. If the volume has an `/etc/fstab` line, `nofail`
 lets the server boot without it. Remove the line if the volume won't come back.
 
+A volume can be protected from deletion; see [Protection](protection.md).
+
 ## Delete it
 
 Detach the volume first. Deleting erases its data for good.

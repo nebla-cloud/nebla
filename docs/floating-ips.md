@@ -102,6 +102,8 @@ delete its file under `/etc/netplan/` and run `sudo netplan apply`.
 
 A project that still has floating IPs can't be deleted.
 
+A floating IP can be protected from deletion; see [Protection](protection.md).
+
 ## Limits
 
 - A server can have at most 10 floating IPs.

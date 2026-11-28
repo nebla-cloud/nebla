@@ -65,6 +65,8 @@ Delete it from the snapshot's page, or with `nebla snapshot delete <snapshot>`. 
 can't be deleted while a server is being built from it; try again when that finishes. Deleting a project needs all its
 snapshots deleted first.
 
+A snapshot can be protected from deletion; see [Protection](protection.md).
+
 ## For admins
 
 Snapshots show up in Proxmox as template VMs named `nebla-snap-<id>`, tagged `nebla-snapshot`. Don't edit, move,

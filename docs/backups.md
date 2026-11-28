@@ -88,6 +88,8 @@ nebla server backup restore web1 42
 
 While a backup or restore runs, other actions on the server are refused.
 
+Restore is refused while the server has rebuild protection on; turn it off first. See [Protection](protection.md).
+
 ### Identity
 
 If the server's addresses haven't changed since the backup, it comes back as it was. SSH host keys and cloud-init state

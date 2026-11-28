@@ -114,6 +114,9 @@ data repeats whatever your first-boot scripts do, and new host keys make SSH cli
 changes on the same server keep its identity, so they don't warn and have neither side effect. Rebuilding the server
 also avoids the warning, because new and rebuilt servers pick up the change without either side effect.
 
+A primary IP can be protected from deletion, which also keeps it when its server is deleted; see
+[Protection](protection.md).
+
 ## Limits
 
 - A server has at most one primary IP per family.
