@@ -42,6 +42,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
@@ -117,6 +118,7 @@ type Snapshot struct {
 	Status      string
 	// RestoreKeepsIdentity is nil once the source server is gone.
 	RestoreKeepsIdentity *bool
+	DeleteProtected      bool
 	CreatedAt            time.Time
 }
 
@@ -128,12 +130,15 @@ type CreateInput struct {
 	Description string
 	Labels      map[string]string
 	ForceStop   bool
+	// DeleteProtected refuses Delete until cleared.
+	DeleteProtected bool
 }
 
 // UpdateInput changes only the non-nil fields.
 type UpdateInput struct {
 	Name, Description *string
 	Labels            *map[string]string
+	DeleteProtected   *bool
 }
 
 type ListFilter struct {
@@ -338,7 +343,7 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			SetDescription(in.Description).SetLabels(labels).SetServerID(row.ID).SetServerName(row.Name).
 			SetNillableImageID(row.ImageID).SetOsFlavor(flavor).SetOsVersion(version).SetSizeGB(sizeGB).
 			SetInstanceGeneration(servers.InstanceGeneration(row)).SetNetworkFingerprint(fp).
-			SetForceStop(in.ForceStop).SetStatus(snapshot.StatusCreating).Save(ctx)
+			SetForceStop(in.ForceStop).SetDeleteProtected(in.DeleteProtected).SetStatus(snapshot.StatusCreating).Save(ctx)
 		if err != nil {
 			return writeErr(err)
 		}
@@ -368,6 +373,9 @@ func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Acti
 	if err != nil {
 		return actions.Action{}, err
 	}
+	if pre.DeleteProtected {
+		return actions.Action{}, protection.ErrDelete
+	}
 	var act actions.Action
 	err = db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
 		res := []actions.Resource{{ID: id, Type: ResourceType}}
@@ -388,6 +396,9 @@ func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Acti
 		row, err := lockSnapshot(ctx, etx, projectID, id)
 		if err != nil {
 			return err
+		}
+		if row.DeleteProtected {
+			return protection.ErrDelete
 		}
 		if needsRestart(row) != needsRestart(pre) || (needsRestart(row) && *row.ServerID != *pre.ServerID) {
 			return errLocked
@@ -519,7 +530,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Snapshot) ([]Snapshot
 		}
 		o := Snapshot{ID: r.ID, Name: r.Name, Description: r.Description, Labels: labels, SizeGB: r.SizeGB, LocationID: r.LocationID,
 			ServerID: r.ServerID, ServerName: r.ServerName, ImageID: r.ImageID, OSFlavor: r.OsFlavor, OSVersion: r.OsVersion,
-			Status: string(r.Status), CreatedAt: r.CreatedAt}
+			Status: string(r.Status), DeleteProtected: r.DeleteProtected, CreatedAt: r.CreatedAt}
 		if r.ImageID != nil {
 			o.ImageName = imageNames[*r.ImageID]
 		}
@@ -559,14 +570,20 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		if err != nil {
 			return err
 		}
-		busy, err := hasRunningAction(ctx, etx, projectID, row.ID)
-		if err != nil {
-			return err
-		}
-		if busy {
-			return errLocked
+		// Protection alone may change while an action runs.
+		if in.Name != nil || in.Description != nil || in.Labels != nil || in.DeleteProtected == nil {
+			busy, err := hasRunningAction(ctx, etx, projectID, row.ID)
+			if err != nil {
+				return err
+			}
+			if busy {
+				return errLocked
+			}
 		}
 		u := etx.Snapshot.UpdateOneID(id)
+		if in.DeleteProtected != nil {
+			u.SetDeleteProtected(*in.DeleteProtected)
+		}
 		if in.Name != nil {
 			u.SetName(*in.Name)
 		}
