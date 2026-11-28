@@ -47,6 +47,10 @@ type Client struct {
 	Volumes *VolumesService
 	// Snapshots manages snapshots.
 	Snapshots *SnapshotsService
+	// Networks manages private networks.
+	Networks *NetworksService
+	// Firewalls manages firewalls.
+	Firewalls *FirewallsService
 }
 
 // Option configures a Client.
@@ -93,6 +97,8 @@ func NewClient(opts ...Option) *Client {
 	c.Backups = &BackupsService{c: c}
 	c.Volumes = &VolumesService{c: c}
 	c.Snapshots = &SnapshotsService{c: c}
+	c.Networks = &NetworksService{c: c}
+	c.Firewalls = &FirewallsService{c: c}
 	return c
 }
 
