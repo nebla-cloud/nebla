@@ -80,6 +80,14 @@ const cards = computed(() => {
       lines: [{ points: ts.cpu ?? [], tone: 'busy' as const }],
     },
     {
+      key: 'memory',
+      label: 'Memory',
+      value: live.memory.value == null ? DASH : formatPercent(live.memory.value),
+      unit: undefined,
+      max: 100,
+      lines: [{ points: ts.memory ?? [], tone: 'run' as const }],
+    },
+    {
       key: 'network',
       label: 'Network',
       ...pair(live.netIn.value, live.netOut.value, ['in', 'out']),
@@ -218,7 +226,7 @@ async function confirmDelete() {
 
 <template>
   <div class="flex flex-col gap-4">
-    <div v-if="running" class="grid gap-4 sm:grid-cols-3">
+    <div v-if="running" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <MetricCard
         v-for="c in cards"
         :key="c.key"

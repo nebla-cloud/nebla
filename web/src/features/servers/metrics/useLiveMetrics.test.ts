@@ -43,6 +43,16 @@ const fixture = {
         [1, 7],
         [2, 9],
       ],
+      'memory.used': [
+        [1, 512],
+        [2, 1024],
+        [3, null],
+      ],
+      'memory.total': [
+        [1, 2048],
+        [2, 2048],
+        [3, 2048],
+      ],
     },
   },
 }
@@ -98,6 +108,12 @@ describe('useLiveMetrics', () => {
     expect(result.netOut.value).toBe(512)
     expect(result.diskRead.value).toBeNull()
     expect(result.diskWrite.value).toBe(9)
+    expect(result.memory.value).toBe(50)
+    expect(result.series.value.memory).toEqual([
+      [1, 25],
+      [2, 50],
+      [3, null],
+    ])
     expect(result.series.value.cpu).toHaveLength(3)
   })
 

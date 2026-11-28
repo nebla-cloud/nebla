@@ -16,7 +16,7 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { useCurrentProject } from '@/lib/project'
-import { fetchMetrics, type TimeSeries } from './metrics'
+import { fetchMetrics, memoryPercent, type TimeSeries } from './metrics'
 
 const REFRESH_MS = 60_000
 const STALE_MS = 55_000
@@ -39,6 +39,7 @@ export function useLiveMetrics(
   netOut: ComputedRef<number | null>
   diskRead: ComputedRef<number | null>
   diskWrite: ComputedRef<number | null>
+  memory: ComputedRef<number | null>
   series: ComputedRef<TimeSeries>
 } {
   const { projectId } = useCurrentProject()
@@ -55,7 +56,11 @@ export function useLiveMetrics(
     refetchOnWindowFocus: false,
   })
 
-  const series = computed(() => (query.data.value?.time_series ?? {}) as TimeSeries)
+  const series = computed(() => {
+    const raw = (query.data.value?.time_series ?? {}) as TimeSeries
+    const memory = memoryPercent(raw)
+    return memory.length ? { ...raw, memory } : raw
+  })
   const pick = (key: string) => computed(() => latest(series.value[key]))
   return {
     cpu: pick('cpu'),
@@ -63,6 +68,7 @@ export function useLiveMetrics(
     netOut: pick('network.out'),
     diskRead: pick('disk.read'),
     diskWrite: pick('disk.write'),
+    memory: pick('memory'),
     series,
   }
 }

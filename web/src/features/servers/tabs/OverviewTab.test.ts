@@ -53,6 +53,14 @@ const metricsFixture = {
         [1, 50],
         [2, 3 * 1024],
       ],
+      'memory.used': [
+        [1, 536870912],
+        [2, 1073741824],
+      ],
+      'memory.total': [
+        [1, 2147483648],
+        [2, 2147483648],
+      ],
     },
   },
 }
@@ -253,11 +261,21 @@ describe('OverviewTab', () => {
       const v = w.find(`[data-metric="${k}"] [data-value]`)
       return `${v.text()} ${v.element.nextElementSibling!.textContent!.trim()}`
     }
+    expect(w.findAll('[data-metric]').map((c) => c.attributes('data-metric'))).toEqual([
+      'cpu',
+      'memory',
+      'network',
+      'disk',
+    ])
+    const mem = w.find('[data-metric="memory"] [data-value]')
+    expect(mem.text()).toBe('50%')
+    expect(mem.element.nextElementSibling?.textContent?.trim() ?? '').toBe('')
     expect(reading('network')).toBe('2.1 MB/s in / 410 KB/s out')
     expect(reading('disk')).toBe('512 B/s read / 3.0 KB/s write')
     const lines = (k: string) =>
       w.findAll(`[data-metric="${k}"] path[data-line]`).map((p) => p.attributes('stroke'))
     expect(lines('cpu')).toEqual(['var(--nb-busy)'])
+    expect(lines('memory')).toEqual(['var(--nb-run)'])
     expect(lines('network')).toEqual(['var(--nb-run)', 'var(--nb-err)'])
     expect(lines('disk')).toEqual(['var(--nb-busy)', 'var(--nb-err)'])
     expect(w.find('[data-metric] [stroke-dasharray]').exists()).toBe(false)
@@ -269,7 +287,21 @@ describe('OverviewTab', () => {
     msw.use(http.get('*/v1/servers/:id/metrics', () => new Promise(() => {})))
     const w = await mountTab(makeServer())
     const values = w.findAll('[data-metric] [data-value]').map((v) => v.text())
-    expect(values).toEqual(['—', '—', '—'])
+    expect(values).toEqual(['—', '—', '—', '—'])
+  })
+
+  it('shows a dash for memory when the metrics carry no memory series', async () => {
+    const rest = Object.fromEntries(
+      Object.entries(metricsFixture.metrics.time_series).filter(([k]) => !k.startsWith('memory.')),
+    )
+    msw.use(
+      http.get('*/v1/servers/:id/metrics', () =>
+        json(200, { metrics: { ...metricsFixture.metrics, time_series: rest } }),
+      ),
+    )
+    const w = await mountTab(makeServer())
+    await vi.waitFor(() => expect(w.find('[data-metric="cpu"] [data-value]').text()).toBe('18%'))
+    expect(w.find('[data-metric="memory"] [data-value]').text()).toBe('—')
   })
 
   it('an off server shows a note and makes no metrics request', async () => {
