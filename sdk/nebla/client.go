@@ -31,6 +31,14 @@ type Client struct {
 
 	// Actions lists and waits for actions.
 	Actions *ActionsService
+	// Locations lists locations.
+	Locations *LocationsService
+	// ServerTypes lists server types.
+	ServerTypes *ServerTypesService
+	// Images lists images.
+	Images *ImagesService
+	// SSHKeys manages SSH keys.
+	SSHKeys *SSHKeysService
 }
 
 // Option configures a Client.
@@ -69,6 +77,10 @@ func NewClient(opts ...Option) *Client {
 	hc.Transport = retryTransport{base: rt, policy: c.retry}
 	c.httpc = &hc
 	c.Actions = &ActionsService{c: c}
+	c.Locations = &LocationsService{c: c}
+	c.ServerTypes = &ServerTypesService{c: c}
+	c.Images = &ImagesService{c: c}
+	c.SSHKeys = &SSHKeysService{c: c}
 	return c
 }
 
