@@ -90,21 +90,50 @@ func actionFromWire(w wire.Action) Action {
 	return a
 }
 
-// ActionListOpts filters a list of actions.
+func actionsFromWire(ws []wire.Action) []Action {
+	out := make([]Action, 0, len(ws))
+	for _, w := range ws {
+		out = append(out, actionFromWire(w))
+	}
+	return out
+}
+
+// actionReply sends a request whose reply is {action}.
+func actionReply(ctx context.Context, c *Client, method, path string, body any) (*Action, error) {
+	var w struct {
+		Action wire.Action `json:"action"`
+	}
+	if err := c.do(ctx, method, path, nil, body, &w); err != nil {
+		return nil, err
+	}
+	a := actionFromWire(w.Action)
+	return &a, nil
+}
+
+// actionsReply sends a request whose reply is {actions}.
+func actionsReply(ctx context.Context, c *Client, method, path string, body any) ([]Action, error) {
+	var w struct {
+		Actions []wire.Action `json:"actions"`
+	}
+	if err := c.do(ctx, method, path, nil, body, &w); err != nil {
+		return nil, err
+	}
+	return actionsFromWire(w.Actions), nil
+}
+
+// ActionListOpts filters a list of actions; Status values are ORed.
 type ActionListOpts struct {
 	ListOpts
-	Status ActionStatus
+	Status []ActionStatus
 	Sort   string
 }
 
 func (o ActionListOpts) values() url.Values {
 	q := o.ListOpts.values()
-	if o.Status != "" {
-		q.Set("status", string(o.Status))
+	for _, st := range o.Status {
+		q.Add("status", string(st))
 	}
-	if o.Sort != "" {
-		q.Set("sort", o.Sort)
-	}
+	setIf(q, "sort", o.Sort)
 	return q
 }
 

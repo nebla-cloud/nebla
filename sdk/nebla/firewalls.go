@@ -301,6 +301,7 @@ func (s *FirewallsService) Create(ctx context.Context, opts FirewallCreateOpts) 
 
 // Update renames a firewall or replaces its labels.
 func (s *FirewallsService) Update(ctx context.Context, id int64, opts FirewallUpdateOpts) (*Firewall, error) {
+	opts.Labels = clearable(opts.Labels)
 	var w wire.Firewall
 	if err := s.c.do(ctx, "PUT", firewallPath(id, ""), nil, firewallUpdateBody(opts), &w); err != nil {
 		return nil, err
@@ -346,23 +347,4 @@ func (s *FirewallsService) RemoveFromResources(ctx context.Context, id int64, re
 		RemoveFrom []wire.FirewallResource `json:"remove_from"`
 	}{firewallResourcesToWire(resources)}
 	return actionsReply(ctx, s.c, "POST", firewallPath(id, "/actions/remove_from_resources"), body)
-}
-
-func actionsFromWire(ws []wire.Action) []Action {
-	out := make([]Action, 0, len(ws))
-	for _, w := range ws {
-		out = append(out, actionFromWire(w))
-	}
-	return out
-}
-
-// actionsReply sends a request whose reply is {actions}.
-func actionsReply(ctx context.Context, c *Client, method, path string, body any) ([]Action, error) {
-	var w struct {
-		Actions []wire.Action `json:"actions"`
-	}
-	if err := c.do(ctx, method, path, nil, body, &w); err != nil {
-		return nil, err
-	}
-	return actionsFromWire(w.Actions), nil
 }

@@ -102,7 +102,7 @@ func TestPrimaryIPActions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, all, 1)
 
-	a, warnings, err := c.PrimaryIPs.Assign(ctx, 6, "web-1")
+	a, warnings, err := c.PrimaryIPs.Assign(ctx, 6, PrimaryIPAssignOpts{Server: "web-1"})
 	require.NoError(t, err)
 	assert.Equal(t, "assign_primary_ip", a.Command)
 	assert.Equal(t, []string{"takes effect when the server starts"}, warnings)

@@ -121,8 +121,7 @@ func e2eSSHKey(t *testing.T) string {
 	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pk))) + " nebla-e2e"
 }
 
-// e2eSetup wires a panel to the target (location e2e, type e2e-small, image e2e-debian, an IP pool, project e2e)
-// and returns an SDK client for the project and which public address families to request.
+// e2eSetup wires a panel to the target and returns an SDK client, the PVE client and the public address families.
 func e2eSetup(t *testing.T, tg e2eTarget) (*nebla.Client, pve.Client, map[string]bool) {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -297,7 +296,7 @@ func TestSDKSmoke(t *testing.T) {
 	a, err = c.Volumes.Attach(ctx, volumeID, nebla.VolumeAttachOpts{Server: strconv.FormatInt(serverID, 10)})
 	require.NoError(t, err)
 	e2eWait(t, c, *a)
-	a, err = c.Volumes.Resize(ctx, volumeID, 11)
+	a, err = c.Volumes.Resize(ctx, volumeID, nebla.VolumeResizeOpts{Size: 11})
 	require.NoError(t, err)
 	e2eWait(t, c, *a)
 	v, err := c.Volumes.Get(ctx, volumeID)

@@ -68,7 +68,7 @@ func listPage[W, T any](ctx context.Context, c *Client, path string, q url.Value
 	return out, Meta{Page: p.Page, PerPage: p.PerPage, TotalEntries: p.TotalEntries}, nil
 }
 
-// listAll walks every page; an empty or short page, or reaching total_entries, ends the walk.
+// listAll walks every page; an empty or short page, or reaching a known total_entries, ends the walk.
 func listAll[W, T any](ctx context.Context, c *Client, path string, q url.Values, key string, conv func(W) T) ([]T, error) {
 	q = cloneValues(q)
 	q.Set("per_page", strconv.Itoa(allPerPage))
@@ -84,10 +84,24 @@ func listAll[W, T any](ctx context.Context, c *Client, path string, q url.Values
 		if meta.PerPage > 0 && meta.PerPage < per {
 			per = meta.PerPage
 		}
-		if len(items) == 0 || len(items) < per || page*per >= meta.TotalEntries {
+		if len(items) == 0 || len(items) < per || (meta.TotalEntries > 0 && page*per >= meta.TotalEntries) {
 			return all, nil
 		}
 	}
+}
+
+func setIf(q url.Values, key, v string) {
+	if v != "" {
+		q.Set(key, v)
+	}
+}
+
+// clearable turns a pointer to a nil map into a pointer to an empty one so it marshals as {}.
+func clearable(p *map[string]string) *map[string]string {
+	if p != nil && *p == nil {
+		return &map[string]string{}
+	}
+	return p
 }
 
 func cloneValues(q url.Values) url.Values {

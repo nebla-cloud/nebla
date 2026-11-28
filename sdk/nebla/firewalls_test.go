@@ -102,7 +102,7 @@ func TestFirewallUpdateDelete(t *testing.T) {
 	r, _ := f.last()
 	assert.Equal(t, "DELETE", r.Method)
 
-	acts, meta, err := c.Firewalls.Actions(ctx, 2, ActionListOpts{Status: ActionStatusSuccess})
+	acts, meta, err := c.Firewalls.Actions(ctx, 2, ActionListOpts{Status: []ActionStatus{ActionStatusSuccess}})
 	require.NoError(t, err)
 	assert.Equal(t, 1, meta.TotalEntries)
 	require.Len(t, acts, 1)

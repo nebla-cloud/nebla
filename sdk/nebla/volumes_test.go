@@ -68,11 +68,6 @@ func TestVolumeCreate(t *testing.T) {
 	assert.JSONEq(t, `{"name":"data","size":10}`, bodyString(f))
 }
 
-func bodyString(f *fake) string {
-	_, b := f.last()
-	return string(b)
-}
-
 func TestVolumeUpdateDelete(t *testing.T) {
 	c, f := newFake(t)
 	ctx := context.Background()
@@ -125,7 +120,7 @@ func TestVolumeAttachDetachResize(t *testing.T) {
 	assert.Equal(t, "detach_volume", a.Command)
 	assert.Empty(t, bodyString(f))
 
-	a, err = c.Volumes.Resize(ctx, 3, 100)
+	a, err = c.Volumes.Resize(ctx, 3, VolumeResizeOpts{Size: 100})
 	require.NoError(t, err)
 	assert.Equal(t, "resize_volume", a.Command)
 	assert.JSONEq(t, `{"size":100}`, bodyString(f))

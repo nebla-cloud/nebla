@@ -213,19 +213,15 @@ type ServerListOpts struct {
 	ListOpts
 	Name          string
 	LabelSelector string
-	Status        ServerStatus
+	Status        []ServerStatus
 }
 
 func (o ServerListOpts) values() url.Values {
 	q := o.ListOpts.values()
-	if o.Name != "" {
-		q.Set("name", o.Name)
-	}
-	if o.LabelSelector != "" {
-		q.Set("label_selector", o.LabelSelector)
-	}
-	if o.Status != "" {
-		q.Set("status", string(o.Status))
+	setIf(q, "name", o.Name)
+	setIf(q, "label_selector", o.LabelSelector)
+	for _, st := range o.Status {
+		q.Add("status", string(st))
 	}
 	return q
 }
@@ -255,7 +251,7 @@ type serverCreateBody struct {
 	StartAfterCreate *bool               `json:"start_after_create,omitempty"`
 	Firewalls        []serverFirewallReq `json:"firewalls,omitempty"`
 	Backups          *backupSettingsBody `json:"backups,omitempty"`
-	Networks         []serverNetworkReq  `json:"networks,omitempty"`
+	Networks         []serverNetworkBody `json:"networks,omitempty"`
 }
 
 type serverPublicNetReq struct {
@@ -267,7 +263,7 @@ type serverFirewallReq struct {
 	Firewall int64 `json:"firewall"`
 }
 
-type serverNetworkReq struct {
+type serverNetworkBody struct {
 	Network string `json:"network"`
 	IP      string `json:"ip,omitempty"`
 }
@@ -285,7 +281,7 @@ func (o ServerCreateOpts) body() serverCreateBody {
 		b.Firewalls = append(b.Firewalls, serverFirewallReq{Firewall: id})
 	}
 	for _, n := range o.Networks {
-		b.Networks = append(b.Networks, serverNetworkReq{Network: n.Network, IP: n.IP})
+		b.Networks = append(b.Networks, serverNetworkBody{Network: n.Network, IP: n.IP})
 	}
 	return b
 }
@@ -348,6 +344,7 @@ func (s *ServersService) Create(ctx context.Context, opts ServerCreateOpts) (Ser
 
 // Update renames a server, replaces its labels or changes its backup settings.
 func (s *ServersService) Update(ctx context.Context, id int64, opts ServerUpdateOpts) (*Server, error) {
+	opts.Labels = clearable(opts.Labels)
 	var w wire.Server
 	body := serverUpdateBody{Name: opts.Name, Labels: opts.Labels, Backups: backupSettingsBodyOf(opts.Backups)}
 	if err := s.c.do(ctx, "PUT", serverPath(id, ""), nil, body, &w); err != nil {
@@ -359,7 +356,7 @@ func (s *ServersService) Update(ctx context.Context, id int64, opts ServerUpdate
 
 // Delete deletes a server and returns the delete action.
 func (s *ServersService) Delete(ctx context.Context, id int64) (*Action, error) {
-	return s.actionCall(ctx, "DELETE", serverPath(id, ""), nil)
+	return actionReply(ctx, s.c, "DELETE", serverPath(id, ""), nil)
 }
 
 // Actions returns one page of a server's actions.

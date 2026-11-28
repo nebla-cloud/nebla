@@ -11,20 +11,8 @@ import (
 	"github.com/nebla-cloud/nebla/sdk/nebla/internal/wire"
 )
 
-// actionCall sends a request whose reply is {action}.
-func (s *ServersService) actionCall(ctx context.Context, method, path string, body any) (*Action, error) {
-	var w struct {
-		Action wire.Action `json:"action"`
-	}
-	if err := s.c.do(ctx, method, path, nil, body, &w); err != nil {
-		return nil, err
-	}
-	a := actionFromWire(w.Action)
-	return &a, nil
-}
-
 func (s *ServersService) simple(ctx context.Context, id int64, name string) (*Action, error) {
-	return s.actionCall(ctx, "POST", serverPath(id, "/actions/"+name), nil)
+	return actionReply(ctx, s.c, "POST", serverPath(id, "/actions/"+name), nil)
 }
 
 // PowerOn starts a server.
@@ -64,7 +52,7 @@ type serverRebuildBody struct {
 
 // Rebuild reinstalls a server from an image or snapshot, keeping its IPs and MAC.
 func (s *ServersService) Rebuild(ctx context.Context, id int64, opts ServerRebuildOpts) (*Action, error) {
-	return s.actionCall(ctx, "POST", serverPath(id, "/actions/rebuild"), serverRebuildBody{Image: opts.Image, Snapshot: opts.Snapshot})
+	return actionReply(ctx, s.c, "POST", serverPath(id, "/actions/rebuild"), serverRebuildBody{Image: opts.Image, Snapshot: opts.Snapshot})
 }
 
 // ServerChangeTypeOpts changes a stopped server's type.
@@ -80,15 +68,20 @@ type serverChangeTypeBody struct {
 
 // ChangeType changes a stopped server's type.
 func (s *ServersService) ChangeType(ctx context.Context, id int64, opts ServerChangeTypeOpts) (*Action, error) {
-	return s.actionCall(ctx, "POST", serverPath(id, "/actions/change_type"), serverChangeTypeBody{ServerType: opts.ServerType, UpgradeDisk: opts.UpgradeDisk})
+	return actionReply(ctx, s.c, "POST", serverPath(id, "/actions/change_type"), serverChangeTypeBody{ServerType: opts.ServerType, UpgradeDisk: opts.UpgradeDisk})
+}
+
+// ServerRestoreBackupOpts names the backup to restore.
+type ServerRestoreBackupOpts struct {
+	Backup int64
 }
 
 // RestoreBackup restores a server in place from one of its backups.
-func (s *ServersService) RestoreBackup(ctx context.Context, id, backupID int64) (*Action, error) {
+func (s *ServersService) RestoreBackup(ctx context.Context, id int64, opts ServerRestoreBackupOpts) (*Action, error) {
 	body := struct {
 		Backup int64 `json:"backup"`
-	}{backupID}
-	return s.actionCall(ctx, "POST", serverPath(id, "/actions/restore_backup"), body)
+	}{opts.Backup}
+	return actionReply(ctx, s.c, "POST", serverPath(id, "/actions/restore_backup"), body)
 }
 
 func (s *ServersService) networkCall(ctx context.Context, id int64, name string, body any) (*Action, *NetworkGuestConfig, error) {
@@ -105,19 +98,19 @@ type ServerAttachNetworkOpts struct {
 	Network, IP string
 }
 
-type serverNetworkBody struct {
-	Network string `json:"network"`
-	IP      string `json:"ip,omitempty"`
-}
-
 // AttachToNetwork attaches a server to a private network in its location.
 func (s *ServersService) AttachToNetwork(ctx context.Context, id int64, opts ServerAttachNetworkOpts) (*Action, *NetworkGuestConfig, error) {
 	return s.networkCall(ctx, id, "attach_to_network", serverNetworkBody{Network: opts.Network, IP: opts.IP})
 }
 
+// ServerDetachNetworkOpts names the private network to detach (id or name).
+type ServerDetachNetworkOpts struct {
+	Network string
+}
+
 // DetachFromNetwork detaches a server from a private network.
-func (s *ServersService) DetachFromNetwork(ctx context.Context, id int64, network string) (*Action, *NetworkGuestConfig, error) {
-	return s.networkCall(ctx, id, "detach_from_network", serverNetworkBody{Network: network})
+func (s *ServersService) DetachFromNetwork(ctx context.Context, id int64, opts ServerDetachNetworkOpts) (*Action, *NetworkGuestConfig, error) {
+	return s.networkCall(ctx, id, "detach_from_network", serverNetworkBody{Network: opts.Network})
 }
 
 // ConsoleGrant is a one-time console URL and its VNC password.
@@ -150,11 +143,11 @@ type Metrics struct {
 	End   time.Time
 	// Step is the seconds between points.
 	Step int
-	// TimeSeries is keyed cpu, disk.read, disk.write, network.in and network.out.
+	// TimeSeries is keyed cpu, disk.read, disk.write, network.in, network.out, memory.used and memory.total.
 	TimeSeries map[string]MetricSeries
 }
 
-// ServerMetricsOpts selects metrics; Types are cpu, disk, network and/or memory, Timeframe is hour, day, week or month.
+// ServerMetricsOpts selects metrics; both fields are required: Types are cpu, disk, network and/or memory, Timeframe is hour, day, week or month.
 type ServerMetricsOpts struct {
 	Types     []string
 	Timeframe string
@@ -186,7 +179,7 @@ func metricsFromWire(w wire.Metrics) Metrics {
 	return m
 }
 
-// Metrics returns a server's CPU, disk and network metrics.
+// Metrics returns a server's CPU, disk, network and memory metrics.
 func (s *ServersService) Metrics(ctx context.Context, id int64, opts ServerMetricsOpts) (*Metrics, error) {
 	var w struct {
 		Metrics wire.Metrics `json:"metrics"`

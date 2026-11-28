@@ -63,7 +63,7 @@ func TestServerChangeType(t *testing.T) {
 func TestServerRestoreBackup(t *testing.T) {
 	c, f := newFake(t)
 	f.handle("POST", "/v1/servers/7/actions/restore_backup", 201, "restoreServerBackup")
-	a, err := c.Servers.RestoreBackup(context.Background(), 7, 8)
+	a, err := c.Servers.RestoreBackup(context.Background(), 7, ServerRestoreBackupOpts{Backup: 8})
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), a.ID)
 	_, b := f.last()
@@ -89,7 +89,7 @@ func TestServerNetworkActions(t *testing.T) {
 	_, b = f.last()
 	assert.JSONEq(t, `{"network":"internal"}`, string(b))
 
-	a, gc, err = c.Servers.DetachFromNetwork(ctx, 7, "internal")
+	a, gc, err = c.Servers.DetachFromNetwork(ctx, 7, ServerDetachNetworkOpts{Network: "internal"})
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), a.ID)
 	assert.Nil(t, gc)

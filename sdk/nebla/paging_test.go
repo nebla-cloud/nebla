@@ -15,7 +15,7 @@ import (
 func TestListPage(t *testing.T) {
 	c, f := newFake(t)
 	f.handle("GET", "/v1/actions", 200, "getActions")
-	got, meta, err := c.Actions.List(context.Background(), ActionListOpts{ListOpts: ListOpts{Page: 2, PerPage: 25}, Status: ActionStatusError, Sort: "id:asc"})
+	got, meta, err := c.Actions.List(context.Background(), ActionListOpts{ListOpts: ListOpts{Page: 2, PerPage: 25}, Status: []ActionStatus{ActionStatusError}, Sort: "id:asc"})
 	if err != nil {
 		t.Fatal(err)
 	}

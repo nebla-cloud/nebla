@@ -60,12 +60,8 @@ type BackupListOpts struct {
 
 func (o BackupListOpts) values() url.Values {
 	q := url.Values{}
-	if o.Status != "" {
-		q.Set("status", string(o.Status))
-	}
-	if o.Kind != "" {
-		q.Set("kind", string(o.Kind))
-	}
+	setIf(q, "status", string(o.Status))
+	setIf(q, "kind", string(o.Kind))
 	return q
 }
 
@@ -113,12 +109,5 @@ func (s *BackupsService) Create(ctx context.Context, serverID int64) (*Backup, e
 
 // Delete deletes a backup and returns the delete action.
 func (s *BackupsService) Delete(ctx context.Context, serverID, backupID int64) (*Action, error) {
-	var w struct {
-		Action wire.Action `json:"action"`
-	}
-	if err := s.c.do(ctx, "DELETE", backupPath(serverID, backupID), nil, nil, &w); err != nil {
-		return nil, err
-	}
-	a := actionFromWire(w.Action)
-	return &a, nil
+	return actionReply(ctx, s.c, "DELETE", backupPath(serverID, backupID), nil)
 }

@@ -119,7 +119,7 @@ func TestFloatingIPActions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, all, 1)
 
-	a, err := c.FloatingIPs.Assign(ctx, 5, "web-1")
+	a, err := c.FloatingIPs.Assign(ctx, 5, FloatingIPAssignOpts{Server: "web-1"})
 	require.NoError(t, err)
 	assert.Equal(t, "assign_floating_ip", a.Command)
 	assert.JSONEq(t, `{"server":"web-1"}`, bodyString(f))

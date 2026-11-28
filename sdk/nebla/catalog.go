@@ -145,9 +145,7 @@ type ImageListOpts struct {
 
 func (o ImageListOpts) values() url.Values {
 	q := o.ListOpts.values()
-	if o.Location != "" {
-		q.Set("location", o.Location)
-	}
+	setIf(q, "location", o.Location)
 	return q
 }
 

@@ -129,7 +129,9 @@ var calls = map[string]call{
 	"rebuildServer": func(ctx context.Context, c *nebla.Client) error {
 		return one(c.Servers.Rebuild(ctx, 1, nebla.ServerRebuildOpts{Image: "ubuntu"}))
 	},
-	"restoreServerBackup": func(ctx context.Context, c *nebla.Client) error { return one(c.Servers.RestoreBackup(ctx, 1, 2)) },
+	"restoreServerBackup": func(ctx context.Context, c *nebla.Client) error {
+		return one(c.Servers.RestoreBackup(ctx, 1, nebla.ServerRestoreBackupOpts{Backup: 2}))
+	},
 	"getServerBackups": func(ctx context.Context, c *nebla.Client) error {
 		return one(c.Backups.List(ctx, 1, nebla.BackupListOpts{}))
 	},
@@ -147,7 +149,7 @@ var calls = map[string]call{
 		return two(c.Servers.AttachToNetwork(ctx, 1, nebla.ServerAttachNetworkOpts{Network: "n"}))
 	},
 	"detachServerFromNetwork": func(ctx context.Context, c *nebla.Client) error {
-		return two(c.Servers.DetachFromNetwork(ctx, 1, "n"))
+		return two(c.Servers.DetachFromNetwork(ctx, 1, nebla.ServerDetachNetworkOpts{Network: "n"}))
 	},
 
 	"getVolumes": func(ctx context.Context, c *nebla.Client) error {
@@ -169,7 +171,9 @@ var calls = map[string]call{
 		return one(c.Volumes.Attach(ctx, 1, nebla.VolumeAttachOpts{Server: "s"}))
 	},
 	"detachVolume": func(ctx context.Context, c *nebla.Client) error { return one(c.Volumes.Detach(ctx, 1)) },
-	"resizeVolume": func(ctx context.Context, c *nebla.Client) error { return one(c.Volumes.Resize(ctx, 1, 20)) },
+	"resizeVolume": func(ctx context.Context, c *nebla.Client) error {
+		return one(c.Volumes.Resize(ctx, 1, nebla.VolumeResizeOpts{Size: 20}))
+	},
 
 	"getSnapshots": func(ctx context.Context, c *nebla.Client) error {
 		return two(c.Snapshots.List(ctx, nebla.SnapshotListOpts{}))
@@ -200,7 +204,9 @@ var calls = map[string]call{
 	"getFloatingIpActions": func(ctx context.Context, c *nebla.Client) error {
 		return two(c.FloatingIPs.Actions(ctx, 1, nebla.ActionListOpts{}))
 	},
-	"assignFloatingIp":   func(ctx context.Context, c *nebla.Client) error { return one(c.FloatingIPs.Assign(ctx, 1, "s")) },
+	"assignFloatingIp": func(ctx context.Context, c *nebla.Client) error {
+		return one(c.FloatingIPs.Assign(ctx, 1, nebla.FloatingIPAssignOpts{Server: "s"}))
+	},
 	"unassignFloatingIp": func(ctx context.Context, c *nebla.Client) error { return one(c.FloatingIPs.Unassign(ctx, 1)) },
 
 	"getNetworks": func(ctx context.Context, c *nebla.Client) error {
@@ -232,7 +238,9 @@ var calls = map[string]call{
 	"getPrimaryIpActions": func(ctx context.Context, c *nebla.Client) error {
 		return two(c.PrimaryIPs.Actions(ctx, 1, nebla.ActionListOpts{}))
 	},
-	"assignPrimaryIp":   func(ctx context.Context, c *nebla.Client) error { return two(c.PrimaryIPs.Assign(ctx, 1, "s")) },
+	"assignPrimaryIp": func(ctx context.Context, c *nebla.Client) error {
+		return two(c.PrimaryIPs.Assign(ctx, 1, nebla.PrimaryIPAssignOpts{Server: "s"}))
+	},
 	"unassignPrimaryIp": func(ctx context.Context, c *nebla.Client) error { return two(c.PrimaryIPs.Unassign(ctx, 1)) },
 }
 

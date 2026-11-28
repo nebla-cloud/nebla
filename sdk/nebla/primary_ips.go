@@ -166,6 +166,7 @@ func (s *PrimaryIPsService) Create(ctx context.Context, opts PrimaryIPCreateOpts
 
 // Update changes a primary IP's name, description, labels or auto-delete.
 func (s *PrimaryIPsService) Update(ctx context.Context, id int64, opts PrimaryIPUpdateOpts) (*PrimaryIP, error) {
+	opts.Labels = clearable(opts.Labels)
 	var w wire.PrimaryIP
 	if err := s.c.do(ctx, "PUT", primaryIPPath(id, ""), nil, primaryIPUpdateBody(opts), &w); err != nil {
 		return nil, err
@@ -189,9 +190,14 @@ func (s *PrimaryIPsService) AllActions(ctx context.Context, id int64, opts Actio
 	return listAll(ctx, s.c, primaryIPPath(id, "/actions"), opts.values(), "actions", actionFromWire)
 }
 
+// PrimaryIPAssignOpts names the stopped server (id or name) to assign to.
+type PrimaryIPAssignOpts struct {
+	Server string
+}
+
 // Assign assigns an unassigned primary IP to a stopped server (id or name); it takes effect when the server starts.
-func (s *PrimaryIPsService) Assign(ctx context.Context, id int64, server string) (*Action, []string, error) {
-	return s.actionWithWarnings(ctx, primaryIPPath(id, "/actions/assign"), wire.PrimaryIPAssignInput{Server: server})
+func (s *PrimaryIPsService) Assign(ctx context.Context, id int64, opts PrimaryIPAssignOpts) (*Action, []string, error) {
+	return s.actionWithWarnings(ctx, primaryIPPath(id, "/actions/assign"), wire.PrimaryIPAssignInput{Server: opts.Server})
 }
 
 // Unassign unassigns a primary IP from its stopped server; it takes effect when the server starts.

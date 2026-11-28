@@ -136,6 +136,7 @@ func (s *NetworksService) Create(ctx context.Context, opts NetworkCreateOpts) (*
 
 // Update renames a network or replaces its labels.
 func (s *NetworksService) Update(ctx context.Context, id int64, opts NetworkUpdateOpts) (*Network, error) {
+	opts.Labels = clearable(opts.Labels)
 	var w wire.Network
 	if err := s.c.do(ctx, "PUT", networkPath(id, ""), nil, networkUpdateBody(opts), &w); err != nil {
 		return nil, err

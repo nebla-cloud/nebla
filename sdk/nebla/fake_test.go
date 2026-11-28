@@ -102,3 +102,8 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(rt.status)
 	_, _ = w.Write(data)
 }
+
+func bodyString(f *fake) string {
+	_, b := f.last()
+	return string(b)
+}

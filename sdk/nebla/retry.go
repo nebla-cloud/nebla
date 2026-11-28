@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// RetryPolicy controls request retries; MaxAttempts <= 1 disables them.
+// RetryPolicy controls request retries; MaxAttempts <= 1 disables them, zero delays use the defaults.
 type RetryPolicy struct {
 	MaxAttempts int
 	BaseDelay   time.Duration
@@ -92,9 +92,15 @@ func (t retryTransport) backoff(attempt int, res *http.Response) time.Duration {
 			return min(time.Duration(s)*time.Second, retryAfterMax)
 		}
 	}
-	d := t.policy.BaseDelay << min(attempt, 30)
-	if d <= 0 || d > t.policy.MaxDelay {
-		d = t.policy.MaxDelay
+	base, ceil := t.policy.BaseDelay, t.policy.MaxDelay
+	if base <= 0 {
+		base = DefaultRetryPolicy.BaseDelay
 	}
-	return d
+	if ceil <= 0 {
+		ceil = DefaultRetryPolicy.MaxDelay
+	}
+	if attempt >= 30 || base > ceil>>attempt {
+		return ceil
+	}
+	return base << attempt
 }

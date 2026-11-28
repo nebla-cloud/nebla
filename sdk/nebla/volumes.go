@@ -99,12 +99,6 @@ func (o VolumeListOpts) values() url.Values {
 	return q
 }
 
-func setIf(q url.Values, key, v string) {
-	if v != "" {
-		q.Set(key, v)
-	}
-}
-
 type volumeCreateBody struct {
 	Name     string            `json:"name"`
 	Size     int               `json:"size"`
@@ -166,6 +160,7 @@ func (s *VolumesService) Create(ctx context.Context, opts VolumeCreateOpts) (Vol
 
 // Update renames a volume or replaces its labels.
 func (s *VolumesService) Update(ctx context.Context, id int64, opts VolumeUpdateOpts) (*Volume, error) {
+	opts.Labels = clearable(opts.Labels)
 	var w wire.Volume
 	if err := s.c.do(ctx, "PUT", volumePath(id, ""), nil, volumeUpdateBody(opts), &w); err != nil {
 		return nil, err
@@ -199,19 +194,12 @@ func (s *VolumesService) Detach(ctx context.Context, id int64) (*Action, error) 
 	return actionReply(ctx, s.c, "POST", volumePath(id, "/actions/detach"), nil)
 }
 
-// Resize grows a volume to size GB.
-func (s *VolumesService) Resize(ctx context.Context, id int64, size int) (*Action, error) {
-	return actionReply(ctx, s.c, "POST", volumePath(id, "/actions/resize"), wire.VolumeResizeInput{Size: size})
+// VolumeResizeOpts is the new size of a volume in GB.
+type VolumeResizeOpts struct {
+	Size int
 }
 
-// actionReply sends a request whose reply is {action}.
-func actionReply(ctx context.Context, c *Client, method, path string, body any) (*Action, error) {
-	var w struct {
-		Action wire.Action `json:"action"`
-	}
-	if err := c.do(ctx, method, path, nil, body, &w); err != nil {
-		return nil, err
-	}
-	a := actionFromWire(w.Action)
-	return &a, nil
+// Resize grows a volume to opts.Size GB.
+func (s *VolumesService) Resize(ctx context.Context, id int64, opts VolumeResizeOpts) (*Action, error) {
+	return actionReply(ctx, s.c, "POST", volumePath(id, "/actions/resize"), wire.VolumeResizeInput{Size: opts.Size})
 }

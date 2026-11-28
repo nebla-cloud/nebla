@@ -188,6 +188,7 @@ func (s *FloatingIPsService) Create(ctx context.Context, opts FloatingIPCreateOp
 
 // Update renames a floating IP, changes its description or replaces its labels.
 func (s *FloatingIPsService) Update(ctx context.Context, id int64, opts FloatingIPUpdateOpts) (*FloatingIP, error) {
+	opts.Labels = clearable(opts.Labels)
 	var w wire.FloatingIP
 	if err := s.c.do(ctx, "PUT", floatingIPPath(id, ""), nil, floatingIPUpdateBody(opts), &w); err != nil {
 		return nil, err
@@ -211,9 +212,14 @@ func (s *FloatingIPsService) AllActions(ctx context.Context, id int64, opts Acti
 	return listAll(ctx, s.c, floatingIPPath(id, "/actions"), opts.values(), "actions", actionFromWire)
 }
 
+// FloatingIPAssignOpts names the server (id or name) to assign to.
+type FloatingIPAssignOpts struct {
+	Server string
+}
+
 // Assign assigns a floating IP to a server (id or name), moving it from its current server.
-func (s *FloatingIPsService) Assign(ctx context.Context, id int64, server string) (*Action, error) {
-	return actionReply(ctx, s.c, "POST", floatingIPPath(id, "/actions/assign"), wire.FloatingIPAssignInput{Server: server})
+func (s *FloatingIPsService) Assign(ctx context.Context, id int64, opts FloatingIPAssignOpts) (*Action, error) {
+	return actionReply(ctx, s.c, "POST", floatingIPPath(id, "/actions/assign"), wire.FloatingIPAssignInput{Server: opts.Server})
 }
 
 // Unassign unassigns a floating IP from its server.

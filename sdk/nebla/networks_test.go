@@ -81,7 +81,7 @@ func TestNetworkUpdateDelete(t *testing.T) {
 	r, _ := f.last()
 	assert.Equal(t, "DELETE", r.Method)
 
-	as, meta, err := c.Networks.Actions(ctx, 4, ActionListOpts{Status: ActionStatusSuccess, Sort: "id:asc"})
+	as, meta, err := c.Networks.Actions(ctx, 4, ActionListOpts{Status: []ActionStatus{ActionStatusSuccess}, Sort: "id:asc"})
 	require.NoError(t, err)
 	r, _ = f.last()
 	assert.Equal(t, "success", r.URL.Query().Get("status"))

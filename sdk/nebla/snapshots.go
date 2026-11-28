@@ -171,6 +171,7 @@ func (s *SnapshotsService) Create(ctx context.Context, opts SnapshotCreateOpts) 
 
 // Update renames a snapshot, changes its description or replaces its labels.
 func (s *SnapshotsService) Update(ctx context.Context, id int64, opts SnapshotUpdateOpts) (*Snapshot, error) {
+	opts.Labels = clearable(opts.Labels)
 	var w wire.Snapshot
 	if err := s.c.do(ctx, "PUT", snapshotPath(id, ""), nil, snapshotUpdateBody(opts), &w); err != nil {
 		return nil, err
