@@ -1,1 +1,1 @@
-{"id":3,"name":"cx22","description":"Small","cores":2,"memory_mb":4096,"disk_gb":40,"locations":[1,2],"deprecated":false}
+{"id":3,"name":"small","description":"Small","cores":2,"memory_mb":4096,"disk_gb":40,"locations":[1,2],"deprecated":false}

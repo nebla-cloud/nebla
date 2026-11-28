@@ -25,7 +25,7 @@ func TestLocations(t *testing.T) {
 	if r.Method != "GET" || r.URL.Query().Get("page") != "2" || r.URL.Query().Get("per_page") != "10" {
 		t.Fatalf("req %s %s", r.Method, r.URL)
 	}
-	if meta.TotalEntries != 1 || len(ls) != 1 || ls[0].Name != "fsn1" || !ls[0].Networks.IPv4 || ls[0].Networks.IPv6 || !ls[0].SnapshotsAvailable || ls[0].BackupsAvailable {
+	if meta.TotalEntries != 1 || len(ls) != 1 || ls[0].Name != "lon1" || !ls[0].Networks.IPv4 || ls[0].Networks.IPv6 || !ls[0].SnapshotsAvailable || ls[0].BackupsAvailable {
 		t.Fatalf("got %+v %+v", ls, meta)
 	}
 	all, err := c.Locations.All(ctx)
@@ -36,7 +36,7 @@ func TestLocations(t *testing.T) {
 	if err != nil || l.ID != 1 || l.Description != "Falkenstein" || !l.VolumesAvailable || !l.PrivateNetworksAvailable {
 		t.Fatalf("get %+v %v", l, err)
 	}
-	l, err = c.Locations.GetByName(ctx, "fsn1")
+	l, err = c.Locations.GetByName(ctx, "lon1")
 	if err != nil || l.ID != 1 {
 		t.Fatalf("by name %+v %v", l, err)
 	}
@@ -51,7 +51,7 @@ func TestServerTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := ServerType{ID: 3, Name: "cx22", Description: "Small", Cores: 2, MemoryMB: 4096, DiskGB: 40, Locations: []int64{1, 2}}
+	want := ServerType{ID: 3, Name: "small", Description: "Small", Cores: 2, MemoryMB: 4096, DiskGB: 40, Locations: []int64{1, 2}}
 	if meta.TotalEntries != 1 || len(ts) != 1 || !reflect.DeepEqual(ts[0], want) {
 		t.Fatalf("got %+v %+v", ts, meta)
 	}
@@ -63,7 +63,7 @@ func TestServerTypes(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(*g, want) {
 		t.Fatalf("get %+v %v", g, err)
 	}
-	g, err = c.ServerTypes.GetByName(ctx, "cx22")
+	g, err = c.ServerTypes.GetByName(ctx, "small")
 	if err != nil || g.ID != 3 {
 		t.Fatalf("by name %+v %v", g, err)
 	}
@@ -74,24 +74,24 @@ func TestImages(t *testing.T) {
 	ctx := context.Background()
 	f.handle("GET", "/v1/images", 200, "getImages")
 	f.handle("GET", "/v1/images/5", 200, "getImage")
-	is, _, err := c.Images.List(ctx, ImageListOpts{ListOpts: ListOpts{Page: 1}, Location: "fsn1"})
+	is, _, err := c.Images.List(ctx, ImageListOpts{ListOpts: ListOpts{Page: 1}, Location: "lon1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	r, _ := f.last()
-	if r.URL.Query().Get("location") != "fsn1" || r.URL.Query().Get("page") != "1" {
+	if r.URL.Query().Get("location") != "lon1" || r.URL.Query().Get("page") != "1" {
 		t.Fatalf("query %s", r.URL.RawQuery)
 	}
 	want := Image{ID: 5, Name: "ubuntu-24.04", Description: "Ubuntu 24.04", OSFlavor: "ubuntu", OSVersion: "24.04", Locations: []int64{1}}
 	if len(is) != 1 || !reflect.DeepEqual(is[0], want) {
 		t.Fatalf("got %+v", is)
 	}
-	all, err := c.Images.All(ctx, ImageListOpts{Location: "fsn1"})
+	all, err := c.Images.All(ctx, ImageListOpts{Location: "lon1"})
 	if err != nil || len(all) != 1 {
 		t.Fatalf("all %v %v", all, err)
 	}
 	r, _ = f.last()
-	if r.URL.Query().Get("location") != "fsn1" || r.URL.Query().Get("per_page") != "50" {
+	if r.URL.Query().Get("location") != "lon1" || r.URL.Query().Get("per_page") != "50" {
 		t.Fatalf("query %s", r.URL.RawQuery)
 	}
 	g, err := c.Images.Get(ctx, 5)

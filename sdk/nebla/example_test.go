@@ -22,15 +22,15 @@ func ExampleClient() {
 
 	res, err := c.Servers.Create(ctx, nebla.ServerCreateOpts{
 		Name:       "web-1",
-		ServerType: "cx22",
+		ServerType: "small",
 		Image:      "ubuntu-24.04",
-		Location:   "fsn1",
+		Location:   "lon1",
 		SSHKeys:    []string{"deploy"},
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = c.Actions.WaitFor(ctx, []nebla.Action{res.Action}, nebla.OnProgress(func(a nebla.Action) {
+	err = c.Actions.WaitFor(ctx, append([]nebla.Action{res.Action}, res.NextActions...), nebla.OnProgress(func(a nebla.Action) {
 		fmt.Printf("%s: %d%%\n", a.Command, a.Progress)
 	}))
 	if err != nil {

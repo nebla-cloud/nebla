@@ -54,10 +54,10 @@ func TestServerRebuild(t *testing.T) {
 func TestServerChangeType(t *testing.T) {
 	c, f := newFake(t)
 	f.handle("POST", "/v1/servers/7/actions/change_type", 201, "changeServerType")
-	_, err := c.Servers.ChangeType(context.Background(), 7, ServerChangeTypeOpts{ServerType: "cx32"})
+	_, err := c.Servers.ChangeType(context.Background(), 7, ServerChangeTypeOpts{ServerType: "medium"})
 	require.NoError(t, err)
 	_, b := f.last()
-	assert.JSONEq(t, `{"server_type":"cx32","upgrade_disk":false}`, string(b))
+	assert.JSONEq(t, `{"server_type":"medium","upgrade_disk":false}`, string(b))
 }
 
 func TestServerRestoreBackup(t *testing.T) {

@@ -46,8 +46,8 @@ func TestServersListGet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(7), s.ID)
 	assert.Equal(t, ServerStatusRunning, s.Status)
-	assert.Equal(t, "fsn1", s.Location.Name)
-	assert.Equal(t, "cx22", s.ServerType.Name)
+	assert.Equal(t, "lon1", s.Location.Name)
+	assert.Equal(t, "small", s.ServerType.Name)
 	require.NotNil(t, s.Image)
 	assert.Equal(t, "ubuntu-24.04", s.Image.Name)
 	require.NotNil(t, s.Snapshot)
@@ -82,7 +82,7 @@ func TestServerCreate(t *testing.T) {
 	c, f := newFake(t)
 	f.handle("POST", "/v1/servers", 201, "postServers")
 	res, err := c.Servers.Create(context.Background(), ServerCreateOpts{
-		Name: "web-1", ServerType: "cx22", Image: "ubuntu-24.04", Location: "fsn1",
+		Name: "web-1", ServerType: "small", Image: "ubuntu-24.04", Location: "lon1",
 		SSHKeys: []string{"k"}, UserData: "#cloud-config", Labels: map[string]string{"a": "b"},
 		StartAfterCreate: Ptr(false), Firewalls: []int64{2}, Backups: &BackupSettings{Enabled: true, Keep: 7},
 		Networks: []ServerNetworkOpts{{Network: "internal", IP: "10.0.0.5"}, {Network: "other"}},
@@ -94,7 +94,7 @@ func TestServerCreate(t *testing.T) {
 	assert.Equal(t, "start_server", res.NextActions[0].Command)
 	m := jsonBody(t, f)
 	assert.Equal(t, map[string]any{
-		"name": "web-1", "server_type": "cx22", "image": "ubuntu-24.04", "location": "fsn1",
+		"name": "web-1", "server_type": "small", "image": "ubuntu-24.04", "location": "lon1",
 		"ssh_keys": []any{"k"}, "user_data": "#cloud-config", "labels": map[string]any{"a": "b"},
 		"start_after_create": false, "firewalls": []any{map[string]any{"firewall": float64(2)}},
 		"backups":  map[string]any{"enabled": true, "keep": float64(7)},
@@ -119,7 +119,7 @@ func TestServerCreatePublicNet(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := c.Servers.Create(context.Background(), ServerCreateOpts{Name: "a", ServerType: "cx22", Image: "i", Location: "l", PublicIPv4: tc.v4, PublicIPv6: tc.v6})
+			_, err := c.Servers.Create(context.Background(), ServerCreateOpts{Name: "a", ServerType: "small", Image: "i", Location: "l", PublicIPv4: tc.v4, PublicIPv6: tc.v6})
 			require.NoError(t, err)
 			m := jsonBody(t, f)
 			got, ok := m["public_net"]

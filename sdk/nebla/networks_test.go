@@ -16,14 +16,14 @@ func TestNetworksListGet(t *testing.T) {
 	ctx := context.Background()
 	f.handle("GET", "/v1/networks", 200, "getNetworks")
 	f.handle("GET", "/v1/networks/4", 200, "getNetwork")
-	ns, meta, err := c.Networks.List(ctx, NetworkListOpts{ListOpts: ListOpts{Page: 2}, Name: "internal", LabelSelector: "env=prod", Location: "fsn1"})
+	ns, meta, err := c.Networks.List(ctx, NetworkListOpts{ListOpts: ListOpts{Page: 2}, Name: "internal", LabelSelector: "env=prod", Location: "lon1"})
 	require.NoError(t, err)
 	r, _ := f.last()
 	q := r.URL.Query()
 	assert.Equal(t, "2", q.Get("page"))
 	assert.Equal(t, "internal", q.Get("name"))
 	assert.Equal(t, "env=prod", q.Get("label_selector"))
-	assert.Equal(t, "fsn1", q.Get("location"))
+	assert.Equal(t, "lon1", q.Get("location"))
 	assert.Equal(t, 1, meta.TotalEntries)
 	require.Len(t, ns, 1)
 
@@ -38,7 +38,7 @@ func TestNetworksListGet(t *testing.T) {
 	assert.Equal(t, int64(4), n.ID)
 	assert.Equal(t, "internal", n.Name)
 	assert.Equal(t, "10.0.0.0/16", n.IPRange)
-	assert.Equal(t, "fsn1", n.Location.Name)
+	assert.Equal(t, "lon1", n.Location.Name)
 	assert.Equal(t, map[string]string{"env": "prod"}, n.Labels)
 	assert.Equal(t, []NetworkServer{{Server: 7, Name: "web-1", IP: "10.0.0.2"}}, n.Servers)
 
@@ -53,14 +53,14 @@ func TestNetworkCreate(t *testing.T) {
 	c, f := newFake(t)
 	ctx := context.Background()
 	f.handle("POST", "/v1/networks", 201, "postNetworks")
-	n, err := c.Networks.Create(ctx, NetworkCreateOpts{Name: "internal", Location: "fsn1", IPRange: "10.0.0.0/16", Labels: map[string]string{"a": "b"}})
+	n, err := c.Networks.Create(ctx, NetworkCreateOpts{Name: "internal", Location: "lon1", IPRange: "10.0.0.0/16", Labels: map[string]string{"a": "b"}})
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), n.ID)
-	assert.JSONEq(t, `{"name":"internal","location":"fsn1","ip_range":"10.0.0.0/16","labels":{"a":"b"}}`, bodyString(f))
+	assert.JSONEq(t, `{"name":"internal","location":"lon1","ip_range":"10.0.0.0/16","labels":{"a":"b"}}`, bodyString(f))
 
-	_, err = c.Networks.Create(ctx, NetworkCreateOpts{Name: "internal", Location: "fsn1"})
+	_, err = c.Networks.Create(ctx, NetworkCreateOpts{Name: "internal", Location: "lon1"})
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"internal","location":"fsn1"}`, bodyString(f))
+	assert.JSONEq(t, `{"name":"internal","location":"lon1"}`, bodyString(f))
 }
 
 func TestNetworkUpdateDelete(t *testing.T) {

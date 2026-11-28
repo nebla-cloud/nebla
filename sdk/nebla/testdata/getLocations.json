@@ -1,1 +1,1 @@
-{"locations":[{"id":1,"name":"fsn1","description":"Falkenstein","networks":{"ipv4":true,"ipv6":false},"volumes_available":true,"backups_available":false,"private_networks_available":true,"snapshots_available":true}],"meta":{"pagination":{"page":1,"per_page":50,"total_entries":1}}}
+{"locations":[{"id":1,"name":"lon1","description":"Falkenstein","networks":{"ipv4":true,"ipv6":false},"volumes_available":true,"backups_available":false,"private_networks_available":true,"snapshots_available":true}],"meta":{"pagination":{"page":1,"per_page":50,"total_entries":1}}}

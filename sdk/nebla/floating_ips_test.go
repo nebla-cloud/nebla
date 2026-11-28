@@ -17,7 +17,7 @@ func TestFloatingIPsListGet(t *testing.T) {
 	ctx := context.Background()
 	f.handle("GET", "/v1/floating_ips", 200, "getFloatingIps")
 	f.handle("GET", "/v1/floating_ips/5", 200, "getFloatingIp")
-	ips, meta, err := c.FloatingIPs.List(ctx, FloatingIPListOpts{ListOpts: ListOpts{Page: 2}, Name: "vip", LabelSelector: "env=prod", Server: "web-1", Location: "fsn1"})
+	ips, meta, err := c.FloatingIPs.List(ctx, FloatingIPListOpts{ListOpts: ListOpts{Page: 2}, Name: "vip", LabelSelector: "env=prod", Server: "web-1", Location: "lon1"})
 	require.NoError(t, err)
 	r, _ := f.last()
 	q := r.URL.Query()
@@ -25,7 +25,7 @@ func TestFloatingIPsListGet(t *testing.T) {
 	assert.Equal(t, "vip", q.Get("name"))
 	assert.Equal(t, "env=prod", q.Get("label_selector"))
 	assert.Equal(t, "web-1", q.Get("server"))
-	assert.Equal(t, "fsn1", q.Get("location"))
+	assert.Equal(t, "lon1", q.Get("location"))
 	assert.Equal(t, 1, meta.TotalEntries)
 	require.Len(t, ips, 1)
 
@@ -42,7 +42,7 @@ func TestFloatingIPsListGet(t *testing.T) {
 	assert.Equal(t, "front", ip.Description)
 	assert.Equal(t, IPTypeIPv4, ip.Type)
 	assert.Equal(t, "203.0.113.5/32", ip.IP)
-	assert.Equal(t, "fsn1", ip.Location.Name)
+	assert.Equal(t, "lon1", ip.Location.Name)
 	require.NotNil(t, ip.Server)
 	assert.Equal(t, int64(7), *ip.Server)
 	assert.Equal(t, FloatingIPStatusActive, ip.Status)
@@ -72,14 +72,14 @@ func TestFloatingIPCreate(t *testing.T) {
 
 	f.handleFunc("POST", "/v1/floating_ips", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(201)
-		_, _ = w.Write([]byte(`{"floating_ip":{"id":5,"name":"vip","description":"","labels":{},"type":"ipv6","ip":"2001:db8::5/128","location":{"id":1,"name":"fsn1","description":"F"},"server":null,"status":"active","guest_config":null,"created":"2026-01-01T00:00:00Z"},"action":null}`))
+		_, _ = w.Write([]byte(`{"floating_ip":{"id":5,"name":"vip","description":"","labels":{},"type":"ipv6","ip":"2001:db8::5/128","location":{"id":1,"name":"lon1","description":"F"},"server":null,"status":"active","guest_config":null,"created":"2026-01-01T00:00:00Z"},"action":null}`))
 	})
-	res, err = c.FloatingIPs.Create(ctx, FloatingIPCreateOpts{Type: IPTypeIPv6, Location: "fsn1"})
+	res, err = c.FloatingIPs.Create(ctx, FloatingIPCreateOpts{Type: IPTypeIPv6, Location: "lon1"})
 	require.NoError(t, err)
 	assert.Nil(t, res.Action)
 	assert.Nil(t, res.FloatingIP.Server)
 	assert.Nil(t, res.FloatingIP.GuestConfig)
-	assert.JSONEq(t, `{"type":"ipv6","location":"fsn1"}`, bodyString(f))
+	assert.JSONEq(t, `{"type":"ipv6","location":"lon1"}`, bodyString(f))
 }
 
 func TestFloatingIPUpdateDelete(t *testing.T) {
