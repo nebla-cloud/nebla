@@ -24,6 +24,7 @@ import (
 
 	"github.com/nebla-cloud/nebla/internal/cli/apiclient"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
+	"github.com/nebla-cloud/nebla/internal/testutil"
 )
 
 const oldServerWarning = "This server was created before IP changes were supported."
@@ -33,6 +34,12 @@ func stopServer(t *testing.T, h *harness, id int64) {
 	if err := h.Env.App.Ent.Server.UpdateOneID(id).SetStatus(server.StatusOff).Exec(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// waitCreated waits for the create action the harness settles in the background; a server with a running action is locked.
+func waitCreated(t *testing.T, h *harness, s testutil.CreatedServer) {
+	t.Helper()
+	testutil.WaitAction(t, h.Env.App.Ent, s.ActionID)
 }
 
 // settleRelease finishes the release the queue-only harness never runs.
@@ -56,6 +63,7 @@ func primaryIPJSON(t *testing.T, h *harness, ref string) apiclient.PrimaryIp {
 func TestPrimaryIPCommands(t *testing.T) {
 	h := newFIPHarness(t)
 	srv := h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": false, "ipv6": false}})
+	waitCreated(t, h, srv)
 	stopServer(t, h, srv.ServerID)
 
 	out, errOut, code := h.run("primary-ip", "create", "--type", "ipv4", "--location", "eu-1", "--name", "keepme", "--keep", "--label", "env=prod")
@@ -134,6 +142,7 @@ func TestPrimaryIPCommands(t *testing.T) {
 func TestPrimaryIPWarningsStderrOnly(t *testing.T) {
 	h := newFIPHarness(t)
 	srv := h.Env.CreateServer("web", nil)
+	waitCreated(t, h, srv)
 	stopServer(t, h, srv.ServerID)
 	// Clearing net_refresh makes the server an old one.
 	if err := h.Env.App.Ent.Server.UpdateOneID(srv.ServerID).SetNetRefresh(false).Exec(t.Context()); err != nil {
@@ -172,6 +181,7 @@ func (r *recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestServerDeleteKeepIPs(t *testing.T) {
 	h := newFIPHarness(t)
 	srv := h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": true, "ipv6": true}})
+	waitCreated(t, h, srv)
 	rec := &recorder{next: http.DefaultTransport}
 	prev := http.DefaultClient.Transport
 	http.DefaultClient.Transport = rec
@@ -217,7 +227,8 @@ func TestServerDeleteKeepIPs(t *testing.T) {
 
 func TestServerDeleteKeepAllIPs(t *testing.T) {
 	h := newFIPHarness(t)
-	h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": true, "ipv6": true}})
+	srv := h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": true, "ipv6": true}})
+	waitCreated(t, h, srv)
 	if _, errOut, code := h.run("server", "delete", "web", "--keep-ips"); code != 0 {
 		t.Fatal(errOut)
 	}
@@ -266,7 +277,8 @@ func (f failDelete) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func TestServerDeleteListsSurvivorsAndNotesFailure(t *testing.T) {
 	h := newFIPHarness(t)
-	h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": true, "ipv6": true}})
+	srv := h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": true, "ipv6": true}})
+	waitCreated(t, h, srv)
 	// web-ipv6 is already stored as kept; only web-ipv4 is switched by the flag.
 	if _, errOut, code := h.run("primary-ip", "update", "web-ipv6", "--auto-delete=false"); code != 0 {
 		t.Fatal(errOut)
