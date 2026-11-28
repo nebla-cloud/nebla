@@ -286,6 +286,11 @@ func TestSmoke(t *testing.T) {
 	})
 	waitAction(t, app, c, created.Action.ID)
 	waitStatus(t, app, c, sid, "running")
+	// The guest is still booting and ignores ACPI, so this reboot falls back to a reset.
+	var a actionBody
+	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/reboot", sid), nil, http.StatusCreated, &a)
+	waitAction(t, app, c, a.Action.ID)
+	waitStatus(t, app, c, sid, "running")
 	vms := taggedVMs(t, pc, sid)
 	require.Len(t, vms, 1)
 	fw, err := pc.FirewallOptions(context.Background(), vms[0].Node, vms[0].VMID)
@@ -311,7 +316,6 @@ func TestSmoke(t *testing.T) {
 	require.Contains(t, mets.Metrics.TimeSeries, "memory.used")
 	require.Contains(t, mets.Metrics.TimeSeries, "memory.total")
 
-	var a actionBody
 	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/poweroff", sid), nil, http.StatusCreated, &a)
 	waitAction(t, app, c, a.Action.ID)
 	waitStatus(t, app, c, sid, "off")

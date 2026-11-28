@@ -121,7 +121,7 @@ type Server struct {
 	DenyDatastoreAllocate bool
 	// FailVzdump and FailRestore make the next backup or restore tasks end with an error.
 	FailVzdump, FailRestore bool
-	// HangShutdown makes a shutdown task on that VMID finish OK without stopping the VM.
+	// HangShutdown makes that VMID ignore ACPI: a shutdown without timeout finishes OK leaving it running, others time out.
 	HangShutdown map[int]bool
 	// FailImport fails the next create task importing a disk into that VMID, once.
 	FailImport map[int]error
@@ -166,7 +166,7 @@ type Server struct {
 	onRuleAdd    func(*pve.FirewallRule)
 	needDigest   bool
 	conflictDel  bool
-	// shutdownTimeout is the timeout sent with each VMID's last shutdown.
+	// shutdownTimeout is the timeout sent with each VMID's last shutdown or reboot.
 	shutdownTimeout map[int]string
 }
 
@@ -594,7 +594,7 @@ func (s *Server) Uploads() []string {
 	return slices.Clone(s.uploads)
 }
 
-// ShutdownTimeout is the timeout parameter of the last shutdown sent to vmid, "" when none was.
+// ShutdownTimeout is the timeout parameter of the last shutdown or reboot sent to vmid, "" when none was.
 func (s *Server) ShutdownTimeout(vmid int) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1745,7 +1745,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 				return nil, e
 			}
 			timeout := ""
-			if op == "shutdown" {
+			if op == "shutdown" || op == "reboot" {
 				timeout = form(r)["timeout"]
 				if s.shutdownTimeout == nil {
 					s.shutdownTimeout = map[int]string{}
@@ -1759,6 +1759,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 				case op != "start" && v.status != "running":
 					return fmt.Sprintf("ERROR: VM %d not running", id)
 				case op == "shutdown" && s.HangShutdown[id] && timeout != "":
+					return "ERROR: VM quit/powerdown failed - got timeout"
+				case op == "reboot" && s.HangShutdown[id]:
 					return "ERROR: VM quit/powerdown failed - got timeout"
 				case op == "shutdown" && s.HangShutdown[id]:
 				case op == "stop" || op == "shutdown":

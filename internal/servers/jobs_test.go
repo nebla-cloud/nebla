@@ -216,6 +216,24 @@ func TestPowerShutdownTimeout(t *testing.T) {
 	require.Equal(t, servers.StatusRunning, status(t, e, s.ServerID), "status follows Proxmox")
 }
 
+func TestRebootResetsGuestIgnoringACPI(t *testing.T) {
+	ctx := context.Background()
+	e, cw := directEnv(t)
+	s := builtServer(t, e, cw, "web")
+	vmid := vmidOf(t, e, s.ServerID)
+	w := servers.NewPowerServerWorker(opts(e))
+	e.App.PVE.HangShutdown = map[int]bool{vmid: true}
+	resets := countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/reset", vmid))
+	id := startAction(t, e, s.ServerID, "reboot", nil)
+	require.NoError(t, w.Work(ctx, jobOf(queuedArgs[servers.PowerServerArgs](t, e, id), 1)))
+	a, err := actions.Get(ctx, e.App.Ent, e.Project, id)
+	require.NoError(t, err)
+	require.Equal(t, actions.StatusSuccess, a.Status)
+	require.Equal(t, "60", e.App.PVE.ShutdownTimeout(vmid))
+	require.Equal(t, resets+1, countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/reset", vmid)))
+	require.Equal(t, servers.StatusRunning, status(t, e, s.ServerID))
+}
+
 func TestSecondActionLocked(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)

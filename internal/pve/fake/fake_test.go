@@ -738,3 +738,28 @@ func TestFakeSharedStorageAcrossNodes(t *testing.T) {
 		t.Fatalf("import on the other node: %v", err)
 	}
 }
+
+func TestFakeRebootTimeout(t *testing.T) {
+	ctx := context.Background()
+	s, c, _ := importEnv(t)
+	s.SetVMStatus(101, "running")
+	s.HangShutdown = map[int]bool{101: true}
+	up, err := c.Reboot(ctx, "pve1", 101, 30*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.ShutdownTimeout(101); got != "30" {
+		t.Fatalf("timeout = %q, want 30", got)
+	}
+	if err := c.WaitTask(ctx, "pve1", up); err == nil || !strings.Contains(err.Error(), "got timeout") {
+		t.Fatalf("err = %v", err)
+	}
+	if v, _ := s.VM(101); v.Status != "running" {
+		t.Fatalf("status = %q, want running", v.Status)
+	}
+	s.HangShutdown = nil
+	up, _ = c.Reboot(ctx, "pve1", 101, time.Minute)
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+}

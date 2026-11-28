@@ -870,8 +870,14 @@ func (c *httpClient) Power(ctx context.Context, node string, vmid int, op PowerO
 }
 
 func (c *httpClient) Shutdown(ctx context.Context, node string, vmid int, timeout time.Duration) (UPID, error) {
-	secs := max(1, int((timeout+time.Second-1)/time.Second))
-	return c.task(ctx, http.MethodPost, vmPath(node, vmid)+"/status/shutdown", url.Values{"timeout": {strconv.Itoa(secs)}})
+	return c.task(ctx, http.MethodPost, vmPath(node, vmid)+"/status/shutdown", url.Values{"timeout": {strconv.Itoa(timeoutSecs(timeout))}})
+}
+
+// timeoutSecs rounds timeout up to whole seconds, at least 1.
+func timeoutSecs(timeout time.Duration) int { return max(1, int((timeout+time.Second-1)/time.Second)) }
+
+func (c *httpClient) Reboot(ctx context.Context, node string, vmid int, timeout time.Duration) (UPID, error) {
+	return c.task(ctx, http.MethodPost, vmPath(node, vmid)+"/status/reboot", url.Values{"timeout": {strconv.Itoa(timeoutSecs(timeout))}})
 }
 
 func (c *httpClient) Destroy(ctx context.Context, node string, vmid int) (UPID, error) {

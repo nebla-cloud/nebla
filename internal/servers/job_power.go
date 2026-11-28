@@ -22,6 +22,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
@@ -36,6 +37,8 @@ const (
 	KindPowerServer = "power_server"
 	powerWait       = 2 * time.Minute
 	powerTimeout    = 5 * time.Minute
+	// rebootTimeout is how long a guest gets to honor ACPI before a reboot falls back to reset.
+	rebootTimeout = time.Minute
 )
 
 // PowerServerArgs is the power_server job; From is the status when it was requested.
@@ -163,9 +166,26 @@ func (w *PowerServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Ser
 	})
 }
 
-// power runs op and waits for its task, at most PowerWait.
+// power runs op and waits for its task, at most PowerWait; a reboot the guest ignores becomes a reset.
 func (w *PowerServerWorker) power(ctx context.Context, pc pve.Client, node string, vmid int, op pve.PowerOp) error {
-	up, err := pc.Power(ctx, node, vmid, op)
+	err := w.task(ctx, pc, node, vmid, op)
+	var te *pve.TaskError
+	if op != pve.PowerReboot || !errors.As(err, &te) || !strings.Contains(te.ExitStatus, "got timeout") {
+		return err
+	}
+	w.o.Logger.Info("guest ignored the reboot request; resetting the vm", "vmid", vmid)
+	return w.task(ctx, pc, node, vmid, pve.PowerReset)
+}
+
+// task sends op and waits for its task, at most PowerWait.
+func (w *PowerServerWorker) task(ctx context.Context, pc pve.Client, node string, vmid int, op pve.PowerOp) error {
+	var up pve.UPID
+	var err error
+	if op == pve.PowerReboot {
+		up, err = pc.Reboot(ctx, node, vmid, rebootTimeout)
+	} else {
+		up, err = pc.Power(ctx, node, vmid, op)
+	}
 	if err != nil {
 		return err
 	}
