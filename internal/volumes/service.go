@@ -41,6 +41,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/jobs"
 	"github.com/nebla-cloud/nebla/internal/labels"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/volumes/vref"
 	"github.com/riverqueue/river"
@@ -142,6 +143,7 @@ type Volume struct {
 	ServerID            *int64
 	Status              string
 	LinuxDevice         string
+	DeleteProtected     bool
 	Created             time.Time
 }
 
@@ -151,14 +153,16 @@ type CreateInput struct {
 	// Location may be empty when Server is set.
 	Location string
 	// Server is a server id or name, "" for none.
-	Server string
-	Labels map[string]string
+	Server          string
+	Labels          map[string]string
+	DeleteProtected bool
 }
 
 // UpdateInput changes only the non-nil fields.
 type UpdateInput struct {
-	Name   *string
-	Labels *map[string]string
+	Name            *string
+	Labels          *map[string]string
+	DeleteProtected *bool
 }
 
 type ListFilter struct {
@@ -228,18 +232,35 @@ func ActionsOf(projectID, volumeID int64) predicate.Action {
 	})
 }
 
-// lockVolume locks the project's volume row in tx; another running action on it gives 409 locked.
-func lockVolume(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.Volume, error) {
+// lockVolumeRow locks the project's volume row in tx without the busy check.
+func lockVolumeRow(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.Volume, error) {
 	row, err := tx.Volume.Query().Where(volume.ID(id), volume.ProjectID(projectID)).ForUpdate().Only(ctx)
 	if err != nil {
 		return nil, notFound(err)
 	}
+	return row, nil
+}
+
+// volumeBusy gives 409 locked when a running action holds the volume.
+func volumeBusy(ctx context.Context, tx *ent.Client, projectID, id int64) error {
 	busy, err := tx.Action.Query().Where(ActionsOf(projectID, id), action.StatusEQ(action.StatusRunning)).Exist(ctx)
+	if err != nil {
+		return err
+	}
+	if busy {
+		return errLocked
+	}
+	return nil
+}
+
+// lockVolume locks the project's volume row in tx; another running action on it gives 409 locked.
+func lockVolume(ctx context.Context, tx *ent.Client, projectID, id int64) (*ent.Volume, error) {
+	row, err := lockVolumeRow(ctx, tx, projectID, id)
 	if err != nil {
 		return nil, err
 	}
-	if busy {
-		return nil, errLocked
+	if err := volumeBusy(ctx, tx, projectID, id); err != nil {
+		return nil, err
 	}
 	return row, nil
 }
@@ -363,7 +384,8 @@ func (s *Service) Create(ctx context.Context, projectID int64, in CreateInput) (
 			res = append(res, actions.Resource{ID: row.ID, Type: servers.ResourceType})
 		}
 		row, err := etx.Volume.Create().SetProjectID(projectID).SetLocationID(locationID).SetName(in.Name).SetLabels(labels).
-			SetSizeGB(in.SizeGB).SetNode(c.Node).SetStorage(c.Storage).SetStatus(volume.StatusCreating).Save(ctx)
+			SetSizeGB(in.SizeGB).SetNode(c.Node).SetStorage(c.Storage).SetStatus(volume.StatusCreating).
+			SetDeleteProtected(in.DeleteProtected).Save(ctx)
 		if err != nil {
 			return writeErr(err)
 		}
@@ -532,7 +554,17 @@ func (s *Service) Resize(ctx context.Context, projectID, id int64, sizeGB int) (
 
 // Delete marks a detached volume deleting and queues delete_volume.
 func (s *Service) Delete(ctx context.Context, projectID, id int64) (actions.Action, error) {
-	return s.queue(ctx, projectID, id, nil, KindDeleteVolume, nil,
+	protected := func(etx *ent.Client) error {
+		row, err := lockVolumeRow(ctx, etx, projectID, id)
+		if err != nil {
+			return err
+		}
+		if row.DeleteProtected {
+			return protection.ErrDelete
+		}
+		return nil
+	}
+	return s.queue(ctx, projectID, id, nil, KindDeleteVolume, protected,
 		func(etx *ent.Client, vol *ent.Volume, _ *ent.Server) (func(int64) river.JobArgs, error) {
 			if vol.Status == volume.StatusCreating || vol.Status == volume.StatusDeleting {
 				return nil, errLocked
@@ -629,7 +661,7 @@ func (s *Service) hydrate(ctx context.Context, rows []*ent.Volume) ([]Volume, er
 			labels = map[string]string{}
 		}
 		out[i] = Volume{ID: r.ID, Name: r.Name, Labels: labels, SizeGB: r.SizeGB, LocationID: r.LocationID, LocationName: loc.Name,
-			LocationDescription: loc.Description, ServerID: r.ServerID, Status: string(r.Status), LinuxDevice: vref.LinuxDevice(r.ID), Created: r.CreatedAt}
+			LocationDescription: loc.Description, ServerID: r.ServerID, Status: string(r.Status), LinuxDevice: vref.LinuxDevice(r.ID), DeleteProtected: r.DeleteProtected, Created: r.CreatedAt}
 	}
 	return out, nil
 }
@@ -651,10 +683,17 @@ func (s *Service) Update(ctx context.Context, projectID, id int64, in UpdateInpu
 		}
 	}
 	err := db.WithTx(ctx, s.o.SQL, func(_ *sql.Tx, etx *ent.Client) error {
-		if _, err := lockVolume(ctx, etx, projectID, id); err != nil {
+		lock := lockVolume
+		if in.Name == nil && in.Labels == nil && in.DeleteProtected != nil {
+			lock = lockVolumeRow
+		}
+		if _, err := lock(ctx, etx, projectID, id); err != nil {
 			return err
 		}
 		u := etx.Volume.UpdateOneID(id)
+		if in.DeleteProtected != nil {
+			u.SetDeleteProtected(*in.DeleteProtected)
+		}
 		if in.Name != nil {
 			u.SetName(*in.Name)
 		}
