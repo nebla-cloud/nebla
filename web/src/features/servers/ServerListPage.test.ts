@@ -205,6 +205,14 @@ describe('ServerListPage', () => {
     )
   })
 
+  it('the Memory, 1h column shows from 2xl up, not xl', async () => {
+    server.use(http.get('*/v1/servers', () => json(200, { servers: [makeServer()], meta })))
+    const { wrapper } = await mountList()
+    const cell = wrapper.find('li [data-col="memory"]')
+    expect(cell.classes()).toContain('2xl:block')
+    expect(cell.classes()).not.toContain('xl:block')
+  })
+
   it('filter is sent as label_selector and kept in URL', async () => {
     const seen: (string | null)[] = []
     server.use(
