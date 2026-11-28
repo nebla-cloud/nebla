@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/nebla-cloud/nebla/internal/actions"
+	"github.com/nebla-cloud/nebla/internal/backups"
 	"github.com/nebla-cloud/nebla/internal/db"
 	"github.com/nebla-cloud/nebla/internal/ent"
 	"github.com/nebla-cloud/nebla/internal/ent/ipaddress"
@@ -36,6 +37,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/snapshots"
+	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/riverqueue/river"
 )
 
@@ -46,6 +48,15 @@ func ServerWorkers(w *river.Workers, deps *httpapi.Deps, _ *fake.Server) {
 		Jobs: func() *jobs.Jobs { return deps.Jobs }})
 	snapshots.RegisterWorkers(w, snapshots.WorkerOptions{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Bus: deps.Bus,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), PollInterval: 20 * time.Millisecond})
+}
+
+// AllWorkers is a WorkerSetup that registers every resource job worker: servers, snapshots, volumes and backups.
+func AllWorkers(w *river.Workers, deps *httpapi.Deps, pv *fake.Server) {
+	ServerWorkers(w, deps, pv)
+	volumes.RegisterWorkers(w, volumes.WorkerOptions{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Bus: deps.Bus,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	backups.RegisterWorkers(w, backups.WorkerOptions{SQL: deps.SQL, Ent: deps.Ent, Catalog: deps.Catalog, Bus: deps.Bus,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Jobs: func() *jobs.Jobs { return deps.Jobs }})
 }
 
 // QueueOnlyJobs is a NewApp option whose job runtime inserts jobs but never works them.

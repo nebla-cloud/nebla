@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,4 +49,11 @@ func TestNonAPIErrorBody(t *testing.T) {
 func TestIsCodeNonAPIError(t *testing.T) {
 	assert.False(t, IsCode(errors.New("x"), CodeNotFound))
 	assert.False(t, IsCode(nil, CodeNotFound))
+}
+
+func TestKnownCodesMatchConstants(t *testing.T) {
+	src, err := os.ReadFile("errors.go")
+	require.NoError(t, err)
+	n := len(regexp.MustCompile(`(?m)^\tCode\w+\s+ErrorCode = `).FindAll(src, -1))
+	assert.Len(t, KnownCodes(), n)
 }

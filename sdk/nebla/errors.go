@@ -100,6 +100,8 @@ const (
 	CodeOrphaned                   ErrorCode = "orphaned"
 	CodeFirewallUnenforced         ErrorCode = "firewall_unenforced"
 	CodeFailed                     ErrorCode = "failed"
+	CodeRequestTooLarge            ErrorCode = "request_too_large"
+	CodeMethodNotAllowed           ErrorCode = "method_not_allowed"
 )
 
 // Sentinels for errors.Is matching on an error code.
@@ -191,7 +193,104 @@ var (
 	ErrOrphaned                   = &Error{Code: CodeOrphaned}
 	ErrFirewallUnenforced         = &Error{Code: CodeFirewallUnenforced}
 	ErrFailed                     = &Error{Code: CodeFailed}
+	ErrRequestTooLarge            = &Error{Code: CodeRequestTooLarge}
+	ErrMethodNotAllowed           = &Error{Code: CodeMethodNotAllowed}
 )
+
+// KnownCodes lists every ErrorCode constant.
+func KnownCodes() []ErrorCode {
+	return []ErrorCode{
+		CodeAlreadyMember,
+		CodeAlreadySetup,
+		CodeBackupBusy,
+		CodeBackupInProgress,
+		CodeBackupNotFound,
+		CodeBackupsDisabled,
+		CodeBackupsUnavailable,
+		CodeCatalogManaged,
+		CodeCatalogRetired,
+		CodeCatalogUnavailable,
+		CodeConflict,
+		CodeDiskShrinkNotAllowed,
+		CodeEmailTaken,
+		CodeEnrollmentExpired,
+		CodeEnrollmentInvalid,
+		CodeEnrollmentState,
+		CodeEnrollmentUsed,
+		CodeFingerprintMismatch,
+		CodeFloatingIPsAttached,
+		CodeForbidden,
+		CodeInternalError,
+		CodeInvalidCode,
+		CodeInvalidCredentials,
+		CodeInvalidInput,
+		CodeInvalidReport,
+		CodeInviteEmailMismatch,
+		CodeIPInUse,
+		CodeIPPoolExhausted,
+		CodeLastAdmin,
+		CodeLastOwner,
+		CodeLimitExceeded,
+		CodeLocationInUse,
+		CodeLocked,
+		CodeLoginRequired,
+		CodeNameTaken,
+		CodeNoPrivateNetworksAvailable,
+		CodeNotFound,
+		CodePasskeyExists,
+		CodePasskeyFailed,
+		CodePasskeyInvalid,
+		CodePasskeyLimit,
+		CodePoolInUse,
+		CodePoolOverlap,
+		CodeProjectNotEmpty,
+		CodePVEUnreachable,
+		CodeQuotaExceeded,
+		CodeRateLimitExceeded,
+		CodeRateLimited,
+		CodeResourceInUse,
+		CodeResourceUnavailable,
+		CodeSelfAdminAction,
+		CodeServerChanged,
+		CodeServerHasIP,
+		CodeServerMissing,
+		CodeServerNotReady,
+		CodeServerNotRunning,
+		CodeServerNotStopped,
+		CodeServiceUnavailable,
+		CodeSnapshotInUse,
+		CodeSnapshotNotReady,
+		CodeSnapshotServerMismatch,
+		CodeSnapshotTooLarge,
+		CodeSnapshotsUnavailable,
+		CodeSoleOwner,
+		CodeTemplateNotFound,
+		CodeTemplateNotShared,
+		CodeTOTPAlreadyEnabled,
+		CodeTOTPNotEnrolled,
+		CodeTOTPRequired,
+		CodeUnauthorized,
+		CodeUniquenessError,
+		CodeVolumeAttached,
+		CodeVolumeLimit,
+		CodeVolumeNotAttached,
+		CodeVolumeNotReady,
+		CodeVolumeServerMismatch,
+		CodeVolumeShrinkNotAllowed,
+		CodeVolumesUnavailable,
+		CodeUnreachable,
+		CodeTimedOut,
+		CodeShutdownTimeout,
+		CodeServerGone,
+		CodeReleasePending,
+		CodePowerOffRequired,
+		CodeOrphaned,
+		CodeFirewallUnenforced,
+		CodeFailed,
+		CodeRequestTooLarge,
+		CodeMethodNotAllowed,
+	}
+}
 
 // Error is an error response from the API.
 type Error struct {
