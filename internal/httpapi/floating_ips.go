@@ -32,7 +32,8 @@ func nullable(s string) *string {
 func apiFloatingIP(f floatingips.FloatingIP) apigen.FloatingIp {
 	out := apigen.FloatingIp{Id: f.ID, Name: f.Name, Description: f.Description, Labels: f.Labels, Type: apigen.FloatingIpType(f.Family),
 		Ip: f.IP, Location: apigen.LocationRef{Id: f.Location.ID, Name: f.Location.Name, Description: f.Location.Description},
-		Server: f.ServerID, Status: apigen.FloatingIpStatus(f.Status), Created: f.Created}
+		Server: f.ServerID, Status: apigen.FloatingIpStatus(f.Status), Created: f.Created,
+		Protection: apigen.Protection{Delete: f.DeleteProtected}}
 	if g := f.Guest; g != nil {
 		out.GuestConfig = &apigen.GuestConfig{Server: nullable(g.Server), Apply: nullable(g.Apply), Persist: nullable(g.Persist),
 			PreviousServer: nullable(g.PreviousServer), Remove: nullable(g.Remove)}
@@ -70,6 +71,9 @@ func (s *server) PostFloatingIps(ctx context.Context, req apigen.PostFloatingIps
 	if b.Labels != nil {
 		in.Labels = *b.Labels
 	}
+	if b.Protection != nil {
+		in.DeleteProtected = deref(b.Protection.Delete)
+	}
 	f, a, err := s.floatingIPs.Create(ctx, sc.ProjectID, in)
 	if err != nil {
 		return nil, err
@@ -103,6 +107,9 @@ func (s *server) PutFloatingIp(ctx context.Context, req apigen.PutFloatingIpRequ
 	if req.Body.Labels != nil {
 		l := map[string]string(*req.Body.Labels)
 		in.Labels = &l
+	}
+	if p := req.Body.Protection; p != nil {
+		in.DeleteProtected = p.Delete
 	}
 	f, err := s.floatingIPs.Update(ctx, sc.ProjectID, req.Id, in)
 	if err != nil {

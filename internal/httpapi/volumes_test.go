@@ -227,7 +227,7 @@ func TestVolumeJSONHasNoProxmoxFields(t *testing.T) {
 			keys = append(keys, k)
 		}
 		slices.Sort(keys)
-		require.Equal(t, []string{"created", "id", "labels", "linux_device", "location", "name", "server", "size", "status"}, keys)
+		require.Equal(t, []string{"created", "id", "labels", "linux_device", "location", "name", "protection", "server", "size", "status"}, keys)
 		for _, bad := range []string{"node", "storage", "device", "vmid"} {
 			require.NotContains(t, raw, bad)
 		}

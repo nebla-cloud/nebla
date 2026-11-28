@@ -45,7 +45,8 @@ func (m *snapshotMapper) apiSnapshot(ctx context.Context, v snapshots.Snapshot) 
 	out := apigen.Snapshot{Id: v.ID, Name: v.Name, Description: v.Description, Labels: v.Labels, Size: v.SizeGB,
 		Location: ref,
 		Server:   v.ServerID, ServerName: v.ServerName, OsFlavor: v.OSFlavor, OsVersion: v.OSVersion,
-		Status: apigen.SnapshotStatus(v.Status), RestoreKeepsIdentity: v.RestoreKeepsIdentity, Created: v.CreatedAt}
+		Status: apigen.SnapshotStatus(v.Status), RestoreKeepsIdentity: v.RestoreKeepsIdentity, Created: v.CreatedAt,
+		Protection: apigen.Protection{Delete: v.DeleteProtected}}
 	if out.Labels == nil {
 		out.Labels = map[string]string{}
 	}
@@ -91,6 +92,9 @@ func (s *server) PostSnapshots(ctx context.Context, req apigen.PostSnapshotsRequ
 	if b.Labels != nil {
 		in.Labels = *b.Labels
 	}
+	if b.Protection != nil {
+		in.DeleteProtected = deref(b.Protection.Delete)
+	}
 	v, a, err := s.snapshots.Create(ctx, sc.ProjectID, in)
 	if err != nil {
 		return nil, err
@@ -124,6 +128,9 @@ func (s *server) PutSnapshot(ctx context.Context, req apigen.PutSnapshotRequestO
 	if req.Body.Labels != nil {
 		l := map[string]string(*req.Body.Labels)
 		in.Labels = &l
+	}
+	if p := req.Body.Protection; p != nil {
+		in.DeleteProtected = p.Delete
 	}
 	v, err := s.snapshots.Update(ctx, sc.ProjectID, req.Id, in)
 	if err != nil {

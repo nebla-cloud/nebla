@@ -964,9 +964,10 @@ type FloatingIp struct {
 	Ip string `json:"ip"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels   Labels      `json:"labels"`
-	Location LocationRef `json:"location"`
-	Name     string      `json:"name"`
+	Labels     Labels      `json:"labels"`
+	Location   LocationRef `json:"location"`
+	Name       string      `json:"name"`
+	Protection Protection  `json:"protection"`
 
 	// Server The assigned server's id
 	Server *int64           `json:"server"`
@@ -999,6 +1000,9 @@ type FloatingIpInput struct {
 	// Name Generated from the address when omitted
 	Name *string `json:"name,omitempty"`
 
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
+
 	// Server Server id or name to assign to after creating; set exactly one of location and server
 	Server *string             `json:"server,omitempty"`
 	Type   FloatingIpInputType `json:"type"`
@@ -1014,6 +1018,9 @@ type FloatingIpUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // GuestConfig Commands to run inside the servers so they use the address; new and rebuilt servers set this up automatically
@@ -1417,10 +1424,11 @@ type PrimaryIp struct {
 	Ip string `json:"ip"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels   Labels      `json:"labels"`
-	Location LocationRef `json:"location"`
-	Name     string      `json:"name"`
-	Server   *struct {
+	Labels     Labels      `json:"labels"`
+	Location   LocationRef `json:"location"`
+	Name       string      `json:"name"`
+	Protection Protection  `json:"protection"`
+	Server     *struct {
 		Id   int64  `json:"id"`
 		Name string `json:"name"`
 	} `json:"server"`
@@ -1452,8 +1460,11 @@ type PrimaryIpInput struct {
 	Location string `json:"location"`
 
 	// Name Generated when omitted
-	Name *string            `json:"name,omitempty"`
-	Type PrimaryIpInputType `json:"type"`
+	Name *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput   `json:"protection,omitempty"`
+	Type       PrimaryIpInputType `json:"type"`
 }
 
 // PrimaryIpInputType defines model for PrimaryIpInput.Type.
@@ -1467,6 +1478,9 @@ type PrimaryIpUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // PrivateNetworkPool Read-only: the location's private network pool
@@ -1522,6 +1536,17 @@ type ProjectUsage struct {
 	Vcpu            int `json:"vcpu"`
 	VolumeGb        int `json:"volume_gb"`
 	Volumes         int `json:"volumes"`
+}
+
+// Protection defines model for Protection.
+type Protection struct {
+	// Delete Refuse deletes while true
+	Delete bool `json:"delete"`
+}
+
+// ProtectionInput A missing field keeps its current value; false on create
+type ProtectionInput struct {
+	Delete *bool `json:"delete,omitempty"`
 }
 
 // PveConnection defines model for PveConnection.
@@ -1627,7 +1652,8 @@ type Server struct {
 		Name        string              `json:"name"`
 		Network     int64               `json:"network"`
 	} `json:"private_net"`
-	PublicNet struct {
+	Protection ServerProtection `json:"protection"`
+	PublicNet  struct {
 		// FloatingIps Floating IPs assigned to the server
 		FloatingIps []struct {
 			Id int64  `json:"id"`
@@ -1700,7 +1726,10 @@ type ServerInput struct {
 		// Network Network id or name
 		Network string `json:"network"`
 	} `json:"networks,omitempty"`
-	PublicNet *struct {
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ServerProtectionInput `json:"protection,omitempty"`
+	PublicNet  *struct {
 		// Ipv4 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
 		Ipv4 *ServerInput_PublicNet_Ipv4 `json:"ipv4,omitempty"`
 
@@ -1751,6 +1780,21 @@ type ServerIp struct {
 	Ip string `json:"ip"`
 }
 
+// ServerProtection defines model for ServerProtection.
+type ServerProtection struct {
+	// Delete Refuse deletes while true
+	Delete bool `json:"delete"`
+
+	// Rebuild Refuse rebuilds and backup restores while true
+	Rebuild bool `json:"rebuild"`
+}
+
+// ServerProtectionInput A missing field keeps its current value; false on create
+type ServerProtectionInput struct {
+	Delete  *bool `json:"delete,omitempty"`
+	Rebuild *bool `json:"rebuild,omitempty"`
+}
+
 // ServerType defines model for ServerType.
 type ServerType struct {
 	Cores       int     `json:"cores"`
@@ -1789,6 +1833,9 @@ type ServerUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ServerProtectionInput `json:"protection,omitempty"`
 }
 
 // Snapshot defines model for Snapshot.
@@ -1804,11 +1851,12 @@ type Snapshot struct {
 	} `json:"image"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels    Labels      `json:"labels"`
-	Location  LocationRef `json:"location"`
-	Name      string      `json:"name"`
-	OsFlavor  string      `json:"os_flavor"`
-	OsVersion string      `json:"os_version"`
+	Labels     Labels      `json:"labels"`
+	Location   LocationRef `json:"location"`
+	Name       string      `json:"name"`
+	OsFlavor   string      `json:"os_flavor"`
+	OsVersion  string      `json:"os_version"`
+	Protection Protection  `json:"protection"`
 
 	// RestoreKeepsIdentity Whether restoring keeps the server's identity; null when the source server is gone, false when its network has changed since
 	RestoreKeepsIdentity *bool `json:"restore_keeps_identity"`
@@ -1840,6 +1888,9 @@ type SnapshotInput struct {
 	// Name Defaults to <server>-<YYYYMMDD-HHMM> in UTC
 	Name *string `json:"name,omitempty"`
 
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
+
 	// Server Server id or name
 	Server string `json:"server"`
 }
@@ -1851,6 +1902,9 @@ type SnapshotUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // SshKey defines model for SshKey.
@@ -1921,6 +1975,7 @@ type Volume struct {
 	LinuxDevice string      `json:"linux_device"`
 	Location    LocationRef `json:"location"`
 	Name        string      `json:"name"`
+	Protection  Protection  `json:"protection"`
 
 	// Server The attached server's id
 	Server *int64 `json:"server"`
@@ -1948,6 +2003,9 @@ type VolumeInput struct {
 	Location *string `json:"location,omitempty"`
 	Name     string  `json:"name"`
 
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
+
 	// Server Server id or name to attach to after creating
 	Server *string `json:"server,omitempty"`
 
@@ -1966,6 +2024,9 @@ type VolumeUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // CatalogKey defines model for CatalogKey.
@@ -3428,6 +3489,8 @@ type ClientInterface interface {
 
 	// DeleteFloatingIp Delete a floating IP, unassigning it first if needed
 	//
+	// Errors: protected (409, delete protection is on).
+	//
 	// Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
 	DeleteFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3676,6 +3739,8 @@ type ClientInterface interface {
 
 	// DeletePrimaryIp Delete an unassigned primary IP
 	//
+	// Errors: protected (409, delete protection is on).
+	//
 	// Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
 	DeletePrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3873,6 +3938,8 @@ type ClientInterface interface {
 
 	// DeleteServer Delete a server
 	//
+	// Errors: protected (409, delete protection is on).
+	//
 	// Corresponds with DELETE /servers/{id} (the `DeleteServer` operationId).
 	DeleteServer(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3959,12 +4026,16 @@ type ClientInterface interface {
 
 	// RebuildServerWithBody Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	//
+	// Errors: protected (409, rebuild protection is on).
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /servers/{id}/actions/rebuild (the `RebuildServer` operationId).
 	RebuildServerWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RebuildServer Reinstall a server from an image or snapshot, keeping its IPs and MAC
+	//
+	// Errors: protected (409, rebuild protection is on).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3985,12 +4056,16 @@ type ClientInterface interface {
 
 	// RestoreServerBackupWithBody Restore a server in place from one of its backups
 	//
+	// Errors: protected (409, rebuild protection is on).
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
 	RestoreServerBackupWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RestoreServerBackup Restore a server in place from one of its backups
+	//
+	// Errors: protected (409, rebuild protection is on).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -4082,7 +4157,7 @@ type ClientInterface interface {
 
 	// DeleteSnapshot Delete a snapshot
 	//
-	// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+	// Errors: snapshot_in_use (409, a server is being built from it), locked (409) and protected (409, delete protection is on).
 	//
 	// Corresponds with DELETE /snapshots/{id} (the `DeleteSnapshot` operationId).
 	DeleteSnapshot(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4179,6 +4254,8 @@ type ClientInterface interface {
 	PostVolumes(ctx context.Context, body PostVolumesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteVolume Delete a detached volume
+	//
+	// Errors: protected (409, delete protection is on).
 	//
 	// Corresponds with DELETE /volumes/{id} (the `DeleteVolume` operationId).
 	DeleteVolume(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5865,6 +5942,8 @@ func (c *Client) PostFloatingIps(ctx context.Context, body PostFloatingIpsJSONRe
 
 // DeleteFloatingIp Delete a floating IP, unassigning it first if needed
 //
+// Errors: protected (409, delete protection is on).
+//
 // Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
 func (c *Client) DeleteFloatingIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteFloatingIpRequest(c.Server, id)
@@ -6513,6 +6592,8 @@ func (c *Client) PostPrimaryIps(ctx context.Context, body PostPrimaryIpsJSONRequ
 
 // DeletePrimaryIp Delete an unassigned primary IP
 //
+// Errors: protected (409, delete protection is on).
+//
 // Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
 func (c *Client) DeletePrimaryIp(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeletePrimaryIpRequest(c.Server, id)
@@ -7040,6 +7121,8 @@ func (c *Client) PostServers(ctx context.Context, body PostServersJSONRequestBod
 
 // DeleteServer Delete a server
 //
+// Errors: protected (409, delete protection is on).
+//
 // Corresponds with DELETE /servers/{id} (the `DeleteServer` operationId).
 func (c *Client) DeleteServer(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteServerRequest(c.Server, id)
@@ -7266,6 +7349,8 @@ func (c *Client) RebootServer(ctx context.Context, id ID, reqEditors ...RequestE
 
 // RebuildServerWithBody Reinstall a server from an image or snapshot, keeping its IPs and MAC
 //
+// Errors: protected (409, rebuild protection is on).
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /servers/{id}/actions/rebuild (the `RebuildServer` operationId).
@@ -7282,6 +7367,8 @@ func (c *Client) RebuildServerWithBody(ctx context.Context, id ID, contentType s
 }
 
 // RebuildServer Reinstall a server from an image or snapshot, keeping its IPs and MAC
+//
+// Errors: protected (409, rebuild protection is on).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -7332,6 +7419,8 @@ func (c *Client) ResetServer(ctx context.Context, id ID, reqEditors ...RequestEd
 
 // RestoreServerBackupWithBody Restore a server in place from one of its backups
 //
+// Errors: protected (409, rebuild protection is on).
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
@@ -7348,6 +7437,8 @@ func (c *Client) RestoreServerBackupWithBody(ctx context.Context, id ID, content
 }
 
 // RestoreServerBackup Restore a server in place from one of its backups
+//
+// Errors: protected (409, rebuild protection is on).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -7579,7 +7670,7 @@ func (c *Client) PostSnapshots(ctx context.Context, body PostSnapshotsJSONReques
 
 // DeleteSnapshot Delete a snapshot
 //
-// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+// Errors: snapshot_in_use (409, a server is being built from it), locked (409) and protected (409, delete protection is on).
 //
 // Corresponds with DELETE /snapshots/{id} (the `DeleteSnapshot` operationId).
 func (c *Client) DeleteSnapshot(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7836,6 +7927,8 @@ func (c *Client) PostVolumes(ctx context.Context, body PostVolumesJSONRequestBod
 }
 
 // DeleteVolume Delete a detached volume
+//
+// Errors: protected (409, delete protection is on).
 //
 // Corresponds with DELETE /volumes/{id} (the `DeleteVolume` operationId).
 func (c *Client) DeleteVolume(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -16652,6 +16745,8 @@ type ClientWithResponsesInterface interface {
 
 	// DeleteFloatingIpWithResponse Delete a floating IP, unassigning it first if needed
 	//
+	// Errors: protected (409, delete protection is on).
+	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
@@ -16936,6 +17031,8 @@ type ClientWithResponsesInterface interface {
 
 	// DeletePrimaryIpWithResponse Delete an unassigned primary IP
 	//
+	// Errors: protected (409, delete protection is on).
+	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
@@ -17167,6 +17264,8 @@ type ClientWithResponsesInterface interface {
 
 	// DeleteServerWithResponse Delete a server
 	//
+	// Errors: protected (409, delete protection is on).
+	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with DELETE /servers/{id} (the `DeleteServer` operationId).
@@ -17265,12 +17364,16 @@ type ClientWithResponsesInterface interface {
 
 	// RebuildServerWithBodyWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
 	//
+	// Errors: protected (409, rebuild protection is on).
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /servers/{id}/actions/rebuild (the `RebuildServer` operationId).
 	RebuildServerWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RebuildServerResponse, error)
 
 	// RebuildServerWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
+	//
+	// Errors: protected (409, rebuild protection is on).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -17295,12 +17398,16 @@ type ClientWithResponsesInterface interface {
 
 	// RestoreServerBackupWithBodyWithResponse Restore a server in place from one of its backups
 	//
+	// Errors: protected (409, rebuild protection is on).
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
 	RestoreServerBackupWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RestoreServerBackupResponse, error)
 
 	// RestoreServerBackupWithResponse Restore a server in place from one of its backups
+	//
+	// Errors: protected (409, rebuild protection is on).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -17406,7 +17513,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeleteSnapshotWithResponse Delete a snapshot
 	//
-	// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+	// Errors: snapshot_in_use (409, a server is being built from it), locked (409) and protected (409, delete protection is on).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -17519,6 +17626,8 @@ type ClientWithResponsesInterface interface {
 	PostVolumesWithResponse(ctx context.Context, body PostVolumesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostVolumesResponse, error)
 
 	// DeleteVolumeWithResponse Delete a detached volume
+	//
+	// Errors: protected (409, delete protection is on).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -31428,6 +31537,8 @@ func (c *ClientWithResponses) PostFloatingIpsWithResponse(ctx context.Context, b
 
 // DeleteFloatingIpWithResponse Delete a floating IP, unassigning it first if needed
 //
+// Errors: protected (409, delete protection is on).
+//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with DELETE /floating_ips/{id} (the `DeleteFloatingIp` operationId).
@@ -31952,6 +32063,8 @@ func (c *ClientWithResponses) PostPrimaryIpsWithResponse(ctx context.Context, bo
 
 // DeletePrimaryIpWithResponse Delete an unassigned primary IP
 //
+// Errors: protected (409, delete protection is on).
+//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with DELETE /primary_ips/{id} (the `DeletePrimaryIp` operationId).
@@ -32381,6 +32494,8 @@ func (c *ClientWithResponses) PostServersWithResponse(ctx context.Context, body 
 
 // DeleteServerWithResponse Delete a server
 //
+// Errors: protected (409, delete protection is on).
+//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with DELETE /servers/{id} (the `DeleteServer` operationId).
@@ -32563,6 +32678,8 @@ func (c *ClientWithResponses) RebootServerWithResponse(ctx context.Context, id I
 
 // RebuildServerWithBodyWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
 //
+// Errors: protected (409, rebuild protection is on).
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /servers/{id}/actions/rebuild (the `RebuildServer` operationId).
@@ -32575,6 +32692,8 @@ func (c *ClientWithResponses) RebuildServerWithBodyWithResponse(ctx context.Cont
 }
 
 // RebuildServerWithResponse Reinstall a server from an image or snapshot, keeping its IPs and MAC
+//
+// Errors: protected (409, rebuild protection is on).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -32617,6 +32736,8 @@ func (c *ClientWithResponses) ResetServerWithResponse(ctx context.Context, id ID
 
 // RestoreServerBackupWithBodyWithResponse Restore a server in place from one of its backups
 //
+// Errors: protected (409, rebuild protection is on).
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /servers/{id}/actions/restore_backup (the `RestoreServerBackup` operationId).
@@ -32629,6 +32750,8 @@ func (c *ClientWithResponses) RestoreServerBackupWithBodyWithResponse(ctx contex
 }
 
 // RestoreServerBackupWithResponse Restore a server in place from one of its backups
+//
+// Errors: protected (409, rebuild protection is on).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -32818,7 +32941,7 @@ func (c *ClientWithResponses) PostSnapshotsWithResponse(ctx context.Context, bod
 
 // DeleteSnapshotWithResponse Delete a snapshot
 //
-// Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+// Errors: snapshot_in_use (409, a server is being built from it), locked (409) and protected (409, delete protection is on).
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -33027,6 +33150,8 @@ func (c *ClientWithResponses) PostVolumesWithResponse(ctx context.Context, body 
 }
 
 // DeleteVolumeWithResponse Delete a detached volume
+//
+// Errors: protected (409, delete protection is on).
 //
 // Returns a wrapper object for the known response body format(s).
 //

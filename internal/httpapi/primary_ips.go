@@ -26,7 +26,8 @@ import (
 func apiPrimaryIP(p primaryips.PrimaryIP) apigen.PrimaryIp {
 	out := apigen.PrimaryIp{Id: p.ID, Name: p.Name, Description: p.Description, Labels: p.Labels, Type: apigen.PrimaryIpType(p.Type),
 		Ip: p.IP, Location: apigen.LocationRef{Id: p.Location.ID, Name: p.Location.Name, Description: p.Location.Description},
-		AutoDelete: p.AutoDelete, Status: apigen.PrimaryIpStatus(p.Status), Created: p.Created}
+		AutoDelete: p.AutoDelete, Status: apigen.PrimaryIpStatus(p.Status), Created: p.Created,
+		Protection: apigen.Protection{Delete: p.DeleteProtected}}
 	if p.Server != nil {
 		out.Server = &struct {
 			Id   int64  `json:"id"`
@@ -68,6 +69,9 @@ func (s *server) PostPrimaryIps(ctx context.Context, req apigen.PostPrimaryIpsRe
 	if b.Labels != nil {
 		in.Labels = *b.Labels
 	}
+	if b.Protection != nil {
+		in.DeleteProtected = deref(b.Protection.Delete)
+	}
 	p, err := s.primaryIPs.Create(ctx, sc.ProjectID, in)
 	if err != nil {
 		return nil, err
@@ -96,6 +100,9 @@ func (s *server) PutPrimaryIp(ctx context.Context, req apigen.PutPrimaryIpReques
 	if req.Body.Labels != nil {
 		l := map[string]string(*req.Body.Labels)
 		in.Labels = &l
+	}
+	if p := req.Body.Protection; p != nil {
+		in.DeleteProtected = p.Delete
 	}
 	p, err := s.primaryIPs.Update(ctx, sc.ProjectID, req.Id, in)
 	if err != nil {

@@ -42,6 +42,7 @@ func apiServer(s servers.Server, vols []int64, fips []floatingips.Ref, pn []priv
 		Backups: apigen.ServerBackups{Enabled: s.Backups.Enabled, Keep: s.Backups.Keep, Count: s.Backups.Count,
 			LastBackupAt: s.Backups.LastBackupAt, NextBackupAt: s.Backups.NextBackupAt},
 		IpChangeRerunsCloudInit: s.IPChangeRerunsCloudInit,
+		Protection:              apigen.ServerProtection{Delete: s.DeleteProtected, Rebuild: s.RebuildProtected},
 		Firewalls:               make([]apigen.ServerFirewall, len(s.Firewalls))}
 	out.PublicNet.FloatingIps = make([]struct {
 		Id int64  `json:"id"`
@@ -166,6 +167,10 @@ func (s *server) PostServers(ctx context.Context, req apigen.PostServersRequestO
 	if b.Labels != nil {
 		in.Labels = *b.Labels
 	}
+	if b.Protection != nil {
+		in.DeleteProtected = deref(b.Protection.Delete)
+		in.RebuildProtected = deref(b.Protection.Rebuild)
+	}
 	if b.PublicNet != nil {
 		if b.PublicNet.Ipv4 != nil {
 			if in.IPv4, err = ipChoice(b.PublicNet.Ipv4.MarshalJSON); err != nil {
@@ -224,6 +229,9 @@ func (s *server) PutServer(ctx context.Context, req apigen.PutServerRequestObjec
 	if req.Body.Labels != nil {
 		l := map[string]string(*req.Body.Labels)
 		in.Labels = &l
+	}
+	if p := req.Body.Protection; p != nil {
+		in.DeleteProtected, in.RebuildProtected = p.Delete, p.Rebuild
 	}
 	srv, err := s.servers.Update(ctx, sc.ProjectID, req.Id, in)
 	if err != nil {

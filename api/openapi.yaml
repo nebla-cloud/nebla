@@ -2257,6 +2257,7 @@ paths:
       operationId: deleteServer
       x-nebla-scope: project
       summary: Delete a server
+      description: "Errors: protected (409, delete protection is on)."
       responses:
         "200":
           description: The delete_server action
@@ -2394,6 +2395,7 @@ paths:
       operationId: rebuildServer
       x-nebla-scope: project
       summary: Reinstall a server from an image or snapshot, keeping its IPs and MAC
+      description: "Errors: protected (409, rebuild protection is on)."
       requestBody:
         required: true
         content:
@@ -2415,6 +2417,7 @@ paths:
       operationId: restoreServerBackup
       x-nebla-scope: project
       summary: Restore a server in place from one of its backups
+      description: "Errors: protected (409, rebuild protection is on)."
       requestBody:
         required: true
         content:
@@ -2714,6 +2717,7 @@ paths:
       operationId: deleteVolume
       x-nebla-scope: project
       summary: Delete a detached volume
+      description: "Errors: protected (409, delete protection is on)."
       responses:
         "200":
           description: The delete_volume action
@@ -2943,7 +2947,7 @@ paths:
       operationId: deleteSnapshot
       x-nebla-scope: project
       summary: Delete a snapshot
-      description: "Errors: snapshot_in_use (409, a server is being built from it) and locked (409)."
+      description: "Errors: snapshot_in_use (409, a server is being built from it), locked (409) and protected (409, delete protection is on)."
       responses:
         "200":
           description: The delete_snapshot action
@@ -3111,6 +3115,7 @@ paths:
       operationId: deleteFloatingIp
       x-nebla-scope: project
       summary: Delete a floating IP, unassigning it first if needed
+      description: "Errors: protected (409, delete protection is on)."
       responses:
         "200":
           description: The delete_floating_ip action
@@ -3505,6 +3510,7 @@ paths:
       operationId: deletePrimaryIp
       x-nebla-scope: project
       summary: Delete an unassigned primary IP
+      description: "Errors: protected (409, delete protection is on)."
       responses:
         "204": { description: No content }
         "401": { $ref: "#/components/responses/Error" }
@@ -4557,10 +4563,33 @@ components:
       required: [backup]
       properties:
         backup: { type: integer, format: int64 }
+    Protection:
+      type: object
+      required: [delete]
+      properties:
+        delete: { type: boolean, description: Refuse deletes while true }
+    ServerProtection:
+      type: object
+      required: [delete, rebuild]
+      properties:
+        delete: { type: boolean, description: Refuse deletes while true }
+        rebuild: { type: boolean, description: Refuse rebuilds and backup restores while true }
+    ProtectionInput:
+      type: object
+      description: A missing field keeps its current value; false on create
+      properties:
+        delete: { type: boolean }
+    ServerProtectionInput:
+      type: object
+      description: A missing field keeps its current value; false on create
+      properties:
+        delete: { type: boolean }
+        rebuild: { type: boolean }
     ServerInput:
       type: object
       required: [name, server_type]
       properties:
+        protection: { $ref: "#/components/schemas/ServerProtectionInput" }
         name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" }
         server_type: { type: string, description: Server type id or name }
         image: { type: string, description: Image id or name; give this or snapshot }
@@ -4609,6 +4638,7 @@ components:
     ServerUpdate:
       type: object
       properties:
+        protection: { $ref: "#/components/schemas/ServerProtectionInput" }
         name: { type: string }
         labels: { $ref: "#/components/schemas/Labels" }
         backups: { $ref: "#/components/schemas/BackupSettings" }
@@ -4659,8 +4689,9 @@ components:
         ip: { type: string }
     Server:
       type: object
-      required: [id, name, status, location, server_type, image, snapshot, os_flavor, os_version, public_net, labels, disk_gb, firewalls, volumes, backups, private_net, created, ip_change_reruns_cloud_init]
+      required: [protection, id, name, status, location, server_type, image, snapshot, os_flavor, os_version, public_net, labels, disk_gb, firewalls, volumes, backups, private_net, created, ip_change_reruns_cloud_init]
       properties:
+        protection: { $ref: "#/components/schemas/ServerProtection" }
         id: { type: integer, format: int64 }
         name: { type: string }
         status:
@@ -4731,6 +4762,7 @@ components:
       type: object
       required: [name, size]
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" }
         size: { type: integer, minimum: 10, maximum: 10240, description: Size in GB }
         location: { type: string, description: "Location id or name; may be omitted when server is set" }
@@ -4739,6 +4771,7 @@ components:
     VolumeUpdate:
       type: object
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         name: { type: string }
         labels: { $ref: "#/components/schemas/Labels" }
     VolumeAttachInput:
@@ -4753,8 +4786,9 @@ components:
         size: { type: integer, description: New size in GB; volumes only grow }
     Volume:
       type: object
-      required: [id, name, labels, size, location, server, status, linux_device, created]
+      required: [protection, id, name, labels, size, location, server, status, linux_device, created]
       properties:
+        protection: { $ref: "#/components/schemas/Protection" }
         id: { type: integer, format: int64 }
         name: { type: string }
         labels: { $ref: "#/components/schemas/Labels" }
@@ -4822,6 +4856,7 @@ components:
       type: object
       required: [server]
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         server: { type: string, description: Server id or name }
         name: { type: string, description: "Defaults to <server>-<YYYYMMDD-HHMM> in UTC" }
         description: { type: string }
@@ -4830,13 +4865,15 @@ components:
     SnapshotUpdate:
       type: object
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         name: { type: string }
         description: { type: string }
         labels: { $ref: "#/components/schemas/Labels" }
     Snapshot:
       type: object
-      required: [id, name, description, labels, size, location, server, server_name, image, os_flavor, os_version, status, restore_keeps_identity, created]
+      required: [protection, id, name, description, labels, size, location, server, server_name, image, os_flavor, os_version, status, restore_keeps_identity, created]
       properties:
+        protection: { $ref: "#/components/schemas/Protection" }
         id: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
@@ -4867,6 +4904,7 @@ components:
       type: object
       required: [type]
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", description: Generated from the address when omitted }
         description: { type: string, maxLength: 255 }
         labels: { $ref: "#/components/schemas/Labels" }
@@ -4876,6 +4914,7 @@ components:
     FloatingIpUpdate:
       type: object
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         name: { type: string }
         description: { type: string, maxLength: 255 }
         labels: { $ref: "#/components/schemas/Labels" }
@@ -4886,8 +4925,9 @@ components:
         server: { type: string, description: Server id or name }
     PrimaryIp:
       type: object
-      required: [id, name, description, labels, type, ip, location, server, auto_delete, status, created]
+      required: [protection, id, name, description, labels, type, ip, location, server, auto_delete, status, created]
       properties:
+        protection: { $ref: "#/components/schemas/Protection" }
         id: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }
@@ -4911,6 +4951,7 @@ components:
       type: object
       required: [type, location]
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         name: { type: string, pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", description: Generated when omitted }
         description: { type: string, maxLength: 255 }
         labels: { $ref: "#/components/schemas/Labels" }
@@ -4920,6 +4961,7 @@ components:
     PrimaryIpUpdate:
       type: object
       properties:
+        protection: { $ref: "#/components/schemas/ProtectionInput" }
         name: { type: string }
         description: { type: string, maxLength: 255 }
         labels: { $ref: "#/components/schemas/Labels" }
@@ -4941,8 +4983,9 @@ components:
         remove: { type: string, nullable: true, description: Commands that stop the previous server using the address }
     FloatingIp:
       type: object
-      required: [id, name, description, labels, type, ip, location, server, status, guest_config, created]
+      required: [protection, id, name, description, labels, type, ip, location, server, status, guest_config, created]
       properties:
+        protection: { $ref: "#/components/schemas/Protection" }
         id: { type: integer, format: int64 }
         name: { type: string }
         description: { type: string }

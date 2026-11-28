@@ -25,7 +25,8 @@ import (
 func apiVolume(v volumes.Volume) apigen.Volume {
 	return apigen.Volume{Id: v.ID, Name: v.Name, Labels: v.Labels, Size: v.SizeGB, Server: v.ServerID,
 		Location: apigen.LocationRef{Id: v.LocationID, Name: v.LocationName, Description: v.LocationDescription},
-		Status:   apigen.VolumeStatus(v.Status), LinuxDevice: v.LinuxDevice, Created: v.Created}
+		Status:   apigen.VolumeStatus(v.Status), LinuxDevice: v.LinuxDevice, Created: v.Created,
+		Protection: apigen.Protection{Delete: v.DeleteProtected}}
 }
 
 func (s *server) GetVolumes(ctx context.Context, req apigen.GetVolumesRequestObject) (apigen.GetVolumesResponseObject, error) {
@@ -58,6 +59,9 @@ func (s *server) PostVolumes(ctx context.Context, req apigen.PostVolumesRequestO
 	if b.Labels != nil {
 		in.Labels = *b.Labels
 	}
+	if b.Protection != nil {
+		in.DeleteProtected = deref(b.Protection.Delete)
+	}
 	v, a, err := s.volumes.Create(ctx, sc.ProjectID, in)
 	if err != nil {
 		return nil, err
@@ -86,6 +90,9 @@ func (s *server) PutVolume(ctx context.Context, req apigen.PutVolumeRequestObjec
 	if req.Body.Labels != nil {
 		l := map[string]string(*req.Body.Labels)
 		in.Labels = &l
+	}
+	if p := req.Body.Protection; p != nil {
+		in.DeleteProtected = p.Delete
 	}
 	v, err := s.volumes.Update(ctx, sc.ProjectID, req.Id, in)
 	if err != nil {

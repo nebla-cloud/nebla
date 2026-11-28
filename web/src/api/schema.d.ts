@@ -1451,7 +1451,10 @@ export interface paths {
         /** Rename a server, replace its labels or change its backup settings */
         put: operations["putServer"];
         post?: never;
-        /** Delete a server */
+        /**
+         * Delete a server
+         * @description Errors: protected (409, delete protection is on).
+         */
         delete: operations["deleteServer"];
         options?: never;
         head?: never;
@@ -1583,7 +1586,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reinstall a server from an image or snapshot, keeping its IPs and MAC */
+        /**
+         * Reinstall a server from an image or snapshot, keeping its IPs and MAC
+         * @description Errors: protected (409, rebuild protection is on).
+         */
         post: operations["rebuildServer"];
         delete?: never;
         options?: never;
@@ -1602,7 +1608,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Restore a server in place from one of its backups */
+        /**
+         * Restore a server in place from one of its backups
+         * @description Errors: protected (409, rebuild protection is on).
+         */
         post: operations["restoreServerBackup"];
         delete?: never;
         options?: never;
@@ -1746,7 +1755,10 @@ export interface paths {
         /** Rename a volume or replace its labels */
         put: operations["putVolume"];
         post?: never;
-        /** Delete a detached volume */
+        /**
+         * Delete a detached volume
+         * @description Errors: protected (409, delete protection is on).
+         */
         delete: operations["deleteVolume"];
         options?: never;
         head?: never;
@@ -1866,7 +1878,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a snapshot
-         * @description Errors: snapshot_in_use (409, a server is being built from it) and locked (409).
+         * @description Errors: snapshot_in_use (409, a server is being built from it), locked (409) and protected (409, delete protection is on).
          */
         delete: operations["deleteSnapshot"];
         options?: never;
@@ -1925,7 +1937,10 @@ export interface paths {
         /** Rename a floating IP, change its description or replace its labels */
         put: operations["putFloatingIp"];
         post?: never;
-        /** Delete a floating IP, unassigning it first if needed */
+        /**
+         * Delete a floating IP, unassigning it first if needed
+         * @description Errors: protected (409, delete protection is on).
+         */
         delete: operations["deleteFloatingIp"];
         options?: never;
         head?: never;
@@ -2117,7 +2132,10 @@ export interface paths {
         /** Rename a primary IP, change its description, labels or auto-delete */
         put: operations["putPrimaryIp"];
         post?: never;
-        /** Delete an unassigned primary IP */
+        /**
+         * Delete an unassigned primary IP
+         * @description Errors: protected (409, delete protection is on).
+         */
         delete: operations["deletePrimaryIp"];
         options?: never;
         head?: never;
@@ -2940,7 +2958,27 @@ export interface components {
             /** Format: int64 */
             backup: number;
         };
+        Protection: {
+            /** @description Refuse deletes while true */
+            delete: boolean;
+        };
+        ServerProtection: {
+            /** @description Refuse deletes while true */
+            delete: boolean;
+            /** @description Refuse rebuilds and backup restores while true */
+            rebuild: boolean;
+        };
+        /** @description A missing field keeps its current value; false on create */
+        ProtectionInput: {
+            delete?: boolean;
+        };
+        /** @description A missing field keeps its current value; false on create */
+        ServerProtectionInput: {
+            delete?: boolean;
+            rebuild?: boolean;
+        };
         ServerInput: {
+            protection?: components["schemas"]["ServerProtectionInput"];
             name: string;
             /** @description Server type id or name */
             server_type: string;
@@ -2984,6 +3022,7 @@ export interface components {
             }[];
         };
         ServerUpdate: {
+            protection?: components["schemas"]["ServerProtectionInput"];
             name?: string;
             labels?: components["schemas"]["Labels"];
             backups?: components["schemas"]["BackupSettings"];
@@ -3026,6 +3065,7 @@ export interface components {
             ip: string;
         } | null;
         Server: {
+            protection: components["schemas"]["ServerProtection"];
             /** Format: int64 */
             id: number;
             name: string;
@@ -3074,6 +3114,7 @@ export interface components {
             ip_change_reruns_cloud_init: boolean;
         };
         VolumeInput: {
+            protection?: components["schemas"]["ProtectionInput"];
             name: string;
             /** @description Size in GB */
             size: number;
@@ -3084,6 +3125,7 @@ export interface components {
             labels?: components["schemas"]["Labels"];
         };
         VolumeUpdate: {
+            protection?: components["schemas"]["ProtectionInput"];
             name?: string;
             labels?: components["schemas"]["Labels"];
         };
@@ -3096,6 +3138,7 @@ export interface components {
             size: number;
         };
         Volume: {
+            protection: components["schemas"]["Protection"];
             /** Format: int64 */
             id: number;
             name: string;
@@ -3166,6 +3209,7 @@ export interface components {
             created: string;
         };
         SnapshotInput: {
+            protection?: components["schemas"]["ProtectionInput"];
             /** @description Server id or name */
             server: string;
             /** @description Defaults to <server>-<YYYYMMDD-HHMM> in UTC */
@@ -3176,11 +3220,13 @@ export interface components {
             force_stop?: boolean;
         };
         SnapshotUpdate: {
+            protection?: components["schemas"]["ProtectionInput"];
             name?: string;
             description?: string;
             labels?: components["schemas"]["Labels"];
         };
         Snapshot: {
+            protection: components["schemas"]["Protection"];
             /** Format: int64 */
             id: number;
             name: string;
@@ -3212,6 +3258,7 @@ export interface components {
             created: string;
         };
         FloatingIpInput: {
+            protection?: components["schemas"]["ProtectionInput"];
             /** @description Generated from the address when omitted */
             name?: string;
             description?: string;
@@ -3224,6 +3271,7 @@ export interface components {
             server?: string;
         };
         FloatingIpUpdate: {
+            protection?: components["schemas"]["ProtectionInput"];
             name?: string;
             description?: string;
             labels?: components["schemas"]["Labels"];
@@ -3233,6 +3281,7 @@ export interface components {
             server: string;
         };
         PrimaryIp: {
+            protection: components["schemas"]["Protection"];
             /** Format: int64 */
             id: number;
             name: string;
@@ -3256,6 +3305,7 @@ export interface components {
             created: string;
         };
         PrimaryIpInput: {
+            protection?: components["schemas"]["ProtectionInput"];
             /** @description Generated when omitted */
             name?: string;
             description?: string;
@@ -3268,6 +3318,7 @@ export interface components {
             auto_delete: boolean;
         };
         PrimaryIpUpdate: {
+            protection?: components["schemas"]["ProtectionInput"];
             name?: string;
             description?: string;
             labels?: components["schemas"]["Labels"];
@@ -3291,6 +3342,7 @@ export interface components {
             remove: string | null;
         };
         FloatingIp: {
+            protection: components["schemas"]["Protection"];
             /** Format: int64 */
             id: number;
             name: string;
