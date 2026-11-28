@@ -3006,7 +3006,7 @@ export interface components {
             end: string;
             /** @description Seconds between points */
             step: number;
-            /** @description Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s). Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample. */
+            /** @description Keys cpu (percent 0-100 of the VM's cores), disk.read, disk.write, network.in and network.out (bytes/s), memory.used and memory.total (bytes; used is what the guest reports as not free, so it includes file cache). Each value is a list of [unix_ts, value] pairs; value is null where Proxmox has no sample. */
             time_series: {
                 [key: string]: (number | null)[][];
             };
@@ -6966,7 +6966,7 @@ export interface operations {
     getServerMetrics: {
         parameters: {
             query?: {
-                /** @description Required. cpu, disk and/or network; repeat the parameter or separate with commas */
+                /** @description Required. cpu, disk, network and/or memory; repeat the parameter or separate with commas */
                 type?: string[];
                 /** @description Required. hour, day, week or month */
                 timeframe?: string;

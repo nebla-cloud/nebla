@@ -301,8 +301,15 @@ func TestSmoke(t *testing.T) {
 	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/request_console", sid), nil, http.StatusCreated, &grant)
 	require.NotEmpty(t, grant.Password)
 	checkRFBBanner(t, grant.WSSURL)
-	call(t, app, c, http.MethodGet, fmt.Sprintf("/v1/servers/%d/metrics?type=cpu,disk,network&timeframe=hour", sid), nil,
-		http.StatusOK, nil)
+	var mets struct {
+		Metrics struct {
+			TimeSeries map[string][][]*float64 `json:"time_series"`
+		} `json:"metrics"`
+	}
+	call(t, app, c, http.MethodGet, fmt.Sprintf("/v1/servers/%d/metrics?type=cpu,disk,network,memory&timeframe=hour", sid), nil,
+		http.StatusOK, &mets)
+	require.Contains(t, mets.Metrics.TimeSeries, "memory.used")
+	require.Contains(t, mets.Metrics.TimeSeries, "memory.total")
 
 	var a actionBody
 	call(t, app, c, http.MethodPost, fmt.Sprintf("/v1/servers/%d/actions/poweroff", sid), nil, http.StatusCreated, &a)

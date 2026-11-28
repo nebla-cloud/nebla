@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	metricTypes = []string{"cpu", "disk", "network"}
+	metricTypes = []string{"cpu", "disk", "network", "memory"}
 	timeframes  = []string{"hour", "day", "week", "month"}
 
 	errPVE = apierr.New(http.StatusBadGateway, "pve_unreachable", "could not read metrics from Proxmox")
@@ -56,11 +56,11 @@ func (s *server) GetServerMetrics(ctx context.Context, req apigen.GetServerMetri
 	}
 	types := splitList(req.Params.Type)
 	if len(types) == 0 {
-		return nil, invalidInput("type is required: cpu, disk or network")
+		return nil, invalidInput("type is required: cpu, disk, network or memory")
 	}
 	for _, t := range types {
 		if !slices.Contains(metricTypes, t) {
-			return nil, invalidInput("unknown metric type " + t + ": want cpu, disk or network")
+			return nil, invalidInput("unknown metric type " + t + ": want cpu, disk, network or memory")
 		}
 	}
 	tf := deref(req.Params.Timeframe)
@@ -101,6 +101,9 @@ func (s *server) GetServerMetrics(ctx context.Context, req apigen.GetServerMetri
 		case "network":
 			m.TimeSeries["network.in"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.NetIn })
 			m.TimeSeries["network.out"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.NetOut })
+		case "memory":
+			m.TimeSeries["memory.used"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.Mem })
+			m.TimeSeries["memory.total"] = series(pts, 1, func(p pve.RRDPoint) *float64 { return p.MaxMem })
 		}
 	}
 	return apigen.GetServerMetrics200JSONResponse{Metrics: m}, nil

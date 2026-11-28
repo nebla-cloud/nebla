@@ -82,13 +82,37 @@ func TestMetricsMapsRRD(t *testing.T) {
 	m = metricsBody{}
 	require.NoError(t, json.Unmarshal([]byte(body), &m))
 	require.Len(t, m.Metrics.TimeSeries, 4)
+
+	res = e.C.Get(metricsPath(s.ServerID, "type=cpu,disk,network,memory&timeframe=hour"))
+	body = e.App.Body(res)
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	m = metricsBody{}
+	require.NoError(t, json.Unmarshal([]byte(body), &m))
+	require.Len(t, m.Metrics.TimeSeries, 7)
+}
+
+// TestMetricsMemory checks mem and maxmem come out as used and total bytes.
+func TestMetricsMemory(t *testing.T) {
+	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
+	s := e.RunningServer("web")
+	res := e.C.Get(metricsPath(s.ServerID, "type=memory&timeframe=hour"))
+	body := e.App.Body(res)
+	require.Equal(t, http.StatusOK, res.StatusCode, body)
+	var m metricsBody
+	require.NoError(t, json.Unmarshal([]byte(body), &m))
+	ts := m.Metrics.TimeSeries
+	require.Len(t, ts, 2)
+	for i := range 5 {
+		require.Equal(t, [2]float64{float64(1_700_000_000 + i*60), float64(100_000_000 * (i + 1))}, ts["memory.used"][i])
+		require.Equal(t, float64(1<<30), ts["memory.total"][i][1])
+	}
 }
 
 func TestMetricsRejectsBadInput(t *testing.T) {
 	ctx := context.Background()
 	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
 	s := e.RunningServer("web")
-	for _, q := range []string{"type=memory&timeframe=hour", "type=cpu&timeframe=year", "timeframe=hour", "type=cpu", "type=,&timeframe=hour"} {
+	for _, q := range []string{"type=swap&timeframe=hour", "type=cpu&timeframe=year", "timeframe=hour", "type=cpu", "type=,&timeframe=hour"} {
 		res := e.C.Get(metricsPath(s.ServerID, q))
 		body := e.App.Body(res)
 		require.Equal(t, http.StatusUnprocessableEntity, res.StatusCode, "%s: %s", q, body)
@@ -111,10 +135,10 @@ func TestMetricsGapsAreNull(t *testing.T) {
 	e := testutil.NewServerEnv(testutil.NewApp(t, testutil.QueueOnlyJobs(t)))
 	s := e.RunningServer("web")
 	e.App.PVE.SetRRD([]map[string]any{
-		{"time": 1_700_000_000, "cpu": 0.25, "netin": 10, "netout": 0},
-		{"time": 1_700_000_060, "cpu": nil, "netin": "NaN"},
+		{"time": 1_700_000_000, "cpu": 0.25, "netin": 10, "netout": 0, "mem": 5, "maxmem": 10},
+		{"time": 1_700_000_060, "cpu": nil, "netin": "NaN", "mem": nil, "maxmem": "NaN"},
 	})
-	res := e.C.Get(metricsPath(s.ServerID, "type=cpu,network&timeframe=hour"))
+	res := e.C.Get(metricsPath(s.ServerID, "type=cpu,network,memory&timeframe=hour"))
 	body := e.App.Body(res)
 	require.Equal(t, http.StatusOK, res.StatusCode, body)
 	var m struct {
@@ -126,7 +150,9 @@ func TestMetricsGapsAreNull(t *testing.T) {
 	ts := m.Metrics.TimeSeries
 	require.InDelta(t, 25, *ts["cpu"][0][1], 1e-9)
 	require.Equal(t, 0.0, *ts["network.out"][0][1])
-	for _, k := range []string{"cpu", "network.in", "network.out"} {
+	require.Equal(t, 5.0, *ts["memory.used"][0][1])
+	require.Equal(t, 10.0, *ts["memory.total"][0][1])
+	for _, k := range []string{"cpu", "network.in", "network.out", "memory.used", "memory.total"} {
 		require.Equal(t, 1_700_000_060.0, *ts[k][1][0], k)
 		require.Nil(t, ts[k][1][1], k)
 	}

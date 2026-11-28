@@ -303,7 +303,7 @@ Requirements:
 
 Catalog templates are tagged `nebla-tpl`, never `nebla`, and Nebla only touches templates it built. Servers created from
 them run with the QEMU guest agent disabled, because the images don't ship it. Power actions use ACPI, and metrics work
-without it.
+without it. Memory comes from the balloon driver, so it counts the guest's file cache as used.
 
 ## 9. Volumes
 
