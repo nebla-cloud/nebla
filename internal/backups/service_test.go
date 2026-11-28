@@ -30,6 +30,7 @@ import (
 	entbackup "github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/projects"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -248,6 +249,31 @@ func TestRestoreRequiresAvailable(t *testing.T) {
 	// A running restore locks the server.
 	_, err = e.svc.Restore(ctx, e.Project, id, b.ID)
 	requireAPIErr(t, err, http.StatusConflict, "locked")
+}
+
+func TestRestore_RebuildProtected(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	id := e.running(t, "a")
+	b := e.put(t, id, entbackup.StatusAvailable)
+	e.App.Ent.Server.UpdateOneID(id).SetRebuildProtected(true).ExecX(ctx)
+	before := e.App.Ent.Action.Query().CountX(ctx)
+	_, err := e.svc.Restore(ctx, e.Project, id, b.ID)
+	require.ErrorIs(t, err, protection.ErrRebuild)
+	require.Equal(t, entbackup.StatusAvailable, e.App.Ent.Backup.GetX(ctx, b.ID).Status)
+	require.Equal(t, before, e.App.Ent.Action.Query().CountX(ctx))
+}
+
+func TestRestore_ProtectedBeatsBusy(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	id := e.running(t, "a")
+	b := e.put(t, id, entbackup.StatusAvailable)
+	_, err := e.svc.Restore(ctx, e.Project, id, b.ID)
+	require.NoError(t, err)
+	e.App.Ent.Server.UpdateOneID(id).SetRebuildProtected(true).ExecX(ctx)
+	_, err = e.svc.Restore(ctx, e.Project, id, b.ID)
+	require.ErrorIs(t, err, protection.ErrRebuild)
 }
 
 func TestRestoreCancelsQueued(t *testing.T) {

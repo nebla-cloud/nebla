@@ -30,6 +30,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/ent/backup"
 	"github.com/nebla-cloud/nebla/internal/ent/server"
 	"github.com/nebla-cloud/nebla/internal/jobs"
+	"github.com/nebla-cloud/nebla/internal/protection"
 	"github.com/nebla-cloud/nebla/internal/servers"
 	"github.com/riverqueue/river"
 )
@@ -241,6 +242,13 @@ func (s *Service) Restore(ctx context.Context, projectID, serverID, id int64) (a
 	}
 	var act actions.Action
 	err := db.WithTx(ctx, s.o.SQL, func(tx *sql.Tx, etx *ent.Client) error {
+		locked, err := servers.LockServerRow(ctx, etx, projectID, serverID)
+		if err != nil {
+			return err
+		}
+		if locked.RebuildProtected {
+			return protection.ErrRebuild
+		}
 		row, b, err := s.lockBackup(ctx, etx, projectID, serverID, id)
 		if err != nil {
 			return err
