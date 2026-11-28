@@ -108,6 +108,8 @@ type task struct {
 	ready time.Time
 	apply func() string // run once when due; returns the exitstatus
 	done  bool
+	kind  string
+	held  bool // stays running until ReleaseTasks, whatever its ready time
 }
 
 type failure struct {
@@ -153,6 +155,7 @@ type Server struct {
 	fails   []failure
 	calls   []string
 	delay   time.Duration
+	holds   map[string]bool // task kinds that stay running until released
 	down    bool
 	seq     int
 	rrd     []map[string]any
@@ -495,6 +498,29 @@ func (s *Server) SetTaskDelay(d time.Duration) {
 	s.delay = d
 }
 
+// HoldTasks keeps newly created tasks of kind (such as "vzdump") running until ReleaseTasks, even through FinishTasks.
+func (s *Server) HoldTasks(kind string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.holds == nil {
+		s.holds = map[string]bool{}
+	}
+	s.holds[kind] = true
+}
+
+// ReleaseTasks stops holding kind and lets its held tasks finish now.
+func (s *Server) ReleaseTasks(kind string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.holds, kind)
+	now := time.Now()
+	for _, tk := range s.tasks {
+		if tk.held && tk.kind == kind {
+			tk.held, tk.ready = false, now
+		}
+	}
+}
+
 // FinishTasks finishes every running task now, in start order.
 func (s *Server) FinishTasks() {
 	s.mu.Lock()
@@ -502,7 +528,7 @@ func (s *Server) FinishTasks() {
 	now := time.Now()
 	s.sweepAt(now.Add(1 << 62))
 	for _, tk := range s.tasks {
-		if tk.ready.After(now) {
+		if !tk.held && tk.ready.After(now) {
 			tk.ready = now
 		}
 	}
@@ -753,7 +779,7 @@ func (s *Server) sweep() { s.sweepAt(time.Now()) }
 func (s *Server) sweepAt(now time.Time) {
 	var due []string
 	for id, tk := range s.tasks {
-		if !tk.done && !now.Before(tk.ready) {
+		if !tk.done && !tk.held && !now.Before(tk.ready) {
 			due = append(due, id)
 		}
 	}
@@ -777,7 +803,7 @@ func (s *Server) newTask(nodeName, kind string, vmid int, fail *failure, apply f
 	if fail != nil {
 		exit, apply = fmt.Sprintf("ERROR: injected failure (status %d)", fail.status), nil
 	}
-	s.tasks[upid] = &task{exit: exit, ready: time.Now().Add(s.delay), apply: apply}
+	s.tasks[upid] = &task{exit: exit, ready: time.Now().Add(s.delay), apply: apply, kind: kind, held: s.holds[kind]}
 	return upid
 }
 
@@ -1417,7 +1443,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 		if !ok {
 			return nil, &apiErr{500, "no such task"}
 		}
-		if now.Before(tk.ready) {
+		if tk.held || now.Before(tk.ready) {
 			return map[string]any{"status": "running"}, nil
 		}
 		return map[string]any{"status": "stopped", "exitstatus": tk.exit}, nil

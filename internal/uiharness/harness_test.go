@@ -65,6 +65,9 @@ type harnessOut struct {
 	FailNext string `json:"fail_next"`
 	// EnableBackups points every location at the PBS storage and lifts the project backup limit: POST.
 	EnableBackups string `json:"enable_backups"`
+	// HoldBackups keeps new backup tasks running until ReleaseBackups: POST each.
+	HoldBackups    string `json:"hold_backups"`
+	ReleaseBackups string `json:"release_backups"`
 }
 
 // TestUIHarness serves the app until the stop file exists; run with -tags uiharness.
@@ -111,6 +114,12 @@ func TestUIHarness(t *testing.T) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			w.WriteHeader(http.StatusNoContent)
+		case r.URL.Path == "/_harness/hold-backups" && r.Method == http.MethodPost:
+			app.PVE.HoldTasks("vzdump")
+			w.WriteHeader(http.StatusNoContent)
+		case r.URL.Path == "/_harness/release-backups" && r.Method == http.MethodPost:
+			app.PVE.ReleaseTasks("vzdump")
 			w.WriteHeader(http.StatusNoContent)
 		case r.URL.Path == "/debian/SHA512SUMS":
 			if n := failNext.Load(); n > 0 && failNext.CompareAndSwap(n, n-1) {
@@ -169,6 +178,7 @@ func TestUIHarness(t *testing.T) {
 	conn := app.PVE.Conn()
 	b, err := json.Marshal(harnessOut{URL: app.URL, FailChecksum: up.URL + "/_harness/fail-checksum", AddToken: up.URL + "/_harness/pve-token",
 		FailNext: up.URL + "/_harness/pve-fail-next", EnableBackups: up.URL + "/_harness/enable-backups",
+		HoldBackups: up.URL + "/_harness/hold-backups", ReleaseBackups: up.URL + "/_harness/release-backups",
 		PVE: pveOut{URL: conn.BaseURL, TokenID: conn.TokenID, TokenSecret: conn.Secret, CAFingerprint: conn.CAFingerprint}})
 	if err != nil {
 		t.Fatal(err)

@@ -16,10 +16,19 @@
 import { expect, test } from '@playwright/test'
 import { adminState, expectNoLeaks, serverHeader } from './helpers'
 
-const harness = JSON.parse(process.env.NEBLA_E2E_HARNESS ?? '{}') as { enable_backups: string }
+const harness = JSON.parse(process.env.NEBLA_E2E_HARNESS ?? '{}') as {
+  enable_backups: string
+  hold_backups: string
+  release_backups: string
+}
 
 // eslint-disable-next-line no-empty-pattern -- Playwright fixtures must destructure their first argument.
 test.use({ storageState: async ({}, use) => use(adminState()) })
+
+// The fake finishes tasks instantly; a hold keeps the backup pending long enough to see it.
+test.afterEach(async ({ request }) => {
+  await request.post(harness.release_backups)
+})
 
 test('enable backups, back up now, restore and delete', async ({ page }) => {
   // The harness points its locations at a PBS storage; the panel offers backups once it does.
@@ -45,9 +54,12 @@ test('enable backups, back up now, restore and delete', async ({ page }) => {
   await page.getByRole('switch', { name: 'Daily backups' }).click()
   await expect(page.getByText('Next backup:')).toBeVisible()
 
+  expect((await page.request.post(harness.hold_backups)).status()).toBe(204)
   await page.getByRole('button', { name: 'Back up now' }).click()
   await expect(page.getByText('A backup is already waiting or running')).toBeVisible()
   const row = page.getByTestId('backup').first()
+  await expect(row).toContainText(/Waiting for its turn|Backing up…/)
+  expect((await page.request.post(harness.release_backups)).status()).toBe(204)
   await expect(row.getByRole('button', { name: /^Restore/ })).toBeVisible({ timeout: 90_000 })
   await expect(row).toContainText('Manual')
   await expect(page.getByText('A backup is already waiting or running')).toBeHidden()

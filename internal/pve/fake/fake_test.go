@@ -410,6 +410,31 @@ func TestFakeDeleteBackup(t *testing.T) {
 	}
 }
 
+func TestFakeHoldTasks(t *testing.T) {
+	ctx := context.Background()
+	s, c := backupEnv(t)
+	s.HoldTasks("vzdump")
+	up, err := c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.FinishTasks()
+	if items, _ := c.BackupContent(ctx, "pve1", "nebla-pbs", 0); len(items) != 0 {
+		t.Fatalf("held backup already listed: %+v", items)
+	}
+	s.ReleaseTasks("vzdump")
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatal(err)
+	}
+	if items, _ := c.BackupContent(ctx, "pve1", "nebla-pbs", 0); len(items) != 1 {
+		t.Fatalf("released backup missing: %+v", items)
+	}
+	up, _ = c.Vzdump(ctx, "pve1", 101, "nebla-pbs", "n")
+	if err := c.WaitTask(ctx, "pve1", up); err != nil {
+		t.Fatalf("new task after release: %v", err)
+	}
+}
+
 func TestFakeBackupFailures(t *testing.T) {
 	ctx := context.Background()
 	s, c := backupEnv(t)
