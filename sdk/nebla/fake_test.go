@@ -16,6 +16,7 @@ import (
 type fakeRoute struct {
 	status  int
 	fixture string
+	h       http.Handler
 }
 
 type fakeReq struct {
@@ -45,7 +46,14 @@ func newFake(t *testing.T, opts ...Option) (*Client, *fake) {
 func (f *fake) handle(method, path string, status int, fixture string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.routes[method+" "+path] = fakeRoute{status, fixture}
+	f.routes[method+" "+path] = fakeRoute{status: status, fixture: fixture}
+}
+
+// handleFunc answers method+path (path includes /v1) with h.
+func (f *fake) handleFunc(method, path string, h http.HandlerFunc) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.routes[method+" "+path] = fakeRoute{h: h}
 }
 
 // last returns the most recent request and its body.
@@ -74,6 +82,10 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		f.t.Errorf("fake: unexpected request %s %s", r.Method, r.URL.Path)
 		http.Error(w, "unexpected", http.StatusNotImplemented)
+		return
+	}
+	if rt.h != nil {
+		rt.h.ServeHTTP(w, r)
 		return
 	}
 	if rt.fixture == "" {

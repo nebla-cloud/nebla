@@ -28,6 +28,9 @@ type Client struct {
 	hc        *http.Client
 	retry     RetryPolicy
 	httpc     *http.Client
+
+	// Actions lists and waits for actions.
+	Actions *ActionsService
 }
 
 // Option configures a Client.
@@ -65,6 +68,7 @@ func NewClient(opts ...Option) *Client {
 	}
 	hc.Transport = retryTransport{base: rt, policy: c.retry}
 	c.httpc = &hc
+	c.Actions = &ActionsService{c: c}
 	return c
 }
 

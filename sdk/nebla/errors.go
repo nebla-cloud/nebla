@@ -91,6 +91,15 @@ const (
 	CodeVolumeServerMismatch       ErrorCode = "volume_server_mismatch"
 	CodeVolumeShrinkNotAllowed     ErrorCode = "volume_shrink_not_allowed"
 	CodeVolumesUnavailable         ErrorCode = "volumes_unavailable"
+	CodeUnreachable                ErrorCode = "unreachable"
+	CodeTimedOut                   ErrorCode = "timed_out"
+	CodeShutdownTimeout            ErrorCode = "shutdown_timeout"
+	CodeServerGone                 ErrorCode = "server_gone"
+	CodeReleasePending             ErrorCode = "release_pending"
+	CodePowerOffRequired           ErrorCode = "power_off_required"
+	CodeOrphaned                   ErrorCode = "orphaned"
+	CodeFirewallUnenforced         ErrorCode = "firewall_unenforced"
+	CodeFailed                     ErrorCode = "failed"
 )
 
 // Sentinels for errors.Is matching on an error code.
@@ -173,6 +182,15 @@ var (
 	ErrVolumeServerMismatch       = &Error{Code: CodeVolumeServerMismatch}
 	ErrVolumeShrinkNotAllowed     = &Error{Code: CodeVolumeShrinkNotAllowed}
 	ErrVolumesUnavailable         = &Error{Code: CodeVolumesUnavailable}
+	ErrUnreachable                = &Error{Code: CodeUnreachable}
+	ErrTimedOut                   = &Error{Code: CodeTimedOut}
+	ErrShutdownTimeout            = &Error{Code: CodeShutdownTimeout}
+	ErrServerGone                 = &Error{Code: CodeServerGone}
+	ErrReleasePending             = &Error{Code: CodeReleasePending}
+	ErrPowerOffRequired           = &Error{Code: CodePowerOffRequired}
+	ErrOrphaned                   = &Error{Code: CodeOrphaned}
+	ErrFirewallUnenforced         = &Error{Code: CodeFirewallUnenforced}
+	ErrFailed                     = &Error{Code: CodeFailed}
 )
 
 // Error is an error response from the API.
