@@ -1,0 +1,1 @@
+{"id":5,"name":"vip","description":"front","labels":{"env":"prod"},"type":"ipv4","ip":"203.0.113.5/32","location":{"id":1,"name":"fsn1","description":"Falkenstein"},"server":7,"status":"active","guest_config":{"server":"web-1","apply":"ip addr add 203.0.113.5/32 dev eth0","persist":"echo persist","previous_server":null,"remove":null},"created":"2026-01-01T00:00:00Z"}

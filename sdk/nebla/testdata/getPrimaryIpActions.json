@@ -1,0 +1,1 @@
+{"actions":[{"id":42,"command":"assign_primary_ip","status":"success","progress":0,"resources":[{"id":6,"type":"primary_ip"}],"error":null,"started":"2026-01-02T03:04:05Z","finished":null}],"meta":{"pagination":{"page":1,"per_page":25,"total_entries":1}}}

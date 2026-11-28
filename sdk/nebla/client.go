@@ -51,6 +51,10 @@ type Client struct {
 	Networks *NetworksService
 	// Firewalls manages firewalls.
 	Firewalls *FirewallsService
+	// FloatingIPs manages floating IPs.
+	FloatingIPs *FloatingIPsService
+	// PrimaryIPs manages primary IPs.
+	PrimaryIPs *PrimaryIPsService
 }
 
 // Option configures a Client.
@@ -99,6 +103,8 @@ func NewClient(opts ...Option) *Client {
 	c.Snapshots = &SnapshotsService{c: c}
 	c.Networks = &NetworksService{c: c}
 	c.Firewalls = &FirewallsService{c: c}
+	c.FloatingIPs = &FloatingIPsService{c: c}
+	c.PrimaryIPs = &PrimaryIPsService{c: c}
 	return c
 }
 

@@ -1,0 +1,1 @@
+{"id":6,"name":"pip","description":"main","labels":{"env":"prod"},"type":"ipv6","ip":"2001:db8::6","location":{"id":1,"name":"fsn1","description":"Falkenstein"},"server":{"id":7,"name":"web-1"},"auto_delete":true,"status":"active","created":"2026-01-01T00:00:00Z"}
