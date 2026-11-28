@@ -103,4 +103,18 @@ describe('FloatingIPListPage', () => {
     expect(document.body.textContent).toContain('Created vip')
     expect(router.currentRoute.value.path).toBe('/p/7/floating-ips/1')
   })
+
+  it('marks protected rows with a lock', async () => {
+    serveLists({
+      locations: [makeLocation()],
+      floatingIps: [
+        makeFloatingIP({ id: 1, name: 'safe', protection: { delete: true } }),
+        makeFloatingIP({ id: 2, name: 'open' }),
+      ],
+    })
+    const { wrapper } = await mountPage()
+    const rows = wrapper.findAll('li')
+    expect(rows[0]!.find('[aria-label="Protected"]').exists()).toBe(true)
+    expect(rows[1]!.find('[aria-label="Protected"]').exists()).toBe(false)
+  })
 })

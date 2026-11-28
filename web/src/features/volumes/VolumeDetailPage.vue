@@ -21,10 +21,12 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { ApiError, errorMessage } from '@/api/errors'
 import type { Action } from '@/api/types'
 import ActionProgress from '@/components/ActionProgress.vue'
+import ProtectionButton from '@/components/ProtectionButton.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -39,7 +41,14 @@ import { useActionPoll } from '@/lib/useActionPoll'
 import AttachVolumeModal from './AttachVolumeModal.vue'
 import ResizeVolumeModal from './ResizeVolumeModal.vue'
 import VolumeDevice from './VolumeDevice.vue'
-import { deleteVolume, detachVolume, useRefreshVolumes, useVolume, volumeDone } from './queries'
+import {
+  deleteVolume,
+  detachVolume,
+  updateVolume,
+  useRefreshVolumes,
+  useVolume,
+  volumeDone,
+} from './queries'
 import { formatSize } from './serverPicker'
 
 const route = useRoute()
@@ -63,6 +72,14 @@ useCrumbs(() => [
   { label: 'Volumes', to: { name: 'volumes', params: { projectId: projectId.value } } },
   { label: volume.value?.name ?? 'Volume' },
 ])
+
+const protectionFlags = [
+  {
+    key: 'delete' as const,
+    label: 'Delete',
+    description: "Blocks deleting this volume until it's turned off.",
+  },
+]
 
 const attaching = ref(false)
 const resizing = ref(false)
@@ -193,15 +210,27 @@ function remove() {
           >
             Resize
           </UButton>
-          <UButton
-            color="error"
-            variant="outline"
-            :disabled="locked || attached"
-            :title="attached ? 'Detach it first' : undefined"
-            @click="deleting = true"
+          <ProtectionButton
+            :flags="protectionFlags"
+            :value="volume.protection"
+            :save="(c) => updateVolume(volumeId, { protection: { delete: c.delete } })"
+            @saved="refresh"
+          />
+          <UTooltip
+            :text="volume.protection.delete ? 'Turn off delete protection first.' : undefined"
+            :disabled="!volume.protection.delete"
           >
-            Delete
-          </UButton>
+            <UButton
+              color="error"
+              variant="outline"
+              :icon="volume.protection.delete ? 'i-lucide-lock' : undefined"
+              :disabled="locked || attached || volume.protection.delete"
+              :title="attached ? 'Detach it first' : undefined"
+              @click="deleting = true"
+            >
+              Delete
+            </UButton>
+          </UTooltip>
         </template>
       </PageHeader>
 

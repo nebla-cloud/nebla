@@ -25,6 +25,7 @@ import { isVolumeTransitional } from '@/lib/status'
 const POLL_MS = 3000
 
 export type VolumeInput = components['schemas']['VolumeInput']
+export type VolumeUpdate = components['schemas']['VolumeUpdate']
 
 const poll =
   (paused?: Ref<boolean>) =>
@@ -125,6 +126,10 @@ export async function detachVolume(id: number): Promise<Action> {
 export async function resizeVolume(id: number, size: number): Promise<Action> {
   return unwrap(await api.POST('/volumes/{id}/actions/resize', { ...path(id), body: { size } }))
     .action
+}
+
+export async function updateVolume(id: number, body: VolumeUpdate): Promise<Volume> {
+  return unwrap(await api.PUT('/volumes/{id}', { ...path(id), body }))
 }
 
 export async function deleteVolume(id: number): Promise<Action> {

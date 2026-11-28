@@ -28,6 +28,7 @@ export function makeFloatingIP(over: Partial<FloatingIp> = {}): FloatingIp {
     status: 'active',
     guest_config: null,
     created: '2026-11-23T10:00:00Z',
+    protection: { delete: false },
     ...over,
   }
 }

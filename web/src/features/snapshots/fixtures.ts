@@ -33,6 +33,7 @@ export function makeSnapshot(over: Partial<Snapshot> = {}): Snapshot {
     status: 'available',
     restore_keeps_identity: true,
     created: '2026-11-18T10:00:00Z',
+    protection: { delete: false },
     ...over,
   }
 }

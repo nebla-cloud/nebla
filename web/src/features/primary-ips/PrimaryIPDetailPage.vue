@@ -21,11 +21,13 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import USwitch from '@nuxt/ui/components/Switch.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { ApiError, errorMessage } from '@/api/errors'
 import type { Action } from '@/api/types'
 import ActionProgress from '@/components/ActionProgress.vue'
+import ProtectionButton from '@/components/ProtectionButton.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -72,6 +74,14 @@ useCrumbs(() => [
   { label: 'Primary IPs', to: { name: 'primary-ips', params: { projectId: projectId.value } } },
   { label: pip.value?.name ?? 'Primary IP' },
 ])
+
+const protectionFlags = [
+  {
+    key: 'delete' as const,
+    label: 'Delete',
+    description: "Blocks deleting this primary IP until it's turned off.",
+  },
+]
 
 const assigning = ref(false)
 const unassigning = ref(false)
@@ -199,14 +209,26 @@ async function setAutoDelete(v: boolean) {
           >
             Unassign
           </UButton>
-          <UButton
-            color="error"
-            variant="outline"
-            :disabled="busy || assigned"
-            @click="deleting = true"
+          <ProtectionButton
+            :flags="protectionFlags"
+            :value="pip.protection"
+            :save="(c) => updatePrimaryIP(primaryIpId, { protection: { delete: c.delete } })"
+            @saved="refresh"
+          />
+          <UTooltip
+            :text="pip.protection.delete ? 'Turn off delete protection first.' : undefined"
+            :disabled="!pip.protection.delete"
           >
-            Delete
-          </UButton>
+            <UButton
+              color="error"
+              variant="outline"
+              :icon="pip.protection.delete ? 'i-lucide-lock' : undefined"
+              :disabled="busy || assigned || pip.protection.delete"
+              @click="deleting = true"
+            >
+              Delete
+            </UButton>
+          </UTooltip>
         </template>
       </PageHeader>
 

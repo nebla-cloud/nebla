@@ -146,4 +146,18 @@ describe('VolumeListPage', () => {
     expect(done).toBe(true)
     expect(document.body.querySelector('li')!.textContent).toContain('web1')
   })
+
+  it('marks protected rows with a lock', async () => {
+    serveLists({
+      locations: [makeLocation()],
+      volumes: [
+        makeVolume({ id: 1, name: 'safe', protection: { delete: true } }),
+        makeVolume({ id: 2, name: 'open' }),
+      ],
+    })
+    const { wrapper } = await mountPage()
+    const rows = wrapper.findAll('li')
+    expect(rows[0]!.find('[aria-label="Protected"]').exists()).toBe(true)
+    expect(rows[1]!.find('[aria-label="Protected"]').exists()).toBe(false)
+  })
 })

@@ -26,6 +26,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import ListGroup from '@/components/ListGroup.vue'
 import ListRow from '@/components/ListRow.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import ProtectedLock from '@/components/ProtectedLock.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import { useLocations } from '@/features/servers-create/queries'
 import { useServerNames } from '@/features/servers/queries'
@@ -83,12 +84,15 @@ function started(s: Snapshot, a: Action) {
       <ListRow v-for="s in snapshots" :key="s.id">
         <template #leading><StatusDot kind="snapshot" :status="s.status" /></template>
         <span class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <RouterLink
-            :to="{ name: 'snapshot', params: { projectId, snapshotId: s.id } }"
-            class="min-w-0 truncate hover:underline focus-visible:outline-2 focus-visible:outline-primary"
-          >
-            {{ s.name }}
-          </RouterLink>
+          <span class="flex min-w-0 items-center gap-1.5">
+            <ProtectedLock v-if="s.protection.delete" />
+            <RouterLink
+              :to="{ name: 'snapshot', params: { projectId, snapshotId: s.id } }"
+              class="min-w-0 truncate hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              {{ s.name }}
+            </RouterLink>
+          </span>
           <span
             class="flex min-w-0 flex-wrap gap-x-4 text-sm font-normal whitespace-normal text-muted"
           >

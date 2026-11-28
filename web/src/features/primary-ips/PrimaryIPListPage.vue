@@ -27,6 +27,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import ListGroup from '@/components/ListGroup.vue'
 import ListRow from '@/components/ListRow.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import ProtectedLock from '@/components/ProtectedLock.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import { useCurrentProject } from '@/lib/project'
 import CreatePrimaryIPModal from './CreatePrimaryIPModal.vue'
@@ -71,7 +72,10 @@ async function created(p: PrimaryIp) {
       >
         <template #leading><StatusDot kind="primary-ip" :status="p.status" /></template>
         <span class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <span class="min-w-0 truncate">{{ p.name }}</span>
+          <span class="flex min-w-0 items-center gap-1.5">
+            <ProtectedLock v-if="p.protection.delete" />
+            <span class="min-w-0 truncate">{{ p.name }}</span>
+          </span>
           <span
             class="flex min-w-0 flex-wrap gap-x-4 text-sm font-normal whitespace-normal text-muted"
           >

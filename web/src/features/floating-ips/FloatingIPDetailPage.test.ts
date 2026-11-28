@@ -22,6 +22,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import FloatingIPDetailPage from './FloatingIPDetailPage.vue'
 import { makeFloatingIP, makeGuestConfig } from './fixtures'
 import { action, button, fill, serveLists, settle } from './testkit'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 
 let fip: FloatingIp
 let calls: { path: string; body: unknown }[]
@@ -82,6 +83,11 @@ async function mountPage() {
   await settle()
   return m
 }
+
+const deleteButton = () =>
+  Array.from(document.body.querySelectorAll('button')).find(
+    (b) => b.textContent?.trim() === 'Delete' && !b.closest('[role="dialog"]'),
+  ) as HTMLButtonElement
 
 describe('FloatingIPDetailPage', () => {
   it('shows the address and location of an unassigned floating IP', async () => {
@@ -193,5 +199,25 @@ describe('FloatingIPDetailPage', () => {
     button('Delete floating IP').click()
     await settle()
     expect(calls.map((c) => c.path)).toEqual(['/floating_ips/1'])
+  })
+
+  it('disables Delete with a lock and tooltip while delete protection is on', async () => {
+    fip = makeFloatingIP({ protection: { delete: true } })
+    const { wrapper } = await mountPage()
+    const del = deleteButton()
+    expect(del.disabled).toBe(true)
+    expect(del.innerHTML).toContain('M7 11V7a5 5 0 0 1 10 0v4')
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).toContain(
+      'Turn off delete protection first.',
+    )
+  })
+
+  it('leaves Delete alone while delete protection is off', async () => {
+    fip = makeFloatingIP({ protection: { delete: false } })
+    const { wrapper } = await mountPage()
+    expect(deleteButton().disabled).toBe(false)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).not.toContain(
+      'Turn off delete protection first.',
+    )
   })
 })

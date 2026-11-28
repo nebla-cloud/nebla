@@ -120,6 +120,10 @@ export async function renameSnapshot(id: number, name: string): Promise<Snapshot
   return unwrap(await api.PUT('/snapshots/{id}', { ...path(id), body: { name } }))
 }
 
+export async function updateSnapshot(id: number, body: SnapshotUpdate): Promise<Snapshot> {
+  return unwrap(await api.PUT('/snapshots/{id}', { ...path(id), body }))
+}
+
 export async function deleteSnapshot(id: number): Promise<Action> {
   return unwrap(await api.DELETE('/snapshots/{id}', path(id))).action
 }

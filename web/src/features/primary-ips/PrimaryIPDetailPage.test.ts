@@ -22,6 +22,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import PrimaryIPDetailPage from './PrimaryIPDetailPage.vue'
 import { makePrimaryIP } from './fixtures'
 import { action, button, fill, serveLists, settle } from './testkit'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 
 const OLD =
   'This server was created before IP changes were supported. Changing its IP re-runs its cloud-init user data and gives it new SSH host keys.'
@@ -102,6 +103,11 @@ async function mountPage() {
   await settle()
   return m
 }
+
+const deleteButton = () =>
+  Array.from(document.body.querySelectorAll('button')).find(
+    (b) => b.textContent?.trim() === 'Delete' && !b.closest('[role="dialog"]'),
+  ) as HTMLButtonElement
 
 describe('PrimaryIPDetailPage', () => {
   it('shows an unassigned IP with Assign and Delete enabled', async () => {
@@ -220,5 +226,25 @@ describe('PrimaryIPDetailPage', () => {
     button('Delete primary IP').click()
     await settle()
     expect(calls.map((c) => c.path)).toEqual(['DELETE /primary_ips/1'])
+  })
+
+  it('disables Delete with a lock and tooltip while delete protection is on', async () => {
+    pip = makePrimaryIP({ protection: { delete: true } })
+    const { wrapper } = await mountPage()
+    const del = deleteButton()
+    expect(del.disabled).toBe(true)
+    expect(del.innerHTML).toContain('M7 11V7a5 5 0 0 1 10 0v4')
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).toContain(
+      'Turn off delete protection first.',
+    )
+  })
+
+  it('leaves Delete alone while delete protection is off', async () => {
+    pip = makePrimaryIP({ protection: { delete: false } })
+    const { wrapper } = await mountPage()
+    expect(deleteButton().disabled).toBe(false)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).not.toContain(
+      'Turn off delete protection first.',
+    )
   })
 })

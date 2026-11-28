@@ -28,6 +28,7 @@ export function makePrimaryIP(over: Partial<PrimaryIp> = {}): PrimaryIp {
     auto_delete: true,
     status: 'active',
     created: '2026-11-23T10:00:00Z',
+    protection: { delete: false },
     ...over,
   }
 }

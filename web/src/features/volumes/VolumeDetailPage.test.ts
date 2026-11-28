@@ -22,6 +22,7 @@ import { mountApp, testRouter } from '@/test/mount'
 import VolumeDetailPage from './VolumeDetailPage.vue'
 import { makeVolume } from './fixtures'
 import { button, fill, runningAction, serveLists, settle } from './testkit'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 
 let vol: Volume
 let calls: string[]
@@ -64,6 +65,11 @@ async function mountPage() {
   await settle()
   return m
 }
+
+const deleteButton = () =>
+  Array.from(document.body.querySelectorAll('button')).find(
+    (b) => b.textContent?.trim() === 'Delete' && !b.closest('[role="dialog"]'),
+  ) as HTMLButtonElement
 
 describe('VolumeDetailPage', () => {
   it('shows the device path with copy and the mount hint', async () => {
@@ -118,5 +124,25 @@ describe('VolumeDetailPage', () => {
     button('Delete volume').click()
     await settle()
     expect(calls).toEqual(['delete'])
+  })
+
+  it('disables Delete with a lock and tooltip while delete protection is on', async () => {
+    vol = makeVolume({ id: 1, name: 'data', size: 20, protection: { delete: true } })
+    const { wrapper } = await mountPage()
+    const del = deleteButton()
+    expect(del.disabled).toBe(true)
+    expect(del.innerHTML).toContain('M7 11V7a5 5 0 0 1 10 0v4')
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).toContain(
+      'Turn off delete protection first.',
+    )
+  })
+
+  it('leaves Delete alone while delete protection is off', async () => {
+    vol = makeVolume({ id: 1, name: 'data', size: 20, protection: { delete: false } })
+    const { wrapper } = await mountPage()
+    expect(deleteButton().disabled).toBe(false)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).not.toContain(
+      'Turn off delete protection first.',
+    )
   })
 })

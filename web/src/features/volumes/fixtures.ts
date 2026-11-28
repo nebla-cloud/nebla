@@ -26,6 +26,7 @@ export function makeVolume(over: Partial<Volume> = {}): Volume {
     status: 'available',
     linux_device: '/dev/disk/by-id/virtio-nb-vol-1',
     created: '2026-11-18T10:00:00Z',
+    protection: { delete: false },
     ...over,
   }
 }

@@ -21,6 +21,7 @@ import SnapshotDetailPage from './SnapshotDetailPage.vue'
 import { makeLocation, makeSnapshot } from './fixtures'
 import type { Snapshot } from '@/api/types'
 import { serveLists, settle } from './testkit'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 
 let unmount: () => void
 afterEach(() => {
@@ -59,6 +60,11 @@ async function mountPage(snap: Snapshot) {
 const buttonTexts = () =>
   Array.from(document.body.querySelectorAll('button')).map((b) => b.textContent?.trim())
 
+const deleteButton = () =>
+  Array.from(document.body.querySelectorAll('button')).find(
+    (b) => b.textContent?.trim() === 'Delete' && !b.closest('[role="dialog"]'),
+  ) as HTMLButtonElement
+
 describe('SnapshotDetailPage', () => {
   it('shows the details and the actions', async () => {
     await mountPage(makeSnapshot({ name: 'before-upgrade', description: 'pre 2.0' }))
@@ -74,5 +80,25 @@ describe('SnapshotDetailPage', () => {
     await mountPage(makeSnapshot({ server: null, server_name: 'web1' }))
     expect(document.body.textContent).toContain('web1 (deleted)')
     expect(buttonTexts()).not.toContain('Restore')
+  })
+
+  it('disables Delete with a lock and tooltip while delete protection is on', async () => {
+    const snap = makeSnapshot({ protection: { delete: true } })
+    const { wrapper } = await mountPage(snap)
+    const del = deleteButton()
+    expect(del.disabled).toBe(true)
+    expect(del.innerHTML).toContain('M7 11V7a5 5 0 0 1 10 0v4')
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).toContain(
+      'Turn off delete protection first.',
+    )
+  })
+
+  it('leaves Delete alone while delete protection is off', async () => {
+    const snap = makeSnapshot({ protection: { delete: false } })
+    const { wrapper } = await mountPage(snap)
+    expect(deleteButton().disabled).toBe(false)
+    expect(wrapper.findAllComponents(UTooltip).map((t) => t.props('text'))).not.toContain(
+      'Turn off delete protection first.',
+    )
   })
 })

@@ -26,6 +26,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import ListGroup from '@/components/ListGroup.vue'
 import ListRow from '@/components/ListRow.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import ProtectedLock from '@/components/ProtectedLock.vue'
 import StatusDot from '@/components/StatusDot.vue'
 import { useLocations } from '@/features/servers-create/queries'
 import { useServerNames } from '@/features/servers/queries'
@@ -92,8 +93,13 @@ function created(v: Volume, a: Action) {
       >
         <template #leading><StatusDot kind="volume" :status="v.status" /></template>
         <span class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <span class="min-w-0 truncate">{{ v.name }}</span>
-          <span class="flex min-w-0 flex-wrap gap-x-4 text-sm font-normal whitespace-normal text-muted">
+          <span class="flex min-w-0 items-center gap-1.5">
+            <ProtectedLock v-if="v.protection.delete" />
+            <span class="min-w-0 truncate">{{ v.name }}</span>
+          </span>
+          <span
+            class="flex min-w-0 flex-wrap gap-x-4 text-sm font-normal whitespace-normal text-muted"
+          >
             <span class="tabular-nums">{{ formatSize(v.size) }}</span>
             <span class="hidden sm:inline">{{ v.location.name }}</span>
             <span class="wrap-anywhere">{{ state(v) }}</span>

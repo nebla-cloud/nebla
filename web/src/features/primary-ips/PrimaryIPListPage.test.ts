@@ -107,4 +107,18 @@ describe('PrimaryIPListPage', () => {
     expect(document.body.textContent).toContain('Created keeper')
     expect(router.currentRoute.value.path).toBe('/p/7/primary-ips/1')
   })
+
+  it('marks protected rows with a lock', async () => {
+    serveLists({
+      locations: [makeLocation()],
+      primaryIps: [
+        makePrimaryIP({ id: 1, name: 'safe', protection: { delete: true } }),
+        makePrimaryIP({ id: 2, name: 'open' }),
+      ],
+    })
+    const { wrapper } = await mountPage()
+    const rows = wrapper.findAll('li')
+    expect(rows[0]!.find('[aria-label="Protected"]').exists()).toBe(true)
+    expect(rows[1]!.find('[aria-label="Protected"]').exists()).toBe(false)
+  })
 })

@@ -25,6 +25,7 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import type { Action, Server, Snapshot } from '@/api/types'
 import ActionProgress from '@/components/ActionProgress.vue'
+import ProtectedLock from '@/components/ProtectedLock.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Panel from '@/components/Panel.vue'
 import StatusDot from '@/components/StatusDot.vue'
@@ -131,6 +132,7 @@ function taken(s: Snapshot, a: Action) {
       <Panel v-for="s in snapshots" :key="s.id" data-testid="server-snapshot">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <ProtectedLock v-if="s.protection.delete" />
             <RouterLink
               :to="{ name: 'snapshot', params: { projectId, snapshotId: s.id } }"
               class="nb-h2 truncate text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"

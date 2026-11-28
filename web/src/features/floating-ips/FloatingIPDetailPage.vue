@@ -21,10 +21,12 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import UAlert from '@nuxt/ui/components/Alert.vue'
 import UButton from '@nuxt/ui/components/Button.vue'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { ApiError, errorMessage } from '@/api/errors'
 import type { Action } from '@/api/types'
 import ActionProgress from '@/components/ActionProgress.vue'
+import ProtectionButton from '@/components/ProtectionButton.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -42,6 +44,7 @@ import {
   deleteFloatingIP,
   floatingIPDone,
   unassignFloatingIP,
+  updateFloatingIP,
   useFloatingIP,
   useRefreshFloatingIPs,
 } from './queries'
@@ -69,6 +72,14 @@ useCrumbs(() => [
   { label: 'Floating IPs', to: { name: 'floating-ips', params: { projectId: projectId.value } } },
   { label: fip.value?.name ?? 'Floating IP' },
 ])
+
+const protectionFlags = [
+  {
+    key: 'delete' as const,
+    label: 'Delete',
+    description: "Blocks deleting this floating IP until it's turned off.",
+  },
+]
 
 const assigning = ref(false)
 const unassigning = ref(false)
@@ -205,9 +216,26 @@ function remove() {
               Unassign
             </UButton>
           </template>
-          <UButton color="error" variant="outline" :disabled="locked" @click="deleting = true">
-            Delete
-          </UButton>
+          <ProtectionButton
+            :flags="protectionFlags"
+            :value="fip.protection"
+            :save="(c) => updateFloatingIP(floatingIpId, { protection: { delete: c.delete } })"
+            @saved="refresh"
+          />
+          <UTooltip
+            :text="fip.protection.delete ? 'Turn off delete protection first.' : undefined"
+            :disabled="!fip.protection.delete"
+          >
+            <UButton
+              color="error"
+              variant="outline"
+              :icon="fip.protection.delete ? 'i-lucide-lock' : undefined"
+              :disabled="locked || fip.protection.delete"
+              @click="deleting = true"
+            >
+              Delete
+            </UButton>
+          </UTooltip>
         </template>
       </PageHeader>
 

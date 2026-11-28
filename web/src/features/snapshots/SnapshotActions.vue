@@ -23,16 +23,18 @@ import UDropdownMenu from '@nuxt/ui/components/DropdownMenu.vue'
 import UFormField from '@nuxt/ui/components/FormField.vue'
 import UInput from '@nuxt/ui/components/Input.vue'
 import UModal from '@nuxt/ui/components/Modal.vue'
+import UTooltip from '@nuxt/ui/components/Tooltip.vue'
 import { useToast } from '@nuxt/ui/composables/useToast'
 import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import { errorMessage } from '@/api/errors'
 import type { Action, Snapshot } from '@/api/types'
+import ProtectionButton from '@/components/ProtectionButton.vue'
 import ConfirmByName from '@/components/ConfirmByName.vue'
 import { useCurrentProject } from '@/lib/project'
 import { isSnapshotTransitional } from '@/lib/status'
 import RestoreSnapshotModal from './RestoreSnapshotModal.vue'
-import { deleteSnapshot, renameSnapshot, useRefreshSnapshots } from './queries'
+import { deleteSnapshot, renameSnapshot, updateSnapshot, useRefreshSnapshots } from './queries'
 
 // Restore, New server, Rename and Delete for one snapshot; expanded shows them as buttons.
 const props = defineProps<{
@@ -51,6 +53,14 @@ const router = useRouter()
 const qc = useQueryClient()
 const { projectId } = useCurrentProject()
 const refresh = useRefreshSnapshots()
+
+const protectionFlags = [
+  {
+    key: 'delete' as const,
+    label: 'Delete',
+    description: "Blocks deleting this snapshot until it's turned off.",
+  },
+]
 
 const ready = computed(() => props.snapshot.status === 'available')
 const locked = computed(() => props.disabled || isSnapshotTransitional(props.snapshot.status))
@@ -136,8 +146,9 @@ const menu = computed(() => [
   [
     {
       label: 'Delete',
-      icon: 'i-lucide-trash-2',
+      icon: props.snapshot.protection.delete ? 'i-lucide-lock' : 'i-lucide-trash-2',
       color: 'error' as const,
+      disabled: props.snapshot.protection.delete,
       onSelect: (): void => {
         deleting.value = true
       },
@@ -166,9 +177,26 @@ const menu = computed(() => [
       <UButton color="neutral" variant="outline" :disabled="locked" @click="startRename">
         Rename
       </UButton>
-      <UButton color="error" variant="outline" :disabled="locked" @click="deleting = true">
-        Delete
-      </UButton>
+      <ProtectionButton
+        :flags="protectionFlags"
+        :value="snapshot.protection"
+        :save="(c) => updateSnapshot(snapshot.id, { protection: { delete: c.delete } })"
+        @saved="refresh"
+      />
+      <UTooltip
+        :text="snapshot.protection.delete ? 'Turn off delete protection first.' : undefined"
+        :disabled="!snapshot.protection.delete"
+      >
+        <UButton
+          color="error"
+          variant="outline"
+          :icon="snapshot.protection.delete ? 'i-lucide-lock' : undefined"
+          :disabled="locked || snapshot.protection.delete"
+          @click="deleting = true"
+        >
+          Delete
+        </UButton>
+      </UTooltip>
     </template>
     <UDropdownMenu v-else :items="menu" :content="{ align: 'end' }" :disabled="locked">
       <UButton

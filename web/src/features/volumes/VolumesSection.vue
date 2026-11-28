@@ -27,6 +27,7 @@ import { useToast } from '@nuxt/ui/composables/useToast'
 import { errorMessage } from '@/api/errors'
 import type { Action, Server, Volume } from '@/api/types'
 import ActionProgress from '@/components/ActionProgress.vue'
+import ProtectedLock from '@/components/ProtectedLock.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Panel from '@/components/Panel.vue'
@@ -206,6 +207,7 @@ function created(v: Volume, a: Action) {
       <Panel v-for="v in volumes" :key="v.id" data-testid="server-volume">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <ProtectedLock v-if="v.protection.delete" />
             <RouterLink
               :to="{ name: 'volume', params: { projectId, volumeId: v.id } }"
               class="nb-h2 truncate text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"

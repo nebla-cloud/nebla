@@ -88,4 +88,18 @@ describe('SnapshotListPage', () => {
     expect(rows[0]!.find('button[aria-label="Restore live"]').exists()).toBe(true)
     expect(rows[1]!.find('button[aria-label="Restore orphan"]').exists()).toBe(false)
   })
+
+  it('marks protected rows with a lock', async () => {
+    serveLists({
+      locations: [makeLocation()],
+      snapshots: [
+        makeSnapshot({ id: 1, name: 'safe', protection: { delete: true } }),
+        makeSnapshot({ id: 2, name: 'open' }),
+      ],
+    })
+    const { wrapper } = await mountPage()
+    const rows = wrapper.findAll('li')
+    expect(rows[0]!.find('[aria-label="Protected"]').exists()).toBe(true)
+    expect(rows[1]!.find('[aria-label="Protected"]').exists()).toBe(false)
+  })
 })
