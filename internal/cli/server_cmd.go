@@ -402,9 +402,12 @@ func serverDeleteCmd(a *app) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		plan, err := keepPrimaryIPs(cmd.Context(), api, s, keepAll, keep)
-		if err != nil {
-			return err
+		var plan keepPlan
+		// A delete-protected server gets a 409, so leave its IPs untouched.
+		if !s.Protection.Delete {
+			if plan, err = keepPrimaryIPs(cmd.Context(), api, s, keepAll, keep); err != nil {
+				return err
+			}
 		}
 		kept := plan.kept
 		if a.flags.output == "table" && len(plan.survivors) > 0 {

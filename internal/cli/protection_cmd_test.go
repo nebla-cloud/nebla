@@ -222,3 +222,24 @@ func TestServerDelete_ProtectedIPKept(t *testing.T) {
 		t.Fatalf("implicit: %d %q %q", code, out, errOut)
 	}
 }
+
+func TestServerDelete_KeepIPsOnProtectedServer(t *testing.T) {
+	h := newFIPHarness(t)
+	srv := h.Env.CreateServer("web", map[string]any{"public_net": map[string]any{"ipv4": true, "ipv6": true}})
+	waitCreated(t, h, srv)
+	if _, errOut, code := h.run("server", "update", "web", "--protect-delete"); code != 0 {
+		t.Fatal(errOut)
+	}
+	out, errOut, code := h.run("server", "delete", "web", "--keep-ips")
+	if code == 0 || !strings.Contains(out+errOut, "delete protection") {
+		t.Fatalf("want the protected error: %d %q %q", code, out, errOut)
+	}
+	if strings.Contains(errOut, "auto-delete is now off") {
+		t.Fatalf("no change to undo expected: %q", errOut)
+	}
+	for _, n := range []string{"web-ipv4", "web-ipv6"} {
+		if p := primaryIPJSON(t, h, n); !p.AutoDelete {
+			t.Fatalf("%s auto_delete was turned off", n)
+		}
+	}
+}
