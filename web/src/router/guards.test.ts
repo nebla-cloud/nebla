@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import { http } from 'msw'
@@ -111,13 +111,26 @@ function adminLists(over: Record<string, unknown[]> = {}) {
   )
 }
 
+// Failed admin fetches would otherwise back off for 3s per test; nothing here
+// asserts on retries.
+const defaultQueryOptions = queryClient.getDefaultOptions()
+afterAll(() => queryClient.setDefaultOptions(defaultQueryOptions))
+
 beforeEach(() => {
+  queryClient.setDefaultOptions({
+    ...defaultQueryOptions,
+    queries: { ...defaultQueryOptions.queries, retry: false },
+  })
   resetSession()
   queryClient.clear()
   localStorage.clear()
   sessionStorage.clear()
 })
-afterEach(() => {
+afterEach(async () => {
+  // panelReady() uses Promise.all, which rejects on the first failure while
+  // sibling fetches are still retrying. Let them finish under this test's
+  // handlers so a late request cannot land on the next test's server.use().
+  await vi.waitFor(() => expect(queryClient.isFetching()).toBe(0), { timeout: 5_000 })
   document.body.innerHTML = ''
 })
 
