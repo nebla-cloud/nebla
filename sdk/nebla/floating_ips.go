@@ -56,6 +56,7 @@ type FloatingIP struct {
 	Server      *int64
 	Status      FloatingIPStatus
 	GuestConfig *FloatingIPGuestConfig
+	Protection  Protection
 	Created     time.Time
 }
 
@@ -63,7 +64,7 @@ func floatingIPFromWire(w wire.FloatingIP) FloatingIP {
 	ip := FloatingIP{
 		ID: w.ID, Name: w.Name, Description: w.Description, Labels: map[string]string(w.Labels),
 		Type: IPType(w.Type), IP: w.IP, Location: locationRefFromWire(w.Location),
-		Server: w.Server, Status: FloatingIPStatus(w.Status), Created: w.Created,
+		Server: w.Server, Status: FloatingIPStatus(w.Status), Protection: Protection{Delete: w.Protection.Delete}, Created: w.Created,
 	}
 	if g := w.GuestConfig; g != nil {
 		ip.GuestConfig = &FloatingIPGuestConfig{Server: g.Server, Apply: g.Apply, Persist: g.Persist, PreviousServer: g.PreviousServer, Remove: g.Remove}
@@ -81,7 +82,8 @@ type FloatingIPCreateOpts struct {
 	// Location is a location id or name.
 	Location string
 	// Server assigns the new address to a server, by id or name.
-	Server string
+	Server     string
+	Protection *ProtectionOpts
 }
 
 // FloatingIPCreateResult is the outcome of creating a floating IP.
@@ -96,6 +98,7 @@ type FloatingIPUpdateOpts struct {
 	Name        *string
 	Description *string
 	Labels      *map[string]string
+	Protection  *ProtectionOpts
 }
 
 // FloatingIPListOpts filters a list of floating IPs.
@@ -125,12 +128,14 @@ type floatingIPCreateBody struct {
 	Type        IPType            `json:"type"`
 	Location    string            `json:"location,omitempty"`
 	Server      string            `json:"server,omitempty"`
+	Protection  *ProtectionOpts   `json:"protection,omitempty"`
 }
 
 type floatingIPUpdateBody struct {
 	Name        *string            `json:"name,omitempty"`
 	Description *string            `json:"description,omitempty"`
 	Labels      *map[string]string `json:"labels,omitempty"`
+	Protection  *ProtectionOpts    `json:"protection,omitempty"`
 }
 
 // FloatingIPsService works with floating IPs.
@@ -174,7 +179,7 @@ func (s *FloatingIPsService) Create(ctx context.Context, opts FloatingIPCreateOp
 		FloatingIP wire.FloatingIP `json:"floating_ip"`
 		Action     *wire.Action    `json:"action"`
 	}
-	body := floatingIPCreateBody{Name: opts.Name, Description: opts.Description, Labels: opts.Labels, Type: opts.Type, Location: opts.Location, Server: opts.Server}
+	body := floatingIPCreateBody{Name: opts.Name, Description: opts.Description, Labels: opts.Labels, Type: opts.Type, Location: opts.Location, Server: opts.Server, Protection: opts.Protection}
 	if err := s.c.do(ctx, "POST", "/floating_ips", nil, body, &w); err != nil {
 		return FloatingIPCreateResult{}, err
 	}
@@ -186,7 +191,7 @@ func (s *FloatingIPsService) Create(ctx context.Context, opts FloatingIPCreateOp
 	return res, nil
 }
 
-// Update renames a floating IP, changes its description or replaces its labels.
+// Update renames a floating IP, changes its description or protection, or replaces its labels.
 func (s *FloatingIPsService) Update(ctx context.Context, id int64, opts FloatingIPUpdateOpts) (*FloatingIP, error) {
 	opts.Labels = clearable(opts.Labels)
 	var w wire.FloatingIP

@@ -37,6 +37,7 @@ type Volume struct {
 	Status VolumeStatus
 	// LinuxDevice is the stable device path inside the server.
 	LinuxDevice string
+	Protection  Protection
 	Created     time.Time
 }
 
@@ -44,7 +45,7 @@ func volumeFromWire(w wire.Volume) Volume {
 	return Volume{
 		ID: w.ID, Name: w.Name, Labels: map[string]string(w.Labels), Size: w.Size,
 		Location: locationRefFromWire(w.Location), Server: w.Server, Status: VolumeStatus(w.Status),
-		LinuxDevice: w.LinuxDevice, Created: w.Created,
+		LinuxDevice: w.LinuxDevice, Protection: Protection{Delete: w.Protection.Delete}, Created: w.Created,
 	}
 }
 
@@ -55,8 +56,9 @@ type VolumeCreateOpts struct {
 	Size     int
 	Location string
 	// Server attaches the new volume to a server, by id or name.
-	Server string
-	Labels map[string]string
+	Server     string
+	Labels     map[string]string
+	Protection *ProtectionOpts
 }
 
 // VolumeCreateResult is the outcome of creating a volume.
@@ -67,8 +69,9 @@ type VolumeCreateResult struct {
 
 // VolumeUpdateOpts changes a volume; nil fields are not sent, and a non-nil empty Labels clears them.
 type VolumeUpdateOpts struct {
-	Name   *string
-	Labels *map[string]string
+	Name       *string
+	Labels     *map[string]string
+	Protection *ProtectionOpts
 }
 
 // VolumeAttachOpts attaches a volume to a server.
@@ -100,16 +103,18 @@ func (o VolumeListOpts) values() url.Values {
 }
 
 type volumeCreateBody struct {
-	Name     string            `json:"name"`
-	Size     int               `json:"size"`
-	Location string            `json:"location,omitempty"`
-	Server   string            `json:"server,omitempty"`
-	Labels   map[string]string `json:"labels,omitempty"`
+	Name       string            `json:"name"`
+	Size       int               `json:"size"`
+	Location   string            `json:"location,omitempty"`
+	Server     string            `json:"server,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+	Protection *ProtectionOpts   `json:"protection,omitempty"`
 }
 
 type volumeUpdateBody struct {
-	Name   *string            `json:"name,omitempty"`
-	Labels *map[string]string `json:"labels,omitempty"`
+	Name       *string            `json:"name,omitempty"`
+	Labels     *map[string]string `json:"labels,omitempty"`
+	Protection *ProtectionOpts    `json:"protection,omitempty"`
 }
 
 // VolumesService works with volumes.
@@ -151,14 +156,14 @@ func (s *VolumesService) Create(ctx context.Context, opts VolumeCreateOpts) (Vol
 		Volume wire.Volume `json:"volume"`
 		Action wire.Action `json:"action"`
 	}
-	body := volumeCreateBody{Name: opts.Name, Size: opts.Size, Location: opts.Location, Server: opts.Server, Labels: opts.Labels}
+	body := volumeCreateBody{Name: opts.Name, Size: opts.Size, Location: opts.Location, Server: opts.Server, Labels: opts.Labels, Protection: opts.Protection}
 	if err := s.c.do(ctx, "POST", "/volumes", nil, body, &w); err != nil {
 		return VolumeCreateResult{}, err
 	}
 	return VolumeCreateResult{Volume: volumeFromWire(w.Volume), Action: actionFromWire(w.Action)}, nil
 }
 
-// Update renames a volume or replaces its labels.
+// Update renames a volume, replaces its labels or changes its protection.
 func (s *VolumesService) Update(ctx context.Context, id int64, opts VolumeUpdateOpts) (*Volume, error) {
 	opts.Labels = clearable(opts.Labels)
 	var w wire.Volume

@@ -111,6 +111,7 @@ type Server struct {
 	Firewalls               []ServerFirewall
 	Volumes                 []int64
 	Backups                 ServerBackups
+	Protection              ServerProtection
 	Created                 time.Time
 	IPChangeRerunsCloudInit bool
 }
@@ -139,6 +140,7 @@ func serverFromWire(w wire.Server) Server {
 		Labels:    map[string]string(w.Labels),
 		DiskGB:    w.DiskGb, Volumes: w.Volumes,
 		Backups:                 ServerBackups{Enabled: w.Backups.Enabled, Keep: w.Backups.Keep, Count: w.Backups.Count, LastBackupAt: w.Backups.LastBackupAt, NextBackupAt: w.Backups.NextBackupAt},
+		Protection:              ServerProtection{Delete: w.Protection.Delete, Rebuild: w.Protection.Rebuild},
 		Created:                 w.Created,
 		IPChangeRerunsCloudInit: w.IPChangeRerunsCloudInit,
 	}
@@ -192,6 +194,7 @@ type ServerCreateOpts struct {
 	Firewalls                                   []int64
 	Backups                                     *BackupSettings
 	Networks                                    []ServerNetworkOpts
+	Protection                                  *ServerProtectionOpts
 }
 
 // ServerCreateResult is the outcome of creating a server.
@@ -203,9 +206,10 @@ type ServerCreateResult struct {
 
 // ServerUpdateOpts changes a server; nil fields are not sent, and a non-nil empty Labels clears them.
 type ServerUpdateOpts struct {
-	Name    *string
-	Labels  *map[string]string
-	Backups *BackupSettings
+	Name       *string
+	Labels     *map[string]string
+	Backups    *BackupSettings
+	Protection *ServerProtectionOpts
 }
 
 // ServerListOpts filters a list of servers.
@@ -239,19 +243,20 @@ func backupSettingsBodyOf(b *BackupSettings) *backupSettingsBody {
 }
 
 type serverCreateBody struct {
-	Name             string              `json:"name"`
-	ServerType       string              `json:"server_type"`
-	Image            string              `json:"image,omitempty"`
-	Snapshot         string              `json:"snapshot,omitempty"`
-	Location         string              `json:"location,omitempty"`
-	SSHKeys          []string            `json:"ssh_keys,omitempty"`
-	UserData         string              `json:"user_data,omitempty"`
-	PublicNet        *serverPublicNetReq `json:"public_net,omitempty"`
-	Labels           map[string]string   `json:"labels,omitempty"`
-	StartAfterCreate *bool               `json:"start_after_create,omitempty"`
-	Firewalls        []serverFirewallReq `json:"firewalls,omitempty"`
-	Backups          *backupSettingsBody `json:"backups,omitempty"`
-	Networks         []serverNetworkBody `json:"networks,omitempty"`
+	Name             string                `json:"name"`
+	ServerType       string                `json:"server_type"`
+	Image            string                `json:"image,omitempty"`
+	Snapshot         string                `json:"snapshot,omitempty"`
+	Location         string                `json:"location,omitempty"`
+	SSHKeys          []string              `json:"ssh_keys,omitempty"`
+	UserData         string                `json:"user_data,omitempty"`
+	PublicNet        *serverPublicNetReq   `json:"public_net,omitempty"`
+	Labels           map[string]string     `json:"labels,omitempty"`
+	StartAfterCreate *bool                 `json:"start_after_create,omitempty"`
+	Firewalls        []serverFirewallReq   `json:"firewalls,omitempty"`
+	Backups          *backupSettingsBody   `json:"backups,omitempty"`
+	Networks         []serverNetworkBody   `json:"networks,omitempty"`
+	Protection       *ServerProtectionOpts `json:"protection,omitempty"`
 }
 
 type serverPublicNetReq struct {
@@ -272,7 +277,7 @@ func (o ServerCreateOpts) body() serverCreateBody {
 	b := serverCreateBody{
 		Name: o.Name, ServerType: o.ServerType, Image: o.Image, Snapshot: o.Snapshot, Location: o.Location,
 		SSHKeys: o.SSHKeys, UserData: o.UserData, Labels: o.Labels, StartAfterCreate: o.StartAfterCreate,
-		Backups: backupSettingsBodyOf(o.Backups),
+		Backups: backupSettingsBodyOf(o.Backups), Protection: o.Protection,
 	}
 	if o.PublicIPv4 != nil || o.PublicIPv6 != nil {
 		b.PublicNet = &serverPublicNetReq{IPv4: o.PublicIPv4, IPv6: o.PublicIPv6}
@@ -287,9 +292,10 @@ func (o ServerCreateOpts) body() serverCreateBody {
 }
 
 type serverUpdateBody struct {
-	Name    *string             `json:"name,omitempty"`
-	Labels  *map[string]string  `json:"labels,omitempty"`
-	Backups *backupSettingsBody `json:"backups,omitempty"`
+	Name       *string               `json:"name,omitempty"`
+	Labels     *map[string]string    `json:"labels,omitempty"`
+	Backups    *backupSettingsBody   `json:"backups,omitempty"`
+	Protection *ServerProtectionOpts `json:"protection,omitempty"`
 }
 
 // ServersService works with servers.
@@ -342,11 +348,11 @@ func (s *ServersService) Create(ctx context.Context, opts ServerCreateOpts) (Ser
 	return res, nil
 }
 
-// Update renames a server, replaces its labels or changes its backup settings.
+// Update renames a server, replaces its labels, or changes its backup settings or protection.
 func (s *ServersService) Update(ctx context.Context, id int64, opts ServerUpdateOpts) (*Server, error) {
 	opts.Labels = clearable(opts.Labels)
 	var w wire.Server
-	body := serverUpdateBody{Name: opts.Name, Labels: opts.Labels, Backups: backupSettingsBodyOf(opts.Backups)}
+	body := serverUpdateBody{Name: opts.Name, Labels: opts.Labels, Backups: backupSettingsBodyOf(opts.Backups), Protection: opts.Protection}
 	if err := s.c.do(ctx, "PUT", serverPath(id, ""), nil, body, &w); err != nil {
 		return nil, err
 	}

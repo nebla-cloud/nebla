@@ -957,9 +957,10 @@ type FloatingIP struct {
 	IP string `json:"ip"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels   Labels      `json:"labels"`
-	Location LocationRef `json:"location"`
-	Name     string      `json:"name"`
+	Labels     Labels      `json:"labels"`
+	Location   LocationRef `json:"location"`
+	Name       string      `json:"name"`
+	Protection Protection  `json:"protection"`
 
 	// Server The assigned server's id
 	Server *int64           `json:"server"`
@@ -992,6 +993,9 @@ type FloatingIPInput struct {
 	// Name Generated from the address when omitted
 	Name *string `json:"name,omitempty"`
 
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
+
 	// Server Server id or name to assign to after creating; set exactly one of location and server
 	Server *string             `json:"server,omitempty"`
 	Type   FloatingIPInputType `json:"type"`
@@ -1007,6 +1011,9 @@ type FloatingIPUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // GuestConfig Commands to run inside the servers so they use the address; new and rebuilt servers set this up automatically
@@ -1410,10 +1417,11 @@ type PrimaryIP struct {
 	IP string `json:"ip"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels   Labels      `json:"labels"`
-	Location LocationRef `json:"location"`
-	Name     string      `json:"name"`
-	Server   *struct {
+	Labels     Labels      `json:"labels"`
+	Location   LocationRef `json:"location"`
+	Name       string      `json:"name"`
+	Protection Protection  `json:"protection"`
+	Server     *struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	} `json:"server"`
@@ -1445,8 +1453,11 @@ type PrimaryIPInput struct {
 	Location string `json:"location"`
 
 	// Name Generated when omitted
-	Name *string            `json:"name,omitempty"`
-	Type PrimaryIPInputType `json:"type"`
+	Name *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput   `json:"protection,omitempty"`
+	Type       PrimaryIPInputType `json:"type"`
 }
 
 // PrimaryIPInputType defines model for PrimaryIPInput.Type.
@@ -1460,6 +1471,9 @@ type PrimaryIPUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // PrivateNetworkPool Read-only: the location's private network pool
@@ -1515,6 +1529,17 @@ type ProjectUsage struct {
 	Vcpu            int `json:"vcpu"`
 	VolumeGb        int `json:"volume_gb"`
 	Volumes         int `json:"volumes"`
+}
+
+// Protection defines model for Protection.
+type Protection struct {
+	// Delete Refuse deletes while true
+	Delete bool `json:"delete"`
+}
+
+// ProtectionInput A missing field keeps its current value; false on create
+type ProtectionInput struct {
+	Delete *bool `json:"delete,omitempty"`
 }
 
 // PveConnection defines model for PveConnection.
@@ -1620,7 +1645,8 @@ type Server struct {
 		Name        string              `json:"name"`
 		Network     int64               `json:"network"`
 	} `json:"private_net"`
-	PublicNet struct {
+	Protection ServerProtection `json:"protection"`
+	PublicNet  struct {
 		// FloatingIps Floating IPs assigned to the server
 		FloatingIps []struct {
 			ID int64  `json:"id"`
@@ -1693,7 +1719,10 @@ type ServerInput struct {
 		// Network Network id or name
 		Network string `json:"network"`
 	} `json:"networks,omitempty"`
-	PublicNet *struct {
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ServerProtectionInput `json:"protection,omitempty"`
+	PublicNet  *struct {
 		// Ipv4 true allocates a new address, false none, a string uses that unassigned primary IP (id or name)
 		Ipv4 *ServerInput_PublicNet_Ipv4 `json:"ipv4,omitempty"`
 
@@ -1744,6 +1773,21 @@ type ServerIP struct {
 	IP string `json:"ip"`
 }
 
+// ServerProtection defines model for ServerProtection.
+type ServerProtection struct {
+	// Delete Refuse deletes while true
+	Delete bool `json:"delete"`
+
+	// Rebuild Refuse rebuilds and backup restores while true
+	Rebuild bool `json:"rebuild"`
+}
+
+// ServerProtectionInput A missing field keeps its current value; false on create
+type ServerProtectionInput struct {
+	Delete  *bool `json:"delete,omitempty"`
+	Rebuild *bool `json:"rebuild,omitempty"`
+}
+
 // ServerType defines model for ServerType.
 type ServerType struct {
 	Cores       int     `json:"cores"`
@@ -1782,6 +1826,9 @@ type ServerUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ServerProtectionInput `json:"protection,omitempty"`
 }
 
 // Snapshot defines model for Snapshot.
@@ -1797,11 +1844,12 @@ type Snapshot struct {
 	} `json:"image"`
 
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
-	Labels    Labels      `json:"labels"`
-	Location  LocationRef `json:"location"`
-	Name      string      `json:"name"`
-	OsFlavor  string      `json:"os_flavor"`
-	OsVersion string      `json:"os_version"`
+	Labels     Labels      `json:"labels"`
+	Location   LocationRef `json:"location"`
+	Name       string      `json:"name"`
+	OsFlavor   string      `json:"os_flavor"`
+	OsVersion  string      `json:"os_version"`
+	Protection Protection  `json:"protection"`
 
 	// RestoreKeepsIdentity Whether restoring keeps the server's identity; null when the source server is gone, false when its network has changed since
 	RestoreKeepsIdentity *bool `json:"restore_keeps_identity"`
@@ -1833,6 +1881,9 @@ type SnapshotInput struct {
 	// Name Defaults to <server>-<YYYYMMDD-HHMM> in UTC
 	Name *string `json:"name,omitempty"`
 
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
+
 	// Server Server id or name
 	Server string `json:"server"`
 }
@@ -1844,6 +1895,9 @@ type SnapshotUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // SSHKey defines model for SshKey.
@@ -1914,6 +1968,7 @@ type Volume struct {
 	LinuxDevice string      `json:"linux_device"`
 	Location    LocationRef `json:"location"`
 	Name        string      `json:"name"`
+	Protection  Protection  `json:"protection"`
 
 	// Server The attached server's id
 	Server *int64 `json:"server"`
@@ -1941,6 +1996,9 @@ type VolumeInput struct {
 	Location *string `json:"location,omitempty"`
 	Name     string  `json:"name"`
 
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
+
 	// Server Server id or name to attach to after creating
 	Server *string `json:"server,omitempty"`
 
@@ -1959,6 +2017,9 @@ type VolumeUpdate struct {
 	// Labels At most 64; keys and values are 1-63 of [A-Za-z0-9._-] (keys may also use /), starting and ending alphanumeric; values may be empty
 	Labels *Labels `json:"labels,omitempty"`
 	Name   *string `json:"name,omitempty"`
+
+	// Protection A missing field keeps its current value; false on create
+	Protection *ProtectionInput `json:"protection,omitempty"`
 }
 
 // CatalogKey defines model for CatalogKey.

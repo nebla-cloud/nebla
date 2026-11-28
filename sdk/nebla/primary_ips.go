@@ -42,6 +42,7 @@ type PrimaryIP struct {
 	// AutoDelete deletes the address when its server is deleted.
 	AutoDelete bool
 	Status     PrimaryIPStatus
+	Protection Protection
 	Created    time.Time
 }
 
@@ -49,7 +50,7 @@ func primaryIPFromWire(w wire.PrimaryIP) PrimaryIP {
 	ip := PrimaryIP{
 		ID: w.ID, Name: w.Name, Description: w.Description, Labels: map[string]string(w.Labels),
 		Type: IPType(w.Type), IP: w.IP, Location: locationRefFromWire(w.Location),
-		AutoDelete: w.AutoDelete, Status: PrimaryIPStatus(w.Status), Created: w.Created,
+		AutoDelete: w.AutoDelete, Status: PrimaryIPStatus(w.Status), Protection: Protection{Delete: w.Protection.Delete}, Created: w.Created,
 	}
 	if w.Server != nil {
 		ip.Server = &PrimaryIPServer{ID: w.Server.ID, Name: w.Server.Name}
@@ -68,6 +69,7 @@ type PrimaryIPCreateOpts struct {
 	Location string
 	// AutoDelete nil leaves the API default (true); Ptr(false) keeps the address after its server is deleted.
 	AutoDelete *bool
+	Protection *ProtectionOpts
 }
 
 // PrimaryIPUpdateOpts changes a primary IP; nil fields are not sent, and a non-nil empty Labels clears them.
@@ -76,6 +78,7 @@ type PrimaryIPUpdateOpts struct {
 	Description *string
 	Labels      *map[string]string
 	AutoDelete  *bool
+	Protection  *ProtectionOpts
 }
 
 // PrimaryIPListOpts filters a list of primary IPs.
@@ -107,6 +110,7 @@ type primaryIPCreateBody struct {
 	Type        IPType            `json:"type"`
 	Location    string            `json:"location"`
 	AutoDelete  *bool             `json:"auto_delete,omitempty"`
+	Protection  *ProtectionOpts   `json:"protection,omitempty"`
 }
 
 type primaryIPUpdateBody struct {
@@ -114,6 +118,7 @@ type primaryIPUpdateBody struct {
 	Description *string            `json:"description,omitempty"`
 	Labels      *map[string]string `json:"labels,omitempty"`
 	AutoDelete  *bool              `json:"auto_delete,omitempty"`
+	Protection  *ProtectionOpts    `json:"protection,omitempty"`
 }
 
 // PrimaryIPsService works with primary IPs.
@@ -156,7 +161,7 @@ func (s *PrimaryIPsService) Create(ctx context.Context, opts PrimaryIPCreateOpts
 	var w struct {
 		PrimaryIP wire.PrimaryIP `json:"primary_ip"`
 	}
-	body := primaryIPCreateBody{Name: opts.Name, Description: opts.Description, Labels: opts.Labels, Type: opts.Type, Location: opts.Location, AutoDelete: opts.AutoDelete}
+	body := primaryIPCreateBody{Name: opts.Name, Description: opts.Description, Labels: opts.Labels, Type: opts.Type, Location: opts.Location, AutoDelete: opts.AutoDelete, Protection: opts.Protection}
 	if err := s.c.do(ctx, "POST", "/primary_ips", nil, body, &w); err != nil {
 		return nil, err
 	}
@@ -164,7 +169,7 @@ func (s *PrimaryIPsService) Create(ctx context.Context, opts PrimaryIPCreateOpts
 	return &ip, nil
 }
 
-// Update changes a primary IP's name, description, labels or auto-delete.
+// Update changes a primary IP's name, description, labels, auto-delete or protection.
 func (s *PrimaryIPsService) Update(ctx context.Context, id int64, opts PrimaryIPUpdateOpts) (*PrimaryIP, error) {
 	opts.Labels = clearable(opts.Labels)
 	var w wire.PrimaryIP

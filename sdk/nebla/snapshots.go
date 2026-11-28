@@ -48,6 +48,7 @@ type Snapshot struct {
 	Status     SnapshotStatus
 	// RestoreKeepsIdentity is nil when the source server is gone.
 	RestoreKeepsIdentity *bool
+	Protection           Protection
 	Created              time.Time
 }
 
@@ -56,7 +57,7 @@ func snapshotFromWire(w wire.Snapshot) Snapshot {
 		ID: w.ID, Name: w.Name, Description: w.Description, Labels: map[string]string(w.Labels), Size: w.Size,
 		Location: locationRefFromWire(w.Location), Server: w.Server, ServerName: w.ServerName,
 		OSFlavor: w.OsFlavor, OSVersion: w.OsVersion, Status: SnapshotStatus(w.Status),
-		RestoreKeepsIdentity: w.RestoreKeepsIdentity, Created: w.Created,
+		RestoreKeepsIdentity: w.RestoreKeepsIdentity, Protection: Protection{Delete: w.Protection.Delete}, Created: w.Created,
 	}
 	if w.Image != nil {
 		s.Image = &SnapshotImage{ID: w.Image.ID, Name: w.Image.Name}
@@ -72,7 +73,8 @@ type SnapshotCreateOpts struct {
 	Description string
 	Labels      map[string]string
 	// ForceStop powers the server off if it does not shut down in time.
-	ForceStop bool
+	ForceStop  bool
+	Protection *ProtectionOpts
 }
 
 // SnapshotCreateResult is the outcome of creating a snapshot.
@@ -86,6 +88,7 @@ type SnapshotUpdateOpts struct {
 	Name        *string
 	Description *string
 	Labels      *map[string]string
+	Protection  *ProtectionOpts
 }
 
 // SnapshotListOpts filters a list of snapshots.
@@ -116,12 +119,14 @@ type snapshotCreateBody struct {
 	Description string            `json:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	ForceStop   bool              `json:"force_stop,omitempty"`
+	Protection  *ProtectionOpts   `json:"protection,omitempty"`
 }
 
 type snapshotUpdateBody struct {
 	Name        *string            `json:"name,omitempty"`
 	Description *string            `json:"description,omitempty"`
 	Labels      *map[string]string `json:"labels,omitempty"`
+	Protection  *ProtectionOpts    `json:"protection,omitempty"`
 }
 
 // SnapshotsService works with snapshots.
@@ -169,7 +174,7 @@ func (s *SnapshotsService) Create(ctx context.Context, opts SnapshotCreateOpts) 
 	return SnapshotCreateResult{Snapshot: snapshotFromWire(w.Snapshot), Action: actionFromWire(w.Action)}, nil
 }
 
-// Update renames a snapshot, changes its description or replaces its labels.
+// Update renames a snapshot, changes its description or protection, or replaces its labels.
 func (s *SnapshotsService) Update(ctx context.Context, id int64, opts SnapshotUpdateOpts) (*Snapshot, error) {
 	opts.Labels = clearable(opts.Labels)
 	var w wire.Snapshot

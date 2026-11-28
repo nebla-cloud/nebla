@@ -57,6 +57,7 @@ const (
 	CodePoolInUse                  ErrorCode = "pool_in_use"
 	CodePoolOverlap                ErrorCode = "pool_overlap"
 	CodeProjectNotEmpty            ErrorCode = "project_not_empty"
+	CodeProtected                  ErrorCode = "protected"
 	CodePVEUnreachable             ErrorCode = "pve_unreachable"
 	CodeQuotaExceeded              ErrorCode = "quota_exceeded"
 	CodeRateLimitExceeded          ErrorCode = "rate_limit_exceeded"
@@ -150,6 +151,7 @@ var (
 	ErrPoolInUse                  = &Error{Code: CodePoolInUse}
 	ErrPoolOverlap                = &Error{Code: CodePoolOverlap}
 	ErrProjectNotEmpty            = &Error{Code: CodeProjectNotEmpty}
+	ErrProtected                  = &Error{Code: CodeProtected}
 	ErrPVEUnreachable             = &Error{Code: CodePVEUnreachable}
 	ErrQuotaExceeded              = &Error{Code: CodeQuotaExceeded}
 	ErrRateLimitExceeded          = &Error{Code: CodeRateLimitExceeded}
@@ -244,6 +246,7 @@ func KnownCodes() []ErrorCode {
 		CodePoolInUse,
 		CodePoolOverlap,
 		CodeProjectNotEmpty,
+		CodeProtected,
 		CodePVEUnreachable,
 		CodeQuotaExceeded,
 		CodeRateLimitExceeded,

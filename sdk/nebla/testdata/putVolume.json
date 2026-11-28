@@ -1,1 +1,1 @@
-{"id":3,"name":"data","labels":{"env":"prod"},"size":50,"location":{"id":1,"name":"lon1","description":"Falkenstein"},"server":7,"status":"attached","linux_device":"/dev/disk/by-id/virtio-nb-vol-3","created":"2026-01-01T00:00:00Z"}
+{"id":3,"name":"data","labels":{"env":"prod"},"protection":{"delete":true},"size":50,"location":{"id":1,"name":"lon1","description":"Falkenstein"},"server":7,"status":"attached","linux_device":"/dev/disk/by-id/virtio-nb-vol-3","created":"2026-01-01T00:00:00Z"}
