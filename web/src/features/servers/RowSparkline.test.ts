@@ -40,13 +40,23 @@ const body = {
         [2, 18],
         [3, 9],
       ],
+      'memory.used': [
+        [1, 10],
+        [2, 40],
+        [3, 50],
+      ],
+      'memory.total': [
+        [1, 100],
+        [2, 100],
+        [3, 100],
+      ],
     },
   },
 }
 
 let urls: URL[] = []
 let gate: Promise<void> | null = null
-function serve(status = 200) {
+function serve(status = 200, payload: unknown = body) {
   urls = []
   server.use(
     http.get('*/v1/projects/1', () =>
@@ -56,20 +66,22 @@ function serve(status = 200) {
       urls.push(new URL(request.url))
       if (gate) await gate
       return status === 200
-        ? json(200, body)
+        ? json(200, payload)
         : json(status, { error: { code: 'unavailable', message: 'nope' } })
     }),
   )
 }
 
-async function mountRows(rows: MaybeRef<{ serverId: number; running: boolean }[]>) {
+async function mountRows(
+  rows: MaybeRef<{ serverId: number; running: boolean; metric?: 'cpu' | 'memory' }[]>,
+) {
   const router = testRouter([{ path: '/p/:projectId', component: { render: () => null } }])
   await router.push('/p/1')
   const C = defineComponent({
     render: () =>
       h(
         'div',
-        toValue(rows).map((r) => h(RowSparkline, { key: r.serverId, ...r })),
+        toValue(rows).map((r) => h(RowSparkline, { key: r.serverId, metric: 'cpu', ...r })),
       ),
   })
   return mount(C, {
@@ -93,7 +105,10 @@ describe('RowSparkline', () => {
     await vi.waitFor(() => expect(w.find('path[data-line]').exists()).toBe(true))
     expect(urls).toHaveLength(1)
     expect(urls[0]!.pathname).toMatch(/\/servers\/5\/metrics$/)
-    expect(urls[0]!.searchParams.getAll('type').flatMap((t) => t.split(','))).toEqual(['cpu'])
+    expect(urls[0]!.searchParams.getAll('type').flatMap((t) => t.split(','))).toEqual([
+      'cpu',
+      'memory',
+    ])
     expect(urls[0]!.searchParams.get('timeframe')).toBe('hour')
     const svg = w.find('svg')
     expect(svg.attributes('viewBox')).toBe('0 0 80 22')
@@ -106,6 +121,37 @@ describe('RowSparkline', () => {
     const w = await mountRows([{ serverId: 5, running: true }])
     await vi.waitFor(() => expect(w.find('path[data-line]').exists()).toBe(true))
     expect(w.findComponent(Sparkline).props('max')).toBe(100)
+  })
+
+  it('memory draws a run-tone line on a 0–100 scale and shows used over total', async () => {
+    serve()
+    const w = await mountRows([{ serverId: 5, running: true, metric: 'memory' }])
+    await vi.waitFor(() => expect(w.find('path[data-line]').exists()).toBe(true))
+    expect(w.findComponent(Sparkline).props('max')).toBe(100)
+    expect(w.findComponent(Sparkline).props('lines')[0]!.tone).toBe('run')
+    expect(w.find('path[data-line]').attributes('stroke')).toBe('var(--nb-run)')
+    expect(w.text()).toBe('50%')
+  })
+
+  it('a cpu and a memory sparkline for one server send one request', async () => {
+    serve()
+    const w = await mountRows([
+      { serverId: 5, running: true, metric: 'cpu' },
+      { serverId: 5, running: true, metric: 'memory' },
+    ])
+    await vi.waitFor(() => expect(w.findAll('path[data-line]')).toHaveLength(2))
+    await idle()
+    expect(urls).toHaveLength(1)
+  })
+
+  it('a response without memory keys shows a dash for memory', async () => {
+    serve(200, { metrics: { ...body.metrics, time_series: { cpu: body.metrics.time_series.cpu } } })
+    const w = await mountRows([{ serverId: 5, running: true, metric: 'memory' }])
+    await vi.waitFor(() => expect(urls).toHaveLength(1))
+    await flushPromises()
+    await idle()
+    expect(w.text()).toBe('—')
+    expect(w.find('svg').exists()).toBe(false)
   })
 
   it('an off server makes no request and shows a dash', async () => {
@@ -178,7 +224,7 @@ describe('RowSparkline', () => {
     const router = testRouter([{ path: '/p/:projectId', component: { render: () => null } }])
     await router.push('/p/1')
     mount(RowSparkline, {
-      props: { serverId: 5, running: true },
+      props: { serverId: 5, running: true, metric: 'cpu' },
       global: { plugins: [router, [VueQueryPlugin, { queryClient: qc }]] },
     })
     await vi.waitFor(() => expect(urls).toHaveLength(1))

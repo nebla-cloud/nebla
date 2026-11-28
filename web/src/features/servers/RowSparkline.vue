@@ -40,18 +40,21 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useDocumentVisibility, useElementVisibility } from '@vueuse/core'
 import Sparkline from '@/components/Sparkline.vue'
 import { useCurrentProject } from '@/lib/project'
-import { fetchMetrics, formatPercent } from './metrics/metrics'
+import { fetchMetrics, formatPercent, memoryPercent, type TimeSeries } from './metrics/metrics'
 
-const props = defineProps<{ serverId: number; running: boolean }>()
+const props = defineProps<{ serverId: number; running: boolean; metric: 'cpu' | 'memory' }>()
 
 const el = useTemplateRef<HTMLElement>('el')
 const visible = useElementVisibility(el)
 const documentVisibility = useDocumentVisibility()
 const { projectId } = useCurrentProject()
 const qc = useQueryClient()
-const queryKey = computed(() => ['server-metrics', projectId.value, props.serverId, 'hour', 'row'] as const)
+const queryKey = computed(
+  () => ['server-metrics', projectId.value, props.serverId, 'hour', 'row'] as const,
+)
 const enabled = computed(
-  () => visible.value && documentVisibility.value === 'visible' && props.running && projectId.value > 0,
+  () =>
+    visible.value && documentVisibility.value === 'visible' && props.running && projectId.value > 0,
 )
 
 watch(enabled, (active) => {
@@ -59,12 +62,12 @@ watch(enabled, (active) => {
 })
 
 const query = useQuery({
-  // 'row' keeps this apart from the Overview's live cache.
+  // One request serves both columns; 'row' keeps this apart from the Overview's live cache.
   queryKey,
   queryFn: ({ queryKey: [, , serverId], signal }) =>
     limited(() => {
       signal.throwIfAborted()
-      return fetchMetrics(serverId, 'hour', ['cpu'], signal)
+      return fetchMetrics(serverId, 'hour', ['cpu', 'memory'], signal)
     }),
   enabled,
   retry: false,
@@ -76,8 +79,10 @@ const query = useQuery({
 
 const points = computed(() => {
   if (!props.running || query.isError.value) return null
-  const cpu = query.data.value?.time_series?.cpu as [number, number | null][] | undefined
-  return cpu && cpu.filter((p) => p[1] != null).length >= 2 ? cpu : null
+  const ts = query.data.value?.time_series as TimeSeries | undefined
+  if (!ts) return null
+  const series = props.metric === 'memory' ? memoryPercent(ts) : ts.cpu
+  return series && series.filter((p) => p[1] != null).length >= 2 ? series : null
 })
 const latest = computed(() => {
   const pts = points.value ?? []
@@ -90,7 +95,7 @@ const latest = computed(() => {
   <span ref="el" class="block">
     <span v-if="points" class="flex items-center gap-2">
       <Sparkline
-        :lines="[{ points, tone: 'busy' }]"
+        :lines="[{ points, tone: props.metric === 'memory' ? 'run' : 'busy' }]"
         :width="80"
         :height="22"
         :max="100"

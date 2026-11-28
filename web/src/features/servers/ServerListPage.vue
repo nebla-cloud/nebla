@@ -45,7 +45,7 @@ import { filterServers, parseStatusFilter, type StatusFilter } from './statusFil
 const { projectId, project } = useCurrentProject()
 // Shared by the head row and each server row so the columns line up.
 const cols =
-  'md:grid md:w-[30rem] md:shrink-0 md:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr] md:gap-x-3 xl:w-[43rem] xl:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr_120px] 2xl:w-[48rem] [&>*]:min-w-0 [&>*]:truncate'
+  'md:grid md:w-[30rem] md:shrink-0 md:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr] md:gap-x-3 xl:w-[51rem] xl:grid-cols-[1.2fr_1.1fr_1.3fr_0.9fr_120px_120px] 2xl:w-[56rem] [&>*]:min-w-0 [&>*]:truncate'
 const newRoute = computed(() => ({ name: 'server-new', params: { projectId: projectId.value } }))
 const keysRoute = computed(() => ({ name: 'ssh-keys', params: { projectId: projectId.value } }))
 
@@ -262,6 +262,7 @@ onBeforeUnmount(() => clearTimeout(timer))
             <span>Public IPv4</span>
             <span>Location</span>
             <span class="hidden xl:block">CPU, 1h</span>
+            <span class="hidden xl:block">Memory, 1h</span>
           </span>
         </div>
       </template>
@@ -293,7 +294,10 @@ onBeforeUnmount(() => clearTimeout(timer))
             <span v-else class="text-muted">{{ serverStatus(s.status).label }}</span>
             <span>{{ s.location.name }}</span>
             <span data-col="cpu" class="hidden xl:block">
-              <RowSparkline :server-id="s.id" :running="s.status === 'running'" />
+              <RowSparkline :server-id="s.id" :running="s.status === 'running'" metric="cpu" />
+            </span>
+            <span data-col="memory" class="hidden xl:block">
+              <RowSparkline :server-id="s.id" :running="s.status === 'running'" metric="memory" />
             </span>
           </span>
         </span>
