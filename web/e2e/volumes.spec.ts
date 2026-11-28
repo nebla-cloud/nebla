@@ -78,6 +78,22 @@ test('create, attach, detach and delete a volume', async ({ page }) => {
   await page.getByRole('link', { name: new RegExp(vol) }).click()
   await expect(page.getByRole('heading', { level: 1, name: vol })).toBeVisible()
   await expect(page.getByRole('definition').filter({ hasText: 'Not attached' })).toBeVisible()
+  const setDeleteProtection = async (on: boolean) => {
+    await page.getByRole('button', { name: 'Protection' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change protection' })
+    await dialog.getByRole('checkbox', { name: 'Delete' }).setChecked(on)
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+  }
+  await setDeleteProtection(true)
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeDisabled()
+  await nav.getByRole('link', { name: 'Volumes', exact: true }).click()
+  await expect(
+    page.getByRole('link', { name: new RegExp(vol) }).getByLabel('Protected'),
+  ).toBeVisible()
+  await page.getByRole('link', { name: new RegExp(vol) }).click()
+  await setDeleteProtection(false)
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Delete', exact: true }).click()
   const confirm = page.getByRole('dialog')
   await confirm.locator('input[name=confirm_name]').fill(vol)

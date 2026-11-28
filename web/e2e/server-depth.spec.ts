@@ -139,6 +139,24 @@ test('rebuild', async () => {
   await expectNoLeaks(page)
 })
 
+test('rebuild protection', async () => {
+  await openServer()
+  const setRebuildProtection = async (on: boolean) => {
+    await page.getByRole('button', { name: 'Protection' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change protection' })
+    await dialog.getByRole('checkbox', { name: 'Rebuild' }).setChecked(on)
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+  }
+  await setRebuildProtection(true)
+  await tab('Rebuild').click()
+  await expect(page.getByRole('button', { name: 'Rebuild', exact: true })).toBeDisabled()
+  await expectNoLeaks(page)
+  await setRebuildProtection(false)
+  await expect(page.getByRole('button', { name: 'Rebuild', exact: true })).toBeEnabled()
+  await expectNoLeaks(page)
+})
+
 test('resize', async () => {
   await openServer()
   await tab('Resize').click()
