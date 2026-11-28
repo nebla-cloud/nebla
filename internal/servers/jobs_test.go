@@ -234,6 +234,19 @@ func TestRebootResetsGuestIgnoringACPI(t *testing.T) {
 	require.Equal(t, servers.StatusRunning, status(t, e, s.ServerID))
 }
 
+func TestRebootLockTimeoutDoesNotReset(t *testing.T) {
+	ctx := context.Background()
+	e, cw := directEnv(t)
+	s := builtServer(t, e, cw, "web")
+	vmid := vmidOf(t, e, s.ServerID)
+	w := servers.NewPowerServerWorker(opts(e))
+	e.App.PVE.RebootExit = map[int]string{vmid: fmt.Sprintf("can't lock file '/var/lock/qemu-server/lock-%d.conf' - got timeout", vmid)}
+	resets := countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/reset", vmid))
+	id := startAction(t, e, s.ServerID, "reboot", nil)
+	_ = w.Work(ctx, jobOf(queuedArgs[servers.PowerServerArgs](t, e, id), 1))
+	require.Equal(t, resets, countCalls(e, fmt.Sprintf("POST /nodes/pve1/qemu/%d/status/reset", vmid)))
+}
+
 func TestSecondActionLocked(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)

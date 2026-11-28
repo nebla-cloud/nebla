@@ -170,7 +170,7 @@ func (w *PowerServerWorker) run(ctx context.Context, pc pve.Client, row *ent.Ser
 func (w *PowerServerWorker) power(ctx context.Context, pc pve.Client, node string, vmid int, op pve.PowerOp) error {
 	err := w.task(ctx, pc, node, vmid, op)
 	var te *pve.TaskError
-	if op != pve.PowerReboot || !errors.As(err, &te) || !strings.Contains(te.ExitStatus, "got timeout") {
+	if op != pve.PowerReboot || !errors.As(err, &te) || !strings.Contains(te.ExitStatus, "powerdown failed") {
 		return err
 	}
 	w.o.Logger.Info("guest ignored the reboot request; resetting the vm", "vmid", vmid)

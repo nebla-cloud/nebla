@@ -123,6 +123,8 @@ type Server struct {
 	FailVzdump, FailRestore bool
 	// HangShutdown makes that VMID ignore ACPI: a shutdown without timeout finishes OK leaving it running, others time out.
 	HangShutdown map[int]bool
+	// RebootExit, when set for a VMID, is the exit status of its reboot tasks.
+	RebootExit map[int]string
 	// FailImport fails the next create task importing a disk into that VMID, once.
 	FailImport map[int]error
 
@@ -1760,6 +1762,8 @@ func (s *Server) routes(mux *http.ServeMux) {
 					return fmt.Sprintf("ERROR: VM %d not running", id)
 				case op == "shutdown" && s.HangShutdown[id] && timeout != "":
 					return "ERROR: VM quit/powerdown failed - got timeout"
+				case op == "reboot" && s.RebootExit[id] != "":
+					return s.RebootExit[id]
 				case op == "reboot" && s.HangShutdown[id]:
 					return "ERROR: VM quit/powerdown failed - got timeout"
 				case op == "shutdown" && s.HangShutdown[id]:
