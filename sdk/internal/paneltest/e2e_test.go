@@ -41,6 +41,7 @@ import (
 	"github.com/nebla-cloud/nebla/internal/pve"
 	"github.com/nebla-cloud/nebla/internal/pve/fake"
 	"github.com/nebla-cloud/nebla/internal/servers"
+	"github.com/nebla-cloud/nebla/internal/snapshots"
 	"github.com/nebla-cloud/nebla/internal/testutil"
 	"github.com/nebla-cloud/nebla/internal/volumes"
 	"github.com/nebla-cloud/nebla/sdk/nebla"
@@ -129,6 +130,8 @@ func e2eSetup(t *testing.T, tg e2eTarget) (*nebla.Client, pve.Client, map[string
 		servers.RegisterWorkers(w, servers.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
 			PollInterval: time.Second, Jobs: func() *jobs.Jobs { return d.Jobs }})
 		volumes.RegisterWorkers(w, volumes.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log})
+		snapshots.RegisterWorkers(w, snapshots.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
+			PollInterval: time.Second})
 		backups.RegisterWorkers(w, backups.WorkerOptions{SQL: d.SQL, Ent: d.Ent, Catalog: d.Catalog, Bus: d.Bus, Logger: log,
 			Jobs: func() *jobs.Jobs { return d.Jobs }})
 	}
@@ -241,6 +244,11 @@ func TestSDKSmoke(t *testing.T) {
 			e2eCleanup(t, c, "snapshot", func(ctx context.Context) (*nebla.Action, error) { return c.Snapshots.Delete(ctx, snapshotID) })
 		}
 		if volumeID != 0 {
+			ctx, cancel := context.WithTimeout(context.Background(), e2eActionTimeout)
+			if a, err := c.Volumes.Detach(ctx, volumeID); err == nil && a != nil {
+				_ = c.Actions.WaitFor(ctx, []nebla.Action{*a})
+			}
+			cancel()
 			e2eCleanup(t, c, "volume", func(ctx context.Context) (*nebla.Action, error) { return c.Volumes.Delete(ctx, volumeID) })
 		}
 		if serverID != 0 {
@@ -268,34 +276,44 @@ func TestSDKSmoke(t *testing.T) {
 	require.Equal(t, nebla.ServerStatusRunning, srv.Status)
 	require.Len(t, e2eTaggedVMs(t, pc, serverID), 1)
 
-	a, err := c.Servers.Reboot(ctx, serverID)
+	// A guest still booting ignores the ACPI reboot, so use hard power ops.
+	a, err := c.Servers.PowerOff(ctx, serverID)
+	require.NoError(t, err)
+	e2eWait(t, c, *a)
+	srv, err = c.Servers.Get(ctx, serverID)
+	require.NoError(t, err)
+	require.Equal(t, nebla.ServerStatusOff, srv.Status)
+	a, err = c.Servers.PowerOn(ctx, serverID)
 	require.NoError(t, err)
 	e2eWait(t, c, *a)
 	srv, err = c.Servers.Get(ctx, serverID)
 	require.NoError(t, err)
 	require.Equal(t, nebla.ServerStatusRunning, srv.Status)
 
-	vol, err := c.Volumes.Create(ctx, nebla.VolumeCreateOpts{Name: fmt.Sprintf("nebla-sdk-e2e-vol-%d", stamp), Size: 1, Location: "e2e"})
+	vol, err := c.Volumes.Create(ctx, nebla.VolumeCreateOpts{Name: fmt.Sprintf("nebla-sdk-e2e-vol-%d", stamp), Size: 10, Location: "e2e"})
 	require.NoError(t, err)
 	volumeID = vol.Volume.ID
 	e2eWait(t, c, vol.Action)
 	a, err = c.Volumes.Attach(ctx, volumeID, nebla.VolumeAttachOpts{Server: strconv.FormatInt(serverID, 10)})
 	require.NoError(t, err)
 	e2eWait(t, c, *a)
-	a, err = c.Volumes.Resize(ctx, volumeID, 2)
+	a, err = c.Volumes.Resize(ctx, volumeID, 11)
 	require.NoError(t, err)
 	e2eWait(t, c, *a)
 	v, err := c.Volumes.Get(ctx, volumeID)
 	require.NoError(t, err)
-	require.Equal(t, 2, v.Size)
+	require.Equal(t, 11, v.Size)
 
 	snap, err := c.Snapshots.Create(ctx, nebla.SnapshotCreateOpts{Server: strconv.FormatInt(serverID, 10),
-		Name: fmt.Sprintf("nebla-sdk-e2e-snap-%d", stamp)})
+		Name: fmt.Sprintf("nebla-sdk-e2e-snap-%d", stamp), ForceStop: true})
 	require.NoError(t, err)
 	snapshotID = snap.Snapshot.ID
 	e2eWait(t, c, snap.Action)
 
 	e2eDelete(t, c, func(ctx context.Context) (*nebla.Action, error) { return c.Snapshots.Delete(ctx, snapshotID) })
+	a, err = c.Volumes.Detach(ctx, volumeID)
+	require.NoError(t, err)
+	e2eWait(t, c, *a)
 	e2eDelete(t, c, func(ctx context.Context) (*nebla.Action, error) { return c.Volumes.Delete(ctx, volumeID) })
 	e2eDelete(t, c, func(ctx context.Context) (*nebla.Action, error) { return c.Servers.Delete(ctx, serverID) })
 	require.Empty(t, e2eTaggedVMs(t, pc, serverID))
