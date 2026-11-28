@@ -60,14 +60,14 @@ func TestPrimaryIPCreate(t *testing.T) {
 	c, f := newFake(t)
 	ctx := context.Background()
 	f.handle("POST", "/v1/primary_ips", 201, "postPrimaryIps")
-	ip, err := c.PrimaryIPs.Create(ctx, PrimaryIPCreateOpts{Name: "pip", Description: "main", Labels: map[string]string{"a": "b"}, Type: IPTypeIPv6, Location: "fsn1", AutoDelete: true})
+	ip, err := c.PrimaryIPs.Create(ctx, PrimaryIPCreateOpts{Name: "pip", Description: "main", Labels: map[string]string{"a": "b"}, Type: IPTypeIPv6, Location: "fsn1", AutoDelete: Ptr(false)})
 	require.NoError(t, err)
 	assert.Equal(t, int64(6), ip.ID)
-	assert.JSONEq(t, `{"name":"pip","description":"main","labels":{"a":"b"},"type":"ipv6","location":"fsn1","auto_delete":true}`, bodyString(f))
+	assert.JSONEq(t, `{"name":"pip","description":"main","labels":{"a":"b"},"type":"ipv6","location":"fsn1","auto_delete":false}`, bodyString(f))
 
 	_, err = c.PrimaryIPs.Create(ctx, PrimaryIPCreateOpts{Type: IPTypeIPv4, Location: "fsn1"})
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"type":"ipv4","location":"fsn1","auto_delete":false}`, bodyString(f))
+	assert.JSONEq(t, `{"type":"ipv4","location":"fsn1"}`, bodyString(f))
 }
 
 func TestPrimaryIPUpdateDelete(t *testing.T) {

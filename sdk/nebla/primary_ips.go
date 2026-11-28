@@ -66,8 +66,8 @@ type PrimaryIPCreateOpts struct {
 	Type        IPType
 	// Location is a location id or name.
 	Location string
-	// AutoDelete is always sent, so the zero value keeps the address after its server is deleted.
-	AutoDelete bool
+	// AutoDelete nil leaves the API default (true); Ptr(false) keeps the address after its server is deleted.
+	AutoDelete *bool
 }
 
 // PrimaryIPUpdateOpts changes a primary IP; nil fields are not sent, and a non-nil empty Labels clears them.
@@ -106,7 +106,7 @@ type primaryIPCreateBody struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 	Type        IPType            `json:"type"`
 	Location    string            `json:"location"`
-	AutoDelete  bool              `json:"auto_delete"`
+	AutoDelete  *bool             `json:"auto_delete,omitempty"`
 }
 
 type primaryIPUpdateBody struct {
