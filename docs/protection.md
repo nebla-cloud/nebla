@@ -31,7 +31,8 @@ While Delete is on, the Delete button stays visible but disabled, with a tooltip
 each backup's Restore are disabled the same way while Rebuild is on, and so is a snapshot's Restore on the server's
 Snapshots tab. Lists show a small lock before the name of anything that has delete protection.
 
-You can change protection while an action is running on the resource.
+You can change protection while an action is running on the resource. Turning protection on after a delete has
+already been accepted doesn't stop that delete.
 
 ## With the API
 
@@ -49,7 +50,7 @@ status. The create requests take the same object, and a missing field means off.
 ## With the CLI
 
 ```sh
-nebla volume create --name data --size 50 --protect-delete
+nebla volume create --name data --size 50 --location home --protect-delete
 nebla volume update data --protect-delete=false
 nebla server update web1 --protect-delete --protect-rebuild
 ```
@@ -57,7 +58,7 @@ nebla server update web1 --protect-delete --protect-rebuild
 `server create` and `server update` take `--protect-delete` and `--protect-rebuild`. `volume`, `floating-ip`,
 `primary-ip` and `snapshot` take `--protect-delete` on `create` and `update`. A flag is sent only when you pass it, so
 `--protect-delete=false` turns protection off, and an update without the flags leaves it alone. `describe` shows a
-`Protection:` line: `none`, `delete` or `delete, rebuild`.
+`Protection:` line: `none`, `delete`, `rebuild` or `delete, rebuild`.
 
 ## Protected primary IPs when a server is deleted
 
